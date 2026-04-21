@@ -1,1 +1,1 @@
-git add -A && git commit -m "snapshot before enemy variety + death screen"
+git add -A && git commit -m "feat: enemy variety by depth, enemy HP bar, death screen, camera shake"

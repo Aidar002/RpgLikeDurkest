@@ -9,49 +9,34 @@ export interface PlayerStats {
 
 export class PlayerManager {
     public stats: PlayerStats;
-    
-    // Listeners for UI
+    public killCount = 0;
+
     public onHpChange: (hp: number, max: number) => void = () => {};
     public onDeath: () => void = () => {};
     public onLevelUp: (level: number) => void = () => {};
 
     constructor() {
-        this.stats = {
-            maxHp: 20,
-            hp: 20,
-            attack: 5,
-            defense: 1,
-            level: 1,
-            xp: 0
-        };
+        this.stats = { maxHp: 20, hp: 20, attack: 5, defense: 1, level: 1, xp: 0 };
     }
 
-    takeDamage(amount: number) {
-        const actualDamage = Math.max(0, amount - this.stats.defense);
-        this.stats.hp -= actualDamage;
-        if (this.stats.hp < 0) this.stats.hp = 0;
-        
+    takeDamage(amount: number): number {
+        const actual = Math.max(1, amount - this.stats.defense);
+        this.stats.hp = Math.max(0, this.stats.hp - actual);
         this.onHpChange(this.stats.hp, this.stats.maxHp);
-        
-        if (this.stats.hp === 0) {
-            this.onDeath();
-        }
-        
-        return actualDamage;
+        if (this.stats.hp === 0) this.onDeath();
+        return actual;
     }
-    
+
     heal(amount: number) {
-        this.stats.hp += amount;
-        if (this.stats.hp > this.stats.maxHp) this.stats.hp = this.stats.maxHp;
+        this.stats.hp = Math.min(this.stats.maxHp, this.stats.hp + amount);
         this.onHpChange(this.stats.hp, this.stats.maxHp);
     }
 
     gainXp(amount: number) {
         this.stats.xp += amount;
-        // Simple curve: level * 10 xp to next level
-        const xpNeeded = this.stats.level * 10;
-        if (this.stats.xp >= xpNeeded) {
-            this.stats.xp -= xpNeeded;
+        const needed = this.stats.level * 10;
+        if (this.stats.xp >= needed) {
+            this.stats.xp -= needed;
             this.levelUp();
         }
     }
