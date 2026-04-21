@@ -10,89 +10,79 @@ export enum RoomType {
 
 export interface MapNode {
     id: string;
-    x: number; // grid x
-    y: number; // grid y
+    depth: number;   // column index, increases going forward
+    slot: number;    // row within column
     type: RoomType;
     visited: boolean;
-    edges: string[]; // connected node ids
+    cleared: boolean; // player has left this room behind
+    edges: string[]; // ids of nodes at depth+1 this connects to
 }
 
 export class MapGenerator {
-    // Generates a simple grid-based graph
-    generateGraph(nodeCount: number): MapNode[] {
-        const nodes: MapNode[] = [];
-        const grid: { [key: string]: MapNode } = {};
+    private counter = 0;
 
-        const addNode = (x: number, y: number, type: RoomType): MapNode => {
-            const id = `${x},${y}`;
-            const node: MapNode = { id, x, y, type, visited: false, edges: [] };
-            nodes.push(node);
-            grid[id] = node;
-            return node;
-        };
+    generateInitialMap(lookahead: number = 4): MapNode[] {
+        const all: MapNode[] = [];
+        const start = this.makeNode(0, 0, RoomType.START);
+        start.visited = true;
+        all.push(start);
 
-        const connect = (n1: MapNode, n2: MapNode) => {
-            if (!n1.edges.includes(n2.id)) n1.edges.push(n2.id);
-            if (!n2.edges.includes(n1.id)) n2.edges.push(n1.id);
-        };
-
-        // Start node at 0,0
-        let current = addNode(0, 0, RoomType.START);
-
-        const dirs = [
-            { dx: 1, dy: 0 },
-            { dx: 0, dy: 1 },
-            { dx: -1, dy: 0 },
-            { dx: 0, dy: -1 }
-        ];
-
-        // Random walk to generate nodes
-        let x = 0;
-        let y = 0;
-        
-        for (let i = 1; i < nodeCount; i++) {
-            // Pick a random direction
-            let placed = false;
-            let attempts = 0;
-            
-            while (!placed && attempts < 10) {
-                const dir = dirs[Math.floor(Math.random() * dirs.length)];
-                const nx = x + dir.dx;
-                const ny = y + dir.dy;
-                const nid = `${nx},${ny}`;
-                
-                if (!grid[nid]) {
-                    // Create node
-                    const isLast = i === nodeCount - 1;
-                    const type = isLast ? RoomType.BOSS : this.getRandomRoomType();
-                    const newNode = addNode(nx, ny, type);
-                    connect(current, newNode);
-                    x = nx;
-                    y = ny;
-                    current = newNode;
-                    placed = true;
-                } else {
-                    // Node exists, just connect and move there (creates loops sometimes)
-                    if (Math.random() > 0.5) {
-                        connect(current, grid[nid]);
-                    }
-                    x = nx;
-                    y = ny;
-                    current = grid[nid];
-                    attempts++;
-                }
-            }
+        let prev = [start];
+        for (let d = 1; d <= lookahead; d++) {
+            prev = this.buildLayer(d, prev, all);
         }
-
-        return nodes;
+        return all;
     }
 
-    private getRandomRoomType(): RoomType {
+    // Appends a new layer at fromDepth+1, connecting from nodes at fromDepth
+    generateNextLayer(allNodes: MapNode[], fromDepth: number): MapNode[] {
+        const prevLayer = allNodes.filter(n => n.depth === fromDepth);
+        return this.buildLayer(fromDepth + 1, prevLayer, allNodes);
+    }
+
+    private buildLayer(depth: number, prevLayer: MapNode[], all: MapNode[]): MapNode[] {
+        const isBossDepth = depth > 0 && depth % 8 === 0;
+        const count = isBossDepth ? 1 : (Math.random() < 0.4 ? 1 : 2);
+        const newLayer: MapNode[] = [];
+
+        for (let slot = 0; slot < count; slot++) {
+            const type = isBossDepth ? RoomType.BOSS : this.randomType();
+            const node = this.makeNode(depth, slot, type);
+            all.push(node);
+            newLayer.push(node);
+        }
+
+        // connect prev -> new
+        prevLayer.forEach(prev => {
+            const targets = newLayer.filter(() => Math.random() > 0.35);
+            const chosen = targets.length ? targets : [newLayer[0]];
+            chosen.forEach(t => {
+                if (!prev.edges.includes(t.id)) prev.edges.push(t.id);
+            });
+        });
+
+        // every new node must have at least one parent
+        newLayer.forEach(n => {
+            const hasParent = prevLayer.some(p => p.edges.includes(n.id));
+            if (!hasParent) {
+                const p = prevLayer[Math.floor(Math.random() * prevLayer.length)];
+                if (!p.edges.includes(n.id)) p.edges.push(n.id);
+            }
+        });
+
+        return newLayer;
+    }
+
+    private makeNode(depth: number, slot: number, type: RoomType): MapNode {
+        return { id: `n${this.counter++}`, depth, slot, type, visited: false, cleared: false, edges: [] };
+    }
+
+    private randomType(): RoomType {
         const r = Math.random();
-        if (r < 0.5) return RoomType.ENEMY; // 50% enemy
-        if (r < 0.7) return RoomType.EMPTY; // 20% empty
-        if (r < 0.8) return RoomType.TREASURE; // 10% treasure
-        if (r < 0.9) return RoomType.TRAP; // 10% trap
-        return RoomType.REST; // 10% rest
+        if (r < 0.45) return RoomType.ENEMY;
+        if (r < 0.60) return RoomType.EMPTY;
+        if (r < 0.72) return RoomType.TREASURE;
+        if (r < 0.84) return RoomType.TRAP;
+        return RoomType.REST;
     }
 }

@@ -1,1 +1,1 @@
-git add -A && git commit -m "snapshot before forward-only infinite map"
+git add -A && git commit -m "feat: forward-only infinite map with animated node removal"
