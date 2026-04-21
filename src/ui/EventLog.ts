@@ -6,7 +6,6 @@ export class EventLog {
     private messages: Phaser.GameObjects.Text[] = [];
     private maxMessages = 15;
     private yStart = 400; // Start at the bottom of the log area
-    private lineHeight = 20;
 
     constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number) {
         this.scene = scene;
@@ -19,7 +18,8 @@ export class EventLog {
     }
 
     public addMessage(text: string, color: string = '#ffffff') {
-        const msg = this.scene.add.text(10, this.yStart, text, {
+        const normalizedText = text.replace(/^\n+/, '');
+        const msg = this.scene.add.text(10, this.yStart, normalizedText, {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: color,

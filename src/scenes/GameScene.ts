@@ -5,6 +5,7 @@ import { DungeonManager } from '../systems/DungeonManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { CombatManager } from '../systems/CombatManager';
 import { EventLog } from '../ui/EventLog';
+import { VFX } from '../ui/VFX';
 
 // ── Layout ────────────────────────────────────────────────────────────────────
 const COL_W   = 150;
@@ -12,6 +13,8 @@ const ROW_H   = 110;
 const NODE_SZ = 44;
 const MAP_X   = 280;
 const MAP_Y   = 300;
+const VIEW_X  = 400;
+const VIEW_Y  = 300;
 
 interface NodeVisual { rect: Phaser.GameObjects.Rectangle; icon: Phaser.GameObjects.Text; }
 
@@ -27,8 +30,11 @@ export class GameScene extends Phaser.Scene {
     private uiContainer!: Phaser.GameObjects.Container;
     private edgeGfx!: Phaser.GameObjects.Graphics;
     private visuals: Map<string, NodeVisual> = new Map();
+    private glowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
     private animating = false;
     private dead = false;
+    private lastEnemyHp = 0;
+    private mapDepthText!: Phaser.GameObjects.Text;
 
     // Global UI
     private hpBar!: Phaser.GameObjects.Rectangle;
@@ -47,9 +53,12 @@ export class GameScene extends Phaser.Scene {
 
     // ────────────────────────────────────────────────────────────────────────
     create() {
-        this.visuals   = new Map();
-        this.animating = false;
-        this.dead      = false;
+        this.visuals    = new Map();
+        this.glowMap    = new Map();
+        this.animating  = false;
+        this.dead       = false;
+        this.lastEnemyHp = 0;
+        this.mapDepthText = undefined as unknown as Phaser.GameObjects.Text;
 
         this.player = new PlayerManager();
         this.mapGen = new MapGenerator();
@@ -84,14 +93,35 @@ export class GameScene extends Phaser.Scene {
         this.setupRoomUI();
         this.buildAllVisuals(false);
         this.redrawEdges();
+        this.refreshInteractivity();
+        this.centerMapOnNode(this.dungeon.currentNode);
+
+        // ── VFX Setup ──
+        VFX.vignette(this, 800, 600);
+        VFX.scanlines(this, 800, 600);
+        VFX.ambientEmbers(this, 22);
+
+        // Depth label on map
+        this.mapDepthText = this.add.text(400, 560, 'ГЛУБИНА 0', {
+            fontFamily: 'Courier New', fontSize: '13px', color: '#333333'
+        }).setOrigin(0.5).setDepth(50);
     }
 
     // ── Coordinates ───────────────────────────────────────────────────────────
-    private nodeX(n: MapNode) { return MAP_X + (n.depth - this.dungeon.currentDepth) * COL_W; }
+    private nodeX(n: MapNode) { return MAP_X + n.depth * COL_W; }
     private nodeY(n: MapNode) {
         const sibs = this.dungeon.getAllNodes().filter(x => x.depth === n.depth);
-        const idx  = sibs.findIndex(x => x.id === n.id);
-        return MAP_Y + (idx - (sibs.length - 1) / 2) * ROW_H;
+        return MAP_Y + (n.slot - (sibs.length - 1) / 2) * ROW_H;
+    }
+    private getMapOffset(node: MapNode) {
+        return {
+            x: VIEW_X - this.nodeX(node),
+            y: VIEW_Y - this.nodeY(node)
+        };
+    }
+    private centerMapOnNode(node: MapNode) {
+        const { x, y } = this.getMapOffset(node);
+        this.mapContainer.setPosition(x, y);
     }
     private roomColor(n: MapNode): number {
         switch (n.type) {
@@ -170,12 +200,12 @@ export class GameScene extends Phaser.Scene {
     private afterMove(node: MapNode, _prev: MapNode) {
         this.animating = true;
         this.animateClearedOut(() => {
-            this.animateShift(() => {
-                this.buildAllVisuals(true);
-                this.redrawEdges();
-                this.refreshInteractivity();
+            this.buildAllVisuals(true);
+            this.redrawEdges();
+            this.refreshInteractivity();
+            this.animateShift(node, () => {
                 this.animating = false;
-                this.enterRoom(node);
+                this.fadeToRoom(node);
             });
         });
     }
@@ -196,23 +226,23 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
-    private animateShift(done: () => void) {
-        const moves: { obj: any; x: number; y: number }[] = [];
-        this.visuals.forEach((vis, id) => {
-            const node = this.dungeon.getAllNodes().find(n => n.id === id);
-            if (!node) return;
-            moves.push({ obj: vis.rect, x: this.nodeX(node), y: this.nodeY(node) });
-            moves.push({ obj: vis.icon, x: this.nodeX(node), y: this.nodeY(node) });
-        });
-        if (!moves.length) { done(); return; }
-        let rem = moves.length;
-        moves.forEach(({ obj, x, y }) => {
-            this.tweens.add({ targets: obj, x, y, duration: 380, ease: 'Quad.inOut',
-                onComplete: () => { if (--rem === 0) done(); } });
+    private animateShift(node: MapNode, done: () => void) {
+        const { x, y } = this.getMapOffset(node);
+        this.tweens.add({
+            targets: this.mapContainer,
+            x,
+            y,
+            duration: 380,
+            ease: 'Quad.inOut',
+            onComplete: done
         });
     }
 
     private refreshInteractivity() {
+        // Destroy old glows
+        this.glowMap.forEach(g => g.destroy());
+        this.glowMap.clear();
+
         const cur    = this.dungeon.currentNode.id;
         const fwdIds = new Set(this.dungeon.getForwardNodes().map(n => n.id));
         this.visuals.forEach((vis, id) => {
@@ -224,8 +254,21 @@ export class GameScene extends Phaser.Scene {
             vis.rect.setFillStyle(revealed ? this.roomColor(node) : 0x1a1a1a);
             vis.rect.setStrokeStyle(2, isCur ? 0xffffff : isFwd ? 0x666666 : 0x333333);
             vis.icon.setText(revealed ? this.roomIcon(node.type) : '?');
-            if (isFwd) this.makeClickable(vis.rect, node);
+            if (isFwd) {
+                this.makeClickable(vis.rect, node);
+                // Pulsing glow behind clickable nodes
+                const glowColor = this.roomColor(node);
+                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), glowColor, NODE_SZ);
+                glow.setDepth(1);
+                this.mapContainer.add(glow);
+                this.glowMap.set(id, glow);
+            }
         });
+
+        // Update depth label
+        if (this.mapDepthText && this.mapDepthText.active) {
+            this.mapDepthText.setText(`ГЛУБИНА ${this.dungeon.currentDepth}`);
+        }
     }
 
     private appendLayer(fromDepth: number) {
@@ -234,9 +277,18 @@ export class GameScene extends Phaser.Scene {
     }
 
     // ── Room / Event view ─────────────────────────────────────────────────────
+    // Fade transition map → room
+    private fadeToRoom(node: MapNode) {
+        const ov = this.add.rectangle(400, 300, 800, 600, 0x000000).setAlpha(0).setDepth(99);
+        this.tweens.add({ targets: ov, alpha: 1, duration: 220, ease: 'Quad.in', onComplete: () => {
+            this.mapContainer.setVisible(false);
+            this.roomContainer.setVisible(true);
+            this.tweens.add({ targets: ov, alpha: 0, duration: 280, ease: 'Quad.out', onComplete: () => ov.destroy() });
+            this.enterRoom(node);
+        }});
+    }
+
     private enterRoom(node: MapNode) {
-        this.mapContainer.setVisible(false);
-        this.roomContainer.setVisible(true);
         this.log.addMessage(`\n--- Глубина ${this.dungeon.currentDepth} ---`, '#555555');
 
         ['returnBtn', 'returnTxt'].forEach(name => {
@@ -281,8 +333,12 @@ export class GameScene extends Phaser.Scene {
         btn.on('pointerover', () => btn.setStrokeStyle(2, 0xaaaaaa));
         btn.on('pointerout',  () => btn.setStrokeStyle(1, 0x555555));
         btn.on('pointerdown', () => {
-            this.roomContainer.setVisible(false);
-            this.mapContainer.setVisible(true);
+            const ov = this.add.rectangle(400, 300, 800, 600, 0x000000).setAlpha(0).setDepth(99);
+            this.tweens.add({ targets: ov, alpha: 1, duration: 200, ease: 'Quad.in', onComplete: () => {
+                this.roomContainer.setVisible(false);
+                this.mapContainer.setVisible(true);
+                this.tweens.add({ targets: ov, alpha: 0, duration: 280, ease: 'Quad.out', onComplete: () => ov.destroy() });
+            }});
         });
         this.roomContainer.add([btn, txt]);
     }
@@ -292,54 +348,83 @@ export class GameScene extends Phaser.Scene {
         this.enemyPortrait.setFillStyle(color);
         this.enemyNameText.setText(name);
         const ratio = Math.max(0, hp / maxHp);
-        const maxW  = 220;
-        this.enemyHpBar.setDisplaySize(ratio * maxW, 12);
-        // color gradient: green → yellow → red
+        this.enemyHpBar.setDisplaySize(ratio * 220, 12);
         const barColor = hp / maxHp > 0.5 ? 0xcc6622 : hp / maxHp > 0.25 ? 0xccaa00 : 0xcc2222;
         this.enemyHpBar.setFillStyle(barColor);
         this.enemyHpText.setText(`${Math.max(0, hp)} / ${maxHp}`);
+
+        // Floating damage text when enemy HP decreases
+        if (this.lastEnemyHp > 0 && hp < this.lastEnemyHp) {
+            const dmg = this.lastEnemyHp - hp;
+            VFX.floatText(this, 600, 130, `-${dmg}`, '#ff6666');
+            VFX.shake(this, this.enemyPortrait as any);
+            VFX.flash(this, this.enemyPortrait, 0xff2222, 130);
+        }
+        this.lastEnemyHp = hp;
     }
 
     // ── Camera shake on player hit ────────────────────────────────────────────
     private onPlayerHit(dmg: number) {
         const intensity = Math.min(0.015, 0.004 * dmg);
         this.cameras.main.shake(220, intensity);
-        // red flash
-        const flash = this.add.rectangle(400, 300, 800, 600, 0xff0000, 0.18);
+        const flash = this.add.rectangle(400, 300, 800, 600, 0xff0000, 0.18).setDepth(98);
         this.tweens.add({ targets: flash, alpha: 0, duration: 300, onComplete: () => flash.destroy() });
+        VFX.floatText(this, 200, 30, `-${dmg}`, '#ff4444');
     }
 
     // ── Death screen ──────────────────────────────────────────────────────────
     private showDeathScreen() {
         this.dead = true;
+        this.mapContainer.setVisible(false);
+        this.roomContainer.setVisible(false);
+        this.uiContainer.setVisible(false);
+        this.mapDepthText.setVisible(false);
+
         const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0).setDepth(100);
-        this.tweens.add({ targets: overlay, alpha: 0.88, duration: 800, ease: 'Quad.in' });
+        const panelShadow = this.add.rectangle(408, 308, 430, 340, 0x000000, 0).setDepth(101).setScale(0.96);
+        const panel = this.add.rectangle(400, 300, 430, 340, 0x101010, 0).setDepth(102).setStrokeStyle(2, 0x552222).setScale(0.96);
+        const divider = this.add.rectangle(400, 212, 260, 1, 0x552222, 0).setDepth(103);
 
-        const title = this.add.text(400, 160, 'ВЫ ПОГИБЛИ', {
-            fontFamily: 'Courier New', fontSize: '42px', color: '#cc2222',
+        const title = this.add.text(400, 170, 'ВЫ ПОГИБЛИ', {
+            fontFamily: 'Courier New', fontSize: '40px', color: '#cc2222',
             stroke: '#000000', strokeThickness: 4
-        }).setOrigin(0.5).setAlpha(0).setDepth(101);
+        }).setOrigin(0.5).setAlpha(0).setDepth(103);
 
-        const flavour = this.add.text(400, 220, 'Тьма поглотила вашу душу.', {
-            fontFamily: 'Courier New', fontSize: '16px', color: '#555555'
-        }).setOrigin(0.5).setAlpha(0).setDepth(101);
+        const flavour = this.add.text(400, 242, 'Тьма поглотила вашу душу.', {
+            fontFamily: 'Courier New', fontSize: '16px', color: '#666666'
+        }).setOrigin(0.5).setAlpha(0).setDepth(103);
 
-        const stats = this.add.text(400, 300,
+        const stats = this.add.text(400, 320,
             `Глубина:  ${this.dungeon.currentDepth}\n` +
             `Убито:    ${this.player.killCount}\n` +
             `Уровень:  ${this.player.stats.level}`, {
             fontFamily: 'Courier New', fontSize: '20px', color: '#aaaaaa',
-            lineSpacing: 10, align: 'center'
-        }).setOrigin(0.5).setAlpha(0).setDepth(101);
+            lineSpacing: 12, align: 'center'
+        }).setOrigin(0.5).setAlpha(0).setDepth(103);
 
-        const btnBg = this.add.rectangle(400, 430, 220, 46, 0x1a0000).setAlpha(0).setDepth(101);
+        const btnBg = this.add.rectangle(400, 430, 240, 46, 0x1a0000, 0).setDepth(103);
         btnBg.setStrokeStyle(1, 0x882222);
         const btnTxt = this.add.text(400, 430, 'Начать заново', {
             fontFamily: 'Courier New', fontSize: '18px', color: '#cc4444'
-        }).setOrigin(0.5).setAlpha(0).setDepth(101);
+        }).setOrigin(0.5).setAlpha(0).setDepth(104);
 
-        this.time.delayedCall(600, () => {
-            this.tweens.add({ targets: [title, flavour, stats, btnBg, btnTxt], alpha: 1, duration: 700, ease: 'Quad.out' });
+        this.tweens.add({ targets: overlay, alpha: 0.92, duration: 500, ease: 'Quad.out' });
+
+        this.time.delayedCall(220, () => {
+            this.tweens.add({
+                targets: [panelShadow, panel],
+                alpha: 1,
+                scaleX: 1,
+                scaleY: 1,
+                duration: 420,
+                ease: 'Quad.out'
+            });
+            this.tweens.add({
+                targets: [divider, title, flavour, stats, btnBg, btnTxt],
+                alpha: 1,
+                duration: 520,
+                ease: 'Quad.out'
+            });
             btnBg.setInteractive({ useHandCursor: true });
             btnBg.on('pointerover',  () => btnBg.setStrokeStyle(2, 0xcc2222));
             btnBg.on('pointerout',   () => btnBg.setStrokeStyle(1, 0x882222));
@@ -376,7 +461,7 @@ export class GameScene extends Phaser.Scene {
 
     // ── Room UI setup ─────────────────────────────────────────────────────────
     private setCombatBtns(v: boolean) {
-        ['attackBtn', 'attackTxt', 'defendBtn', 'defendTxt'].forEach(name => {
+        ['attackBtn', 'attackBtnTxt', 'defendBtn', 'defendBtnTxt'].forEach(name => {
             const o = this.roomContainer.getByName(name);
             if (o) (o as any).setVisible(v);
         });

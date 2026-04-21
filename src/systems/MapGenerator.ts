@@ -1,12 +1,14 @@
-export enum RoomType {
-    START = 'START',
-    ENEMY = 'ENEMY',
-    TREASURE = 'TREASURE',
-    TRAP = 'TRAP',
-    REST = 'REST',
-    BOSS = 'BOSS',
-    EMPTY = 'EMPTY'
-}
+export const RoomType = {
+    START: 'START',
+    ENEMY: 'ENEMY',
+    TREASURE: 'TREASURE',
+    TRAP: 'TRAP',
+    REST: 'REST',
+    BOSS: 'BOSS',
+    EMPTY: 'EMPTY'
+} as const;
+
+export type RoomType = (typeof RoomType)[keyof typeof RoomType];
 
 export interface MapNode {
     id: string;
