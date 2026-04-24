@@ -250,21 +250,21 @@ export class GameScene extends Phaser.Scene {
             color: '#9fc7ff',
         });
 
-        this.progressText = this.add.text(620, 10, '', {
+        this.progressText = this.add.text(786, 6, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#b8b8b8',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.prestigeText = this.add.text(788, 10, '', {
+        this.prestigeText = this.add.text(786, 20, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#ffd36e',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.hintText = this.add.text(788, 28, '', {
+        this.hintText = this.add.text(786, 36, '', {
             fontFamily: 'Courier New',
             fontSize: '10px',
             color: '#7b7b7b',
@@ -305,6 +305,9 @@ export class GameScene extends Phaser.Scene {
         };
         this.player.onLevelUp = (level) => {
             this.log.addMessage(`You rise to level ${level}.`, '#fff17a');
+            VFX.floatText(this, 300, 20, `LVL ${level}`, '#fff17a');
+            const flash = this.add.rectangle(400, 300, 800, 600, 0xfff17a, 0.08).setDepth(88);
+            this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
             this.refreshUI();
         };
         this.player.onRevive = (remaining) => {
@@ -337,16 +340,16 @@ export class GameScene extends Phaser.Scene {
         this.xpBar.setDisplaySize(132 * xpRatio, 8);
         this.levelText.setText(`LVL ${stats.level}  XP ${stats.xp}/${this.player.xpToNextLevel}`);
 
-        const statParts = [`ATK ${this.player.getAttackPower()}`, `DEF ${stats.defense}`];
+        const statParts = [`A${this.player.getAttackPower()}`, `D${stats.defense}`];
         if (this.player.remainingRevives > 0) {
-            statParts.push(`REV ${this.player.remainingRevives}`);
+            statParts.push(`R${this.player.remainingRevives}`);
         }
         if (this.player.hasHighLight) {
-            statParts.push('BRIGHT');
+            statParts.push('\u2600');
         } else if (this.player.hasLowLight) {
-            statParts.push('DARK');
+            statParts.push('\u263D');
         }
-        this.statsText.setText(statParts.join('  '));
+        this.statsText.setText(statParts.join(' '));
 
         const resourceParts: string[] = [];
         if (unlocks.showGold) {
@@ -380,7 +383,7 @@ export class GameScene extends Phaser.Scene {
         this.mapDepthText.setText(`DEPTH ${this.dungeon.currentDepth}`);
 
         const nextUnlock = this.meta.getNextContentUnlock();
-        this.hintText.setText(nextUnlock ? this.compactText(`${nextUnlock.requirement} -> ${nextUnlock.label}`, 38) : '');
+        this.hintText.setText(nextUnlock ? this.compactText(`Next: ${nextUnlock.requirement}`, 30) : '');
 
         this.hpValueText.setVisible(unlocks.showHpNumbers);
         this.mapDepthText.setVisible(unlocks.showDepthReadout);
@@ -391,7 +394,8 @@ export class GameScene extends Phaser.Scene {
         this.resourceText.setVisible(resourceParts.length > 0);
         this.progressText.setVisible(unlocks.showRunMetrics || unlocks.showKillCounter);
         this.prestigeText.setVisible(unlocks.showPrestigeForecast);
-        this.hintText.setVisible(false);
+        const hintVisible = !!nextUnlock && this.mapContainer.visible;
+        this.hintText.setVisible(hintVisible);
     }
 
     private setupRoomUI() {
@@ -799,6 +803,7 @@ export class GameScene extends Phaser.Scene {
 
         milestones.forEach((milestone) => {
             this.log.addMessage(`Unlocked forever: ${milestone.label}.`, '#66b8ff');
+            this.showUnlockBanner(milestone.label);
             milestone.unlocks.forEach((unlockId) => {
                 switch (unlockId) {
                     case 'currency_gold':
@@ -1538,6 +1543,7 @@ export class GameScene extends Phaser.Scene {
                 this.roomPanelGroup.setVisible(false);
                 this.setRoomButtons([]);
                 this.refreshInteractivity();
+                this.refreshUI();
                 this.tweens.add({
                     targets: overlay,
                     alpha: 0,
@@ -1920,6 +1926,28 @@ export class GameScene extends Phaser.Scene {
             alpha: { from: 0, to: 1 },
             duration: 280,
             ease: 'Quad.out',
+        });
+    }
+
+    private showUnlockBanner(label: string) {
+        const bannerBg = this.add.rectangle(400, 580, 700, 36, 0x0a1a33, 0.92)
+            .setStrokeStyle(1, 0x4488cc)
+            .setDepth(200)
+            .setAlpha(0);
+        const bannerText = this.add.text(400, 580, `\u2726  ${this.compactText(label, 52)}`, {
+            fontFamily: 'Courier New',
+            fontSize: '14px',
+            color: '#88ccff',
+        }).setOrigin(0.5).setDepth(201).setAlpha(0);
+
+        this.tweens.add({
+            targets: [bannerBg, bannerText],
+            alpha: 1,
+            duration: 300,
+            ease: 'Quad.out',
+            hold: 2400,
+            yoyo: true,
+            onComplete: () => { bannerBg.destroy(); bannerText.destroy(); },
         });
     }
 
