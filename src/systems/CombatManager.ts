@@ -1,5 +1,6 @@
 import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
 import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
+import type { EnemyProfile } from '../data/GameConfig';
 import { EventLog } from '../ui/EventLog';
 import { PlayerManager } from './PlayerManager';
 
@@ -17,6 +18,10 @@ export interface ActiveEnemy {
     color: number;
     xp: number;
     gold: number;
+    profile: EnemyProfile;
+    enraged: boolean;
+    charging: boolean;
+    turnsAlive: number;
 }
 
 export interface CombatRewards {
@@ -40,6 +45,11 @@ export class CombatManager {
     private onPlayerHit: (damage: number) => void;
 
     public enemy: ActiveEnemy | null = null;
+    public lastActionResult: { critical: boolean; enemyCharged: boolean; enemyEnraged: boolean } = {
+        critical: false,
+        enemyCharged: false,
+        enemyEnraged: false,
+    };
     public onEnemyUpdate: (
         hp: number,
         maxHp: number,
@@ -72,26 +82,28 @@ export class CombatManager {
         const lowLightRewardMultiplier =
             kind !== 'normal' ? this.player.getRewardMultiplierFromLowLight() : 1;
 
+        const baseHp = kind === 'elite'
+            ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
+            : definition.hp;
+        const baseAtk = kind === 'elite'
+            ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
+            : definition.attack;
+
         this.enemy = {
             kind,
             name: definition.name,
             description: definition.description,
             icon: definition.icon,
-            hp:
-                kind === 'elite'
-                    ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
-                    : definition.hp,
-            maxHp:
-                kind === 'elite'
-                    ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
-                    : definition.hp,
-            attack:
-                kind === 'elite'
-                    ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
-                    : definition.attack,
+            hp: baseHp,
+            maxHp: baseHp,
+            attack: baseAtk,
             color: definition.color,
             xp: Math.max(1, Math.round(definition.xp * rewardMultiplier * lowLightRewardMultiplier)),
             gold: Math.max(1, Math.round(definition.gold * rewardMultiplier * lowLightRewardMultiplier)),
+            profile: definition.profile,
+            enraged: false,
+            charging: false,
+            turnsAlive: 0,
         };
 
         const header =
@@ -111,9 +123,13 @@ export class CombatManager {
             return;
         }
 
+        this.lastActionResult = { critical: false, enemyCharged: false, enemyEnraged: false };
+        this.enemy.turnsAlive += 1;
+
         if (action === 'attack') {
             this.player.gainResolve(COMBAT_CONFIG.resolveFromAttack);
             const result = this.rollPlayerAttack();
+            this.lastActionResult.critical = result.critical;
             this.enemy.hp = Math.max(0, this.enemy.hp - result.damage);
             this.log.addMessage(
                 result.critical
@@ -169,11 +185,57 @@ export class CombatManager {
             return;
         }
 
-        const flatBlock = action === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
-        const enemyAttack = this.enemy.attack + this.player.getEnemyAttackBonusFromLight();
-        const takenDamage = this.player.takeDamage(enemyAttack, flatBlock);
+        this.resolveEnemyTurn(action);
+    }
 
-        this.log.addMessage(`${this.enemy.name} hits you for ${takenDamage}.`, '#ff6666');
+    private resolveEnemyTurn(playerAction: CombatAction) {
+        if (!this.enemy) return;
+
+        const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
+        let attackPower = this.enemy.attack + this.player.getEnemyAttackBonusFromLight();
+        let extraMessage = '';
+
+        // Profile-specific behaviors
+        if (this.enemy.profile === 'brute') {
+            // Brutes enrage below 40% HP: +2 attack
+            if (!this.enemy.enraged && this.enemy.hp < this.enemy.maxHp * 0.4) {
+                this.enemy.enraged = true;
+                this.lastActionResult.enemyEnraged = true;
+                this.enemy.attack += 2;
+                attackPower += 2;
+                this.log.addMessage(`${this.enemy.name} enters a frenzy!`, '#ff9944');
+            }
+        } else if (this.enemy.profile === 'stalker') {
+            // Stalkers have a chance to strike twice (30%)
+            if (Math.random() < 0.3) {
+                const firstHit = this.player.takeDamage(attackPower, flatBlock);
+                this.log.addMessage(`${this.enemy.name} lunges for ${firstHit}.`, '#ff6666');
+                if (firstHit > 0) this.onPlayerHit(firstHit);
+                if (this.player.stats.hp <= 0) {
+                    this.log.addMessage('Darkness closes over the expedition.', '#ff3333');
+                    return;
+                }
+                extraMessage = ' Double strike!';
+            }
+        } else if (this.enemy.profile === 'mage') {
+            // Mages charge up every 3 turns for a heavy hit
+            if (this.enemy.turnsAlive > 0 && this.enemy.turnsAlive % 3 === 0) {
+                this.enemy.charging = true;
+                this.lastActionResult.enemyCharged = true;
+                attackPower = Math.round(attackPower * 1.6);
+                this.log.addMessage(`${this.enemy.name} channels dark energy...`, '#9966cc');
+            } else {
+                this.enemy.charging = false;
+            }
+        }
+        // boss profile: no special per-turn behavior, just high stats
+
+        const takenDamage = this.player.takeDamage(attackPower, flatBlock);
+
+        this.log.addMessage(
+            `${this.enemy.name} hits you for ${takenDamage}.${extraMessage}`,
+            '#ff6666'
+        );
         if (takenDamage > 0) {
             this.onPlayerHit(takenDamage);
         } else {
