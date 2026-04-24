@@ -1,90 +1,242 @@
+import { MAP_CONFIG } from '../data/GameConfig';
+
 export const RoomType = {
     START: 'START',
     ENEMY: 'ENEMY',
     TREASURE: 'TREASURE',
     TRAP: 'TRAP',
     REST: 'REST',
+    SHRINE: 'SHRINE',
+    MERCHANT: 'MERCHANT',
+    ELITE: 'ELITE',
     BOSS: 'BOSS',
-    EMPTY: 'EMPTY'
+    EMPTY: 'EMPTY',
 } as const;
 
 export type RoomType = (typeof RoomType)[keyof typeof RoomType];
 
 export interface MapNode {
     id: string;
-    depth: number;   // column index, increases going forward
-    slot: number;    // row within column
+    depth: number;
+    slot: number;
     type: RoomType;
     visited: boolean;
-    cleared: boolean; // player has left this room behind
-    edges: string[]; // ids of nodes at depth+1 this connects to
+    cleared: boolean;
+    edges: string[];
 }
+
+const BASE_ROOM_POOL: RoomType[] = [
+    RoomType.ENEMY,
+    RoomType.EMPTY,
+    RoomType.REST,
+    RoomType.TREASURE,
+];
+
+const PREP_ROOM_POOL: RoomType[] = [RoomType.REST, RoomType.SHRINE, RoomType.MERCHANT];
 
 export class MapGenerator {
     private counter = 0;
+    private availableRooms = new Set<RoomType>(BASE_ROOM_POOL);
 
-    generateInitialMap(lookahead: number = 4): MapNode[] {
+    constructor(initialRooms: RoomType[] = BASE_ROOM_POOL) {
+        this.setAvailableRoomTypes(initialRooms);
+    }
+
+    setAvailableRoomTypes(roomTypes: RoomType[]) {
+        this.availableRooms = new Set(roomTypes.filter((type) => type !== RoomType.START && type !== RoomType.BOSS));
+        BASE_ROOM_POOL.forEach((type) => this.availableRooms.add(type));
+    }
+
+    generateInitialMap(lookahead: number = MAP_CONFIG.initialLookahead): MapNode[] {
         const all: MapNode[] = [];
         const start = this.makeNode(0, 0, RoomType.START);
         start.visited = true;
         all.push(start);
 
-        let prev = [start];
-        for (let d = 1; d <= lookahead; d++) {
-            prev = this.buildLayer(d, prev, all);
+        let previousLayer = [start];
+        for (let depth = 1; depth <= lookahead; depth++) {
+            previousLayer = this.buildLayer(depth, previousLayer, all);
         }
+
         return all;
     }
 
-    // Appends a new layer at fromDepth+1, connecting from nodes at fromDepth
     generateNextLayer(allNodes: MapNode[], fromDepth: number): MapNode[] {
-        const prevLayer = allNodes.filter(n => n.depth === fromDepth);
-        return this.buildLayer(fromDepth + 1, prevLayer, allNodes);
+        const previousLayer = allNodes.filter((node) => node.depth === fromDepth);
+        return this.buildLayer(fromDepth + 1, previousLayer, [...allNodes]);
     }
 
-    private buildLayer(depth: number, prevLayer: MapNode[], all: MapNode[]): MapNode[] {
-        const isBossDepth = depth > 0 && depth % 8 === 0;
-        const count = isBossDepth ? 1 : (Math.random() < 0.4 ? 1 : 2);
+    private buildLayer(depth: number, previousLayer: MapNode[], allNodes: MapNode[]): MapNode[] {
+        const isBossDepth = depth > 0 && depth % MAP_CONFIG.bossEveryNDepths === 0;
+        const branchRoll = Math.random();
+        const count = isBossDepth
+            ? 1
+            : branchRoll < MAP_CONFIG.branchRolls.one
+              ? 1
+              : branchRoll < MAP_CONFIG.branchRolls.one + MAP_CONFIG.branchRolls.two
+                ? 2
+                : 3;
         const newLayer: MapNode[] = [];
 
         for (let slot = 0; slot < count; slot++) {
-            const type = isBossDepth ? RoomType.BOSS : this.randomType();
+            const type = isBossDepth ? RoomType.BOSS : this.pickRoomType(depth, allNodes, newLayer);
             const node = this.makeNode(depth, slot, type);
-            all.push(node);
+            allNodes.push(node);
             newLayer.push(node);
         }
 
-        // connect prev -> new
-        prevLayer.forEach(prev => {
-            const targets = newLayer.filter(() => Math.random() > 0.35);
-            const chosen = targets.length ? targets : [newLayer[0]];
-            chosen.forEach(t => {
-                if (!prev.edges.includes(t.id)) prev.edges.push(t.id);
+        previousLayer.forEach((previousNode) => {
+            const targets = newLayer.filter(() => Math.random() < MAP_CONFIG.edgeProbability);
+            const chosenTargets = targets.length > 0 ? targets : [newLayer[0]];
+            chosenTargets.forEach((target) => {
+                if (!previousNode.edges.includes(target.id)) {
+                    previousNode.edges.push(target.id);
+                }
             });
         });
 
-        // every new node must have at least one parent
-        newLayer.forEach(n => {
-            const hasParent = prevLayer.some(p => p.edges.includes(n.id));
+        newLayer.forEach((node) => {
+            const hasParent = previousLayer.some((previousNode) => previousNode.edges.includes(node.id));
             if (!hasParent) {
-                const p = prevLayer[Math.floor(Math.random() * prevLayer.length)];
-                if (!p.edges.includes(n.id)) p.edges.push(n.id);
+                const parent = previousLayer[Math.floor(Math.random() * previousLayer.length)];
+                if (!parent.edges.includes(node.id)) {
+                    parent.edges.push(node.id);
+                }
             }
         });
 
         return newLayer;
     }
 
-    private makeNode(depth: number, slot: number, type: RoomType): MapNode {
-        return { id: `n${this.counter++}`, depth, slot, type, visited: false, cleared: false, edges: [] };
+    private pickRoomType(depth: number, allNodes: MapNode[], pendingNodes: MapNode[]): RoomType {
+        const forcedType = this.getForcedRoomType(depth, allNodes, pendingNodes);
+        if (forcedType) {
+            return forcedType;
+        }
+
+        const allowedRooms = this.getAllowedRoomTypes(depth);
+        return this.pickWeightedRoom(allowedRooms);
     }
 
-    private randomType(): RoomType {
-        const r = Math.random();
-        if (r < 0.45) return RoomType.ENEMY;
-        if (r < 0.60) return RoomType.EMPTY;
-        if (r < 0.72) return RoomType.TREASURE;
-        if (r < 0.84) return RoomType.TRAP;
-        return RoomType.REST;
+    private getAllowedRoomTypes(depth: number): RoomType[] {
+        const depthRestrictedPool =
+            depth <= MAP_CONFIG.safeDepths
+                ? BASE_ROOM_POOL
+                : [
+                      RoomType.ENEMY,
+                      RoomType.EMPTY,
+                      RoomType.TREASURE,
+                      RoomType.TRAP,
+                      RoomType.REST,
+                      RoomType.SHRINE,
+                      RoomType.MERCHANT,
+                      RoomType.ELITE,
+                  ];
+
+        const allowed = depthRestrictedPool.filter((type) => this.availableRooms.has(type));
+        return allowed.length > 0 ? allowed : BASE_ROOM_POOL;
+    }
+
+    private getForcedRoomType(depth: number, allNodes: MapNode[], pendingNodes: MapNode[]): RoomType | null {
+        const bossDepth = this.getUpcomingBossDepth(depth);
+        if (bossDepth === null) {
+            return null;
+        }
+
+        const eliteWindowStart = bossDepth - 3;
+        const prepWindowStart = bossDepth - 2;
+        const fullSet = [...allNodes, ...pendingNodes];
+
+        if (
+            this.availableRooms.has(RoomType.ELITE) &&
+            depth >= eliteWindowStart &&
+            depth < bossDepth &&
+            !fullSet.some(
+                (node) =>
+                    node.depth >= eliteWindowStart &&
+                    node.depth < bossDepth &&
+                    node.type === RoomType.ELITE
+            ) &&
+            depth === bossDepth - 1
+        ) {
+            return RoomType.ELITE;
+        }
+
+        const availablePrepRooms = PREP_ROOM_POOL.filter((type) => this.availableRooms.has(type));
+        if (
+            availablePrepRooms.length > 0 &&
+            depth >= prepWindowStart &&
+            depth < bossDepth &&
+            !fullSet.some(
+                (node) =>
+                    node.depth >= prepWindowStart &&
+                    node.depth < bossDepth &&
+                    availablePrepRooms.includes(node.type)
+            ) &&
+            depth === bossDepth - 1
+        ) {
+            return this.pickWeightedRoom(availablePrepRooms);
+        }
+
+        return null;
+    }
+
+    private getUpcomingBossDepth(depth: number): number | null {
+        if (depth <= 0) {
+            return null;
+        }
+
+        return Math.ceil(depth / MAP_CONFIG.bossEveryNDepths) * MAP_CONFIG.bossEveryNDepths;
+    }
+
+    private pickWeightedRoom(pool: RoomType[]): RoomType {
+        const totalWeight = pool.reduce((sum, type) => sum + this.getWeight(type), 0);
+        const roll = Math.random() * totalWeight;
+        let cursor = 0;
+
+        for (const type of pool) {
+            cursor += this.getWeight(type);
+            if (roll <= cursor) {
+                return type;
+            }
+        }
+
+        return pool[pool.length - 1];
+    }
+
+    private getWeight(type: RoomType): number {
+        switch (type) {
+            case RoomType.ENEMY:
+                return MAP_CONFIG.roomTypeWeights.ENEMY;
+            case RoomType.EMPTY:
+                return MAP_CONFIG.roomTypeWeights.EMPTY;
+            case RoomType.TREASURE:
+                return MAP_CONFIG.roomTypeWeights.TREASURE;
+            case RoomType.TRAP:
+                return MAP_CONFIG.roomTypeWeights.TRAP;
+            case RoomType.REST:
+                return MAP_CONFIG.roomTypeWeights.REST;
+            case RoomType.SHRINE:
+                return MAP_CONFIG.roomTypeWeights.SHRINE;
+            case RoomType.MERCHANT:
+                return MAP_CONFIG.roomTypeWeights.MERCHANT;
+            case RoomType.ELITE:
+                return MAP_CONFIG.roomTypeWeights.ELITE;
+            case RoomType.START:
+            case RoomType.BOSS:
+                return 0;
+        }
+    }
+
+    private makeNode(depth: number, slot: number, type: RoomType): MapNode {
+        return {
+            id: `n${this.counter++}`,
+            depth,
+            slot,
+            type,
+            visited: false,
+            cleared: false,
+            edges: [],
+        };
     }
 }

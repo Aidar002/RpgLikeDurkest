@@ -1,4 +1,5 @@
 import type { MapNode } from './MapGenerator';
+import { MAP_CONFIG } from '../data/GameConfig';
 
 export class DungeonManager {
     public currentNode!: MapNode;
@@ -9,7 +10,7 @@ export class DungeonManager {
     private onMove: (node: MapNode, prev: MapNode) => void;
     // called when lookahead is running thin
     private onNeedNodes: (fromDepth: number) => void;
-    private lookahead = 3;
+    private lookahead = MAP_CONFIG.lookaheadBuffer;
 
     constructor(
         nodes: MapNode[],
