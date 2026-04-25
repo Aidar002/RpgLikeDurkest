@@ -18,6 +18,7 @@ import {
     type UpgradeId,
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
+import { RunTracker } from '../systems/RunTracker';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 
@@ -67,6 +68,7 @@ export class GameScene extends Phaser.Scene {
     private player!: PlayerManager;
     private combat!: CombatManager;
     private log!: EventLog;
+    private tracker!: RunTracker;
 
     private mapContainer!: Phaser.GameObjects.Container;
     private roomContainer!: Phaser.GameObjects.Container;
@@ -84,6 +86,7 @@ export class GameScene extends Phaser.Scene {
     private prestigeReward = 0;
     private prestigeAwarded = false;
     private skipLightSpendThisRoom = false;
+    private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
     private hpBar!: Phaser.GameObjects.Rectangle;
     private hpValueText!: Phaser.GameObjects.Text;
@@ -96,6 +99,8 @@ export class GameScene extends Phaser.Scene {
     private prestigeText!: Phaser.GameObjects.Text;
     private hintText!: Phaser.GameObjects.Text;
     private mapDepthText!: Phaser.GameObjects.Text;
+    private tooltipText!: Phaser.GameObjects.Text;
+    private depthLabels: Map<number, Phaser.GameObjects.Text> = new Map();
 
     private roomHeaderText!: Phaser.GameObjects.Text;
     private enemyPortrait!: Phaser.GameObjects.Rectangle;
@@ -127,8 +132,10 @@ export class GameScene extends Phaser.Scene {
 
         this.mapGen = new MapGenerator(this.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
 
+        this.tracker = new RunTracker();
         this.visuals = new Map();
         this.glowMap = new Map();
+        this.depthLabels = new Map();
         this.animating = false;
         this.dead = false;
         this.deathSequenceStarted = false;
@@ -176,11 +183,20 @@ export class GameScene extends Phaser.Scene {
         this.centerMapOnNode(this.dungeon.currentNode);
         this.refreshUI();
 
+        this.tooltipText = this.add.text(0, 0, '', {
+            fontFamily: 'Courier New',
+            fontSize: '11px',
+            color: '#d0d0d0',
+            backgroundColor: '#1a1a1aee',
+            padding: { x: 6, y: 3 },
+        }).setDepth(220).setVisible(false);
+
         VFX.vignette(this, 800, 600);
         VFX.scanlines(this, 800, 600);
         VFX.ambientEmbers(this, 22);
 
         this.log.addMessage('The expedition begins in silence.', '#999999');
+        this.buildDepthLabels();
     }
 
     private setupKeyboardShortcuts() {
@@ -304,6 +320,7 @@ export class GameScene extends Phaser.Scene {
             }
         };
         this.player.onLevelUp = (level) => {
+            this.tracker.trackMax('levelReached', level);
             this.log.addMessage(`You rise to level ${level}.`, '#fff17a');
             VFX.floatText(this, 300, 20, `LVL ${level}`, '#fff17a');
             const flash = this.add.rectangle(400, 300, 800, 600, 0xfff17a, 0.08).setDepth(88);
@@ -681,6 +698,48 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
+    private buildDepthLabels() {
+        this.depthLabels.forEach((label) => label.destroy());
+        this.depthLabels.clear();
+
+        const depths = new Set<number>();
+        this.dungeon.getAllNodes().forEach((node) => depths.add(node.depth));
+
+        depths.forEach((depth) => {
+            if (depth === 0) return;
+            this.addDepthLabel(depth);
+        });
+    }
+
+    private addDepthLabel(depth: number) {
+        if (this.depthLabels.has(depth)) return;
+        const x = MAP_X + (depth - 1) * COL_W;
+        const y = MAP_Y - ROW_H * 1.1;
+        const isBoss = depth > 0 && depth % 8 === 0;
+        const label = this.add.text(x, y, isBoss ? `D${depth} ★` : `D${depth}`, {
+            fontFamily: 'Courier New',
+            fontSize: '10px',
+            color: isBoss ? '#c93d3d' : '#3d3d3d',
+        }).setOrigin(0.5);
+        this.mapContainer.add(label);
+        this.depthLabels.set(depth, label);
+    }
+
+    private roomTypeName(type: RoomTypeValue): string {
+        switch (type) {
+            case RoomType.START: return 'Camp';
+            case RoomType.ENEMY: return 'Enemy';
+            case RoomType.TREASURE: return 'Treasure';
+            case RoomType.TRAP: return 'Trap';
+            case RoomType.REST: return 'Rest';
+            case RoomType.SHRINE: return 'Shrine';
+            case RoomType.MERCHANT: return 'Merchant';
+            case RoomType.ELITE: return 'Elite';
+            case RoomType.BOSS: return 'Boss';
+            case RoomType.EMPTY: return 'Empty';
+        }
+    }
+
     private makeClickable(rect: Phaser.GameObjects.Rectangle, node: MapNode) {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', () => {
@@ -692,11 +751,22 @@ export class GameScene extends Phaser.Scene {
             if (this.canUseMapNode(node)) {
                 rect.setStrokeStyle(3, 0xffffff);
             }
+            const unlocks = this.meta.getUiUnlockState();
+            const revealed = node.visited || node.id === this.dungeon.currentNode.id ||
+                this.dungeon.getForwardNodes().some((n) => n.id === node.id);
+            const knowsType = node.visited || node.id === this.dungeon.currentNode.id || unlocks.showRoomIcons;
+            if (revealed && knowsType && !node.cleared) {
+                this.tooltipText.setText(this.roomTypeName(node.type));
+                const screenX = this.nodeX(node) + this.mapContainer.x;
+                const screenY = this.nodeY(node) + this.mapContainer.y - NODE_SZ / 2 - 18;
+                this.tooltipText.setPosition(screenX, screenY).setOrigin(0.5, 1).setVisible(true);
+            }
         });
         rect.on('pointerout', () => {
             const isCurrent = node.id === this.dungeon.currentNode.id;
             const isForward = this.dungeon.canMoveTo(node.id) && !node.cleared;
             rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
+            this.tooltipText.setVisible(false);
         });
     }
 
@@ -931,6 +1001,7 @@ export class GameScene extends Phaser.Scene {
         this.refreshAvailableRoomPool(this.dungeon.currentDepth);
         const newNodes = this.mapGen.generateNextLayer(this.dungeon.getAllNodes(), fromDepth);
         this.dungeon.addNodes(newNodes);
+        newNodes.forEach((node) => this.addDepthLabel(node.depth));
     }
 
     private refreshAvailableRoomPool(depth: number) {
@@ -979,8 +1050,42 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
+    private roomTintColor(type: RoomTypeValue): { color: number; alpha: number } {
+        switch (type) {
+            case RoomType.ENEMY: return { color: 0x331111, alpha: 0.12 };
+            case RoomType.ELITE: return { color: 0x442211, alpha: 0.15 };
+            case RoomType.BOSS: return { color: 0x440000, alpha: 0.18 };
+            case RoomType.TREASURE: return { color: 0x332800, alpha: 0.10 };
+            case RoomType.TRAP: return { color: 0x220033, alpha: 0.14 };
+            case RoomType.REST: return { color: 0x003311, alpha: 0.10 };
+            case RoomType.SHRINE: return { color: 0x111133, alpha: 0.10 };
+            case RoomType.MERCHANT: return { color: 0x112233, alpha: 0.10 };
+            default: return { color: 0x111111, alpha: 0.06 };
+        }
+    }
+
+    private applyRoomTint(type: RoomTypeValue) {
+        if (this.roomTintOverlay) {
+            this.roomTintOverlay.destroy();
+            this.roomTintOverlay = null;
+        }
+        const tint = this.roomTintColor(type);
+        this.roomTintOverlay = this.add.rectangle(400, 300, 800, 600, tint.color, tint.alpha)
+            .setDepth(1).setScrollFactor(0);
+    }
+
+    private clearRoomTint() {
+        if (this.roomTintOverlay) {
+            this.roomTintOverlay.destroy();
+            this.roomTintOverlay = null;
+        }
+    }
+
     private enterRoom(node: MapNode) {
         this.lastEnemyHp = 0;
+        this.tracker.record('roomsVisited');
+        this.tracker.trackMax('bestDepth', this.dungeon.currentDepth);
+        this.applyRoomTint(node.type);
 
         if (this.player.isLightUnlocked) {
             if (this.skipLightSpendThisRoom) {
@@ -1107,10 +1212,37 @@ export class GameScene extends Phaser.Scene {
             return;
         }
 
-        this.combat.processTurn(action);
-        if (this.combat.enemy) {
-            this.refreshCombatButtons();
+        // Disable buttons to prevent spamming during combat turn
+        this.actionButtons.forEach((b) => { b.enabled = false; });
+
+        const hpBefore = this.combat.enemy.hp;
+        this.tracker.record('turnsInCombat');
+        if (action === 'skill') this.tracker.record('skillsUsed');
+        if (action === 'defend') {
+            this.tracker.record('defendsUsed');
+            VFX.shieldFlash(this, 126, 82);
         }
+        if (action === 'potion') {
+            this.tracker.record('potionsUsed');
+            VFX.healGlow(this, 126, 82);
+        }
+
+        this.combat.processTurn(action);
+
+        if (this.combat.lastActionResult.critical) {
+            this.tracker.record('criticalHits');
+            VFX.critFlash(this);
+        }
+
+        const dmgDealt = hpBefore - (this.combat.enemy?.hp ?? 0);
+        if (dmgDealt > 0) this.tracker.record('damageDealt', dmgDealt);
+
+        // Re-enable buttons after a brief delay for pacing
+        this.time.delayedCall(350, () => {
+            if (this.combat.enemy) {
+                this.refreshCombatButtons();
+            }
+        });
     }
 
     private buildCombatIntel(): string {
@@ -1118,16 +1250,29 @@ export class GameScene extends Phaser.Scene {
             return 'Collect yourself and continue deeper.';
         }
 
-        const hints = ['Attack and defend are always available.'];
+        const enemy = this.combat.enemy;
+        const profileHints: Record<string, string> = {
+            brute: 'Brute: enrages when wounded.',
+            stalker: 'Stalker: may strike twice.',
+            mage: 'Mage: charges a heavy spell.',
+            boss: 'Boss: relentless power.',
+        };
+
+        const hints: string[] = [];
+        hints.push(profileHints[enemy.profile] ?? '');
+
+        if (enemy.enraged) {
+            hints.push('ENRAGED!');
+        }
+        if (enemy.charging) {
+            hints.push('Charging...');
+        }
 
         if (this.meta.isUnlocked('action_skill')) {
-            hints.push(`Skill costs ${COMBAT_CONFIG.skillCost} resolve.`);
-        }
-        if (this.meta.isUnlocked('action_potion')) {
-            hints.push('Potions heal immediately, then the enemy acts.');
+            hints.push(`Skill: ${COMBAT_CONFIG.skillCost} resolve.`);
         }
 
-        return hints.join(' ');
+        return hints.filter(Boolean).join(' ');
     }
 
     private resolveTreasureRoom() {
@@ -1138,6 +1283,7 @@ export class GameScene extends Phaser.Scene {
         let potionGained = 0;
         if (goldUnlocked) {
             goldGained = this.player.gainGold(this.randomBetween(ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
+            if (goldGained > 0) this.tracker.record('goldEarned', goldGained);
             if (this.player.isPotionUnlocked && Math.random() < ROOM_CONFIG.treasure.potionChance) {
                 potionGained = this.player.gainPotions(1);
             }
@@ -1164,12 +1310,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showTrapOptions() {
+        const trapVariants = [
+            { title: 'Mechanical Snare', desc: 'A pressure plate snaps awake under your boot.', icon: '^' },
+            { title: 'Poison Dart Wall', desc: 'Tiny holes line the corridor. Something hisses inside.', icon: '!' },
+            { title: 'Collapsing Floor', desc: 'The stones shift. One wrong step and the ground gives way.', icon: 'v' },
+        ];
+        const trap = trapVariants[Math.floor(Math.random() * trapVariants.length)];
+
         this.showRoomCard(
             'TRAP',
-            'Mechanical Snare',
-            'A pressure plate snaps awake under your boot.',
+            trap.title,
+            trap.desc,
             0x75458a,
-            '^',
+            trap.icon,
             'Rush through or try to disarm it.'
         );
 
@@ -1177,6 +1330,7 @@ export class GameScene extends Phaser.Scene {
             {
                 label: '[1] Rush',
                 callback: () => {
+                    this.tracker.record('trapsTriggered');
                     const damage = this.applyTrapDamage(
                         this.randomBetween(ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.rushDamageMax)
                     );
@@ -1232,6 +1386,7 @@ export class GameScene extends Phaser.Scene {
                 label: '[1] Recover',
                 callback: () => {
                     const healed = this.player.heal(ROOM_CONFIG.rest.recoverHeal + this.meta.getBonuses().rooms.restHealBonus);
+                    if (healed > 0) this.tracker.record('healingDone', healed);
                     const lightGained = this.player.gainLight(ROOM_CONFIG.rest.recoverLight);
                     const summary = [`${healed} HP`];
                     if (lightGained > 0) {
@@ -1262,6 +1417,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showShrineOptions() {
+        this.tracker.record('shrinesVisited');
         const actions: RoomButtonAction[] = [
             {
                 label: '[1] Pray',
@@ -1290,6 +1446,7 @@ export class GameScene extends Phaser.Scene {
                     if (!this.player.spendGold(ROOM_CONFIG.shrine.offerGoldCost)) {
                         return;
                     }
+                    this.tracker.record('goldSpent', ROOM_CONFIG.shrine.offerGoldCost);
                     this.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
                     this.log.addMessage(
                         `You offer gold and gain +${ROOM_CONFIG.shrine.offerMaxHpBonus} max HP for this run.`,
@@ -1345,6 +1502,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showMerchantOptions() {
+        this.tracker.record('merchantsVisited');
         const actions: RoomButtonAction[] = [
             {
                 label: `[1] Potion ${ROOM_CONFIG.merchant.potionCost}g`,
@@ -1352,6 +1510,7 @@ export class GameScene extends Phaser.Scene {
                     if (!this.player.spendGold(ROOM_CONFIG.merchant.potionCost)) {
                         return;
                     }
+                    this.tracker.record('goldSpent', ROOM_CONFIG.merchant.potionCost);
                     this.player.gainPotions(1);
                     this.log.addMessage('You buy a potion.', '#9be0a7');
                     this.enemyIntelText.setText('The merchant counts the coins and looks away.');
@@ -1369,6 +1528,7 @@ export class GameScene extends Phaser.Scene {
                     if (!this.player.spendGold(ROOM_CONFIG.merchant.lanternCost)) {
                         return;
                     }
+                    this.tracker.record('goldSpent', ROOM_CONFIG.merchant.lanternCost);
                     const gainedLight = this.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
                     this.log.addMessage(`You refill your lantern: +${gainedLight} light.`, '#ffe08a');
                     this.enemyIntelText.setText('The oil smells cleaner than the dungeon air.');
@@ -1385,6 +1545,7 @@ export class GameScene extends Phaser.Scene {
                 if (!this.player.spendGold(ROOM_CONFIG.merchant.armorCost)) {
                     return;
                 }
+                this.tracker.record('goldSpent', ROOM_CONFIG.merchant.armorCost);
                 this.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
                 this.log.addMessage(`You reinforce your armor: +${ROOM_CONFIG.merchant.armorDefenseGain} defense.`, '#b8d3ff');
                 this.enemyIntelText.setText('A fair trade, by dungeon standards.');
@@ -1433,12 +1594,20 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showEmptyOptions() {
+        const subEvents = [
+            { title: 'Dusty Chamber', desc: 'Stillness can hide a cache or steady a shaking hand.', icon: '.' },
+            { title: 'Collapsed Passage', desc: 'Rubble blocks the way, but gaps reveal hidden corners.', icon: '~' },
+            { title: 'Echoing Hall', desc: 'Footsteps return from walls that should not be so far away.', icon: '"' },
+            { title: 'Forgotten Alcove', desc: 'Someone sheltered here before. Their scratches mark the stone.', icon: '\'' },
+        ];
+        const event = subEvents[Math.floor(Math.random() * subEvents.length)];
+
         this.showRoomCard(
             'EMPTY',
-            'Dusty Chamber',
-            'Stillness can hide a cache or steady a shaking hand.',
+            event.title,
+            event.desc,
             0x444444,
-            '.',
+            event.icon,
             'Search the room or keep your footing.'
         );
 
@@ -1459,6 +1628,7 @@ export class GameScene extends Phaser.Scene {
                         const gold = this.player.gainGold(
                             this.randomBetween(ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
                         );
+                        if (gold > 0) this.tracker.record('goldEarned', gold);
                         gains.push(`${gold} gold`);
                     }
 
@@ -1542,6 +1712,7 @@ export class GameScene extends Phaser.Scene {
                 this.mapContainer.setVisible(true);
                 this.roomPanelGroup.setVisible(false);
                 this.setRoomButtons([]);
+                this.clearRoomTint();
                 this.refreshInteractivity();
                 this.refreshUI();
                 this.tweens.add({
@@ -1564,6 +1735,7 @@ export class GameScene extends Phaser.Scene {
         this.roomPanelGroup.setVisible(false);
         this.mapContainer.setVisible(true);
         this.setRoomButtons([]);
+        this.clearRoomTint();
         this.dungeon.moveTo(node.id);
     }
 
@@ -1617,8 +1789,11 @@ export class GameScene extends Phaser.Scene {
     private handleCombatVictory(payload: CombatEndPayload) {
         const rewardLines: string[] = [];
 
+        this.tracker.record('enemiesKilled');
+        if (payload.kind === 'elite') this.tracker.record('elitesKilled');
         if (payload.kind === 'boss') {
             this.runBossKills += 1;
+            this.tracker.record('bossesKilled');
             const bossMilestones = this.meta.registerBossKill();
             this.handleMilestoneUnlocks(bossMilestones);
         }
@@ -1629,6 +1804,7 @@ export class GameScene extends Phaser.Scene {
         const gainedGold = this.player.gainGold(payload.rewards.gold);
         if (gainedGold > 0) {
             rewardLines.push(`+${gainedGold} gold`);
+            this.tracker.record('goldEarned', gainedGold);
         }
 
         const gainedPotions = this.player.gainPotions(payload.rewards.potions);
@@ -1654,6 +1830,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private onPlayerHit(damage: number) {
+        this.tracker.record('damageTaken', damage);
         const intensity = Math.min(0.015, 0.004 * damage);
         this.cameras.main.shake(220, intensity);
         const flash = this.add.rectangle(400, 300, 800, 600, 0xff0000, 0.18).setDepth(88);
@@ -1676,38 +1853,45 @@ export class GameScene extends Phaser.Scene {
             this.prestigeAwarded = true;
         }
 
+        this.tracker.trackMax('bestDepth', this.runBestDepth);
+        this.tracker.trackMax('levelReached', this.player.stats.level);
+
         const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.92).setDepth(100);
-        const panel = this.add.rectangle(400, 300, 736, 500, 0x121212).setDepth(101);
+        const panel = this.add.rectangle(400, 300, 736, 530, 0x121212).setDepth(101);
         panel.setStrokeStyle(2, 0x5a2f2f);
 
-        const title = this.add.text(400, 78, 'THE EXPEDITION ENDS', {
+        const title = this.add.text(400, 56, this.tracker.getRunTitle(), {
             fontFamily: 'Courier New',
-            fontSize: '34px',
+            fontSize: '28px',
             color: '#d65a5a',
         }).setOrigin(0.5).setDepth(102);
 
+        const summaryLines = [
+            `Depth ${this.runBestDepth}  |  Bosses ${this.runBossKills}  |  Prestige +${this.prestigeReward}`,
+        ];
+        const statLines = this.tracker.getSummaryLines();
         const summary = this.add.text(
             400,
-            122,
-            `Best depth: ${this.runBestDepth}\nBosses defeated: ${this.runBossKills}\nPrestige earned: +${this.prestigeReward}`,
+            88,
+            summaryLines.join('\n') + '\n' + statLines.join('\n'),
             {
                 fontFamily: 'Courier New',
-                fontSize: '16px',
-                color: '#d7d7d7',
+                fontSize: '11px',
+                color: '#9a9a9a',
                 align: 'center',
-                lineSpacing: 8,
+                lineSpacing: 3,
             }
-        ).setOrigin(0.5).setDepth(102);
+        ).setOrigin(0.5, 0).setDepth(102);
 
-        const pointsText = this.add.text(400, 184, '', {
+        const pointsText = this.add.text(400, 228, '', {
             fontFamily: 'Courier New',
             fontSize: '16px',
             color: '#ffd36e',
         }).setOrigin(0.5).setDepth(102);
 
-        const unlockText = this.add.text(400, 208, '', {
+        const unlockText = this.add.text(400, 250, '', {
             fontFamily: 'Courier New',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#8fb8ff',
             align: 'center',
             wordWrap: { width: 580 },
@@ -1715,12 +1899,12 @@ export class GameScene extends Phaser.Scene {
 
         const cards: UpgradeCardVisual[] = [];
         const cardPositions = [
-            { x: 230, y: 282 },
-            { x: 570, y: 282 },
-            { x: 230, y: 366 },
-            { x: 570, y: 366 },
-            { x: 230, y: 450 },
-            { x: 570, y: 450 },
+            { x: 230, y: 304 },
+            { x: 570, y: 304 },
+            { x: 230, y: 382 },
+            { x: 570, y: 382 },
+            { x: 230, y: 460 },
+            { x: 570, y: 460 },
         ];
 
         this.meta.getUpgradeCards().forEach((card, index) => {
@@ -1789,19 +1973,19 @@ export class GameScene extends Phaser.Scene {
             cards.push(visual);
         });
 
-        const restartButton = this.add.rectangle(400, 540, 260, 42, 0x2b2b2b).setDepth(102);
+        const restartButton = this.add.rectangle(400, 548, 260, 42, 0x2b2b2b).setDepth(102);
         restartButton.setStrokeStyle(1, 0x8a8a8a);
         restartButton.setInteractive({ useHandCursor: true });
-        const restartText = this.add.text(400, 540, 'Begin New Expedition', {
+        const restartText = this.add.text(400, 548, 'Begin New Expedition', {
             fontFamily: 'Courier New',
             fontSize: '17px',
             color: '#f0f0f0',
         }).setOrigin(0.5).setDepth(103);
 
-        const resetButton = this.add.rectangle(400, 586, 260, 34, 0x3a1818).setDepth(102);
+        const resetButton = this.add.rectangle(400, 592, 260, 34, 0x3a1818).setDepth(102);
         resetButton.setStrokeStyle(1, 0xa35a5a);
         resetButton.setInteractive({ useHandCursor: true });
-        const resetText = this.add.text(400, 586, 'Развеять опыт души', {
+        const resetText = this.add.text(400, 592, 'Развеять опыт души', {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#ffd0d0',

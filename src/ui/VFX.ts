@@ -61,6 +61,34 @@ export class VFX {
         return g;
     }
 
+    /** Золотая вспышка критического удара */
+    static critFlash(scene: Phaser.Scene) {
+        const flash = scene.add.rectangle(400, 300, 800, 600, 0xffc800, 0.22).setDepth(89);
+        scene.tweens.add({
+            targets: flash, alpha: 0, duration: 250, ease: 'Quad.out',
+            onComplete: () => flash.destroy()
+        });
+    }
+
+    /** Зеленый ореол лечения */
+    static healGlow(scene: Phaser.Scene, x: number, y: number) {
+        const ring = scene.add.circle(x, y, 28, 0x44dd66, 0.35).setDepth(87);
+        scene.tweens.add({
+            targets: ring, scaleX: 2, scaleY: 2, alpha: 0, duration: 500, ease: 'Quad.out',
+            onComplete: () => ring.destroy()
+        });
+    }
+
+    /** Синий индикатор щита при защите */
+    static shieldFlash(scene: Phaser.Scene, x: number, y: number) {
+        const shield = scene.add.rectangle(x, y, 60, 60, 0x4488ff, 0.3).setDepth(87)
+            .setStrokeStyle(2, 0x88bbff);
+        scene.tweens.add({
+            targets: shield, alpha: 0, scaleX: 1.3, scaleY: 1.3, duration: 400, ease: 'Quad.out',
+            onComplete: () => shield.destroy()
+        });
+    }
+
     /** Жгучие искры/пыль на фоне (самовозобновляемые) */
     static ambientEmbers(scene: Phaser.Scene, count = 18) {
         const spawn = () => {
