@@ -57,6 +57,11 @@ export class CombatManager {
     private onPlayerHit: (damage: number) => void;
 
     public enemy: ActiveEnemy | null = null;
+    public lastActionResult = {
+        critical: false,
+        enemyCharged: false,
+        enemyEnraged: false,
+    };
     public onEnemyUpdate: (
         hp: number,
         maxHp: number,
@@ -93,24 +98,22 @@ export class CombatManager {
                   : 1;
 
         const lowLightRewardMultiplier = this.player.getRewardMultiplierFromLowLight();
+        const baseHp = kind === 'elite'
+            ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
+            : definition.hp;
+        const baseAtk = kind === 'elite'
+            ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
+            : definition.attack;
 
+        this.lastActionResult = { critical: false, enemyCharged: false, enemyEnraged: false };
         this.enemy = {
             kind,
             name: this.loc.enemyName(definition.name),
             description: this.loc.enemyDescription(definition.name, definition.description),
             icon: definition.icon,
-            hp:
-                kind === 'elite'
-                    ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
-                    : definition.hp,
-            maxHp:
-                kind === 'elite'
-                    ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
-                    : definition.hp,
-            attack:
-                kind === 'elite'
-                    ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
-                    : definition.attack,
+            hp: baseHp,
+            maxHp: baseHp,
+            attack: baseAtk,
             color: definition.color,
             xp: Math.max(1, Math.round(definition.xp * rewardMultiplier * lowLightRewardMultiplier)),
             gold: Math.max(1, Math.round(definition.gold * rewardMultiplier * lowLightRewardMultiplier)),
@@ -142,12 +145,14 @@ export class CombatManager {
             return;
         }
 
+        this.lastActionResult = { critical: false, enemyCharged: false, enemyEnraged: false };
         const intentInfo = this.describeIntent(this.enemy.intent);
         let interrupted = false;
 
         if (action === 'attack') {
             this.player.gainResolve(COMBAT_CONFIG.resolveFromAttack);
             const result = this.rollPlayerAttack();
+            this.lastActionResult.critical = result.critical;
             const damage = this.applyDamageToEnemy(result.damage);
             this.log.addMessage(
                 result.critical
@@ -278,6 +283,7 @@ export class CombatManager {
             }
             case 'charge':
                 this.enemy.chargeBonus += COMBAT_CONFIG.chargeIntentBonus;
+                this.lastActionResult.enemyCharged = true;
                 this.log.addMessage(this.loc.t('enemyCharge', { name: this.enemy.name }), '#ffb86b');
                 return;
             case 'curse': {
