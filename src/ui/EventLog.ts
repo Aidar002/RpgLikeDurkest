@@ -7,17 +7,17 @@ export class EventLog {
     private maxMessages = 10;
     private yStart = 430;
 
-    constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number) {
+    constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number, title: string = 'EVENT LOG') {
         this.scene = scene;
         this.container = scene.add.container(x, y);
 
         const background = scene.add.rectangle(0, 0, width, height, 0x101010).setOrigin(0);
         background.setStrokeStyle(2, 0x353535);
 
-        const header = scene.add.text(12, 12, 'EVENT LOG', {
+        const header = scene.add.text(12, 12, title, {
             fontFamily: 'Courier New',
             fontSize: '14px',
-            color: '#888888',
+            color: '#b7c7d9',
         });
 
         const divider = scene.add.rectangle(12, 36, width - 24, 1, 0x2a2a2a).setOrigin(0, 0.5);
@@ -32,9 +32,10 @@ export class EventLog {
     addMessage(text: string, color: string = '#ffffff') {
         const message = this.scene.add.text(12, this.yStart, text.trim(), {
             fontFamily: 'Courier New',
-            fontSize: '12px',
+            fontSize: '13px',
             color,
             wordWrap: { width: 384 },
+            lineSpacing: 3,
         });
 
         message.setAlpha(0);

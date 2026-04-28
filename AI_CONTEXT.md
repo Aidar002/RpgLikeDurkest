@@ -1,33 +1,64 @@
-# AI Context & Project Overview
+# AI Context
 
-**Project Name:** RpgLikeDurkest
-**Genre:** Minimalist Roguelike (Darkest Dungeon style map, Text-based combat)
-**Tech Stack:** TypeScript, Vite, Phaser 3
-**Visual Style:** Dark Minimalism (Hex `#0d0d0d` background, basic geometric shapes, text-driven interface, no heavy graphic assets).
+RpgLikeDurkest is a small Phaser 3 / Vite / TypeScript roguelike. The player moves through a procedural room graph, resolves rooms through text-heavy choices and turn combat, then upgrades meta progression after death or victory.
 
-## Задумка игры (Game Concept)
-Игрок исследует процедурно сгенерированное подземелье в виде графа комнат (узлов). Игрок кликает по соседним комнатам на глобальной карте, чтобы перемещаться.
-При входе в комнату открывается текстовый `EventLog` и интерфейс взаимодействия. Если это враг — начинается пошаговый бой (Атака/Защита), где все действия логируются текстом. После победы игрок получает опыт, прокачивает уровень (увеличивается HP и Урон) и может вернуться на карту для дальнейшего исследования.
+## Run Commands
 
-## Архитектура проекта
+- Install deps: `npm install`
+- Dev server on Windows: `npm.cmd run dev -- --host 127.0.0.1`
+- Build check on Windows: `npm.cmd run build`
 
-Код находится в директории `src/`:
+Use `npm.cmd` in PowerShell because `npm.ps1` can be blocked by local execution policy.
 
-*   **`main.ts`**: Точка входа, конфигурация Phaser (800x600, темный фон, масштабирование).
-*   **`scenes/`**:
-    *   `BootScene.ts`: Начальная загрузка (пустая, подготовлена для ассетов).
-    *   `GameScene.ts`: **Основное ядро игры**. Оркестрирует все менеджеры, отрисовывает граф карты (`mapContainer`), UI комнаты (`roomContainer`) и глобальный интерфейс игрока (`uiContainer`).
-*   **`systems/`**:
-    *   `MapGenerator.ts`: Содержит типы комнат (`RoomType`) и логику случайного блуждания для генерации подземелья (граф связанных `MapNode`).
-    *   `DungeonManager.ts`: Управляет текущей позицией на графе, проверяет доступность соседних комнат.
-    *   `PlayerManager.ts`: Хранит характеристики (HP, Уровень, XP, Атака, Защита), обрабатывает получение урона и повышение уровня.
-    *   `CombatManager.ts`: Логика пошагового боя. Обрабатывает ход игрока и ход противника, вызывает методы обновления `EventLog`.
-*   **`ui/`**:
-    *   `EventLog.ts`: Компонент текстового лога. Хранит массив сообщений и плавно сдвигает их вверх при добавлении новых.
+## Main Files
 
-## ⚠️ Критические правила для ИИ (AI Guidelines)
+- `src/main.ts`: Phaser bootstrap and canvas configuration.
+- `src/scenes/BootScene.ts`: Minimal boot scene.
+- `src/scenes/GameScene.ts`: Main orchestration layer. It wires managers, owns Phaser objects, room flow, combat UI, map visuals, death/victory screens, and global HUD.
+- `src/data/GameConfig.ts`: Balance constants.
+- `src/data/Enemies.ts`: Enemy catalog and reward ranges.
+- `src/systems/CombatManager.ts`: Turn combat, enemy intent profiles, combat rewards, and combat end payloads.
+- `src/systems/DungeonManager.ts`: Current graph position, movement checks, and graph mutation.
+- `src/systems/Localization.ts`: RU/EN strings and language persistence in local storage.
+- `src/systems/MapGenerator.ts`: Room graph generation and available room type pool.
+- `src/systems/MapLayout.ts`: Serpentine map coordinates, map centering, and edge routing.
+- `src/systems/MetaProgressionManager.ts`: Persistent upgrades, content unlocks, and UI unlock state.
+- `src/systems/NarrativeManager.ts`: Run memory, room intro/result text, death/victory narrative.
+- `src/systems/PlayerManager.ts`: Player stats, resources, damage, healing, level up, revive state.
+- `src/ui/EventLog.ts`: Text log component.
+- `src/ui/VFX.ts`: Lightweight Phaser visual effects.
 
-1.  **Кодировка файлов:** ВСЕГДА используйте кодировку `UTF-8` при чтении и записи файлов. Ранее в проекте был сбой кодировки (русский текст в `GameScene.ts` и `CombatManager.ts` превратился в кракозябры `РЈР Рћ...`). Не сломайте кириллицу снова!
-2.  **Типизация в Vite:** Так как используется Vite (esbuild), экспорт и импорт TypeScript интерфейсов (`interface`) между файлами должен осуществляться через `import type { ... }` во избежание `SyntaxError` при сборке.
-3.  **Минимализм:** Если вы добавляете новых врагов, предметы или события, не пытайтесь загружать спрайты или картинки. Используйте текстовый лог (`eventLog.addMessage`), базовые фигуры Phaser (`add.rectangle`) и цвета. Вся атмосфера строится на тексте и воображении.
-4.  **Связь систем:** `GameScene` выступает связующим звеном. Если вы добавляете новую механику (например, Инвентарь), создайте `InventoryManager` в `systems/` и интегрируйте его в `GameScene`, избегая сильной связности менеджеров друг с другом (они должны общаться через коллбеки или `GameScene`).
+## Current Architecture
+
+`GameScene` is still large, but it should mostly coordinate rather than own new domain logic. Put durable rules in `systems/`, reusable UI helpers in `ui/`, and static balance data in `data/`.
+
+The graph layout is intentionally separated:
+
+- `MapGenerator` decides what nodes and edges exist.
+- `MapLayout` decides where nodes appear and how edges are routed.
+- `GameScene` draws the returned coordinates with Phaser.
+
+The narrative/language path is also separated:
+
+- Add normal UI strings to `Localization`.
+- Add authored run flavor to `NarrativeManager`.
+- Avoid hardcoding new user-facing gameplay text in `GameScene` unless it is temporary debug text.
+
+## Conventions For Future Agents
+
+- Keep files UTF-8. Prefer ASCII in docs/code comments unless you are editing actual localized RU strings.
+- Use `import type` for TypeScript-only imports. Vite/esbuild can fail if interfaces are imported as runtime values.
+- Prefer small modules over expanding `GameScene` further.
+- Build with `npm.cmd run build` before handing off.
+- Preserve user changes. Do not reset or checkout files unless explicitly asked.
+
+## Good Next Refactors
+
+- Split room handlers out of `GameScene` into a `RoomFlow` or `RoomHandlers` system.
+- Split combat HUD creation/refresh into a UI helper.
+- Split death/victory/meta upgrade screens into focused view helpers.
+- Consider splitting `Localization` data into smaller files if the string table grows much more.
+
+## Known Tooling Notes
+
+The in-app browser can inspect the local dev URL at `http://127.0.0.1:5173/RpgLikeDurkest/`. Browser screenshot capture may time out in this environment; use console logs, visible browser checks, and `npm.cmd run build` as fallbacks.

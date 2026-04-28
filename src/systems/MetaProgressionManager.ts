@@ -119,29 +119,57 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     action_attack: true,
     action_defend: true,
     hud_hp_bar: true,
-    ui_hp_numbers: false,
-    ui_depth: false,
-    ui_room_icons: false,
-    ui_level_panel: false,
-    currency_gold: false,
-    room_trap: false,
-    ui_player_stats: false,
-    room_merchant: false,
-    resource_potions: false,
-    action_potion: false,
-    resource_resolve: false,
-    action_skill: false,
-    room_shrine: false,
-    resource_light: false,
-    room_elite: false,
-    ui_enemy_hp: false,
-    ui_run_metrics: false,
-    ui_kill_counter: false,
+    ui_hp_numbers: true,
+    ui_depth: true,
+    ui_room_icons: true,
+    ui_level_panel: true,
+    currency_gold: true,
+    room_trap: true,
+    ui_player_stats: true,
+    room_merchant: true,
+    resource_potions: true,
+    action_potion: true,
+    resource_resolve: true,
+    action_skill: true,
+    room_shrine: true,
+    resource_light: true,
+    room_elite: true,
+    ui_enemy_hp: true,
+    ui_run_metrics: true,
+    ui_kill_counter: true,
     currency_relic_shards: false,
     merchant_premium: false,
     shrine_premium: false,
     ui_prestige_forecast: false,
 };
+
+const CORE_UNLOCKS: UnlockId[] = [
+    'room_enemy',
+    'room_empty',
+    'room_rest',
+    'room_treasure',
+    'action_attack',
+    'action_defend',
+    'hud_hp_bar',
+    'ui_hp_numbers',
+    'ui_depth',
+    'ui_room_icons',
+    'ui_level_panel',
+    'currency_gold',
+    'room_trap',
+    'ui_player_stats',
+    'room_merchant',
+    'resource_potions',
+    'action_potion',
+    'resource_resolve',
+    'action_skill',
+    'room_shrine',
+    'resource_light',
+    'room_elite',
+    'ui_enemy_hp',
+    'ui_run_metrics',
+    'ui_kill_counter',
+];
 
 const DEFAULT_PROFILE: MetaProfile = {
     prestigePoints: 0,
@@ -523,10 +551,10 @@ export class MetaProgressionManager {
                 ),
                 lastStand: Math.min(1, profile.upgrades?.lastStand ?? DEFAULT_PROFILE.upgrades.lastStand),
             },
-            contentUnlocks: {
+            contentUnlocks: this.withCoreUnlocks({
                 ...DEFAULT_CONTENT_UNLOCKS,
                 ...profile.contentUnlocks,
-            },
+            }),
         };
     }
 
@@ -586,7 +614,14 @@ export class MetaProgressionManager {
         return {
             ...DEFAULT_PROFILE,
             upgrades: { ...DEFAULT_PROFILE.upgrades },
-            contentUnlocks: { ...DEFAULT_PROFILE.contentUnlocks },
+            contentUnlocks: this.withCoreUnlocks({ ...DEFAULT_PROFILE.contentUnlocks }),
         };
+    }
+
+    private withCoreUnlocks(unlocks: ContentUnlockState): ContentUnlockState {
+        CORE_UNLOCKS.forEach((id) => {
+            unlocks[id] = true;
+        });
+        return unlocks;
     }
 }

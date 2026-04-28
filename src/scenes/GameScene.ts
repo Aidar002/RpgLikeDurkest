@@ -17,17 +17,18 @@ import {
     type ContentUnlockState,
     type UpgradeId,
 } from '../systems/MetaProgressionManager';
+import { Localization } from '../systems/Localization';
+import {
+    edgePath,
+    MAP_LAYOUT,
+    mapOffset,
+    nodeX as layoutNodeX,
+    nodeY as layoutNodeY,
+} from '../systems/MapLayout';
+import { NarrativeManager } from '../systems/NarrativeManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
-
-const COL_W = 150;
-const ROW_H = 110;
-const NODE_SZ = 44;
-const MAP_X = 280;
-const MAP_Y = 300;
-const VIEW_X = 400;
-const VIEW_Y = 300;
 
 interface NodeVisual {
     rect: Phaser.GameObjects.Rectangle;
@@ -66,6 +67,8 @@ export class GameScene extends Phaser.Scene {
     private dungeon!: DungeonManager;
     private player!: PlayerManager;
     private combat!: CombatManager;
+    private loc!: Localization;
+    private narrative!: NarrativeManager;
     private log!: EventLog;
 
     private mapContainer!: Phaser.GameObjects.Container;
@@ -114,7 +117,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     create() {
+        this.input.enabled = true;
         this.meta = new MetaProgressionManager();
+        this.loc = new Localization();
+        this.narrative = new NarrativeManager(this.loc);
         const metaBonuses = this.meta.getBonuses();
 
         this.player = new PlayerManager(metaBonuses.player, {
@@ -154,7 +160,7 @@ export class GameScene extends Phaser.Scene {
         this.edgeGfx = this.add.graphics();
         this.mapContainer.add(this.edgeGfx);
 
-        this.log = new EventLog(this, 18, 82, 410, 490);
+        this.log = new EventLog(this, 18, 92, 430, 478, this.loc.t('eventLog'));
         this.roomContainer.add(this.log.view);
 
         this.setupGlobalUI();
@@ -162,6 +168,7 @@ export class GameScene extends Phaser.Scene {
         this.combat = new CombatManager(
             this.player,
             this.log,
+            this.loc,
             (payload) => this.handleCombatVictory(payload),
             (damage) => this.onPlayerHit(damage)
         );
@@ -180,7 +187,8 @@ export class GameScene extends Phaser.Scene {
         VFX.scanlines(this, 800, 600);
         VFX.ambientEmbers(this, 22);
 
-        this.log.addMessage('The expedition begins in silence.', '#999999');
+        this.log.addMessage(this.loc.t('beginSilence'), '#999999');
+        this.log.addMessage(this.loc.t('dungeonListens'), '#777777');
     }
 
     private setupKeyboardShortcuts() {
@@ -213,13 +221,13 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupGlobalUI() {
-        const topBar = this.add.rectangle(0, 0, 800, 64, 0x101010).setOrigin(0);
-        topBar.setStrokeStyle(1, 0x353535);
+        const topBar = this.add.rectangle(0, 0, 800, 78, 0x0f1216).setOrigin(0);
+        topBar.setStrokeStyle(1, 0x3f4a54);
 
-        const hpLabel = this.add.text(12, 10, 'VITAL', {
+        const hpLabel = this.add.text(12, 10, this.loc.t('uiVital'), {
             fontFamily: 'Courier New',
             fontSize: '13px',
-            color: '#888888',
+            color: '#b7c7d9',
         });
 
         const hpBarBg = this.add.rectangle(12, 36, 170, 14, 0x3c1111).setOrigin(0, 0.5);
@@ -230,9 +238,9 @@ export class GameScene extends Phaser.Scene {
             color: '#ff8d8d',
         });
 
-        this.xpBarBg = this.add.rectangle(300, 36, 132, 8, 0x1d2430).setOrigin(0, 0.5);
-        this.xpBar = this.add.rectangle(300, 36, 132, 8, 0x5b9cff).setOrigin(0, 0.5);
-        this.levelText = this.add.text(300, 10, '', {
+        this.xpBarBg = this.add.rectangle(288, 36, 132, 8, 0x1d2430).setOrigin(0, 0.5);
+        this.xpBar = this.add.rectangle(288, 36, 132, 8, 0x5b9cff).setOrigin(0, 0.5);
+        this.levelText = this.add.text(288, 10, '', {
             fontFamily: 'Courier New',
             fontSize: '13px',
             color: '#f5e28d',
@@ -240,17 +248,19 @@ export class GameScene extends Phaser.Scene {
 
         this.statsText = this.add.text(448, 10, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '12px',
             color: '#cccccc',
+            wordWrap: { width: 180 },
         });
 
-        this.resourceText = this.add.text(448, 28, '', {
+        this.resourceText = this.add.text(448, 44, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#9fc7ff',
+            wordWrap: { width: 260 },
         });
 
-        this.progressText = this.add.text(620, 10, '', {
+        this.progressText = this.add.text(706, 10, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#b8b8b8',
@@ -259,7 +269,7 @@ export class GameScene extends Phaser.Scene {
 
         this.prestigeText = this.add.text(788, 10, '', {
             fontFamily: 'Courier New',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#ffd36e',
             align: 'right',
         }).setOrigin(1, 0);
@@ -275,8 +285,22 @@ export class GameScene extends Phaser.Scene {
         this.mapDepthText = this.add.text(120, 558, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
-            color: '#3d3d3d',
+            color: '#697480',
         }).setOrigin(0, 0.5);
+
+        const langButton = this.add.rectangle(754, 52, 68, 28, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
+        langButton.setInteractive({ useHandCursor: true });
+        const langText = this.add.text(754, 52, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
+            fontFamily: 'Courier New',
+            fontSize: '12px',
+            color: '#d8e6f3',
+        }).setOrigin(0.5);
+        langButton.on('pointerover', () => langButton.setStrokeStyle(2, 0xd8e6f3));
+        langButton.on('pointerout', () => langButton.setStrokeStyle(1, 0x6b7a88));
+        langButton.on('pointerdown', () => {
+            this.loc.toggle();
+            this.restartSceneSafely();
+        });
 
         this.uiContainer.add([
             topBar,
@@ -293,6 +317,8 @@ export class GameScene extends Phaser.Scene {
             this.prestigeText,
             this.hintText,
             this.mapDepthText,
+            langButton,
+            langText,
         ]);
 
         this.player.onHpChange = () => this.refreshUI();
@@ -304,11 +330,11 @@ export class GameScene extends Phaser.Scene {
             }
         };
         this.player.onLevelUp = (level) => {
-            this.log.addMessage(`You rise to level ${level}.`, '#fff17a');
+            this.log.addMessage(this.loc.t('levelUp', { level }), '#fff17a');
             this.refreshUI();
         };
         this.player.onRevive = (remaining) => {
-            this.log.addMessage(`Last Stand keeps you alive. Revives left: ${remaining}.`, '#ffcb73');
+            this.log.addMessage(this.loc.t('revive', { count: remaining }), '#ffcb73');
             this.refreshUI();
         };
         this.player.onDeath = () => {
@@ -331,53 +357,53 @@ export class GameScene extends Phaser.Scene {
         const hpRatio = Phaser.Math.Clamp(stats.hp / stats.maxHp, 0, 1);
         this.hpBar.setDisplaySize(170 * hpRatio, 14);
         this.hpBar.setFillStyle(hpRatio > 0.5 ? 0xd93c3c : hpRatio > 0.25 ? 0xdb7a1c : 0xff4747);
-        this.hpValueText.setText(`HP ${stats.hp}/${stats.maxHp}`);
+        this.hpValueText.setText(`${this.loc.t('hp')} ${stats.hp}/${stats.maxHp}`);
 
         const xpRatio = Phaser.Math.Clamp(stats.xp / this.player.xpToNextLevel, 0, 1);
         this.xpBar.setDisplaySize(132 * xpRatio, 8);
-        this.levelText.setText(`LVL ${stats.level}  XP ${stats.xp}/${this.player.xpToNextLevel}`);
+        this.levelText.setText(`${this.loc.t('level')} ${stats.level}  ${this.loc.t('xp')} ${stats.xp}/${this.player.xpToNextLevel}`);
 
-        const statParts = [`ATK ${this.player.getAttackPower()}`, `DEF ${stats.defense}`];
+        const statParts = [`${this.loc.t('attackShort')} ${this.player.getAttackPower()}`, `${this.loc.t('defenseShort')} ${stats.defense}`];
         if (this.player.remainingRevives > 0) {
-            statParts.push(`REV ${this.player.remainingRevives}`);
+            statParts.push(`${this.loc.t('reviveShort')} ${this.player.remainingRevives}`);
         }
         if (this.player.hasHighLight) {
-            statParts.push('BRIGHT');
+            statParts.push(this.loc.t('bright'));
         } else if (this.player.hasLowLight) {
-            statParts.push('DARK');
+            statParts.push(this.loc.t('dark'));
         }
         this.statsText.setText(statParts.join('  '));
 
         const resourceParts: string[] = [];
         if (unlocks.showGold) {
-            resourceParts.push(`G ${resources.gold}`);
+            resourceParts.push(`${this.loc.t('goldShort')} ${resources.gold}`);
         }
         if (unlocks.showPotions) {
-            resourceParts.push(`P ${resources.potions}`);
+            resourceParts.push(`${this.loc.t('potionShort')} ${resources.potions}`);
         }
         if (unlocks.showResolve) {
-            resourceParts.push(`R ${resources.resolve}/${resources.maxResolve}`);
+            resourceParts.push(`${this.loc.t('resolveShort')} ${resources.resolve}/${resources.maxResolve}`);
         }
         if (unlocks.showLight) {
-            resourceParts.push(`L ${resources.light}/${EXPEDITION_CONFIG.maxLight}`);
+            resourceParts.push(`${this.loc.t('lightShort')} ${resources.light}/${EXPEDITION_CONFIG.maxLight}`);
         }
         if (unlocks.showRelicShards) {
-            resourceParts.push(`S ${resources.relicShards}`);
+            resourceParts.push(`${this.loc.t('shardShort')} ${resources.relicShards}`);
         }
         this.resourceText.setText(resourceParts.join('  '));
 
-        const progressParts = [`D ${this.runBestDepth}`];
+        const progressParts = [`${this.loc.t('depthShort')} ${this.runBestDepth}`];
         if (unlocks.showKillCounter) {
-            progressParts.push(`K ${this.player.killCount}`);
+            progressParts.push(`${this.loc.t('killShort')} ${this.player.killCount}`);
         }
         if (unlocks.showRunMetrics) {
-            progressParts.push(`B ${this.runBossKills}`);
+            progressParts.push(`${this.loc.t('bossShort')} ${this.runBossKills}`);
         }
         this.progressText.setText(progressParts.join('  '));
 
         const prestigeForecast = this.runBestDepth + this.runBossKills * 2;
-        this.prestigeText.setText(unlocks.showPrestigeForecast ? `PRESTIGE +${prestigeForecast}` : '');
-        this.mapDepthText.setText(`DEPTH ${this.dungeon.currentDepth}`);
+        this.prestigeText.setText(unlocks.showPrestigeForecast ? `${this.loc.t('prestige')} +${prestigeForecast}` : '');
+        this.mapDepthText.setText(`${this.loc.t('mapDepth')} ${this.dungeon.currentDepth}`);
 
         const nextUnlock = this.meta.getNextContentUnlock();
         this.hintText.setText(nextUnlock ? this.compactText(`${nextUnlock.requirement} -> ${nextUnlock.label}`, 38) : '');
@@ -395,53 +421,54 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupRoomUI() {
-        const panel = this.add.rectangle(450, 82, 332, 490, 0x111111).setOrigin(0);
-        panel.setStrokeStyle(2, 0x353535);
+        const panel = this.add.rectangle(462, 92, 320, 478, 0x11161c).setOrigin(0);
+        panel.setStrokeStyle(2, 0x4d5a66);
 
-        this.roomHeaderText = this.add.text(470, 98, '', {
+        this.roomHeaderText = this.add.text(480, 106, '', {
             fontFamily: 'Courier New',
             fontSize: '13px',
-            color: '#8b8b8b',
+            color: '#b7c7d9',
         });
 
-        this.enemyPortrait = this.add.rectangle(616, 166, 96, 96, 0x333333).setStrokeStyle(2, 0x555555);
-        this.enemyIconText = this.add.text(616, 178, '', {
+        this.enemyPortrait = this.add.rectangle(622, 164, 88, 88, 0x333333).setStrokeStyle(2, 0x697480);
+        this.enemyIconText = this.add.text(622, 174, '', {
             fontFamily: 'Courier New',
             fontSize: '36px',
             color: '#ffffff',
         }).setOrigin(0.5);
 
-        this.enemyNameText = this.add.text(616, 226, '', {
+        this.enemyNameText = this.add.text(622, 214, '', {
             fontFamily: 'Courier New',
-            fontSize: '18px',
+            fontSize: '16px',
             color: '#f0f0f0',
             align: 'center',
-            wordWrap: { width: 220 },
+            wordWrap: { width: 252 },
         }).setOrigin(0.5, 0);
 
-        this.enemyHpBarBg = this.add.rectangle(506, 294, 220, 12, 0x331111).setOrigin(0, 0.5);
-        this.enemyHpBar = this.add.rectangle(506, 294, 220, 12, 0xc93d2f).setOrigin(0, 0.5);
-        this.enemyHpText = this.add.text(616, 308, '', {
+        this.enemyHpBarBg = this.add.rectangle(500, 284, 244, 12, 0x331111).setOrigin(0, 0.5);
+        this.enemyHpBar = this.add.rectangle(500, 284, 244, 12, 0xc93d2f).setOrigin(0, 0.5);
+        this.enemyHpText = this.add.text(622, 298, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#ad6767',
         }).setOrigin(0.5);
 
-        this.enemyIntelText = this.add.text(616, 340, '', {
+        this.enemyIntelText = this.add.text(622, 318, '', {
             fontFamily: 'Courier New',
             fontSize: '11px',
-            color: '#7ea4ff',
+            color: '#9ec2ff',
             align: 'center',
-            wordWrap: { width: 236 },
+            wordWrap: { width: 260 },
+            lineSpacing: 3,
         }).setOrigin(0.5, 0);
 
-        this.roomFlavorText = this.add.text(616, 382, '', {
+        this.roomFlavorText = this.add.text(622, 376, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
-            color: '#9b9b9b',
+            color: '#c8c8c8',
             align: 'center',
-            wordWrap: { width: 236 },
-            lineSpacing: 2,
+            wordWrap: { width: 260 },
+            lineSpacing: 4,
         }).setOrigin(0.5, 0);
 
         this.roomPanelGroup = this.add.container(0, 0, [
@@ -460,11 +487,11 @@ export class GameScene extends Phaser.Scene {
         this.roomContainer.add(this.roomPanelGroup);
 
         const buttonSpecs = [
-            { x: 516, y: 446, width: 140 },
-            { x: 684, y: 446, width: 140 },
-            { x: 516, y: 492, width: 140 },
-            { x: 684, y: 492, width: 140 },
-            { x: 600, y: 540, width: 308 },
+            { x: 542, y: 450, width: 148 },
+            { x: 702, y: 450, width: 148 },
+            { x: 542, y: 496, width: 148 },
+            { x: 702, y: 496, width: 148 },
+            { x: 622, y: 542, width: 300 },
         ];
 
         buttonSpecs.forEach((spec) => {
@@ -475,8 +502,10 @@ export class GameScene extends Phaser.Scene {
 
             const label = this.add.text(spec.x, spec.y, '', {
                 fontFamily: 'Courier New',
-                fontSize: '14px',
+                fontSize: '12px',
                 color: '#dddddd',
+                align: 'center',
+                wordWrap: { width: spec.width - 12 },
             }).setOrigin(0.5);
 
             const actionButton: ActionButton = {
@@ -546,24 +575,24 @@ export class GameScene extends Phaser.Scene {
         button.background.setInteractive({ useHandCursor: true });
         button.background.setFillStyle(action.fill ?? 0x1b1b1b);
         button.background.setStrokeStyle(1, enabled ? 0x8a8a8a : 0x3e3e3e);
-        button.label.setText(this.compactText(action.label, button.defaultWidth > 200 ? 34 : 16));
+        button.label.setText(this.compactText(action.label, button.defaultWidth > 200 ? 34 : 22));
         button.label.setColor(enabled ? '#f0f0f0' : '#686868');
     }
 
     private nodeX(node: MapNode) {
-        return MAP_X + node.depth * COL_W;
+        return layoutNodeX(node);
     }
 
     private nodeY(node: MapNode) {
-        const siblings = this.dungeon.getAllNodes().filter((candidate) => candidate.depth === node.depth);
-        return MAP_Y + (node.slot - (siblings.length - 1) / 2) * ROW_H;
+        return layoutNodeY(node, this.getDepthSiblingCount(node.depth));
     }
 
     private getMapOffset(node: MapNode) {
-        return {
-            x: VIEW_X - this.nodeX(node),
-            y: VIEW_Y - this.nodeY(node),
-        };
+        return mapOffset(node, this.getDepthSiblingCount(node.depth));
+    }
+
+    private getDepthSiblingCount(depth: number) {
+        return this.dungeon.getAllNodes().filter((candidate) => candidate.depth === depth).length;
     }
 
     private centerMapOnNode(node: MapNode) {
@@ -646,7 +675,7 @@ export class GameScene extends Phaser.Scene {
             const alpha = node.cleared ? 0.35 : 1;
 
             const rect = this.add
-                .rectangle(x, y, NODE_SZ, NODE_SZ, color)
+                .rectangle(x, y, MAP_LAYOUT.nodeSize, MAP_LAYOUT.nodeSize, color)
                 .setStrokeStyle(2, stroke)
                 .setAlpha(alpha);
 
@@ -754,14 +783,11 @@ export class GameScene extends Phaser.Scene {
                 const y1 = this.nodeY(edge.from);
                 const x2 = this.nodeX(edge.to);
                 const y2 = this.nodeY(edge.to);
-                const laneX = x1 + ((x2 - x1) * (index + 1)) / (totalEdges + 1);
-
+                const path = edgePath({ x: x1, y: y1 }, { x: x2, y: y2 }, index, totalEdges).points;
                 this.edgeGfx.lineStyle(lineWidth, lineColor, lineAlpha);
                 this.edgeGfx.beginPath();
-                this.edgeGfx.moveTo(x1, y1);
-                this.edgeGfx.lineTo(laneX, y1);
-                this.edgeGfx.lineTo(laneX, y2);
-                this.edgeGfx.lineTo(x2, y2);
+                this.edgeGfx.moveTo(path[0].x, path[0].y);
+                path.slice(1).forEach((point) => this.edgeGfx.lineTo(point.x, point.y));
                 this.edgeGfx.strokePath();
             });
         });
@@ -798,7 +824,7 @@ export class GameScene extends Phaser.Scene {
         }
 
         milestones.forEach((milestone) => {
-            this.log.addMessage(`Unlocked forever: ${milestone.label}.`, '#66b8ff');
+            this.log.addMessage(this.loc.t('unlocked', { label: this.loc.milestoneLabel(milestone.id, milestone.label) }), '#66b8ff');
             milestone.unlocks.forEach((unlockId) => {
                 switch (unlockId) {
                     case 'currency_gold':
@@ -914,7 +940,7 @@ export class GameScene extends Phaser.Scene {
             visual.icon.setText(iconText).setColor('#ffffff').setAlpha(1);
 
             if (isForward) {
-                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), this.roomColor(node), NODE_SZ);
+                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), this.roomColor(node), MAP_LAYOUT.nodeSize);
                 this.mapContainer.add(glow);
                 this.glowMap.set(id, glow);
             }
@@ -983,12 +1009,19 @@ export class GameScene extends Phaser.Scene {
             } else {
                 const spent = this.player.spendLight(EXPEDITION_CONFIG.lightLossPerRoom);
                 if (spent > 0) {
-                    this.log.addMessage(`Your lantern burns lower: -${spent} light.`, '#e0c873');
+                    this.log.addMessage(this.loc.t('lightLower', { count: spent }), '#e0c873');
+                    if (this.player.hasLowLight) {
+                        this.log.addMessage(this.narrative.choiceLine('darkness'), '#8d83c9');
+                    }
                 }
             }
         }
 
-        this.log.addDivider(`Depth ${this.dungeon.currentDepth}`);
+        this.log.addDivider(`${this.loc.t('depth')} ${this.dungeon.currentDepth}`);
+        const depthLine = this.narrative.enterDepth(this.dungeon.currentDepth, this.player.hasLowLight);
+        if (depthLine) {
+            this.log.addMessage(depthLine, '#8888aa');
+        }
 
         switch (node.type) {
             case RoomType.ENEMY:
@@ -1019,39 +1052,46 @@ export class GameScene extends Phaser.Scene {
                 this.showEmptyOptions();
                 return;
             case RoomType.START:
-                this.showRoomCard('START', 'Camp', 'The entry is behind you. The only path now is deeper.', 0x555555, '@', 'Continue when you are ready.');
+                const card = this.narrative.roomCard(RoomType.START, this.dungeon.currentDepth);
+                this.showRoomCard(this.loc.t('start'), card.title, card.description, 0x555555, '@', card.intel);
                 this.showReturnButton();
                 return;
         }
     }
 
     private startCombatEncounter(kind: 'normal' | 'elite' | 'boss') {
+        const narrativeType =
+            kind === 'boss' ? RoomType.BOSS : kind === 'elite' ? RoomType.ELITE : RoomType.ENEMY;
+        const narrativeCard = this.narrative.roomCard(narrativeType, this.dungeon.currentDepth);
         const card = kind === 'boss'
             ? {
-                  header: 'BOSS',
-                  title: 'A ruler of this floor rises.',
-                  description: 'Every system you earned is being tested at once.',
+                  header: this.loc.t('boss'),
+                  title: narrativeCard.title,
+                  description: narrativeCard.description,
                   color: 0xa52f2f,
                   icon: 'B',
               }
             : kind === 'elite'
               ? {
-                    header: 'ELITE',
-                    title: 'A hardened threat bars the corridor.',
-                    description: 'Winning here should feel costly and worth it.',
+                    header: this.loc.t('elite'),
+                    title: narrativeCard.title,
+                    description: narrativeCard.description,
                     color: 0xa14a4a,
                     icon: 'E',
                 }
               : {
-                    header: 'HOSTILE',
-                    title: 'Threat detected',
-                    description: 'The corridor narrows. Something waits in the dark.',
+                    header: this.loc.t('hostile'),
+                    title: narrativeCard.title,
+                    description: narrativeCard.description,
                     color: 0x6b3030,
                     icon: 'X',
                 };
 
-        this.showRoomCard(card.header, card.title, card.description, card.color, card.icon, 'Choose your next move.');
+        this.showRoomCard(card.header, card.title, card.description, card.color, card.icon, narrativeCard.intel);
         this.combat.startCombat(this.dungeon.currentDepth, kind);
+        if (this.combat.enemy) {
+            this.log.addMessage(this.narrative.combatIntro(kind, this.combat.enemy.name), '#a8a8a8');
+        }
         this.refreshCombatButtons();
     }
 
@@ -1063,12 +1103,12 @@ export class GameScene extends Phaser.Scene {
 
         const actions: RoomButtonAction[] = [
             {
-                label: '[1] Attack',
+                label: this.loc.t('actionAttack'),
                 callback: () => this.performCombatAction('attack'),
                 fill: 0x5a1d1d,
             },
             {
-                label: '[2] Defend',
+                label: this.loc.t('actionDefend'),
                 callback: () => this.performCombatAction('defend'),
                 fill: 0x1b335b,
             },
@@ -1076,7 +1116,7 @@ export class GameScene extends Phaser.Scene {
 
         if (this.meta.isUnlocked('action_skill')) {
             actions.push({
-                label: '[3] Skill',
+                label: this.loc.t('actionStagger'),
                 callback: () => this.performCombatAction('skill'),
                 enabled: this.player.resources.resolve >= COMBAT_CONFIG.skillCost,
                 fill: 0x5a2d78,
@@ -1085,7 +1125,7 @@ export class GameScene extends Phaser.Scene {
 
         if (this.meta.isUnlocked('action_potion')) {
             actions.push({
-                label: `[${actions.length + 1}] Potion`,
+                label: this.loc.t('actionPotion', { num: actions.length + 1 }),
                 callback: () => this.performCombatAction('potion'),
                 enabled: this.player.resources.potions > 0,
                 fill: 0x1f5b2f,
@@ -1102,6 +1142,14 @@ export class GameScene extends Phaser.Scene {
             return;
         }
 
+        if (action === 'attack') {
+            this.narrative.mark('violence');
+        } else if (action === 'defend' || action === 'potion') {
+            this.narrative.mark('caution');
+        } else if (action === 'skill') {
+            this.narrative.mark('craft');
+        }
+
         this.combat.processTurn(action);
         if (this.combat.enemy) {
             this.refreshCombatButtons();
@@ -1110,88 +1158,156 @@ export class GameScene extends Phaser.Scene {
 
     private buildCombatIntel(): string {
         if (!this.combat.enemy) {
-            return 'Collect yourself and continue deeper.';
+            return this.loc.t('collectSelf');
         }
 
-        const hints = ['Attack and defend are always available.'];
+        const hints: string[] = [];
+        const intent = this.combat.currentIntentInfo;
+
+        if (intent) {
+            hints.push(this.loc.t('intentLine', { label: intent.label, detail: intent.detail }));
+        }
+
+        if (this.combat.enemy.shield > 0) {
+            hints.push(this.loc.t('guardLine', { guard: this.combat.enemy.shield }));
+        }
 
         if (this.meta.isUnlocked('action_skill')) {
-            hints.push(`Skill costs ${COMBAT_CONFIG.skillCost} resolve.`);
+            hints.push(this.loc.t('staggerCost', { cost: COMBAT_CONFIG.skillCost }));
         }
         if (this.meta.isUnlocked('action_potion')) {
-            hints.push('Potions heal immediately, then the enemy acts.');
+            hints.push(this.loc.t('potionHint'));
         }
 
         return hints.join(' ');
     }
 
     private resolveTreasureRoom() {
-        const goldUnlocked = this.meta.isUnlocked('currency_gold');
-        const xpGained = this.player.gainXp(ROOM_CONFIG.treasure.xpReward);
-
-        let goldGained = 0;
-        let potionGained = 0;
-        if (goldUnlocked) {
-            goldGained = this.player.gainGold(this.randomBetween(ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
-            if (this.player.isPotionUnlocked && Math.random() < ROOM_CONFIG.treasure.potionChance) {
-                potionGained = this.player.gainPotions(1);
-            }
-        }
-
-        const rewardParts = [`+${xpGained} XP`];
-        if (goldGained > 0) {
-            rewardParts.push(`+${goldGained} gold`);
-        }
-        if (potionGained > 0) {
-            rewardParts.push('+1 potion');
-        }
-
+        const card = this.narrative.roomCard(RoomType.TREASURE, this.dungeon.currentDepth);
         this.showRoomCard(
-            'TREASURE',
-            'Forgotten Cache',
-            `A cracked chest still rewards careful hands. ${rewardParts.join(', ')}.`,
+            this.loc.t('treasure'),
+            card.title,
+            card.description,
             0x8d6a21,
             '$',
-            'Claim the spoils and move on.'
-        );
-        this.log.addMessage(`Treasure secured: ${rewardParts.join(', ')}.`, '#f7d46b');
-        this.showReturnButton();
-    }
-
-    private showTrapOptions() {
-        this.showRoomCard(
-            'TRAP',
-            'Mechanical Snare',
-            'A pressure plate snaps awake under your boot.',
-            0x75458a,
-            '^',
-            'Rush through or try to disarm it.'
+            card.intel
         );
 
         this.setRoomButtons([
             {
-                label: '[1] Rush',
+                label: this.loc.t('actionCareful'),
                 callback: () => {
+                    this.claimTreasure(1, false);
+                },
+                fill: 0x8a5d2d,
+            },
+            {
+                label: this.loc.t('actionForce'),
+                callback: () => {
+                    this.claimTreasure(1.55, true);
+                },
+                fill: 0x5a1d1d,
+            },
+            {
+                label: this.loc.t('actionLeave'),
+                callback: () => {
+                    const line = this.narrative.choiceLine('mercy');
+                    const resolve = this.player.gainResolve(1);
+                    const light = this.player.gainLight(1);
+                    const parts: string[] = [];
+                    if (resolve > 0) {
+                        parts.push(`${resolve} resolve`);
+                    }
+                    if (light > 0) {
+                        parts.push(`${light} light`);
+                    }
+                    this.log.addMessage(
+                        parts.length > 0
+                            ? this.loc.t('treasureLeaveGain', { parts: parts.join(', ') })
+                            : this.loc.t('treasureLeaveNoGain'),
+                        '#9bc8ff'
+                    );
+                    this.enemyIntelText.setText(line);
+                    this.showReturnButton();
+                },
+                fill: 0x202020,
+            },
+        ]);
+    }
+
+    private claimTreasure(multiplier: number, risky: boolean) {
+        const narrativeLine = this.narrative.choiceLine(risky ? 'greed' : 'caution');
+        const xpGained = this.player.gainXp(Math.round(ROOM_CONFIG.treasure.xpReward * multiplier));
+        const goldGained = this.player.gainGold(
+            this.randomBetween(
+                Math.round(ROOM_CONFIG.treasure.goldMin * multiplier),
+                Math.round(ROOM_CONFIG.treasure.goldMax * multiplier)
+            )
+        );
+        const potionGained =
+            this.player.isPotionUnlocked && Math.random() < ROOM_CONFIG.treasure.potionChance * multiplier
+                ? this.player.gainPotions(1)
+                : 0;
+
+        const rewardParts = [this.loc.t('plusXp', { value: xpGained })];
+        if (goldGained > 0) {
+            rewardParts.push(this.loc.t('plusGold', { value: goldGained }));
+        }
+        if (potionGained > 0) {
+            rewardParts.push(this.loc.t('plusPotion'));
+        }
+
+        if (risky && Math.random() < 0.5) {
+            const damage = this.applyTrapDamage(
+                this.randomBetween(ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.disarmFailDamageMax)
+            );
+            this.log.addMessage(this.loc.t('lockBites', { damage }), '#ff7777');
+        }
+
+        if (this.player.stats.hp > 0) {
+            this.log.addMessage(this.loc.t('treasureSecured', { parts: rewardParts.join(', ') }), '#f7d46b');
+            this.enemyIntelText.setText(narrativeLine);
+            this.showReturnButton();
+        }
+    }
+
+    private showTrapOptions() {
+        const card = this.narrative.roomCard(RoomType.TRAP, this.dungeon.currentDepth);
+        this.showRoomCard(
+            this.loc.t('trap'),
+            card.title,
+            card.description,
+            0x75458a,
+            '^',
+            card.intel
+        );
+
+        this.setRoomButtons([
+            {
+                label: this.loc.t('actionRush'),
+                callback: () => {
+                    const line = this.narrative.choiceLine('violence');
                     const damage = this.applyTrapDamage(
                         this.randomBetween(ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.rushDamageMax)
                     );
-                    this.log.addMessage(`You rush the trap and suffer ${damage} damage.`, '#ff7777');
+                    this.log.addMessage(this.loc.t('trapRush', { damage }), '#ff7777');
                     if (this.player.stats.hp > 0) {
                         this.showReturnButton();
-                        this.enemyIntelText.setText('The worst is behind you.');
+                        this.enemyIntelText.setText(line);
                     }
                 },
                 fill: 0x5a1d1d,
             },
             {
-                label: '[2] Disarm',
+                label: this.loc.t('actionDisarm'),
                 callback: () => {
+                    const line = this.narrative.choiceLine('caution');
                     if (Math.random() < ROOM_CONFIG.trap.disarmChance) {
                         const gold = this.player.gainGold(
                             this.randomBetween(ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
                         );
-                        this.log.addMessage(`You disarm it cleanly and salvage ${gold} gold.`, '#f7d46b');
-                        this.enemyIntelText.setText('The mechanism falls apart in your hands.');
+                        this.log.addMessage(this.loc.t('trapDisarm', { gold }), '#f7d46b');
+                        this.enemyIntelText.setText(line);
                     } else {
                         const damage = this.applyTrapDamage(
                             this.randomBetween(
@@ -1199,8 +1315,8 @@ export class GameScene extends Phaser.Scene {
                                 ROOM_CONFIG.trap.disarmFailDamageMax
                             )
                         );
-                        this.log.addMessage(`The mechanism snaps shut for ${damage} damage.`, '#ff7777');
-                        this.enemyIntelText.setText('The trap bites before you can pull away.');
+                        this.log.addMessage(this.loc.t('trapSnap', { damage }), '#ff7777');
+                        this.enemyIntelText.setText(this.loc.t('trapSnapIntel'));
                     }
 
                     if (this.player.stats.hp > 0) {
@@ -1209,46 +1325,72 @@ export class GameScene extends Phaser.Scene {
                 },
                 fill: 0x5a2d78,
             },
+            {
+                label: this.loc.t('actionProbe'),
+                callback: () => {
+                    if (!this.player.spendResolve(1)) {
+                        return;
+                    }
+
+                    const line = this.narrative.choiceLine('craft');
+                    const gold = this.player.gainGold(
+                        this.randomBetween(ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
+                    );
+                    const light = this.player.gainLight(1);
+                    const parts = [`${gold} gold`];
+                    if (light > 0) {
+                        parts.push(`${light} light`);
+                    }
+                    this.log.addMessage(this.loc.t('trapProbe', { parts: parts.join(', ') }), '#9bc8ff');
+                    this.enemyIntelText.setText(line);
+                    this.showReturnButton();
+                },
+                enabled: this.player.resources.resolve > 0,
+                fill: 0x1b335b,
+            },
         ]);
     }
 
     private showRestOptions() {
+        const card = this.narrative.roomCard(RoomType.REST, this.dungeon.currentDepth);
         this.showRoomCard(
-            'REST',
-            'Campfire',
-            'The coals are low, but still warm enough to matter.',
+            this.loc.t('rest'),
+            card.title,
+            card.description,
             0x2f8b4b,
             '+',
-            'Recover your body or focus your mind.'
+            card.intel
         );
 
         this.setRoomButtons([
             {
-                label: '[1] Recover',
+                label: this.loc.t('actionRecover'),
                 callback: () => {
+                    const line = this.narrative.choiceLine('caution');
                     const healed = this.player.heal(ROOM_CONFIG.rest.recoverHeal + this.meta.getBonuses().rooms.restHealBonus);
                     const lightGained = this.player.gainLight(ROOM_CONFIG.rest.recoverLight);
-                    const summary = [`${healed} HP`];
+                    const summary = [`${healed} ${this.loc.t('hp')}`];
                     if (lightGained > 0) {
-                        summary.push(`${lightGained} light`);
+                        summary.push(`${lightGained} ${this.loc.t('lightShort')}`);
                     }
-                    this.log.addMessage(`You rest and recover ${summary.join(', ')}.`, '#79e28f');
-                    this.enemyIntelText.setText('The room feels less hostile for a moment.');
+                    this.log.addMessage(this.loc.t('restRecover', { parts: summary.join(', ') }), '#79e28f');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 fill: 0x1f5b2f,
             },
             {
-                label: '[2] Focus',
+                label: this.loc.t('actionFocus'),
                 callback: () => {
+                    const line = this.narrative.choiceLine('craft');
                     if (this.player.isResolveUnlocked) {
                         const gained = this.player.gainResolve(ROOM_CONFIG.rest.focusResolve);
-                        this.log.addMessage(`You focus and gain ${gained} resolve.`, '#9bc8ff');
+                        this.log.addMessage(this.loc.t('focusResolve', { value: gained }), '#9bc8ff');
                     } else {
                         const gainedXp = this.player.gainXp(ROOM_CONFIG.rest.focusXp);
-                        this.log.addMessage(`You study the quiet and gain ${gainedXp} XP.`, '#f7d46b');
+                        this.log.addMessage(this.loc.t('focusXp', { value: gainedXp }), '#f7d46b');
                     }
-                    this.enemyIntelText.setText('You leave steadier than you arrived.');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 fill: 0x1b335b,
@@ -1259,38 +1401,40 @@ export class GameScene extends Phaser.Scene {
     private showShrineOptions() {
         const actions: RoomButtonAction[] = [
             {
-                label: '[1] Pray',
+                label: this.loc.t('actionPray'),
                 callback: () => {
+                    const line = this.narrative.choiceLine('faith');
                     if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
                         this.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
-                        this.log.addMessage('The shrine answers: +1 attack for this run.', '#d7b6ff');
+                        this.log.addMessage(this.loc.t('shrineAttack'), '#d7b6ff');
                     } else {
                         const damage = this.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
                         const resolve = this.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
                         this.log.addMessage(
-                            `The shrine wounds you for ${damage}, but grants ${resolve} resolve.`,
+                            this.loc.t('shrineWound', { damage, resolve }),
                             '#c99cff'
                         );
                     }
                     if (this.player.stats.hp > 0) {
-                        this.enemyIntelText.setText('The shrine remembers your name.');
+                        this.enemyIntelText.setText(line);
                         this.showReturnButton();
                     }
                 },
                 fill: 0x5f4e8a,
             },
             {
-                label: `[2] Offer ${ROOM_CONFIG.shrine.offerGoldCost}g`,
+                label: this.loc.t('actionOffer', { cost: ROOM_CONFIG.shrine.offerGoldCost }),
                 callback: () => {
                     if (!this.player.spendGold(ROOM_CONFIG.shrine.offerGoldCost)) {
                         return;
                     }
+                    const line = this.narrative.choiceLine('faith');
                     this.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
                     this.log.addMessage(
-                        `You offer gold and gain +${ROOM_CONFIG.shrine.offerMaxHpBonus} max HP for this run.`,
+                        this.loc.t('shrineOffer', { value: ROOM_CONFIG.shrine.offerMaxHpBonus }),
                         '#ffd36e'
                     );
-                    this.enemyIntelText.setText('The altar gives strength, not kindness.');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 enabled: this.player.resources.gold >= ROOM_CONFIG.shrine.offerGoldCost,
@@ -1300,21 +1444,25 @@ export class GameScene extends Phaser.Scene {
 
         if (this.meta.isUnlocked('shrine_premium')) {
             actions.push({
-                label: `[3] Rite ${ROOM_CONFIG.shrine.premiumShardCost}s`,
+                label: this.loc.t('actionRite', { cost: ROOM_CONFIG.shrine.premiumShardCost }),
                 callback: () => {
                     if (!this.player.spendRelicShard(ROOM_CONFIG.shrine.premiumShardCost)) {
                         return;
                     }
+                    const line = this.narrative.choiceLine('faith');
                     this.player.addMaxHpBonus(
                         ROOM_CONFIG.shrine.premiumMaxHpBonus,
                         ROOM_CONFIG.shrine.premiumMaxHpBonus
                     );
                     this.player.gainResolve(ROOM_CONFIG.shrine.premiumResolveBonus);
                     this.log.addMessage(
-                        `The relic rite grants +${ROOM_CONFIG.shrine.premiumMaxHpBonus} max HP and +${ROOM_CONFIG.shrine.premiumResolveBonus} resolve.`,
+                        this.loc.t('shrineRite', {
+                            hp: ROOM_CONFIG.shrine.premiumMaxHpBonus,
+                            resolve: ROOM_CONFIG.shrine.premiumResolveBonus,
+                        }),
                         '#ffd9f7'
                     );
-                    this.enemyIntelText.setText('Old power bends around you for one more descent.');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 enabled: this.player.resources.relicShards >= ROOM_CONFIG.shrine.premiumShardCost,
@@ -1323,18 +1471,22 @@ export class GameScene extends Phaser.Scene {
         }
 
         actions.push({
-            label: `[${actions.length + 1}] Leave`,
-            callback: () => this.showReturnButton(),
+            label: this.loc.t('actionDynamicLeave', { num: actions.length + 1 }),
+            callback: () => {
+                this.enemyIntelText.setText(this.narrative.choiceLine('caution'));
+                this.showReturnButton();
+            },
             fill: 0x202020,
         });
 
+        const card = this.narrative.roomCard(RoomType.SHRINE, this.dungeon.currentDepth);
         this.showRoomCard(
-            'SHRINE',
-            'Forgotten Altar',
-            'Something old still listens from beneath the stone.',
+            this.loc.t('shrine'),
+            card.title,
+            card.description,
             0x5f4e8a,
             'S',
-            'A prayer, an offering, or a careful retreat.'
+            card.intel
         );
         this.setRoomButtons(actions);
     }
@@ -1342,14 +1494,15 @@ export class GameScene extends Phaser.Scene {
     private showMerchantOptions() {
         const actions: RoomButtonAction[] = [
             {
-                label: `[1] Potion ${ROOM_CONFIG.merchant.potionCost}g`,
+                label: this.loc.t('actionBuyPotion', { cost: ROOM_CONFIG.merchant.potionCost }),
                 callback: () => {
                     if (!this.player.spendGold(ROOM_CONFIG.merchant.potionCost)) {
                         return;
                     }
+                    const line = this.narrative.choiceLine('commerce');
                     this.player.gainPotions(1);
-                    this.log.addMessage('You buy a potion.', '#9be0a7');
-                    this.enemyIntelText.setText('The merchant counts the coins and looks away.');
+                    this.log.addMessage(this.loc.t('buyPotion'), '#9be0a7');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 enabled: this.player.resources.gold >= ROOM_CONFIG.merchant.potionCost,
@@ -1359,14 +1512,15 @@ export class GameScene extends Phaser.Scene {
 
         if (this.player.isLightUnlocked) {
             actions.push({
-                label: `[${actions.length + 1}] Lantern ${ROOM_CONFIG.merchant.lanternCost}g`,
+                label: this.loc.t('actionLantern', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.lanternCost }),
                 callback: () => {
                     if (!this.player.spendGold(ROOM_CONFIG.merchant.lanternCost)) {
                         return;
                     }
+                    const line = this.narrative.choiceLine('commerce');
                     const gainedLight = this.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
-                    this.log.addMessage(`You refill your lantern: +${gainedLight} light.`, '#ffe08a');
-                    this.enemyIntelText.setText('The oil smells cleaner than the dungeon air.');
+                    this.log.addMessage(this.loc.t('buyLantern', { value: gainedLight }), '#ffe08a');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 enabled: this.player.resources.gold >= ROOM_CONFIG.merchant.lanternCost,
@@ -1375,14 +1529,15 @@ export class GameScene extends Phaser.Scene {
         }
 
         actions.push({
-            label: `[${actions.length + 1}] Armor ${ROOM_CONFIG.merchant.armorCost}g`,
+            label: this.loc.t('actionArmor', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.armorCost }),
             callback: () => {
                 if (!this.player.spendGold(ROOM_CONFIG.merchant.armorCost)) {
                     return;
                 }
+                const line = this.narrative.choiceLine('commerce');
                 this.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
-                this.log.addMessage(`You reinforce your armor: +${ROOM_CONFIG.merchant.armorDefenseGain} defense.`, '#b8d3ff');
-                this.enemyIntelText.setText('A fair trade, by dungeon standards.');
+                this.log.addMessage(this.loc.t('buyArmor', { value: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
+                this.enemyIntelText.setText(line);
                 this.showReturnButton();
             },
             enabled: this.player.resources.gold >= ROOM_CONFIG.merchant.armorCost,
@@ -1391,18 +1546,22 @@ export class GameScene extends Phaser.Scene {
 
         if (this.meta.isUnlocked('merchant_premium')) {
             actions.push({
-                label: `[${actions.length + 1}] Relic ${ROOM_CONFIG.merchant.premiumShardCost}s`,
+                label: this.loc.t('actionRelic', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.premiumShardCost }),
                 callback: () => {
                     if (!this.player.spendRelicShard(ROOM_CONFIG.merchant.premiumShardCost)) {
                         return;
                     }
+                    const line = this.narrative.choiceLine('commerce');
                     this.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
                     this.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
                     this.log.addMessage(
-                        `Relic oil grants +${ROOM_CONFIG.merchant.premiumAttackBonus} attack and +${ROOM_CONFIG.merchant.premiumPotionBonus} potion.`,
+                        this.loc.t('buyRelic', {
+                            attack: ROOM_CONFIG.merchant.premiumAttackBonus,
+                            potions: ROOM_CONFIG.merchant.premiumPotionBonus,
+                        }),
                         '#ffd9f7'
                     );
-                    this.enemyIntelText.setText('The merchant smiles only when relics change hands.');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 enabled: this.player.resources.relicShards >= ROOM_CONFIG.merchant.premiumShardCost,
@@ -1411,40 +1570,46 @@ export class GameScene extends Phaser.Scene {
         }
 
         actions.push({
-            label: `[${actions.length + 1}] Leave`,
-            callback: () => this.showReturnButton(),
+            label: this.loc.t('actionDynamicLeave', { num: actions.length + 1 }),
+            callback: () => {
+                this.enemyIntelText.setText(this.narrative.choiceLine('caution'));
+                this.showReturnButton();
+            },
             fill: 0x202020,
         });
 
+        const card = this.narrative.roomCard(RoomType.MERCHANT, this.dungeon.currentDepth);
         this.showRoomCard(
-            'MERCHANT',
-            'Shadow Trader',
-            'A hooded figure has already decided what your fear is worth.',
+            this.loc.t('merchant'),
+            card.title,
+            card.description,
             0x2e6c87,
             'M',
-            'Spend carefully. This room lasts one choice.'
+            card.intel
         );
         this.setRoomButtons(actions);
     }
 
     private showEmptyOptions() {
+        const card = this.narrative.roomCard(RoomType.EMPTY, this.dungeon.currentDepth);
         this.showRoomCard(
-            'EMPTY',
-            'Dusty Chamber',
-            'Stillness can hide a cache or steady a shaking hand.',
+            this.loc.t('empty'),
+            card.title,
+            card.description,
             0x444444,
             '.',
-            'Search the room or keep your footing.'
+            card.intel
         );
 
         this.setRoomButtons([
             {
-                label: '[1] Scout',
+                label: this.loc.t('actionScout'),
                 callback: () => {
+                    const line = this.narrative.choiceLine('caution');
                     const gains: string[] = [];
                     const lightGain = this.player.gainLight(ROOM_CONFIG.empty.scoutLightGain);
                     if (lightGain > 0) {
-                        gains.push(`${lightGain} light`);
+                        gains.push(`${lightGain} ${this.loc.t('lightShort')}`);
                     }
 
                     if (
@@ -1454,31 +1619,32 @@ export class GameScene extends Phaser.Scene {
                         const gold = this.player.gainGold(
                             this.randomBetween(ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
                         );
-                        gains.push(`${gold} gold`);
+                        gains.push(`${gold} ${this.loc.t('goldShort')}`);
                     }
 
                     if (gains.length === 0) {
                         const xp = this.player.gainXp(1);
-                        gains.push(`${xp} XP`);
+                        gains.push(this.loc.t('plusXp', { value: xp }));
                     }
 
-                    this.log.addMessage(`Your search yields ${gains.join(', ')}.`, '#bbbbbb');
-                    this.enemyIntelText.setText('You leave with a slightly clearer picture of the dark.');
+                    this.log.addMessage(this.loc.t('emptyScout', { parts: gains.join(', ') }), '#bbbbbb');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 fill: 0x3d3d3d,
             },
             {
-                label: '[2] Steady',
+                label: this.loc.t('actionSteady'),
                 callback: () => {
+                    const line = this.narrative.choiceLine('craft');
                     if (this.player.isResolveUnlocked) {
                         const gained = this.player.gainResolve(ROOM_CONFIG.empty.steadyResolveGain);
-                        this.log.addMessage(`You steady yourself and gain ${gained} resolve.`, '#9bc8ff');
+                        this.log.addMessage(this.loc.t('emptySteady', { value: gained }), '#9bc8ff');
                     } else {
                         const gainedXp = this.player.gainXp(1);
-                        this.log.addMessage(`You study the silence and gain ${gainedXp} XP.`, '#bbbbbb');
+                        this.log.addMessage(this.loc.t('emptyStudy', { value: gainedXp }), '#bbbbbb');
                     }
-                    this.enemyIntelText.setText('The room gives nothing, and that helps.');
+                    this.enemyIntelText.setText(line);
                     this.showReturnButton();
                 },
                 fill: 0x2b2b2b,
@@ -1503,8 +1669,8 @@ export class GameScene extends Phaser.Scene {
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
         this.enemyNameText.setText(this.compactText(title, 28));
-        this.roomFlavorText.setText(this.compactText(description, 72));
-        this.enemyIntelText.setText(this.compactText(intel, 54));
+        this.roomFlavorText.setText(this.compactText(description, 96));
+        this.enemyIntelText.setText(this.compactText(intel, 92));
         this.enemyIntelText.setVisible(true);
         this.enemyHpBarBg.setVisible(false);
         this.enemyHpBar.setVisible(false);
@@ -1516,7 +1682,7 @@ export class GameScene extends Phaser.Scene {
         this.setRoomButtons(
             [
                 {
-                    label: '[Space] Return to map',
+                    label: this.loc.t('returnToMap'),
                     callback: () => this.returnToMap(),
                     fill: 0x202020,
                 },
@@ -1569,14 +1735,14 @@ export class GameScene extends Phaser.Scene {
         icon: string
     ) {
         const unlocks = this.meta.getUiUnlockState();
-        const description = this.combat.enemy?.description ?? 'An unnamed threat emerges.';
+        const description = this.combat.enemy?.description ?? this.loc.t('enemyFallback');
 
         this.roomHeaderText.setText(
             this.combat.enemy?.kind === 'boss'
-                ? 'BOSS'
+                ? this.loc.t('boss')
                 : this.combat.enemy?.kind === 'elite'
-                  ? 'ELITE'
-                  : 'HOSTILE'
+                  ? this.loc.t('elite')
+                  : this.loc.t('hostile')
         );
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
@@ -1587,15 +1753,15 @@ export class GameScene extends Phaser.Scene {
         const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
         this.enemyHpBar.setDisplaySize(ratio * 220, 12);
         this.enemyHpBar.setFillStyle(ratio > 0.5 ? 0xc65a2e : ratio > 0.25 ? 0xcf9e16 : 0xc63d2d);
-        this.enemyHpText.setText(`HP ${Math.max(0, hp)}/${maxHp}`);
+        this.enemyHpText.setText(`${this.loc.t('hp')} ${Math.max(0, hp)}/${maxHp}`);
         this.enemyHpBarBg.setVisible(unlocks.showEnemyHp);
         this.enemyHpBar.setVisible(unlocks.showEnemyHp);
         this.enemyHpText.setVisible(unlocks.showEnemyHp);
         this.enemyIntelText.setVisible(true);
         this.enemyIntelText.setText(
             unlocks.showEnemyHp
-                ? this.compactText(this.buildCombatIntel(), 54)
-                : 'Enemy info unlocks deeper down.'
+                ? this.compactText(this.buildCombatIntel(), 120)
+                : this.loc.t('enemyInfoLocked')
         );
 
         if (this.lastEnemyHp > 0 && hp < this.lastEnemyHp) {
@@ -1618,31 +1784,32 @@ export class GameScene extends Phaser.Scene {
         }
 
         const gainedXp = this.player.gainXp(payload.rewards.xp);
-        rewardLines.push(`+${gainedXp} XP`);
+        rewardLines.push(this.loc.t('plusXp', { value: gainedXp }));
 
         const gainedGold = this.player.gainGold(payload.rewards.gold);
         if (gainedGold > 0) {
-            rewardLines.push(`+${gainedGold} gold`);
+            rewardLines.push(this.loc.t('plusGold', { value: gainedGold }));
         }
 
         const gainedPotions = this.player.gainPotions(payload.rewards.potions);
         if (gainedPotions > 0) {
-            rewardLines.push(`+${gainedPotions} potion`);
+            rewardLines.push(gainedPotions === 1 ? this.loc.t('plusPotion') : `+${gainedPotions} ${this.loc.t('potionShort')}`);
         }
 
         if (payload.rewards.attackBonus > 0) {
             this.player.addAttackBonus(payload.rewards.attackBonus);
-            rewardLines.push(`+${payload.rewards.attackBonus} attack`);
+            rewardLines.push(this.loc.t('plusAttack', { value: payload.rewards.attackBonus }));
         }
 
         const gainedShards = this.player.gainRelicShards(payload.rewards.relicShards);
         if (gainedShards > 0) {
-            rewardLines.push(`+${gainedShards} shard`);
+            rewardLines.push(this.loc.t('plusShard', { value: gainedShards }));
         }
 
         this.player.registerKill();
-        this.log.addMessage(`Victory rewards: ${rewardLines.join(', ')}.`, '#9be0a7');
-        this.enemyIntelText.setText('The path forward is open again.');
+        this.log.addMessage(this.narrative.victoryLine(payload.enemyName), '#a8a8a8');
+        this.log.addMessage(this.loc.t('victoryRewards', { parts: rewardLines.join(', ') }), '#9be0a7');
+        this.enemyIntelText.setText(this.loc.t('pathOpen'));
         this.showReturnButton();
         this.refreshUI();
     }
@@ -1660,6 +1827,14 @@ export class GameScene extends Phaser.Scene {
         VFX.floatText(this, 126, 82, `-${damage}`, '#ff5555');
     }
 
+    private restartSceneSafely() {
+        this.input.enabled = false;
+        this.tweens.killAll();
+        this.time.delayedCall(0, () => {
+            this.scene.restart();
+        });
+    }
+
     private showDeathScreen() {
         this.mapContainer.setVisible(false);
         this.roomContainer.setVisible(false);
@@ -1674,7 +1849,7 @@ export class GameScene extends Phaser.Scene {
         const panel = this.add.rectangle(400, 300, 736, 500, 0x121212).setDepth(101);
         panel.setStrokeStyle(2, 0x5a2f2f);
 
-        const title = this.add.text(400, 78, 'THE EXPEDITION ENDS', {
+        const title = this.add.text(400, 78, this.loc.t('deathTitle'), {
             fontFamily: 'Courier New',
             fontSize: '34px',
             color: '#d65a5a',
@@ -1683,13 +1858,19 @@ export class GameScene extends Phaser.Scene {
         const summary = this.add.text(
             400,
             122,
-            `Best depth: ${this.runBestDepth}\nBosses defeated: ${this.runBossKills}\nPrestige earned: +${this.prestigeReward}`,
+            this.loc.t('deathSummary', {
+                depth: this.runBestDepth,
+                bosses: this.runBossKills,
+                prestige: this.prestigeReward,
+                line: this.narrative.deathLine(),
+            }),
             {
                 fontFamily: 'Courier New',
-                fontSize: '16px',
+                fontSize: '15px',
                 color: '#d7d7d7',
                 align: 'center',
                 lineSpacing: 8,
+                wordWrap: { width: 620 },
             }
         ).setOrigin(0.5).setDepth(102);
 
@@ -1726,7 +1907,7 @@ export class GameScene extends Phaser.Scene {
                 .setDepth(102)
                 .setInteractive({ useHandCursor: true });
 
-            const cardTitle = this.add.text(position.x - 136, position.y - 22, card.title, {
+            const cardTitle = this.add.text(position.x - 136, position.y - 22, this.loc.upgradeTitle(card.id, card.title), {
                 fontFamily: 'Courier New',
                 fontSize: '15px',
                 color: '#f0f0f0',
@@ -1786,7 +1967,7 @@ export class GameScene extends Phaser.Scene {
         const restartButton = this.add.rectangle(400, 540, 260, 42, 0x2b2b2b).setDepth(102);
         restartButton.setStrokeStyle(1, 0x8a8a8a);
         restartButton.setInteractive({ useHandCursor: true });
-        const restartText = this.add.text(400, 540, 'Begin New Expedition', {
+        const restartText = this.add.text(400, 540, this.loc.t('restart'), {
             fontFamily: 'Courier New',
             fontSize: '17px',
             color: '#f0f0f0',
@@ -1795,7 +1976,7 @@ export class GameScene extends Phaser.Scene {
         const resetButton = this.add.rectangle(400, 586, 260, 34, 0x3a1818).setDepth(102);
         resetButton.setStrokeStyle(1, 0xa35a5a);
         resetButton.setInteractive({ useHandCursor: true });
-        const resetText = this.add.text(400, 586, 'Развеять опыт души', {
+        const resetText = this.add.text(400, 586, this.loc.t('reset'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#ffd0d0',
@@ -1803,19 +1984,22 @@ export class GameScene extends Phaser.Scene {
 
         restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
         restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x8a8a8a));
-        restartButton.on('pointerdown', () => this.scene.restart());
+        restartButton.on('pointerdown', () => this.restartSceneSafely());
 
         resetButton.on('pointerover', () => resetButton.setStrokeStyle(2, 0xffd7d7));
         resetButton.on('pointerout', () => resetButton.setStrokeStyle(1, 0xa35a5a));
 
         const refreshShop = () => {
-            pointsText.setText(`Prestige bank: ${this.meta.availablePrestige}`);
+            pointsText.setText(this.loc.t('prestigeBank', { value: this.meta.availablePrestige }));
 
             const nextUnlock = this.meta.getNextContentUnlock();
             unlockText.setText(
                 nextUnlock
-                    ? `Next permanent discovery: ${nextUnlock.requirement} -> ${nextUnlock.label}.`
-                    : 'Every planned layer of permanent content has been unlocked.'
+                    ? this.loc.t('nextDiscovery', {
+                          requirement: this.loc.milestoneRequirement(nextUnlock.id, nextUnlock.requirement),
+                          label: this.loc.milestoneLabel(nextUnlock.id, nextUnlock.label),
+                      })
+                    : this.loc.t('allDiscovered')
             );
 
             const upgradeCards = this.meta.getUpgradeCards();
@@ -1825,9 +2009,9 @@ export class GameScene extends Phaser.Scene {
                     return;
                 }
 
-                card.level.setText(`Lv ${info.level}/${info.maxLevel}`);
-                card.body.setText(info.description);
-                card.cost.setText(info.cost === null ? 'MAX' : `Cost ${info.cost}`);
+                card.level.setText(this.loc.t('levelCard', { level: info.level, max: info.maxLevel }));
+                card.body.setText(this.loc.upgradeDescription(info.id, info.description, info.level + 1));
+                card.cost.setText(info.cost === null ? this.loc.t('max') : this.loc.t('cost', { cost: info.cost }));
                 card.background.setFillStyle(info.canPurchase ? 0x242424 : 0x1c1c1c);
                 card.background.setStrokeStyle(1, info.canPurchase ? 0x8a8a8a : 0x4a4a4a);
                 (card.background as unknown as { canPurchase?: boolean }).canPurchase = info.canPurchase;
@@ -1843,7 +2027,7 @@ export class GameScene extends Phaser.Scene {
             .setInteractive();
         const confirmPanel = this.add.rectangle(400, 300, 430, 190, 0x181818).setDepth(111);
         confirmPanel.setStrokeStyle(2, 0x8a4d4d);
-        const confirmTitle = this.add.text(400, 244, 'Сбросить весь прогресс?', {
+        const confirmTitle = this.add.text(400, 244, this.loc.t('confirmResetTitle'), {
             fontFamily: 'Courier New',
             fontSize: '22px',
             color: '#ffd2d2',
@@ -1851,7 +2035,7 @@ export class GameScene extends Phaser.Scene {
         const confirmBody = this.add.text(
             400,
             290,
-            'Вы точно хотите потерять все, чего добились?\nЭто полностью очистит престиж, открытия и улучшения.',
+            this.loc.t('confirmResetBody'),
             {
                 fontFamily: 'Courier New',
                 fontSize: '14px',
@@ -1864,7 +2048,7 @@ export class GameScene extends Phaser.Scene {
         const confirmResetButton = this.add.rectangle(320, 358, 170, 38, 0x5a1d1d).setDepth(112);
         confirmResetButton.setStrokeStyle(1, 0xc57d7d);
         confirmResetButton.setInteractive({ useHandCursor: true });
-        const confirmResetText = this.add.text(320, 358, 'Да, удалить всё', {
+        const confirmResetText = this.add.text(320, 358, this.loc.t('confirmResetYes'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#ffe8e8',
@@ -1872,7 +2056,7 @@ export class GameScene extends Phaser.Scene {
         const cancelResetButton = this.add.rectangle(480, 358, 170, 38, 0x252525).setDepth(112);
         cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
         cancelResetButton.setInteractive({ useHandCursor: true });
-        const cancelResetText = this.add.text(480, 358, 'Отмена', {
+        const cancelResetText = this.add.text(480, 358, this.loc.t('cancel'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#f0f0f0',
@@ -1899,7 +2083,7 @@ export class GameScene extends Phaser.Scene {
         confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
         confirmResetButton.on('pointerdown', () => {
             this.meta.resetProgress();
-            this.scene.restart();
+            this.restartSceneSafely();
         });
 
         refreshShop();
