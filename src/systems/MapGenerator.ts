@@ -85,9 +85,21 @@ export class MapGenerator {
             newLayer.push(node);
         }
 
-        previousLayer.forEach((previousNode) => {
-            const targets = newLayer.filter(() => Math.random() < MAP_CONFIG.edgeProbability);
-            const chosenTargets = targets.length > 0 ? targets : [newLayer[0]];
+        previousLayer.forEach((previousNode, index) => {
+            const anchorIndex =
+                previousLayer.length === 1
+                    ? Math.floor((newLayer.length - 1) / 2)
+                    : Math.round((index / (previousLayer.length - 1)) * (newLayer.length - 1));
+            const chosenTargets = [newLayer[anchorIndex]];
+
+            if (newLayer.length > 1 && Math.random() < MAP_CONFIG.edgeProbability) {
+                const side = index % 2 === 0 ? 1 : -1;
+                const neighbor = newLayer[Math.max(0, Math.min(newLayer.length - 1, anchorIndex + side))];
+                if (!chosenTargets.includes(neighbor)) {
+                    chosenTargets.push(neighbor);
+                }
+            }
+
             chosenTargets.forEach((target) => {
                 if (!previousNode.edges.includes(target.id)) {
                     previousNode.edges.push(target.id);
