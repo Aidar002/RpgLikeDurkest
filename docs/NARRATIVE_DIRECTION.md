@@ -27,17 +27,21 @@ Prestige and unlocks are "soul memory": not heroic destiny, but lessons that sur
 
 ## Text Roles
 
-Room cards set the scene and explain the decision:
+Room cards set the scene and show clues:
 
 - one concrete image,
 - one clear risk,
-- one useful hint.
+- one diegetic clue, not a tooltip.
+
+Do not explain exactly what each action does before the player tries it. The player should learn action outcomes through play, memory, and repeated runs. Hints should be observable fiction: posture, stains, wire, fresh marks, missing bodies, the smell of oil.
 
 Combat log lines should be direct and readable:
 
 - what acted,
 - what changed,
 - how much was gained or lost.
+
+Intent text should describe enemy behavior, not counterplay. Use "prepares to strike" instead of "high damage, guard or break".
 
 Death lines should connect the loss to the player's behavior, but stay simple.
 

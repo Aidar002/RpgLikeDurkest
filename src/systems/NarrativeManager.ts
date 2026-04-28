@@ -86,7 +86,7 @@ export class NarrativeManager {
                         tone === 'greed'
                             ? this.text('The chest is heavy, and the lock is damaged. Someone tried to force it before you.', 'Сундук тяжелый, замок поврежден. Кто-то уже пытался вскрыть его до тебя.')
                             : this.text('A cracked chest sits in the dust. It may hold supplies, or a trap in the lock.', 'В пыли стоит треснувший сундук. Внутри могут быть припасы или ловушка в замке.'),
-                    intel: this.text('Careful: safer. Force: more reward, more risk. Leave: recover resolve or light.', 'Осторожно: безопаснее. Вскрыть: больше награда и риск. Оставить: вернуть волю или свет.'),
+                    intel: this.text('The lock is weak, but the metal around it is stained.', 'Замок слабый, но металл вокруг него в пятнах.'),
                 };
             case RoomType.TRAP:
                 return {
@@ -95,7 +95,7 @@ export class NarrativeManager {
                         tone === 'craft'
                             ? this.text('You recognize the wire and the loose stone. You can handle it if you slow down.', 'Ты узнаешь проволоку и шатающийся камень. Если не спешить, ловушку можно разобрать.')
                             : this.text('A thin wire crosses the floor. The wall beside it is full of small holes.', 'Через пол тянется тонкая проволока. В стене рядом много маленьких отверстий.'),
-                    intel: this.text('Rush: take damage. Disarm: chance for gold. Study: costs resolve, safest.', 'Прорваться: получишь урон. Разрядить: можно найти золото. Изучить: тратит волю, но безопаснее.'),
+                    intel: this.text('The wire is tight. The holes in the wall are aimed at the floor.', 'Проволока натянута. Отверстия в стене смотрят в пол.'),
                 };
             case RoomType.REST:
                 return {
@@ -104,7 +104,7 @@ export class NarrativeManager {
                         tone === 'violence'
                             ? this.text('The fire is low. A broken blade lies near it, cleaned and left behind.', 'Костер почти погас. Рядом лежит сломанный клинок, вытертый и брошенный.')
                             : this.text('Someone made a small fire here. There is enough warmth for a short rest.', 'Кто-то развел здесь малый костер. Тепла хватит на короткую передышку.'),
-                    intel: this.text('Rest to heal, or focus to gain resolve and experience.', 'Отдохни, чтобы вылечиться, или соберись ради воли и опыта.'),
+                    intel: this.text('The fire is small, but the room is still warm.', 'Костер мал, но в комнате еще тепло.'),
                 };
             case RoomType.SHRINE:
                 return {
@@ -113,7 +113,7 @@ export class NarrativeManager {
                         tone === 'faith'
                             ? this.text('Your old offering is still on the stone. It is dry, but not gone.', 'Твоя старая жертва все еще лежит на камне. Она высохла, но не исчезла.')
                             : this.text('Coins, ash, and dried blood cover the altar. The bargain is simple and ugly.', 'Алтарь покрыт монетами, пеплом и засохшей кровью. Сделка простая и неприятная.'),
-                    intel: this.text('Pray for attack, offer gold for health, or leave.', 'Молитва дает атаку, жертва золота дает здоровье, уход ничего не стоит.'),
+                    intel: this.text('Old cuts cover the stone. Every mark looks deliberate.', 'Камень покрыт старыми порезами. Каждый след оставлен намеренно.'),
                 };
             case RoomType.MERCHANT:
                 return {
@@ -122,7 +122,7 @@ export class NarrativeManager {
                         tone === 'commerce'
                             ? this.text('The trader has already laid out the goods you usually buy.', 'Торговец уже разложил товары, которые ты обычно берешь.')
                             : this.text('A masked trader waits behind a torn cloth. The prices are clear.', 'За рваной тканью ждет торговец в маске. Цены написаны заранее.'),
-                    intel: this.text('Buy one thing. Gold buys supplies. Shards buy stronger help.', 'Купить можно один раз. За золото - припасы. За осколки - помощь сильнее.'),
+                    intel: this.text('The trader shows only a few items and hides the rest.', 'Торговец показывает лишь несколько вещей, остальное держит под тканью.'),
                 };
             case RoomType.EMPTY:
                 return {
@@ -131,13 +131,13 @@ export class NarrativeManager {
                         tone === 'caution'
                             ? this.text('The room is quiet enough to hear water behind the wall.', 'В комнате так тихо, что слышно воду за стеной.')
                             : this.text('No enemy waits here. Dust on the floor shows fresh marks.', 'Здесь нет врага. На пыльном полу видны свежие следы.'),
-                    intel: this.text('Search for supplies, or pause and recover resolve.', 'Обыщи комнату ради припасов или возьми паузу ради воли.'),
+                    intel: this.text('The dust is disturbed near the far wall.', 'У дальней стены пыль сбита следами.'),
                 };
             case RoomType.ELITE:
                 return {
                     title: this.text('Marked Enemy', 'Меченый враг'),
                     description: this.text('This one carries old scars and a fresh trophy. It has killed explorers before.', 'На нем старые шрамы и свежий трофей. Он уже убивал таких, как ты.'),
-                    intel: this.text('Hard fight. Win for better rewards.', 'Тяжелый бой. Победа даст награду лучше обычной.'),
+                    intel: this.text('It wears trophies from older expeditions.', 'На нем трофеи старых экспедиций.'),
                 };
             case RoomType.BOSS:
                 return {
@@ -152,13 +152,13 @@ export class NarrativeManager {
                         tone === 'darkness'
                             ? this.text('Something moves beyond the weak lantern light and steps into the path.', 'За слабым светом фонаря что-то шевелится и выходит на дорогу.')
                             : this.text('The corridor narrows. An enemy stands between you and the next room.', 'Коридор сужается. Между тобой и следующей комнатой стоит враг.'),
-                    intel: this.text('Watch the intent. Guard, attack, or break the next move.', 'Смотри на намерение. Блокируй, бей или ломай следующий ход.'),
+                    intel: this.text('Its stance gives away the next move.', 'По стойке видно, что он собирается сделать.'),
                 };
             case RoomType.START:
                 return {
                     title: this.text('Camp', 'Лагерь'),
                     description: this.text('Your camp is above the first stair. Everything useful must be found below.', 'Лагерь стоит над первой лестницей. Все полезное придется искать внизу.'),
-                    intel: this.text('Choose a path and start the descent.', 'Выбери путь и начни спуск.'),
+                    intel: this.text('The first steps are quiet. That never lasts.', 'Первые шаги тихие. Так бывает недолго.'),
                 };
         }
     }

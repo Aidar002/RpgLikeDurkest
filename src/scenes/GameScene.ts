@@ -1326,17 +1326,6 @@ export class GameScene extends Phaser.Scene {
             hints.push(this.loc.t('intentLine', { label: intent.label, detail: intent.detail }));
         }
 
-        if (this.combat.enemy.shield > 0) {
-            hints.push(this.loc.t('guardLine', { guard: this.combat.enemy.shield }));
-        }
-
-        if (this.meta.isUnlocked('action_skill')) {
-            hints.push(this.loc.t('staggerCost', { cost: COMBAT_CONFIG.skillCost }));
-        }
-        if (this.meta.isUnlocked('action_potion')) {
-            hints.push(this.loc.t('potionHint'));
-        }
-
         return hints.filter(Boolean).join(' ');
     }
 
