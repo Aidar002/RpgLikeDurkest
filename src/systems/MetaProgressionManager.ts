@@ -1,3 +1,9 @@
+import type { SkillId } from './Skills';
+
+// Historical unlock ids kept for backward compatibility with older saves.
+// The game no longer gates the base HUD or base resources on these — they
+// all exist from run 1. New installs keep them `true` by default. Meta
+// unlocks now meaningfully gate *new* skills and relic-tier quality.
 export const ALL_UNLOCK_IDS = [
     'room_enemy',
     'room_empty',
@@ -28,6 +34,15 @@ export const ALL_UNLOCK_IDS = [
     'merchant_premium',
     'shrine_premium',
     'ui_prestige_forecast',
+    // New meta unlocks: skills.
+    'skill_parry_stance',
+    'skill_focused_strike',
+    'skill_rupture',
+    'skill_adrenaline',
+    'skill_crushing_blow',
+    // New meta unlocks: relic-tier quality.
+    'relic_pool_rare',
+    'relic_pool_unique',
 ] as const;
 
 export type UnlockId = (typeof ALL_UNLOCK_IDS)[number];
@@ -108,9 +123,12 @@ interface MetaUpgradeDefinition {
     description: (nextLevel: number) => string;
 }
 
-const STORAGE_KEY = 'rpglikedurkest-meta-v2';
-const LEGACY_STORAGE_KEY = 'rpglikedurkest-meta-v1';
+const STORAGE_KEY = 'rpglikedurkest-meta-v3';
+const LEGACY_STORAGE_KEYS = ['rpglikedurkest-meta-v2', 'rpglikedurkest-meta-v1'];
 
+// HUD, core resources and base actions are always available now. Only
+// *additional* content (extra skills, higher relic rarities) needs
+// meta progression to unlock.
 const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     room_enemy: true,
     room_empty: true,
@@ -137,39 +155,19 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     ui_enemy_hp: true,
     ui_run_metrics: true,
     ui_kill_counter: true,
-    currency_relic_shards: false,
-    merchant_premium: false,
-    shrine_premium: false,
-    ui_prestige_forecast: false,
+    currency_relic_shards: true,
+    merchant_premium: true,
+    shrine_premium: true,
+    ui_prestige_forecast: true,
+    // Extra skills / rare relics start locked.
+    skill_parry_stance: false,
+    skill_focused_strike: false,
+    skill_rupture: false,
+    skill_adrenaline: false,
+    skill_crushing_blow: false,
+    relic_pool_rare: false,
+    relic_pool_unique: false,
 };
-
-const CORE_UNLOCKS: UnlockId[] = [
-    'room_enemy',
-    'room_empty',
-    'room_rest',
-    'room_treasure',
-    'action_attack',
-    'action_defend',
-    'hud_hp_bar',
-    'ui_hp_numbers',
-    'ui_depth',
-    'ui_room_icons',
-    'ui_level_panel',
-    'currency_gold',
-    'room_trap',
-    'ui_player_stats',
-    'room_merchant',
-    'resource_potions',
-    'action_potion',
-    'resource_resolve',
-    'action_skill',
-    'room_shrine',
-    'resource_light',
-    'room_elite',
-    'ui_enemy_hp',
-    'ui_run_metrics',
-    'ui_kill_counter',
-];
 
 const DEFAULT_PROFILE: MetaProfile = {
     prestigePoints: 0,
@@ -189,65 +187,56 @@ const DEFAULT_PROFILE: MetaProfile = {
 
 const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
     {
-        id: 'depth-1',
-        label: 'HP numbers and current depth',
-        requirement: 'Reach depth 1',
-        depth: 1,
-        unlocks: ['ui_hp_numbers', 'ui_depth'],
-    },
-    {
-        id: 'depth-2',
-        label: 'Room icons, XP panel, and gold',
-        requirement: 'Reach depth 2',
-        depth: 2,
-        unlocks: ['ui_room_icons', 'ui_level_panel', 'currency_gold'],
-    },
-    {
         id: 'depth-3',
-        label: 'Traps and combat stat readouts',
+        label: 'Skill: Parry Stance',
         requirement: 'Reach depth 3',
         depth: 3,
-        unlocks: ['room_trap', 'ui_player_stats'],
-    },
-    {
-        id: 'depth-4',
-        label: 'Merchants, potions, and combat healing',
-        requirement: 'Reach depth 4',
-        depth: 4,
-        unlocks: ['room_merchant', 'resource_potions', 'action_potion'],
+        unlocks: ['skill_parry_stance'],
     },
     {
         id: 'depth-5',
-        label: 'Resolve, shrines, and the skill strike',
+        label: 'Skill: Focused Strike',
         requirement: 'Reach depth 5',
         depth: 5,
-        unlocks: ['resource_resolve', 'action_skill', 'room_shrine'],
-    },
-    {
-        id: 'depth-6',
-        label: 'Light, darkness, and lantern play',
-        requirement: 'Reach depth 6',
-        depth: 6,
-        unlocks: ['resource_light'],
+        unlocks: ['skill_focused_strike'],
     },
     {
         id: 'depth-7',
-        label: 'Elite rooms, enemy HP, and run metrics',
+        label: 'Rare relic rolls',
         requirement: 'Reach depth 7',
         depth: 7,
-        unlocks: ['room_elite', 'ui_enemy_hp', 'ui_run_metrics', 'ui_kill_counter'],
+        unlocks: ['relic_pool_rare'],
+    },
+    {
+        id: 'depth-10',
+        label: 'Skill: Adrenaline',
+        requirement: 'Reach depth 10',
+        depth: 10,
+        unlocks: ['skill_adrenaline'],
     },
 ];
 
 const FIRST_BOSS_MILESTONE: ContentUnlockMilestone = {
     id: 'first-boss',
-    label: 'Relic shards, premium rites, and prestige forecast',
+    label: 'Skill: Rupture + unique relics',
     requirement: 'Defeat your first boss',
     requiresFirstBossKill: true,
-    unlocks: ['currency_relic_shards', 'merchant_premium', 'shrine_premium', 'ui_prestige_forecast'],
+    unlocks: ['skill_rupture', 'relic_pool_unique'],
 };
 
-const ALL_MILESTONES: ContentUnlockMilestone[] = [...DEPTH_MILESTONES, FIRST_BOSS_MILESTONE];
+const SECOND_BOSS_MILESTONE: ContentUnlockMilestone = {
+    id: 'second-boss',
+    label: 'Skill: Crushing Blow',
+    requirement: 'Defeat 3 bosses total',
+    requiresFirstBossKill: true,
+    unlocks: ['skill_crushing_blow'],
+};
+
+const ALL_MILESTONES: ContentUnlockMilestone[] = [
+    ...DEPTH_MILESTONES,
+    FIRST_BOSS_MILESTONE,
+    SECOND_BOSS_MILESTONE,
+];
 
 const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
     {
@@ -283,7 +272,7 @@ const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
         title: 'Preparation',
         maxLevel: 3,
         costs: [2, 5, 9],
-        description: (nextLevel) => `When light is unlocked, start with +${nextLevel} light.`,
+        description: (nextLevel) => `Start with +${nextLevel} light.`,
     },
     {
         id: 'lastStand',
@@ -349,7 +338,25 @@ export class MetaProgressionManager {
     }
 
     isUnlocked(id: UnlockId): boolean {
-        return this.profile.contentUnlocks[id];
+        return !!this.profile.contentUnlocks[id];
+    }
+
+    /** Extra skills the player has earned through meta progression. */
+    getUnlockedExtraSkills(): SkillId[] {
+        const unlocked: SkillId[] = [];
+        if (this.isUnlocked('skill_parry_stance')) unlocked.push('parry_stance');
+        if (this.isUnlocked('skill_focused_strike')) unlocked.push('focused_strike');
+        if (this.isUnlocked('skill_rupture')) unlocked.push('rupture');
+        if (this.isUnlocked('skill_adrenaline')) unlocked.push('adrenaline');
+        if (this.isUnlocked('skill_crushing_blow')) unlocked.push('crushing_blow');
+        return unlocked;
+    }
+
+    getRelicRarityPool(): Array<'common' | 'rare' | 'unique'> {
+        const pool: Array<'common' | 'rare' | 'unique'> = ['common'];
+        if (this.isUnlocked('relic_pool_rare')) pool.push('rare');
+        if (this.isUnlocked('relic_pool_unique')) pool.push('unique');
+        return pool;
     }
 
     unlockContent(id: UnlockId): boolean {
@@ -409,20 +416,23 @@ export class MetaProgressionManager {
     registerBossKill(): ContentUnlockMilestone[] {
         this.profile.bossesKilledEver += 1;
 
-        const unlockedMilestones: ContentUnlockMilestone[] = [];
-        const shouldUnlockFirstBoss = FIRST_BOSS_MILESTONE.unlocks.some(
-            (id) => !this.profile.contentUnlocks[id]
-        );
-
-        if (shouldUnlockFirstBoss) {
-            FIRST_BOSS_MILESTONE.unlocks.forEach((id) => {
+        const unlocked: ContentUnlockMilestone[] = [];
+        const maybeApply = (m: ContentUnlockMilestone) => {
+            const newlyUnlocked = m.unlocks.some((id) => !this.profile.contentUnlocks[id]);
+            if (!newlyUnlocked) return;
+            m.unlocks.forEach((id) => {
                 this.profile.contentUnlocks[id] = true;
             });
-            unlockedMilestones.push(FIRST_BOSS_MILESTONE);
+            unlocked.push(m);
+        };
+
+        maybeApply(FIRST_BOSS_MILESTONE);
+        if (this.profile.bossesKilledEver >= 3) {
+            maybeApply(SECOND_BOSS_MILESTONE);
         }
 
         this.saveProfile();
-        return unlockedMilestones;
+        return unlocked;
     }
 
     getNextContentUnlock(): ContentUnlockMilestone | null {
@@ -434,21 +444,22 @@ export class MetaProgressionManager {
     }
 
     getUiUnlockState(): UiUnlockState {
+        // Base HUD is always available now. Kept as a struct for compatibility.
         return {
-            showHpNumbers: this.isUnlocked('ui_hp_numbers'),
-            showDepthReadout: this.isUnlocked('ui_depth'),
-            showRoomIcons: this.isUnlocked('ui_room_icons'),
-            showLevelPanel: this.isUnlocked('ui_level_panel'),
-            showPlayerStats: this.isUnlocked('ui_player_stats'),
-            showGold: this.isUnlocked('currency_gold'),
-            showPotions: this.isUnlocked('resource_potions'),
-            showResolve: this.isUnlocked('resource_resolve'),
-            showLight: this.isUnlocked('resource_light'),
-            showEnemyHp: this.isUnlocked('ui_enemy_hp'),
-            showRunMetrics: this.isUnlocked('ui_run_metrics'),
-            showKillCounter: this.isUnlocked('ui_kill_counter'),
-            showRelicShards: this.isUnlocked('currency_relic_shards'),
-            showPrestigeForecast: this.isUnlocked('ui_prestige_forecast'),
+            showHpNumbers: true,
+            showDepthReadout: true,
+            showRoomIcons: true,
+            showLevelPanel: true,
+            showPlayerStats: true,
+            showGold: true,
+            showPotions: true,
+            showResolve: true,
+            showLight: true,
+            showEnemyHp: true,
+            showRunMetrics: true,
+            showKillCounter: true,
+            showRelicShards: true,
+            showPrestigeForecast: true,
         };
     }
 
@@ -505,9 +516,9 @@ export class MetaProgressionManager {
 
         try {
             window.localStorage.removeItem(STORAGE_KEY);
-            window.localStorage.removeItem(LEGACY_STORAGE_KEY);
+            LEGACY_STORAGE_KEYS.forEach((key) => window.localStorage.removeItem(key));
         } catch {
-            // Ignore storage failures and keep the reset flow responsive.
+            // ignore
         }
     }
 
@@ -518,14 +529,18 @@ export class MetaProgressionManager {
                 return this.sanitizeProfile(JSON.parse(currentRaw) as Partial<MetaProfile>);
             }
 
-            const legacyRaw = window.localStorage.getItem(LEGACY_STORAGE_KEY);
-            if (legacyRaw) {
-                const migrated = this.migrateLegacyProfile(JSON.parse(legacyRaw) as Record<string, unknown>);
-                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-                return migrated;
+            for (const key of LEGACY_STORAGE_KEYS) {
+                const legacyRaw = window.localStorage.getItem(key);
+                if (legacyRaw) {
+                    const migrated = this.migrateLegacyProfile(
+                        JSON.parse(legacyRaw) as Record<string, unknown>
+                    );
+                    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
+                    return migrated;
+                }
             }
         } catch {
-            // Fall through to a clean profile.
+            // fall through
         }
 
         return this.cloneDefaultProfile();
@@ -551,10 +566,10 @@ export class MetaProgressionManager {
                 ),
                 lastStand: Math.min(1, profile.upgrades?.lastStand ?? DEFAULT_PROFILE.upgrades.lastStand),
             },
-            contentUnlocks: this.withCoreUnlocks({
+            contentUnlocks: {
                 ...DEFAULT_CONTENT_UNLOCKS,
                 ...profile.contentUnlocks,
-            }),
+            },
         };
     }
 
@@ -563,7 +578,9 @@ export class MetaProgressionManager {
             0,
             typeof legacy.highestDepthEver === 'number' ? legacy.highestDepthEver : 0
         );
-        const bossesKilledEver = [8, 16, 24].filter((depth) => highestDepthEver > depth).length;
+        const bossesKilledEver = typeof legacy.bossesKilledEver === 'number'
+            ? legacy.bossesKilledEver
+            : [8, 16, 24].filter((d) => highestDepthEver > d).length;
         const legacyUpgrades =
             typeof legacy.upgrades === 'object' && legacy.upgrades !== null
                 ? (legacy.upgrades as Record<string, number>)
@@ -580,7 +597,7 @@ export class MetaProgressionManager {
                 might: legacyUpgrades.might ?? 0,
                 wisdom: legacyUpgrades.wisdom ?? 0,
                 recovery: legacyUpgrades.recovery ?? 0,
-                preparation: legacyUpgrades.foresight ?? 0,
+                preparation: legacyUpgrades.foresight ?? legacyUpgrades.preparation ?? 0,
                 lastStand: legacyUpgrades.lastStand ?? 0,
             },
         });
@@ -598,6 +615,11 @@ export class MetaProgressionManager {
                 migrated.contentUnlocks[id] = true;
             });
         }
+        if (bossesKilledEver >= 3) {
+            SECOND_BOSS_MILESTONE.unlocks.forEach((id) => {
+                migrated.contentUnlocks[id] = true;
+            });
+        }
 
         return migrated;
     }
@@ -606,7 +628,7 @@ export class MetaProgressionManager {
         try {
             window.localStorage.setItem(STORAGE_KEY, JSON.stringify(this.profile));
         } catch {
-            // Ignore storage failures and keep the run playable.
+            // ignore
         }
     }
 
@@ -614,14 +636,7 @@ export class MetaProgressionManager {
         return {
             ...DEFAULT_PROFILE,
             upgrades: { ...DEFAULT_PROFILE.upgrades },
-            contentUnlocks: this.withCoreUnlocks({ ...DEFAULT_PROFILE.contentUnlocks }),
+            contentUnlocks: { ...DEFAULT_PROFILE.contentUnlocks },
         };
-    }
-
-    private withCoreUnlocks(unlocks: ContentUnlockState): ContentUnlockState {
-        CORE_UNLOCKS.forEach((id) => {
-            unlocks[id] = true;
-        });
-        return unlocks;
     }
 }
