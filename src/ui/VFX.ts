@@ -2,7 +2,7 @@
 
 export class VFX {
 
-    /** РўС‘РјРЅС‹Р№ РІРёРЅСЊРµС‚ РїРѕ РєСЂР°СЏРј СЌРєСЂР°РЅР° */
+    /** Dark vignette around the screen edges. */
     static vignette(scene: Phaser.Scene, w = 800, h = 600) {
         const g = scene.add.graphics().setDepth(210).setScrollFactor(0);
         g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.8, 0.8, 0, 0);
@@ -15,7 +15,7 @@ export class VFX {
         g.fillRect(w * 0.88, 0, w * 0.12, h);
     }
 
-    /** CRT-СЃРєР°РЅ-Р»РёРЅРёРё */
+    /** CRT scanlines. */
     static scanlines(scene: Phaser.Scene, w = 800, h = 600) {
         const g = scene.add.graphics().setDepth(209).setScrollFactor(0);
         g.lineStyle(1, 0x000000, 0.018);
@@ -24,7 +24,7 @@ export class VFX {
         }
     }
 
-    /** РџР»Р°РІР°СЋС‰РёР№ С‚РµРєСЃС‚ (СѓСЂРѕРЅ, Р»РµС‡РµРЅРёРµ) */
+    /** Floating combat text for damage and healing. */
     static floatText(scene: Phaser.Scene, x: number, y: number, text: string, color = '#ffffff') {
         const t = scene.add.text(x, y, text, {
             fontFamily: 'Lucida Console, Consolas, monospace', fontSize: '22px', color,
@@ -33,7 +33,7 @@ export class VFX {
         scene.tweens.add({ targets: t, y: y - 70, alpha: 0, duration: 900, ease: 'Quad.out', onComplete: () => t.destroy() });
     }
 
-    /** РџРѕС‚СЂСЏС…РёРІР°РЅРёРµ РѕР±СЉРµРєС‚Р° */
+    /** Short object shake. */
     static shake(scene: Phaser.Scene, obj: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject, intensity = 6) {
         const bx = (obj as any).x, by = (obj as any).y;
         scene.tweens.add({
@@ -43,14 +43,14 @@ export class VFX {
         });
     }
 
-    /** Р’СЃРїС‹С€РєР° С†РІРµС‚Р° РЅР° Rectangle */
+    /** Temporary rectangle color flash. */
     static flash(scene: Phaser.Scene, rect: Phaser.GameObjects.Rectangle, color: number, ms = 150) {
         const orig = rect.fillColor;
         rect.setFillStyle(color);
         scene.time.delayedCall(ms, () => rect.setFillStyle(orig));
     }
 
-    /** РџСѓР»СЊСЃРёСЂСѓСЋС‰РёР№ РѕСЂРµРѕР» Р·Р° РЅРѕРґРѕР№ */
+    /** Pulsing glow behind an active map node. */
     static nodeGlow(scene: Phaser.Scene, x: number, y: number, color: number, size: number): Phaser.GameObjects.Graphics {
         const g = scene.add.graphics();
         [5, 9, 14].forEach((off, i) => {
@@ -61,7 +61,7 @@ export class VFX {
         return g;
     }
 
-    /** Р—РѕР»РѕС‚Р°СЏ РІСЃРїС‹С€РєР° РєСЂРёС‚РёС‡РµСЃРєРѕРіРѕ СѓРґР°СЂР° */
+    /** Gold flash for critical hits. */
     static critFlash(scene: Phaser.Scene) {
         const flash = scene.add.rectangle(400, 300, 800, 600, 0xffc800, 0.22).setDepth(89);
         scene.tweens.add({
@@ -70,7 +70,7 @@ export class VFX {
         });
     }
 
-    /** Р—РµР»РµРЅС‹Р№ РѕСЂРµРѕР» Р»РµС‡РµРЅРёСЏ */
+    /** Green healing glow. */
     static healGlow(scene: Phaser.Scene, x: number, y: number) {
         const ring = scene.add.circle(x, y, 28, 0x44dd66, 0.35).setDepth(87);
         scene.tweens.add({
@@ -79,7 +79,7 @@ export class VFX {
         });
     }
 
-    /** РЎРёРЅРёР№ РёРЅРґРёРєР°С‚РѕСЂ С‰РёС‚Р° РїСЂРё Р·Р°С‰РёС‚Рµ */
+    /** Blue shield cue when guarding. */
     static shieldFlash(scene: Phaser.Scene, x: number, y: number) {
         const shield = scene.add.rectangle(x, y, 60, 60, 0x4488ff, 0.3).setDepth(87)
             .setStrokeStyle(2, 0x88bbff);
@@ -89,7 +89,7 @@ export class VFX {
         });
     }
 
-    /** Р–РіСѓС‡РёРµ РёСЃРєСЂС‹/РїС‹Р»СЊ РЅР° С„РѕРЅРµ (СЃР°РјРѕРІРѕР·РѕР±РЅРѕРІР»СЏРµРјС‹Рµ) */
+    /** Looping background embers and dust. */
     static ambientEmbers(scene: Phaser.Scene, count = 18) {
         const spawn = () => {
             const x = 80 + Math.random() * 640;

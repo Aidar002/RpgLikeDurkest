@@ -768,7 +768,7 @@ export class GameScene extends Phaser.Scene {
         const x = this.nodeX(anchor);
         const y = Math.min(...nodesAtDepth.map((node) => this.nodeY(node))) - MAP_LAYOUT.nodeSize * 1.15;
         const isBoss = depth > 0 && depth % 8 === 0;
-        const label = this.add.text(x, y, isBoss ? `D${depth} в…` : `D${depth}`, {
+        const label = this.add.text(x, y, isBoss ? `D${depth} *` : `D${depth}`, {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '10px',
             color: isBoss ? '#c93d3d' : '#3d3d3d',
@@ -779,16 +779,16 @@ export class GameScene extends Phaser.Scene {
 
     private roomTypeName(type: RoomTypeValue): string {
         switch (type) {
-            case RoomType.START: return 'Camp';
-            case RoomType.ENEMY: return 'Enemy';
-            case RoomType.TREASURE: return 'Treasure';
-            case RoomType.TRAP: return 'Trap';
-            case RoomType.REST: return 'Rest';
-            case RoomType.SHRINE: return 'Shrine';
-            case RoomType.MERCHANT: return 'Merchant';
-            case RoomType.ELITE: return 'Elite';
-            case RoomType.BOSS: return 'Boss';
-            case RoomType.EMPTY: return 'Empty';
+            case RoomType.START: return this.loc.t('roomCamp');
+            case RoomType.ENEMY: return this.loc.t('roomEnemy');
+            case RoomType.TREASURE: return this.loc.t('roomTreasure');
+            case RoomType.TRAP: return this.loc.t('roomTrap');
+            case RoomType.REST: return this.loc.t('roomRest');
+            case RoomType.SHRINE: return this.loc.t('roomShrine');
+            case RoomType.MERCHANT: return this.loc.t('roomMerchant');
+            case RoomType.ELITE: return this.loc.t('roomElite');
+            case RoomType.BOSS: return this.loc.t('roomBoss');
+            case RoomType.EMPTY: return this.loc.t('roomEmpty');
         }
     }
 
@@ -2040,9 +2040,13 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(102);
 
         const summaryLines = [
-            `Depth ${this.runBestDepth}  |  Bosses ${this.runBossKills}  |  Prestige +${this.prestigeReward}`,
+            this.loc.t('deathRunLine', {
+                depth: this.runBestDepth,
+                bosses: this.runBossKills,
+                prestige: this.prestigeReward,
+            }),
         ];
-        const statLines = this.tracker.getSummaryLines();
+        const statLines = this.tracker.getSummaryLines(this.loc.language);
         const summary = this.add.text(
             400,
             88,
@@ -2051,7 +2055,7 @@ export class GameScene extends Phaser.Scene {
                 bosses: this.runBossKills,
                 prestige: this.prestigeReward,
                 line: this.narrative.deathLine(),
-            })}\n${this.tracker.getRunTitle()}\n${summaryLines.join('\n')}\n${statLines.join('\n')}`,
+            })}\n${this.tracker.getRunTitle(this.loc.language)}\n${summaryLines.join('\n')}\n${statLines.join('\n')}`,
             {
                 fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '11px',

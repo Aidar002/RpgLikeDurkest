@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { Localization } from '../systems/Localization';
 
 export class BootScene extends Phaser.Scene {
     constructor() {
@@ -6,11 +7,11 @@ export class BootScene extends Phaser.Scene {
     }
 
     preload() {
-        // Загрузка ассетов (иконки для карты, шрифты)
-        // Пока используем графические примитивы Phaser
+        // Assets can be loaded here when the prototype moves beyond Phaser primitives.
     }
 
     create() {
+        const loc = new Localization();
         this.cameras.main.setBackgroundColor('#050505');
 
         const bg = this.add.graphics();
@@ -49,7 +50,7 @@ export class BootScene extends Phaser.Scene {
             ease: 'Quad.out',
         });
 
-        const tagline = this.add.text(400, 300, 'A roguelike of ruin and persistence.', {
+        const tagline = this.add.text(400, 300, loc.t('bootTagline'), {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#c8cdd2',
@@ -66,7 +67,7 @@ export class BootScene extends Phaser.Scene {
 
         const startBtn = this.add.rectangle(400, 400, 240, 46, 0x1c1c1c)
             .setStrokeStyle(1, 0x5a5a5a).setInteractive({ useHandCursor: true }).setAlpha(0).setDepth(3);
-        const startText = this.add.text(400, 400, 'Begin Expedition', {
+        const startText = this.add.text(400, 400, loc.t('bootStart'), {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '18px',
             color: '#ffffff',
