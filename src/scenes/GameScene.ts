@@ -268,25 +268,23 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        this.statsText = this.add.text(584, 12, '', {
+        this.statsText = this.add.text(548, 12, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#e5edf5',
-            wordWrap: { width: 136 },
             stroke: '#020406',
             strokeThickness: 2,
         });
 
-        this.resourceText = this.add.text(584, 40, '', {
+        this.resourceText = this.add.text(548, 35, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#b9d7ff',
-            wordWrap: { width: 136 },
             stroke: '#020406',
             strokeThickness: 2,
         });
 
-        this.progressText = this.add.text(546, 58, '', {
+        this.progressText = this.add.text(548, 58, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#aeb8c2',
@@ -297,7 +295,7 @@ export class GameScene extends Phaser.Scene {
 
         this.prestigeText = this.add.text(646, 58, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '11px',
+            fontSize: '10px',
             color: '#ffe09a',
             align: 'left',
             stroke: '#020406',
@@ -322,9 +320,9 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0, 0.5);
 
-        const langButton = this.add.rectangle(754, 58, 68, 24, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
+        const langButton = this.add.rectangle(754, 50, 68, 24, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
         langButton.setInteractive({ useHandCursor: true });
-        const langText = this.add.text(754, 58, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
+        const langText = this.add.text(754, 50, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#f1f7ff',
@@ -490,23 +488,23 @@ export class GameScene extends Phaser.Scene {
             color: '#ad6767',
         }).setOrigin(0.5);
 
-        this.enemyIntelText = this.add.text(500, 316, '', {
+        this.enemyIntelText = this.add.text(496, 310, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#9ec2ff',
             align: 'left',
-            wordWrap: { width: 244 },
-            lineSpacing: 3,
+            wordWrap: { width: 252 },
+            lineSpacing: 4,
             stroke: '#020406',
             strokeThickness: 2,
         }).setOrigin(0, 0);
 
-        this.roomFlavorText = this.add.text(500, 392, '', {
+        this.roomFlavorText = this.add.text(496, 386, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#c8c8c8',
             align: 'left',
-            wordWrap: { width: 244 },
+            wordWrap: { width: 252 },
             lineSpacing: 4,
             stroke: '#020406',
             strokeThickness: 2,
@@ -528,11 +526,11 @@ export class GameScene extends Phaser.Scene {
         this.roomContainer.add(this.roomPanelGroup);
 
         const buttonSpecs = [
-            { x: 542, y: 474, width: 148 },
-            { x: 702, y: 474, width: 148 },
-            { x: 542, y: 520, width: 148 },
-            { x: 702, y: 520, width: 148 },
-            { x: 622, y: 548, width: 300 },
+            { x: 542, y: 482, width: 148 },
+            { x: 702, y: 482, width: 148 },
+            { x: 542, y: 528, width: 148 },
+            { x: 702, y: 528, width: 148 },
+            { x: 622, y: 528, width: 300 },
         ];
 
         buttonSpecs.forEach((spec) => {
@@ -543,7 +541,7 @@ export class GameScene extends Phaser.Scene {
 
             const label = this.add.text(spec.x, spec.y, '', {
                 fontFamily: 'Lucida Console, Consolas, monospace',
-                fontSize: '12px',
+                fontSize: '11px',
                 color: '#dddddd',
                 align: 'center',
                 wordWrap: { width: spec.width - 12 },
@@ -618,6 +616,7 @@ export class GameScene extends Phaser.Scene {
         button.background.setStrokeStyle(1, enabled ? 0x8a8a8a : 0x3e3e3e);
         button.label.setText(this.compactText(action.label, button.defaultWidth > 200 ? 34 : 22));
         button.label.setColor(enabled ? '#f0f0f0' : '#686868');
+        button.label.setFontSize(button.label.text.length > 18 && button.defaultWidth <= 148 ? 10 : 11);
     }
 
     private nodeX(node: MapNode) {
