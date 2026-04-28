@@ -268,41 +268,41 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        this.statsText = this.add.text(610, 10, '', {
+        this.statsText = this.add.text(584, 12, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '13px',
+            fontSize: '12px',
             color: '#e5edf5',
-            wordWrap: { width: 138 },
+            wordWrap: { width: 136 },
             stroke: '#020406',
             strokeThickness: 2,
         });
 
-        this.resourceText = this.add.text(610, 34, '', {
+        this.resourceText = this.add.text(584, 40, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '13px',
+            fontSize: '12px',
             color: '#b9d7ff',
-            wordWrap: { width: 138 },
+            wordWrap: { width: 136 },
             stroke: '#020406',
             strokeThickness: 2,
         });
 
-        this.progressText = this.add.text(788, 10, '', {
+        this.progressText = this.add.text(546, 58, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#aeb8c2',
-            align: 'right',
+            align: 'left',
             stroke: '#020406',
             strokeThickness: 2,
-        }).setOrigin(1, 0);
+        }).setOrigin(0, 0);
 
-        this.prestigeText = this.add.text(786, 20, '', {
+        this.prestigeText = this.add.text(646, 58, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#ffe09a',
-            align: 'right',
+            align: 'left',
             stroke: '#020406',
             strokeThickness: 2,
-        }).setOrigin(1, 0);
+        }).setOrigin(0, 0);
 
         this.hintText = this.add.text(786, 36, '', {
             fontFamily: 'Lucida Console, Consolas, monospace',
@@ -322,11 +322,11 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0, 0.5);
 
-        const langButton = this.add.rectangle(754, 54, 68, 26, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
+        const langButton = this.add.rectangle(754, 58, 68, 24, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
         langButton.setInteractive({ useHandCursor: true });
-        const langText = this.add.text(754, 54, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
+        const langText = this.add.text(754, 58, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
             fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '12px',
+            fontSize: '11px',
             color: '#f1f7ff',
         }).setOrigin(0.5);
         langButton.on('pointerover', () => langButton.setStrokeStyle(2, 0xd8e6f3));
@@ -443,8 +443,7 @@ export class GameScene extends Phaser.Scene {
         this.prestigeText.setText(unlocks.showPrestigeForecast ? `${this.loc.t('prestige')} +${prestigeForecast}` : '');
         this.mapDepthText.setText(`${this.loc.t('mapDepth')} ${this.dungeon.currentDepth}`);
 
-        const nextUnlock = this.meta.getNextContentUnlock();
-        this.hintText.setText(nextUnlock ? this.compactText(`Next: ${nextUnlock.requirement}`, 30) : '');
+        this.hintText.setText('');
 
         this.hpValueText.setVisible(unlocks.showHpNumbers);
         this.mapDepthText.setVisible(unlocks.showDepthReadout && this.mapContainer.visible);
@@ -455,8 +454,7 @@ export class GameScene extends Phaser.Scene {
         this.resourceText.setVisible(resourceParts.length > 0);
         this.progressText.setVisible(this.mapContainer.visible && (unlocks.showRunMetrics || unlocks.showKillCounter));
         this.prestigeText.setVisible(this.mapContainer.visible && unlocks.showPrestigeForecast);
-        const hintVisible = !!nextUnlock && this.mapContainer.visible;
-        this.hintText.setVisible(hintVisible);
+        this.hintText.setVisible(false);
     }
 
     private setupRoomUI() {
