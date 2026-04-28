@@ -10,6 +10,7 @@ const config: Phaser.Types.Core.GameConfig = {
     parent: 'game-container',
     backgroundColor: '#0d0d0d',
     pixelArt: true,
+    antialias: false,
     scale: {
         mode: Phaser.Scale.FIT,
         autoCenter: Phaser.Scale.CENTER_BOTH

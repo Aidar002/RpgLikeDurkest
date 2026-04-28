@@ -1,5 +1,5 @@
 :root {
-  font-family: 'Courier New', Courier, monospace;
+  font-family: 'Lucida Console', Consolas, monospace;
   background-color: #0d0d0d;
   color: #e0e0e0;
 }
@@ -16,4 +16,9 @@ body {
 #game-container {
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
   border: 2px solid #333;
+}
+
+canvas {
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }
