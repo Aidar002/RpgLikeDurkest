@@ -1,4 +1,4 @@
-import * as Phaser from 'phaser';
+﻿import * as Phaser from 'phaser';
 import { COMBAT_CONFIG, EXPEDITION_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import { DungeonManager } from '../systems/DungeonManager';
 import {
@@ -191,7 +191,7 @@ export class GameScene extends Phaser.Scene {
         this.refreshUI();
 
         this.tooltipText = this.add.text(0, 0, '', {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#d0d0d0',
             backgroundColor: '#1a1a1aee',
@@ -241,75 +241,91 @@ export class GameScene extends Phaser.Scene {
         topBar.setStrokeStyle(1, 0x3f4a54);
 
         const hpLabel = this.add.text(12, 10, this.loc.t('uiVital'), {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#b7c7d9',
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '15px',
+            color: '#e7eef6',
+            stroke: '#020406',
+            strokeThickness: 2,
         });
 
         const hpBarBg = this.add.rectangle(12, 36, 170, 14, 0x3c1111).setOrigin(0, 0.5);
         this.hpBar = this.add.rectangle(12, 36, 170, 14, 0xd93c3c).setOrigin(0, 0.5);
         this.hpValueText = this.add.text(192, 27, '', {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#ff8d8d',
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '14px',
+            color: '#ffb0aa',
+            stroke: '#020406',
+            strokeThickness: 2,
         });
 
         this.xpBarBg = this.add.rectangle(288, 36, 132, 8, 0x1d2430).setOrigin(0, 0.5);
         this.xpBar = this.add.rectangle(288, 36, 132, 8, 0x5b9cff).setOrigin(0, 0.5);
         this.levelText = this.add.text(288, 10, '', {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#f5e28d',
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '14px',
+            color: '#ffe58a',
+            stroke: '#020406',
+            strokeThickness: 2,
         });
 
-        this.statsText = this.add.text(448, 10, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#cccccc',
-            wordWrap: { width: 180 },
-        });
-
-        this.resourceText = this.add.text(448, 44, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#9fc7ff',
-            wordWrap: { width: 260 },
-        });
-
-        this.progressText = this.add.text(706, 10, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#b8b8b8',
-            align: 'right',
-        }).setOrigin(1, 0);
-
-        this.prestigeText = this.add.text(786, 20, '', {
-            fontFamily: 'Courier New',
+        this.statsText = this.add.text(548, 12, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
-            color: '#ffd36e',
-            align: 'right',
-        }).setOrigin(1, 0);
+            color: '#e5edf5',
+            stroke: '#020406',
+            strokeThickness: 2,
+        });
+
+        this.resourceText = this.add.text(548, 35, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '11px',
+            color: '#b9d7ff',
+            stroke: '#020406',
+            strokeThickness: 2,
+        });
+
+        this.progressText = this.add.text(548, 58, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '11px',
+            color: '#aeb8c2',
+            align: 'left',
+            stroke: '#020406',
+            strokeThickness: 2,
+        }).setOrigin(0, 0);
+
+        this.prestigeText = this.add.text(646, 58, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '10px',
+            color: '#ffe09a',
+            align: 'left',
+            stroke: '#020406',
+            strokeThickness: 2,
+        }).setOrigin(0, 0);
 
         this.hintText = this.add.text(786, 36, '', {
-            fontFamily: 'Courier New',
-            fontSize: '10px',
-            color: '#7b7b7b',
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '11px',
+            color: '#b6c0ca',
             align: 'right',
             wordWrap: { width: 180 },
+            stroke: '#020406',
+            strokeThickness: 2,
         }).setOrigin(1, 0);
 
-        this.mapDepthText = this.add.text(120, 558, '', {
-            fontFamily: 'Courier New',
+        this.mapDepthText = this.add.text(40, 558, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '12px',
-            color: '#697480',
+            color: '#8995a1',
+            stroke: '#020406',
+            strokeThickness: 2,
         }).setOrigin(0, 0.5);
 
-        const langButton = this.add.rectangle(754, 52, 68, 28, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
+        const langButton = this.add.rectangle(754, 50, 68, 24, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
         langButton.setInteractive({ useHandCursor: true });
-        const langText = this.add.text(754, 52, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#d8e6f3',
+        const langText = this.add.text(754, 50, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '11px',
+            color: '#f1f7ff',
         }).setOrigin(0.5);
         langButton.on('pointerover', () => langButton.setStrokeStyle(2, 0xd8e6f3));
         langButton.on('pointerout', () => langButton.setStrokeStyle(1, 0x6b7a88));
@@ -425,20 +441,18 @@ export class GameScene extends Phaser.Scene {
         this.prestigeText.setText(unlocks.showPrestigeForecast ? `${this.loc.t('prestige')} +${prestigeForecast}` : '');
         this.mapDepthText.setText(`${this.loc.t('mapDepth')} ${this.dungeon.currentDepth}`);
 
-        const nextUnlock = this.meta.getNextContentUnlock();
-        this.hintText.setText(nextUnlock ? this.compactText(`Next: ${nextUnlock.requirement}`, 30) : '');
+        this.hintText.setText('');
 
         this.hpValueText.setVisible(unlocks.showHpNumbers);
-        this.mapDepthText.setVisible(unlocks.showDepthReadout);
+        this.mapDepthText.setVisible(unlocks.showDepthReadout && this.mapContainer.visible);
         this.xpBarBg.setVisible(unlocks.showLevelPanel);
         this.xpBar.setVisible(unlocks.showLevelPanel);
         this.levelText.setVisible(unlocks.showLevelPanel);
         this.statsText.setVisible(unlocks.showPlayerStats);
         this.resourceText.setVisible(resourceParts.length > 0);
-        this.progressText.setVisible(unlocks.showRunMetrics || unlocks.showKillCounter);
-        this.prestigeText.setVisible(unlocks.showPrestigeForecast);
-        const hintVisible = !!nextUnlock && this.mapContainer.visible;
-        this.hintText.setVisible(hintVisible);
+        this.progressText.setVisible(this.mapContainer.visible && (unlocks.showRunMetrics || unlocks.showKillCounter));
+        this.prestigeText.setVisible(this.mapContainer.visible && unlocks.showPrestigeForecast);
+        this.hintText.setVisible(false);
     }
 
     private setupRoomUI() {
@@ -446,51 +460,55 @@ export class GameScene extends Phaser.Scene {
         panel.setStrokeStyle(2, 0x4d5a66);
 
         this.roomHeaderText = this.add.text(480, 106, '', {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '13px',
             color: '#b7c7d9',
-        });
+        }).setVisible(false);
 
-        this.enemyPortrait = this.add.rectangle(622, 164, 88, 88, 0x333333).setStrokeStyle(2, 0x697480);
+        this.enemyPortrait = this.add.rectangle(622, 166, 82, 82, 0x333333).setStrokeStyle(2, 0x697480);
         this.enemyIconText = this.add.text(622, 174, '', {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '36px',
             color: '#ffffff',
         }).setOrigin(0.5);
 
-        this.enemyNameText = this.add.text(622, 214, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
+        this.enemyNameText = this.add.text(622, 218, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '15px',
             color: '#f0f0f0',
             align: 'center',
             wordWrap: { width: 252 },
         }).setOrigin(0.5, 0);
 
-        this.enemyHpBarBg = this.add.rectangle(500, 284, 244, 12, 0x331111).setOrigin(0, 0.5);
-        this.enemyHpBar = this.add.rectangle(500, 284, 244, 12, 0xc93d2f).setOrigin(0, 0.5);
-        this.enemyHpText = this.add.text(622, 298, '', {
-            fontFamily: 'Courier New',
+        this.enemyHpBarBg = this.add.rectangle(500, 274, 244, 12, 0x331111).setOrigin(0, 0.5);
+        this.enemyHpBar = this.add.rectangle(500, 274, 244, 12, 0xc93d2f).setOrigin(0, 0.5);
+        this.enemyHpText = this.add.text(622, 288, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '12px',
             color: '#ad6767',
         }).setOrigin(0.5);
 
-        this.enemyIntelText = this.add.text(622, 318, '', {
-            fontFamily: 'Courier New',
+        this.enemyIntelText = this.add.text(496, 310, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#9ec2ff',
-            align: 'center',
-            wordWrap: { width: 260 },
-            lineSpacing: 3,
-        }).setOrigin(0.5, 0);
-
-        this.roomFlavorText = this.add.text(622, 376, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#c8c8c8',
-            align: 'center',
-            wordWrap: { width: 260 },
+            align: 'left',
+            wordWrap: { width: 252 },
             lineSpacing: 4,
-        }).setOrigin(0.5, 0);
+            stroke: '#020406',
+            strokeThickness: 2,
+        }).setOrigin(0, 0);
+
+        this.roomFlavorText = this.add.text(496, 386, '', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '11px',
+            color: '#c8c8c8',
+            align: 'left',
+            wordWrap: { width: 252 },
+            lineSpacing: 4,
+            stroke: '#020406',
+            strokeThickness: 2,
+        }).setOrigin(0, 0);
 
         this.roomPanelGroup = this.add.container(0, 0, [
             panel,
@@ -508,11 +526,11 @@ export class GameScene extends Phaser.Scene {
         this.roomContainer.add(this.roomPanelGroup);
 
         const buttonSpecs = [
-            { x: 542, y: 450, width: 148 },
-            { x: 702, y: 450, width: 148 },
-            { x: 542, y: 496, width: 148 },
-            { x: 702, y: 496, width: 148 },
-            { x: 622, y: 542, width: 300 },
+            { x: 542, y: 482, width: 148 },
+            { x: 702, y: 482, width: 148 },
+            { x: 542, y: 528, width: 148 },
+            { x: 702, y: 528, width: 148 },
+            { x: 622, y: 528, width: 300 },
         ];
 
         buttonSpecs.forEach((spec) => {
@@ -522,8 +540,8 @@ export class GameScene extends Phaser.Scene {
                 .setInteractive({ useHandCursor: true });
 
             const label = this.add.text(spec.x, spec.y, '', {
-                fontFamily: 'Courier New',
-                fontSize: '12px',
+                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontSize: '11px',
                 color: '#dddddd',
                 align: 'center',
                 wordWrap: { width: spec.width - 12 },
@@ -598,6 +616,7 @@ export class GameScene extends Phaser.Scene {
         button.background.setStrokeStyle(1, enabled ? 0x8a8a8a : 0x3e3e3e);
         button.label.setText(this.compactText(action.label, button.defaultWidth > 200 ? 34 : 22));
         button.label.setColor(enabled ? '#f0f0f0' : '#686868');
+        button.label.setFontSize(button.label.text.length > 18 && button.defaultWidth <= 148 ? 10 : 11);
     }
 
     private nodeX(node: MapNode) {
@@ -702,7 +721,7 @@ export class GameScene extends Phaser.Scene {
 
             const icon = this.add
                 .text(x, y, revealed && knowsType ? this.roomIcon(node.type) : '?', {
-                    fontFamily: 'Courier New',
+                    fontFamily: 'Lucida Console, Consolas, monospace',
                     fontSize: '18px',
                     color: node.cleared ? '#4d4d4d' : '#ffffff',
                 })
@@ -748,8 +767,8 @@ export class GameScene extends Phaser.Scene {
         const x = this.nodeX(anchor);
         const y = Math.min(...nodesAtDepth.map((node) => this.nodeY(node))) - MAP_LAYOUT.nodeSize * 1.15;
         const isBoss = depth > 0 && depth % 8 === 0;
-        const label = this.add.text(x, y, isBoss ? `D${depth} ★` : `D${depth}`, {
-            fontFamily: 'Courier New',
+        const label = this.add.text(x, y, isBoss ? `D${depth} *` : `D${depth}`, {
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '10px',
             color: isBoss ? '#c93d3d' : '#3d3d3d',
         }).setOrigin(0.5);
@@ -759,16 +778,16 @@ export class GameScene extends Phaser.Scene {
 
     private roomTypeName(type: RoomTypeValue): string {
         switch (type) {
-            case RoomType.START: return 'Camp';
-            case RoomType.ENEMY: return 'Enemy';
-            case RoomType.TREASURE: return 'Treasure';
-            case RoomType.TRAP: return 'Trap';
-            case RoomType.REST: return 'Rest';
-            case RoomType.SHRINE: return 'Shrine';
-            case RoomType.MERCHANT: return 'Merchant';
-            case RoomType.ELITE: return 'Elite';
-            case RoomType.BOSS: return 'Boss';
-            case RoomType.EMPTY: return 'Empty';
+            case RoomType.START: return this.loc.t('roomCamp');
+            case RoomType.ENEMY: return this.loc.t('roomEnemy');
+            case RoomType.TREASURE: return this.loc.t('roomTreasure');
+            case RoomType.TRAP: return this.loc.t('roomTrap');
+            case RoomType.REST: return this.loc.t('roomRest');
+            case RoomType.SHRINE: return this.loc.t('roomShrine');
+            case RoomType.MERCHANT: return this.loc.t('roomMerchant');
+            case RoomType.ELITE: return this.loc.t('roomElite');
+            case RoomType.BOSS: return this.loc.t('roomBoss');
+            case RoomType.EMPTY: return this.loc.t('roomEmpty');
         }
     }
 
@@ -1307,17 +1326,6 @@ export class GameScene extends Phaser.Scene {
             hints.push(this.loc.t('intentLine', { label: intent.label, detail: intent.detail }));
         }
 
-        if (this.combat.enemy.shield > 0) {
-            hints.push(this.loc.t('guardLine', { guard: this.combat.enemy.shield }));
-        }
-
-        if (this.meta.isUnlocked('action_skill')) {
-            hints.push(this.loc.t('staggerCost', { cost: COMBAT_CONFIG.skillCost }));
-        }
-        if (this.meta.isUnlocked('action_potion')) {
-            hints.push(this.loc.t('potionHint'));
-        }
-
         return hints.filter(Boolean).join(' ');
     }
 
@@ -1811,17 +1819,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showRoomCard(
-        header: string,
+        _header: string,
         title: string,
         description: string,
         color: number,
         icon: string,
         intel: string
     ) {
-        this.roomHeaderText.setText(header);
+        this.roomHeaderText.setText('').setVisible(false);
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
         this.enemyNameText.setText(this.compactText(title, 28));
+        this.roomFlavorText.setPosition(496, 282);
+        this.enemyIntelText.setPosition(496, 360);
         this.roomFlavorText.setText(this.compactText(description, 96));
         this.enemyIntelText.setText(this.compactText(intel, 92));
         this.enemyIntelText.setVisible(true);
@@ -1893,21 +1903,17 @@ export class GameScene extends Phaser.Scene {
         const unlocks = this.meta.getUiUnlockState();
         const description = this.combat.enemy?.description ?? this.loc.t('enemyFallback');
 
-        this.roomHeaderText.setText(
-            this.combat.enemy?.kind === 'boss'
-                ? this.loc.t('boss')
-                : this.combat.enemy?.kind === 'elite'
-                  ? this.loc.t('elite')
-                  : this.loc.t('hostile')
-        );
+        this.roomHeaderText.setText('').setVisible(false);
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
         this.enemyNameText.setText(this.compactText(name, 28));
+        this.enemyIntelText.setPosition(496, 310);
+        this.roomFlavorText.setPosition(496, 386);
         this.roomFlavorText.setText(this.compactText(description, 72));
         this.roomPanelGroup.setVisible(true);
 
         const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-        this.enemyHpBar.setDisplaySize(ratio * 220, 12);
+        this.enemyHpBar.setDisplaySize(ratio * 244, 12);
         this.enemyHpBar.setFillStyle(ratio > 0.5 ? 0xc65a2e : ratio > 0.25 ? 0xcf9e16 : 0xc63d2d);
         this.enemyHpText.setText(`${this.loc.t('hp')} ${Math.max(0, hp)}/${maxHp}`);
         this.enemyHpBarBg.setVisible(unlocks.showEnemyHp);
@@ -2014,15 +2020,19 @@ export class GameScene extends Phaser.Scene {
         panel.setStrokeStyle(2, 0x5a2f2f);
 
         const title = this.add.text(400, 56, this.loc.t('deathTitle'), {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '28px',
             color: '#d65a5a',
         }).setOrigin(0.5).setDepth(102);
 
         const summaryLines = [
-            `Depth ${this.runBestDepth}  |  Bosses ${this.runBossKills}  |  Prestige +${this.prestigeReward}`,
+            this.loc.t('deathRunLine', {
+                depth: this.runBestDepth,
+                bosses: this.runBossKills,
+                prestige: this.prestigeReward,
+            }),
         ];
-        const statLines = this.tracker.getSummaryLines();
+        const statLines = this.tracker.getSummaryLines(this.loc.language);
         const summary = this.add.text(
             400,
             88,
@@ -2031,9 +2041,9 @@ export class GameScene extends Phaser.Scene {
                 bosses: this.runBossKills,
                 prestige: this.prestigeReward,
                 line: this.narrative.deathLine(),
-            })}\n${this.tracker.getRunTitle()}\n${summaryLines.join('\n')}\n${statLines.join('\n')}`,
+            })}\n${this.tracker.getRunTitle(this.loc.language)}\n${summaryLines.join('\n')}\n${statLines.join('\n')}`,
             {
-                fontFamily: 'Courier New',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '11px',
                 color: '#9a9a9a',
                 align: 'center',
@@ -2043,13 +2053,13 @@ export class GameScene extends Phaser.Scene {
         ).setOrigin(0.5, 0).setDepth(102);
 
         const pointsText = this.add.text(400, 228, '', {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '16px',
             color: '#ffd36e',
         }).setOrigin(0.5).setDepth(102);
 
         const unlockText = this.add.text(400, 250, '', {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#8fb8ff',
             align: 'center',
@@ -2076,26 +2086,26 @@ export class GameScene extends Phaser.Scene {
                 .setInteractive({ useHandCursor: true });
 
             const cardTitle = this.add.text(position.x - 136, position.y - 22, this.loc.upgradeTitle(card.id, card.title), {
-                fontFamily: 'Courier New',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '15px',
                 color: '#f0f0f0',
             }).setDepth(103);
 
             const cardLevel = this.add.text(position.x + 136, position.y - 22, '', {
-                fontFamily: 'Courier New',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '14px',
                 color: '#a8a8a8',
             }).setOrigin(1, 0).setDepth(103);
 
             const cardBody = this.add.text(position.x - 136, position.y - 2, '', {
-                fontFamily: 'Courier New',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '12px',
                 color: '#9a9a9a',
                 wordWrap: { width: 220 },
             }).setDepth(103);
 
             const cardCost = this.add.text(position.x + 136, position.y + 14, '', {
-                fontFamily: 'Courier New',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '13px',
                 color: '#ffd36e',
             }).setOrigin(1, 0).setDepth(103);
@@ -2136,7 +2146,7 @@ export class GameScene extends Phaser.Scene {
         restartButton.setStrokeStyle(1, 0x8a8a8a);
         restartButton.setInteractive({ useHandCursor: true });
         const restartText = this.add.text(400, 548, this.loc.t('restart'), {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '17px',
             color: '#f0f0f0',
         }).setOrigin(0.5).setDepth(103);
@@ -2145,7 +2155,7 @@ export class GameScene extends Phaser.Scene {
         resetButton.setStrokeStyle(1, 0xa35a5a);
         resetButton.setInteractive({ useHandCursor: true });
         const resetText = this.add.text(400, 592, this.loc.t('reset'), {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#ffd0d0',
         }).setOrigin(0.5).setDepth(103);
@@ -2196,7 +2206,7 @@ export class GameScene extends Phaser.Scene {
         const confirmPanel = this.add.rectangle(400, 300, 430, 190, 0x181818).setDepth(111);
         confirmPanel.setStrokeStyle(2, 0x8a4d4d);
         const confirmTitle = this.add.text(400, 244, this.loc.t('confirmResetTitle'), {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '22px',
             color: '#ffd2d2',
         }).setOrigin(0.5).setDepth(112);
@@ -2205,7 +2215,7 @@ export class GameScene extends Phaser.Scene {
             290,
             this.loc.t('confirmResetBody'),
             {
-                fontFamily: 'Courier New',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '14px',
                 color: '#d6d6d6',
                 align: 'center',
@@ -2217,7 +2227,7 @@ export class GameScene extends Phaser.Scene {
         confirmResetButton.setStrokeStyle(1, 0xc57d7d);
         confirmResetButton.setInteractive({ useHandCursor: true });
         const confirmResetText = this.add.text(320, 358, this.loc.t('confirmResetYes'), {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#ffe8e8',
         }).setOrigin(0.5).setDepth(113);
@@ -2225,7 +2235,7 @@ export class GameScene extends Phaser.Scene {
         cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
         cancelResetButton.setInteractive({ useHandCursor: true });
         const cancelResetText = this.add.text(480, 358, this.loc.t('cancel'), {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#f0f0f0',
         }).setOrigin(0.5).setDepth(113);
@@ -2281,7 +2291,7 @@ export class GameScene extends Phaser.Scene {
             .setDepth(200)
             .setAlpha(0);
         const bannerText = this.add.text(400, 580, `\u2726  ${this.compactText(label, 52)}`, {
-            fontFamily: 'Courier New',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#88ccff',
         }).setOrigin(0.5).setDepth(201).setAlpha(0);

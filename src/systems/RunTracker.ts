@@ -1,3 +1,5 @@
+import type { Language } from './Localization';
+
 export interface RunStats {
     roomsVisited: number;
     enemiesKilled: number;
@@ -57,30 +59,55 @@ export class RunTracker {
         return this.stats;
     }
 
-    getSummaryLines(): string[] {
+    getSummaryLines(language: Language): string[] {
         const s = this.stats;
         const lines: string[] = [];
-        lines.push(`Rooms explored: ${s.roomsVisited}`);
-        lines.push(`Enemies slain: ${s.enemiesKilled}`);
+
+        if (language === 'ru') {
+            lines.push(`Комнат пройдено: ${s.roomsVisited}`);
+            lines.push(`Врагов побеждено: ${s.enemiesKilled}`);
+            if (s.elitesKilled > 0) lines.push(`Элиты побеждено: ${s.elitesKilled}`);
+            if (s.bossesKilled > 0) lines.push(`Боссов побеждено: ${s.bossesKilled}`);
+            lines.push(`Урон: ${s.damageDealt} нанесено  |  ${s.damageTaken} получено`);
+            if (s.criticalHits > 0) lines.push(`Критических ударов: ${s.criticalHits}`);
+            if (s.goldEarned > 0) lines.push(`Золото: ${s.goldEarned} найдено  |  ${s.goldSpent} потрачено`);
+            if (s.potionsUsed > 0) lines.push(`Эликсиров выпито: ${s.potionsUsed}`);
+            if (s.healingDone > 0) lines.push(`ОЗ восстановлено: ${s.healingDone}`);
+            lines.push(`Ходов в бою: ${s.turnsInCombat}`);
+            lines.push(`Достигнутый уровень: ${s.levelReached}`);
+            return lines;
+        }
+
+        lines.push(`Rooms cleared: ${s.roomsVisited}`);
+        lines.push(`Enemies defeated: ${s.enemiesKilled}`);
         if (s.elitesKilled > 0) lines.push(`Elites defeated: ${s.elitesKilled}`);
-        if (s.bossesKilled > 0) lines.push(`Bosses felled: ${s.bossesKilled}`);
-        lines.push(`Damage dealt: ${s.damageDealt}  |  Taken: ${s.damageTaken}`);
+        if (s.bossesKilled > 0) lines.push(`Bosses defeated: ${s.bossesKilled}`);
+        lines.push(`Damage: ${s.damageDealt} dealt  |  ${s.damageTaken} taken`);
         if (s.criticalHits > 0) lines.push(`Critical hits: ${s.criticalHits}`);
-        if (s.goldEarned > 0) lines.push(`Gold earned: ${s.goldEarned}  |  Spent: ${s.goldSpent}`);
-        if (s.potionsUsed > 0) lines.push(`Potions consumed: ${s.potionsUsed}`);
+        if (s.goldEarned > 0) lines.push(`Gold: ${s.goldEarned} found  |  ${s.goldSpent} spent`);
+        if (s.potionsUsed > 0) lines.push(`Potions used: ${s.potionsUsed}`);
         if (s.healingDone > 0) lines.push(`HP restored: ${s.healingDone}`);
         lines.push(`Combat turns: ${s.turnsInCombat}`);
         lines.push(`Level reached: ${s.levelReached}`);
         return lines;
     }
 
-    getRunTitle(): string {
+    getRunTitle(language: Language): string {
         const s = this.stats;
-        if (s.bossesKilled > 0) return 'A WORTHY EXPEDITION';
-        if (s.elitesKilled > 0) return 'A BOLD DESCENT';
-        if (s.bestDepth >= 5) return 'A DEEP VENTURE';
-        if (s.enemiesKilled >= 5) return 'A FIGHTER\'S END';
-        if (s.bestDepth >= 3) return 'A PROMISING START';
-        return 'A BRIEF EXPEDITION';
+        if (language === 'ru') {
+            if (s.bossesKilled > 0) return 'ХРАНИТЕЛЬ ПАЛ';
+            if (s.elitesKilled > 0) return 'СИЛЬНЫЙ ЗАБЕГ';
+            if (s.bestDepth >= 5) return 'ГЛУБОКИЙ СПУСК';
+            if (s.enemiesKilled >= 5) return 'ТЯЖЕЛЫЙ БОЙ';
+            if (s.bestDepth >= 3) return 'ХОРОШЕЕ НАЧАЛО';
+            return 'КОРОТКИЙ СПУСК';
+        }
+
+        if (s.bossesKilled > 0) return 'A KEEPER FELL';
+        if (s.elitesKilled > 0) return 'A STRONG RUN';
+        if (s.bestDepth >= 5) return 'A DEEP DESCENT';
+        if (s.enemiesKilled >= 5) return 'A HARD FIGHT';
+        if (s.bestDepth >= 3) return 'A GOOD START';
+        return 'A SHORT DESCENT';
     }
 }
