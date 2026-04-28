@@ -1,5 +1,5 @@
 :root {
-  font-family: 'Segoe UI', Arial, sans-serif;
+  font-family: 'Lucida Console', Consolas, monospace;
   background-color: #0d0d0d;
   color: #e0e0e0;
 }
@@ -19,5 +19,6 @@ body {
 }
 
 canvas {
-  image-rendering: auto;
+  image-rendering: pixelated;
+  image-rendering: crisp-edges;
 }

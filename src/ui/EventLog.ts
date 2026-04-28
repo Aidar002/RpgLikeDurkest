@@ -1,33 +1,36 @@
-﻿import * as Phaser from 'phaser';
+import * as Phaser from 'phaser';
 
 interface LogEntry {
     container: Phaser.GameObjects.Container;
-    background: Phaser.GameObjects.Rectangle;
-    accent: Phaser.GameObjects.Rectangle;
-    icon: Phaser.GameObjects.Text;
+    rail: Phaser.GameObjects.Rectangle;
+    marker: Phaser.GameObjects.Text;
     text: Phaser.GameObjects.Text;
+    rule: Phaser.GameObjects.Rectangle;
+    baseColor: string;
 }
 
 type LogTone = 'danger' | 'success' | 'reward' | 'mystic' | 'info' | 'neutral';
 
-const TONE_META: Record<LogTone, { icon: string; fill: number; stroke: number }> = {
-    danger: { icon: '!', fill: 0x201213, stroke: 0x8a3434 },
-    success: { icon: '+', fill: 0x112016, stroke: 0x3a8a52 },
-    reward: { icon: '*', fill: 0x211d10, stroke: 0x9b7a22 },
-    mystic: { icon: '~', fill: 0x171426, stroke: 0x6e55a4 },
-    info: { icon: 'i', fill: 0x111a24, stroke: 0x4f7fb5 },
-    neutral: { icon: '-', fill: 0x15171a, stroke: 0x3b444e },
+const LOG_FONT = 'Lucida Console, Consolas, monospace';
+
+const TONE_META: Record<LogTone, { marker: string; rail: number; text: string }> = {
+    danger: { marker: '!', rail: 0x9a3535, text: '#ff9a8f' },
+    success: { marker: '+', rail: 0x2f8a4d, text: '#82e89b' },
+    reward: { marker: '$', rail: 0xa58128, text: '#f7d46b' },
+    mystic: { marker: '~', rail: 0x7556ad, text: '#c8a8ff' },
+    info: { marker: '>', rail: 0x4f7fb5, text: '#a8cdfa' },
+    neutral: { marker: '-', rail: 0x55606b, text: '#d0d3d6' },
 };
 
 export class EventLog {
     private scene: Phaser.Scene;
     private container: Phaser.GameObjects.Container;
     private entries: LogEntry[] = [];
-    private maxMessages = 7;
+    private maxMessages = 9;
     private width: number;
     private height: number;
-    private contentTop = 50;
-    private contentPadding = 12;
+    private contentTop = 48;
+    private contentPadding = 16;
 
     constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number, title: string = 'EVENT LOG') {
         this.scene = scene;
@@ -35,24 +38,23 @@ export class EventLog {
         this.height = height;
         this.container = scene.add.container(x, y);
 
-        const background = scene.add.rectangle(0, 0, width, height, 0x0f1216).setOrigin(0);
-        background.setStrokeStyle(2, 0x34404a);
+        const background = scene.add.rectangle(0, 0, width, height, 0x0a0b0d, 0.82).setOrigin(0);
+        background.setStrokeStyle(2, 0x2b343d);
 
-        const header = scene.add.text(14, 12, title, {
-            fontFamily: 'Trebuchet MS, Arial, sans-serif',
+        const inner = scene.add.rectangle(12, 44, width - 24, height - 58, 0x050607, 0.26).setOrigin(0);
+        inner.setStrokeStyle(1, 0x171d23);
+
+        const header = scene.add.text(16, 12, title.toUpperCase(), {
+            fontFamily: LOG_FONT,
             fontSize: '13px',
-            color: '#d5e2ee',
+            color: '#c9d3dc',
+            stroke: '#020304',
+            strokeThickness: 2,
         });
 
-        const subHeader = scene.add.text(width - 14, 14, 'RECENT', {
-            fontFamily: 'Trebuchet MS, Arial, sans-serif',
-            fontSize: '10px',
-            color: '#657483',
-        }).setOrigin(1, 0);
+        const divider = scene.add.rectangle(16, 36, width - 32, 1, 0x38424d).setOrigin(0, 0.5);
 
-        const divider = scene.add.rectangle(14, 38, width - 28, 1, 0x2c3742).setOrigin(0, 0.5);
-
-        this.container.add([background, header, subHeader, divider]);
+        this.container.add([background, inner, header, divider]);
     }
 
     get view(): Phaser.GameObjects.Container {
@@ -68,51 +70,56 @@ export class EventLog {
         const tone = this.toneFromColor(color);
         const meta = TONE_META[tone];
         const entryWidth = this.width - this.contentPadding * 2;
-        const textWidth = entryWidth - 54;
-
         const entryContainer = this.scene.add.container(this.contentPadding, this.height - 16);
-        const body = this.scene.add.text(42, 9, cleanText, {
-            fontFamily: 'Trebuchet MS, Arial, sans-serif',
-            fontSize: '13px',
-            color,
-            wordWrap: { width: textWidth },
-            lineSpacing: 4,
-        });
-        const entryHeight = Math.max(38, body.height + 18);
-        const background = this.scene.add.rectangle(0, 0, entryWidth, entryHeight, meta.fill, 0.92).setOrigin(0);
-        background.setStrokeStyle(1, meta.stroke, 0.7);
-        const accent = this.scene.add.rectangle(0, 0, 4, entryHeight, meta.stroke).setOrigin(0);
-        const iconBg = this.scene.add.circle(22, 19, 10, 0x0c0f13).setStrokeStyle(1, meta.stroke, 0.9);
-        const icon = this.scene.add.text(22, 19, meta.icon, {
-            fontFamily: 'Trebuchet MS, Arial, sans-serif',
-            fontSize: '12px',
-            color: '#d9e6f2',
-        }).setOrigin(0.5);
+        const baseColor = this.normalizeColor(color, meta.text);
 
-        entryContainer.add([background, accent, iconBg, icon, body]);
+        const marker = this.scene.add.text(0, 1, meta.marker, {
+            fontFamily: LOG_FONT,
+            fontSize: '14px',
+            color: meta.text,
+            stroke: '#020304',
+            strokeThickness: 2,
+        });
+
+        const body = this.scene.add.text(22, 0, cleanText, {
+            fontFamily: LOG_FONT,
+            fontSize: '13px',
+            color: baseColor,
+            wordWrap: { width: entryWidth - 26 },
+            lineSpacing: 5,
+            stroke: '#020304',
+            strokeThickness: 2,
+        });
+
+        const entryHeight = Math.max(20, body.height + 2);
+        const rail = this.scene.add.rectangle(-8, 2, 3, entryHeight, meta.rail, 0.9).setOrigin(0);
+        const rule = this.scene.add.rectangle(22, entryHeight + 5, entryWidth - 26, 1, 0x1c242b, 0.55).setOrigin(0);
+
+        entryContainer.add([rail, marker, body, rule]);
         entryContainer.setAlpha(0);
         this.container.add(entryContainer);
 
         this.entries.push({
             container: entryContainer,
-            background,
-            accent,
-            icon,
+            rail,
+            marker,
             text: body,
+            rule,
+            baseColor,
         });
 
         this.scene.tweens.add({
             targets: entryContainer,
             alpha: 1,
-            duration: 160,
-            ease: 'Quad.out',
+            duration: 120,
+            ease: 'Stepped',
         });
 
         this.recalculatePositions();
     }
 
     addDivider(label: string) {
-        this.addMessage(label, '#657483');
+        this.addMessage(`[ ${label} ]`, '#7f8994');
     }
 
     clear() {
@@ -130,12 +137,13 @@ export class EventLog {
             oldest?.container.destroy();
         }
 
-        let currentY = this.height - 16;
+        let currentY = this.height - 20;
         for (let index = this.entries.length - 1; index >= 0; index--) {
             const entry = this.entries[index];
-            const targetY = currentY - entry.background.height;
+            const entryHeight = Math.max(entry.text.height, entry.rail.height) + 8;
+            const targetY = currentY - entryHeight;
             const age = this.entries.length - 1 - index;
-            const alpha = Math.max(0.38, 1 - age * 0.11);
+            const alpha = Math.max(0.42, 1 - age * 0.10);
 
             if (targetY < this.contentTop && index > 0) {
                 const removed = this.entries.shift();
@@ -148,12 +156,15 @@ export class EventLog {
                 targets: entry.container,
                 y: targetY,
                 alpha,
-                duration: 180,
-                ease: 'Quad.out',
+                duration: 110,
+                ease: 'Stepped',
             });
 
-            entry.text.setColor(age === 0 ? entry.text.style.color as string : this.dimColor(entry.text.style.color as string, age));
-            currentY = targetY - 8;
+            entry.text.setColor(age === 0 ? entry.baseColor : this.dimColor(entry.baseColor, age));
+            entry.marker.setAlpha(age === 0 ? 1 : 0.65);
+            entry.rail.setAlpha(age === 0 ? 0.95 : 0.45);
+            entry.rule.setAlpha(age === 0 ? 0.65 : 0.3);
+            currentY = targetY - 5;
         }
     }
 
@@ -164,19 +175,23 @@ export class EventLog {
         const b = numeric & 255;
 
         if (r > 210 && g < 150 && b < 150) return 'danger';
-        if (g > 170 && r < 180) return 'success';
-        if (r > 210 && g > 170 && b < 150) return 'reward';
-        if (b > 170 && r > 120) return 'mystic';
-        if (b > 150 || g > 150) return 'info';
+        if (g > 170 && r < 190) return 'success';
+        if (r > 210 && g > 165 && b < 150) return 'reward';
+        if (b > 170 && r > 110) return 'mystic';
+        if (b > 145 || g > 150) return 'info';
         return 'neutral';
+    }
+
+    private normalizeColor(color: string, fallback: string): string {
+        return /^#[0-9a-fA-F]{6}$/.test(color) ? color : fallback;
     }
 
     private dimColor(color: string, age: number): string {
         const numeric = Number.parseInt(color.replace('#', ''), 16);
-        const mix = Math.min(0.55, age * 0.12);
-        const r = Math.round(((numeric >> 16) & 255) * (1 - mix) + 120 * mix);
-        const g = Math.round(((numeric >> 8) & 255) * (1 - mix) + 128 * mix);
-        const b = Math.round((numeric & 255) * (1 - mix) + 136 * mix);
+        const mix = Math.min(0.58, age * 0.13);
+        const r = Math.round(((numeric >> 16) & 255) * (1 - mix) + 95 * mix);
+        const g = Math.round(((numeric >> 8) & 255) * (1 - mix) + 104 * mix);
+        const b = Math.round((numeric & 255) * (1 - mix) + 112 * mix);
         return `#${this.hex(r)}${this.hex(g)}${this.hex(b)}`;
     }
 

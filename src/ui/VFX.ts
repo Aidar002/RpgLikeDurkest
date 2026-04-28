@@ -27,7 +27,7 @@ export class VFX {
     /** РџР»Р°РІР°СЋС‰РёР№ С‚РµРєСЃС‚ (СѓСЂРѕРЅ, Р»РµС‡РµРЅРёРµ) */
     static floatText(scene: Phaser.Scene, x: number, y: number, text: string, color = '#ffffff') {
         const t = scene.add.text(x, y, text, {
-            fontFamily: 'Segoe UI, Arial, sans-serif', fontSize: '22px', color,
+            fontFamily: 'Lucida Console, Consolas, monospace', fontSize: '22px', color,
             stroke: '#000000', strokeThickness: 3
         }).setOrigin(0.5).setDepth(160);
         scene.tweens.add({ targets: t, y: y - 70, alpha: 0, duration: 900, ease: 'Quad.out', onComplete: () => t.destroy() });

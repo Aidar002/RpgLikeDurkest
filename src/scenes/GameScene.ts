@@ -191,7 +191,7 @@ export class GameScene extends Phaser.Scene {
         this.refreshUI();
 
         this.tooltipText = this.add.text(0, 0, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#d0d0d0',
             backgroundColor: '#1a1a1aee',
@@ -241,7 +241,7 @@ export class GameScene extends Phaser.Scene {
         topBar.setStrokeStyle(1, 0x3f4a54);
 
         const hpLabel = this.add.text(12, 10, this.loc.t('uiVital'), {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '15px',
             color: '#e7eef6',
             stroke: '#020406',
@@ -251,7 +251,7 @@ export class GameScene extends Phaser.Scene {
         const hpBarBg = this.add.rectangle(12, 36, 170, 14, 0x3c1111).setOrigin(0, 0.5);
         this.hpBar = this.add.rectangle(12, 36, 170, 14, 0xd93c3c).setOrigin(0, 0.5);
         this.hpValueText = this.add.text(192, 27, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#ffb0aa',
             stroke: '#020406',
@@ -261,7 +261,7 @@ export class GameScene extends Phaser.Scene {
         this.xpBarBg = this.add.rectangle(288, 36, 132, 8, 0x1d2430).setOrigin(0, 0.5);
         this.xpBar = this.add.rectangle(288, 36, 132, 8, 0x5b9cff).setOrigin(0, 0.5);
         this.levelText = this.add.text(288, 10, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#ffe58a',
             stroke: '#020406',
@@ -269,7 +269,7 @@ export class GameScene extends Phaser.Scene {
         });
 
         this.statsText = this.add.text(448, 10, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '13px',
             color: '#e5edf5',
             wordWrap: { width: 180 },
@@ -278,7 +278,7 @@ export class GameScene extends Phaser.Scene {
         });
 
         this.resourceText = this.add.text(448, 44, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '13px',
             color: '#b9d7ff',
             wordWrap: { width: 260 },
@@ -287,7 +287,7 @@ export class GameScene extends Phaser.Scene {
         });
 
         this.progressText = this.add.text(706, 10, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '13px',
             color: '#d8e0e8',
             align: 'right',
@@ -296,7 +296,7 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(1, 0);
 
         this.prestigeText = this.add.text(786, 20, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '12px',
             color: '#ffe09a',
             align: 'right',
@@ -305,7 +305,7 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(1, 0);
 
         this.hintText = this.add.text(786, 36, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#b6c0ca',
             align: 'right',
@@ -315,7 +315,7 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(1, 0);
 
         this.mapDepthText = this.add.text(120, 558, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '12px',
             color: '#697480',
         }).setOrigin(0, 0.5);
@@ -323,7 +323,7 @@ export class GameScene extends Phaser.Scene {
         const langButton = this.add.rectangle(754, 52, 68, 28, 0x1f2933).setStrokeStyle(1, 0x6b7a88);
         langButton.setInteractive({ useHandCursor: true });
         const langText = this.add.text(754, 52, this.loc.language === 'ru' ? 'RU / EN' : 'EN / RU', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '13px',
             color: '#f1f7ff',
         }).setOrigin(0.5);
@@ -462,20 +462,20 @@ export class GameScene extends Phaser.Scene {
         panel.setStrokeStyle(2, 0x4d5a66);
 
         this.roomHeaderText = this.add.text(480, 106, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '13px',
             color: '#b7c7d9',
         });
 
         this.enemyPortrait = this.add.rectangle(622, 164, 88, 88, 0x333333).setStrokeStyle(2, 0x697480);
         this.enemyIconText = this.add.text(622, 174, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '36px',
             color: '#ffffff',
         }).setOrigin(0.5);
 
         this.enemyNameText = this.add.text(622, 214, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '16px',
             color: '#f0f0f0',
             align: 'center',
@@ -485,13 +485,13 @@ export class GameScene extends Phaser.Scene {
         this.enemyHpBarBg = this.add.rectangle(500, 284, 244, 12, 0x331111).setOrigin(0, 0.5);
         this.enemyHpBar = this.add.rectangle(500, 284, 244, 12, 0xc93d2f).setOrigin(0, 0.5);
         this.enemyHpText = this.add.text(622, 298, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '12px',
             color: '#ad6767',
         }).setOrigin(0.5);
 
         this.enemyIntelText = this.add.text(622, 318, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#9ec2ff',
             align: 'center',
@@ -500,7 +500,7 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5, 0);
 
         this.roomFlavorText = this.add.text(622, 376, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '12px',
             color: '#c8c8c8',
             align: 'center',
@@ -538,7 +538,7 @@ export class GameScene extends Phaser.Scene {
                 .setInteractive({ useHandCursor: true });
 
             const label = this.add.text(spec.x, spec.y, '', {
-                fontFamily: 'Segoe UI, Arial, sans-serif',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '12px',
                 color: '#dddddd',
                 align: 'center',
@@ -718,7 +718,7 @@ export class GameScene extends Phaser.Scene {
 
             const icon = this.add
                 .text(x, y, revealed && knowsType ? this.roomIcon(node.type) : '?', {
-                    fontFamily: 'Segoe UI, Arial, sans-serif',
+                    fontFamily: 'Lucida Console, Consolas, monospace',
                     fontSize: '18px',
                     color: node.cleared ? '#4d4d4d' : '#ffffff',
                 })
@@ -765,7 +765,7 @@ export class GameScene extends Phaser.Scene {
         const y = Math.min(...nodesAtDepth.map((node) => this.nodeY(node))) - MAP_LAYOUT.nodeSize * 1.15;
         const isBoss = depth > 0 && depth % 8 === 0;
         const label = this.add.text(x, y, isBoss ? `D${depth} в…` : `D${depth}`, {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '10px',
             color: isBoss ? '#c93d3d' : '#3d3d3d',
         }).setOrigin(0.5);
@@ -2030,7 +2030,7 @@ export class GameScene extends Phaser.Scene {
         panel.setStrokeStyle(2, 0x5a2f2f);
 
         const title = this.add.text(400, 56, this.loc.t('deathTitle'), {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '28px',
             color: '#d65a5a',
         }).setOrigin(0.5).setDepth(102);
@@ -2049,7 +2049,7 @@ export class GameScene extends Phaser.Scene {
                 line: this.narrative.deathLine(),
             })}\n${this.tracker.getRunTitle()}\n${summaryLines.join('\n')}\n${statLines.join('\n')}`,
             {
-                fontFamily: 'Segoe UI, Arial, sans-serif',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '11px',
                 color: '#9a9a9a',
                 align: 'center',
@@ -2059,13 +2059,13 @@ export class GameScene extends Phaser.Scene {
         ).setOrigin(0.5, 0).setDepth(102);
 
         const pointsText = this.add.text(400, 228, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '16px',
             color: '#ffd36e',
         }).setOrigin(0.5).setDepth(102);
 
         const unlockText = this.add.text(400, 250, '', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#8fb8ff',
             align: 'center',
@@ -2092,26 +2092,26 @@ export class GameScene extends Phaser.Scene {
                 .setInteractive({ useHandCursor: true });
 
             const cardTitle = this.add.text(position.x - 136, position.y - 22, this.loc.upgradeTitle(card.id, card.title), {
-                fontFamily: 'Segoe UI, Arial, sans-serif',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '15px',
                 color: '#f0f0f0',
             }).setDepth(103);
 
             const cardLevel = this.add.text(position.x + 136, position.y - 22, '', {
-                fontFamily: 'Segoe UI, Arial, sans-serif',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '14px',
                 color: '#a8a8a8',
             }).setOrigin(1, 0).setDepth(103);
 
             const cardBody = this.add.text(position.x - 136, position.y - 2, '', {
-                fontFamily: 'Segoe UI, Arial, sans-serif',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '12px',
                 color: '#9a9a9a',
                 wordWrap: { width: 220 },
             }).setDepth(103);
 
             const cardCost = this.add.text(position.x + 136, position.y + 14, '', {
-                fontFamily: 'Segoe UI, Arial, sans-serif',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '13px',
                 color: '#ffd36e',
             }).setOrigin(1, 0).setDepth(103);
@@ -2152,7 +2152,7 @@ export class GameScene extends Phaser.Scene {
         restartButton.setStrokeStyle(1, 0x8a8a8a);
         restartButton.setInteractive({ useHandCursor: true });
         const restartText = this.add.text(400, 548, this.loc.t('restart'), {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '17px',
             color: '#f0f0f0',
         }).setOrigin(0.5).setDepth(103);
@@ -2161,7 +2161,7 @@ export class GameScene extends Phaser.Scene {
         resetButton.setStrokeStyle(1, 0xa35a5a);
         resetButton.setInteractive({ useHandCursor: true });
         const resetText = this.add.text(400, 592, this.loc.t('reset'), {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#ffd0d0',
         }).setOrigin(0.5).setDepth(103);
@@ -2212,7 +2212,7 @@ export class GameScene extends Phaser.Scene {
         const confirmPanel = this.add.rectangle(400, 300, 430, 190, 0x181818).setDepth(111);
         confirmPanel.setStrokeStyle(2, 0x8a4d4d);
         const confirmTitle = this.add.text(400, 244, this.loc.t('confirmResetTitle'), {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '22px',
             color: '#ffd2d2',
         }).setOrigin(0.5).setDepth(112);
@@ -2221,7 +2221,7 @@ export class GameScene extends Phaser.Scene {
             290,
             this.loc.t('confirmResetBody'),
             {
-                fontFamily: 'Segoe UI, Arial, sans-serif',
+                fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '14px',
                 color: '#d6d6d6',
                 align: 'center',
@@ -2233,7 +2233,7 @@ export class GameScene extends Phaser.Scene {
         confirmResetButton.setStrokeStyle(1, 0xc57d7d);
         confirmResetButton.setInteractive({ useHandCursor: true });
         const confirmResetText = this.add.text(320, 358, this.loc.t('confirmResetYes'), {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#ffe8e8',
         }).setOrigin(0.5).setDepth(113);
@@ -2241,7 +2241,7 @@ export class GameScene extends Phaser.Scene {
         cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
         cancelResetButton.setInteractive({ useHandCursor: true });
         const cancelResetText = this.add.text(480, 358, this.loc.t('cancel'), {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#f0f0f0',
         }).setOrigin(0.5).setDepth(113);
@@ -2297,7 +2297,7 @@ export class GameScene extends Phaser.Scene {
             .setDepth(200)
             .setAlpha(0);
         const bannerText = this.add.text(400, 580, `\u2726  ${this.compactText(label, 52)}`, {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '14px',
             color: '#88ccff',
         }).setOrigin(0.5).setDepth(201).setAlpha(0);

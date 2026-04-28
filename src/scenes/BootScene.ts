@@ -32,13 +32,13 @@ export class BootScene extends Phaser.Scene {
         }
 
         const title = this.add.text(400, 200, 'DARKEST\nDESCENT', {
-            fontFamily: 'Georgia, Times New Roman, serif',
-            fontSize: '54px',
-            color: '#ffd977',
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '48px',
+            color: '#f1c75d',
             align: 'center',
-            lineSpacing: 6,
-            stroke: '#020202',
-            strokeThickness: 2,
+            lineSpacing: 8,
+            stroke: '#000000',
+            strokeThickness: 4,
         }).setOrigin(0.5).setDepth(3);
 
         this.tweens.add({
@@ -50,10 +50,10 @@ export class BootScene extends Phaser.Scene {
         });
 
         const tagline = this.add.text(400, 300, 'A roguelike of ruin and persistence.', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
-            fontSize: '16px',
-            color: '#d4dae1',
-            stroke: '#05070b',
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '14px',
+            color: '#c8cdd2',
+            stroke: '#030507',
             strokeThickness: 2,
         }).setOrigin(0.5).setAlpha(0).setDepth(3);
 
@@ -67,9 +67,11 @@ export class BootScene extends Phaser.Scene {
         const startBtn = this.add.rectangle(400, 400, 240, 46, 0x1c1c1c)
             .setStrokeStyle(1, 0x5a5a5a).setInteractive({ useHandCursor: true }).setAlpha(0).setDepth(3);
         const startText = this.add.text(400, 400, 'Begin Expedition', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
-            fontSize: '19px',
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '18px',
             color: '#ffffff',
+            stroke: '#000000',
+            strokeThickness: 2,
         }).setOrigin(0.5).setAlpha(0).setDepth(4);
 
         this.tweens.add({
@@ -87,7 +89,7 @@ export class BootScene extends Phaser.Scene {
         });
 
         this.add.text(780, 580, 'v0.3', {
-            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '11px',
             color: '#68717a',
         }).setOrigin(1, 1);
