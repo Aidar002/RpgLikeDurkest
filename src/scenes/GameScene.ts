@@ -463,7 +463,7 @@ export class GameScene extends Phaser.Scene {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '13px',
             color: '#b7c7d9',
-        });
+        }).setVisible(false);
 
         this.enemyPortrait = this.add.rectangle(622, 166, 82, 82, 0x333333).setStrokeStyle(2, 0x697480);
         this.enemyIconText = this.add.text(622, 174, '', {
@@ -1819,17 +1819,19 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showRoomCard(
-        header: string,
+        _header: string,
         title: string,
         description: string,
         color: number,
         icon: string,
         intel: string
     ) {
-        this.roomHeaderText.setText(header);
+        this.roomHeaderText.setText('').setVisible(false);
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
         this.enemyNameText.setText(this.compactText(title, 28));
+        this.roomFlavorText.setPosition(496, 282);
+        this.enemyIntelText.setPosition(496, 360);
         this.roomFlavorText.setText(this.compactText(description, 96));
         this.enemyIntelText.setText(this.compactText(intel, 92));
         this.enemyIntelText.setVisible(true);
@@ -1901,16 +1903,12 @@ export class GameScene extends Phaser.Scene {
         const unlocks = this.meta.getUiUnlockState();
         const description = this.combat.enemy?.description ?? this.loc.t('enemyFallback');
 
-        this.roomHeaderText.setText(
-            this.combat.enemy?.kind === 'boss'
-                ? this.loc.t('boss')
-                : this.combat.enemy?.kind === 'elite'
-                  ? this.loc.t('elite')
-                  : this.loc.t('hostile')
-        );
+        this.roomHeaderText.setText('').setVisible(false);
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
         this.enemyNameText.setText(this.compactText(name, 28));
+        this.enemyIntelText.setPosition(496, 310);
+        this.roomFlavorText.setPosition(496, 386);
         this.roomFlavorText.setText(this.compactText(description, 72));
         this.roomPanelGroup.setVisible(true);
 
