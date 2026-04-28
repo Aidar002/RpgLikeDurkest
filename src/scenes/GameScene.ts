@@ -27,6 +27,7 @@ import type { SkillId } from '../systems/Skills';
 import { StressManager } from '../systems/Stress';
 import type { Resolution } from '../systems/Stress';
 import { statusSummary } from '../systems/StatusEffects';
+import { Localization } from '../systems/Localization';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 
@@ -79,6 +80,7 @@ export class GameScene extends Phaser.Scene {
     private tracker!: RunTracker;
     private stress!: StressManager;
     private skillLoadout: SkillId[] = [...STARTER_LOADOUT];
+    private loc: Localization = new Localization();
 
     private mapContainer!: Phaser.GameObjects.Container;
     private roomContainer!: Phaser.GameObjects.Container;
@@ -2044,7 +2046,7 @@ export class GameScene extends Phaser.Scene {
         const panel = this.add.rectangle(400, 300, 736, 530, 0x121212).setDepth(101);
         panel.setStrokeStyle(2, 0x5a2f2f);
 
-        const title = this.add.text(400, 56, this.tracker.getRunTitle(), {
+        const title = this.add.text(400, 56, this.tracker.getRunTitle(this.loc.language), {
             fontFamily: 'Courier New',
             fontSize: '28px',
             color: '#d65a5a',
@@ -2053,7 +2055,7 @@ export class GameScene extends Phaser.Scene {
         const summaryLines = [
             `Depth ${this.runBestDepth}  |  Bosses ${this.runBossKills}  |  Prestige +${this.prestigeReward}`,
         ];
-        const statLines = this.tracker.getSummaryLines();
+        const statLines = this.tracker.getSummaryLines(this.loc.language);
         const summary = this.add.text(
             400,
             88,
