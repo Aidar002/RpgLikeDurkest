@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { COMBAT_CONFIG, EXPEDITION_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
+import { COMBAT_CONFIG, EXPEDITION_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
 import { DungeonManager } from '../systems/DungeonManager';
 import {
     MapGenerator,
@@ -19,6 +19,14 @@ import {
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { RunTracker } from '../systems/RunTracker';
+import { narrate } from '../systems/Narrator';
+import { RELICS, rollRelicFor } from '../systems/Relics';
+import type { RelicRarity } from '../systems/Relics';
+import { SKILLS, STARTER_LOADOUT } from '../systems/Skills';
+import type { SkillId } from '../systems/Skills';
+import { StressManager } from '../systems/Stress';
+import type { Resolution } from '../systems/Stress';
+import { statusSummary } from '../systems/StatusEffects';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 
@@ -69,6 +77,8 @@ export class GameScene extends Phaser.Scene {
     private combat!: CombatManager;
     private log!: EventLog;
     private tracker!: RunTracker;
+    private stress!: StressManager;
+    private skillLoadout: SkillId[] = [...STARTER_LOADOUT];
 
     private mapContainer!: Phaser.GameObjects.Container;
     private roomContainer!: Phaser.GameObjects.Container;
@@ -102,6 +112,14 @@ export class GameScene extends Phaser.Scene {
     private tooltipText!: Phaser.GameObjects.Text;
     private depthLabels: Map<number, Phaser.GameObjects.Text> = new Map();
 
+    private stressBarBg!: Phaser.GameObjects.Rectangle;
+    private stressBar!: Phaser.GameObjects.Rectangle;
+    private stressText!: Phaser.GameObjects.Text;
+    private resolutionText!: Phaser.GameObjects.Text;
+    private relicText!: Phaser.GameObjects.Text;
+    private playerStatusText!: Phaser.GameObjects.Text;
+    private enemyStatusText!: Phaser.GameObjects.Text;
+
     private roomHeaderText!: Phaser.GameObjects.Text;
     private enemyPortrait!: Phaser.GameObjects.Rectangle;
     private enemyIconText!: Phaser.GameObjects.Text;
@@ -122,17 +140,25 @@ export class GameScene extends Phaser.Scene {
         this.meta = new MetaProgressionManager();
         const metaBonuses = this.meta.getBonuses();
 
-        this.player = new PlayerManager(metaBonuses.player, {
-            gold: this.meta.isUnlocked('currency_gold'),
-            potions: this.meta.isUnlocked('resource_potions'),
-            resolve: this.meta.isUnlocked('resource_resolve'),
-            light: this.meta.isUnlocked('resource_light'),
-            relicShards: this.meta.isUnlocked('currency_relic_shards'),
-        });
+        this.tracker = new RunTracker();
+
+        this.player = new PlayerManager(metaBonuses.player);
+        this.player.onRelicsChange = () => this.refreshUI();
+
+        this.stress = new StressManager();
+        this.stress.onChange = (v) => {
+            if (v > this.tracker.current.peakStress) this.tracker.trackMax('peakStress', v);
+            this.updateStressUI();
+        };
+        this.stress.onResolution = (r) => this.handleStressResolution(r);
+
+        // Pick loadout: first 2 skills from [starter + meta-unlocked extras].
+        const extras = this.meta.getUnlockedExtraSkills();
+        const pool: SkillId[] = [...STARTER_LOADOUT, ...extras.filter(s => !STARTER_LOADOUT.includes(s))];
+        this.skillLoadout = pool.slice(0, 2);
 
         this.mapGen = new MapGenerator(this.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
 
-        this.tracker = new RunTracker();
         this.visuals = new Map();
         this.glowMap = new Map();
         this.depthLabels = new Map();
@@ -170,10 +196,13 @@ export class GameScene extends Phaser.Scene {
             this.player,
             this.log,
             (payload) => this.handleCombatVictory(payload),
-            (damage) => this.onPlayerHit(damage)
+            (damage) => this.onPlayerHit(damage),
+            this.stress
         );
         this.combat.onEnemyUpdate = (hp, maxHp, color, name, icon) =>
             this.updateEnemyUI(hp, maxHp, color, name, icon);
+        this.combat.onPlayerStatusChange = () => this.updatePlayerStatusUI();
+        this.combat.onEnemyStatusChange = () => this.updateEnemyStatusUI();
 
         this.setupRoomUI();
         this.setupKeyboardShortcuts();
@@ -294,6 +323,44 @@ export class GameScene extends Phaser.Scene {
             color: '#3d3d3d',
         }).setOrigin(0, 0.5);
 
+        // Stress bar (second row, below HP).
+        const stressLabel = this.add.text(12, 46, 'STRESS', {
+            fontFamily: 'Courier New',
+            fontSize: '9px',
+            color: '#8a7a99',
+        });
+        this.stressBarBg = this.add.rectangle(64, 52, 118, 6, 0x1a0c26).setOrigin(0, 0.5);
+        this.stressBar = this.add.rectangle(64, 52, 0, 6, 0x7b4db8).setOrigin(0, 0.5);
+        this.stressText = this.add.text(192, 47, '0', {
+            fontFamily: 'Courier New',
+            fontSize: '10px',
+            color: '#a887c4',
+        });
+        this.resolutionText = this.add.text(216, 47, '', {
+            fontFamily: 'Courier New',
+            fontSize: '10px',
+            color: '#c49fff',
+        });
+
+        this.relicText = this.add.text(12, 64, '', {
+            fontFamily: 'Courier New',
+            fontSize: '9px',
+            color: '#b0a080',
+            wordWrap: { width: 770 },
+        });
+
+        this.playerStatusText = this.add.text(400, 82, '', {
+            fontFamily: 'Courier New',
+            fontSize: '10px',
+            color: '#8be0a7',
+        }).setOrigin(0.5, 0);
+
+        this.enemyStatusText = this.add.text(616, 320, '', {
+            fontFamily: 'Courier New',
+            fontSize: '10px',
+            color: '#e09f9f',
+        }).setOrigin(0.5, 0);
+
         this.uiContainer.add([
             topBar,
             hpLabel,
@@ -309,7 +376,16 @@ export class GameScene extends Phaser.Scene {
             this.prestigeText,
             this.hintText,
             this.mapDepthText,
+            stressLabel,
+            this.stressBarBg,
+            this.stressBar,
+            this.stressText,
+            this.resolutionText,
+            this.relicText,
+            this.playerStatusText,
         ]);
+
+        this.roomContainer.add(this.enemyStatusText);
 
         this.player.onHpChange = () => this.refreshUI();
         this.player.onStatsChange = () => this.refreshUI();
@@ -413,6 +489,111 @@ export class GameScene extends Phaser.Scene {
         this.prestigeText.setVisible(unlocks.showPrestigeForecast);
         const hintVisible = !!nextUnlock && this.mapContainer.visible;
         this.hintText.setVisible(hintVisible);
+
+        this.relicText.setText(this.relicSummary());
+        this.updateStressUI();
+        this.updatePlayerStatusUI();
+    }
+
+    private updateStressUI() {
+        const v = this.stress.value;
+        const ratio = Phaser.Math.Clamp(v / 100, 0, 1);
+        this.stressBar.setDisplaySize(118 * ratio, 6);
+        this.stressBar.setFillStyle(v >= 75 ? 0xcb5ae8 : v >= 50 ? 0xa27bc4 : 0x7b4db8);
+        this.stressText.setText(`${v}`);
+        if (this.stress.resolution) {
+            this.resolutionText.setText(
+                this.stress.resolution.kind === 'virtue'
+                    ? `\u2605 ${this.stress.resolution.name}`
+                    : `\u2620 ${this.stress.resolution.name}`
+            );
+            this.resolutionText.setColor(
+                this.stress.resolution.kind === 'virtue' ? '#a0e08a' : '#e87878'
+            );
+        } else {
+            this.resolutionText.setText('');
+        }
+    }
+
+    private handleStressResolution(r: Resolution) {
+        this.tracker.record('stressResolutions');
+        this.log.addMessage(
+            r.kind === 'virtue'
+                ? `VIRTUE: ${r.name}. ${r.description}`
+                : `AFFLICTION: ${r.name}. ${r.description}`,
+            r.kind === 'virtue' ? '#8bd8ff' : '#e07070'
+        );
+        this.log.addMessage(
+            narrate(r.kind === 'virtue' ? 'virtue' : 'affliction'),
+            '#c4a35a'
+        );
+        this.showUnlockBanner(
+            r.kind === 'virtue' ? `Virtue: ${r.name}` : `Affliction: ${r.name}`
+        );
+    }
+
+    private updatePlayerStatusUI() {
+        const txt = statusSummary(this.player.status);
+        this.playerStatusText.setText(txt);
+    }
+
+    private updateEnemyStatusUI() {
+        if (!this.combat.enemy) {
+            this.enemyStatusText.setText('');
+            return;
+        }
+        const txt = statusSummary(this.combat.enemy.status);
+        this.enemyStatusText.setText(txt);
+    }
+
+    private relicSummary(): string {
+        if (this.player.relics.length === 0) return '';
+        return 'Relics: ' + this.player.relics
+            .map((id) => RELICS[id].short)
+            .join(', ');
+    }
+
+    private maybeDropRelic(kind: 'normal' | 'elite' | 'boss' | 'treasure' | 'shrine'): boolean {
+        const allowedRarities = this.meta.getRelicRarityPool();
+        const chance = kind === 'boss'
+            ? 1
+            : kind === 'elite'
+              ? ROOM_CONFIG.elite.relicChance
+              : kind === 'treasure'
+                ? ROOM_CONFIG.treasure.relicChance
+                : kind === 'shrine'
+                  ? ROOM_CONFIG.shrine.relicChance
+                  : 0;
+        if (Math.random() > chance) return false;
+
+        const rollKind = kind === 'treasure' || kind === 'shrine'
+            ? 'normal'
+            : kind;
+        const relicId = rollRelicFor(this.player.relics, rollKind as 'normal' | 'elite' | 'boss');
+        if (!relicId) return false;
+
+        // Filter by unlocked rarity pool.
+        const relic = RELICS[relicId];
+        if (!allowedRarities.includes(relic.rarity as RelicRarity)) {
+            // downgrade to common alt.
+            const fallback = rollRelicFor(this.player.relics, 'normal');
+            if (!fallback) return false;
+            this.player.addRelic(fallback);
+            this.tracker.record('relicsFound');
+            this.log.addMessage(
+                `Relic obtained: ${RELICS[fallback].name}. ${RELICS[fallback].description}`,
+                '#ffcc99'
+            );
+            return true;
+        }
+
+        this.player.addRelic(relicId);
+        this.tracker.record('relicsFound');
+        this.log.addMessage(
+            `Relic obtained: ${relic.name}. ${relic.description}`,
+            relic.rarity === 'unique' ? '#f0a8ff' : relic.rarity === 'rare' ? '#ffd36e' : '#ffcc99'
+        );
+        return true;
     }
 
     private setupRoomUI() {
@@ -785,50 +966,38 @@ export class GameScene extends Phaser.Scene {
         this.edgeGfx.clear();
         const currentDepth = this.dungeon.currentDepth;
         const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
+        const currentId = this.dungeon.currentNode.id;
         const allNodes = this.dungeon.getAllNodes();
-        const edgeGroups = new Map<number, Array<{ from: MapNode; to: MapNode }>>();
 
+        // Per-source-node grouping: each source spreads its outgoing lanes
+        // so lines never overlap with siblings from the same node.
         allNodes.forEach((node) => {
-            if (node.depth < currentDepth) {
-                return;
-            }
+            if (node.depth < currentDepth) return;
+            if (node.edges.length === 0) return;
 
-            node.edges.forEach((edgeId) => {
-                const target = allNodes.find((candidate) => candidate.id === edgeId);
-                if (!target) {
-                    return;
-                }
+            const targets = node.edges
+                .map((id) => allNodes.find((candidate) => candidate.id === id))
+                .filter((target): target is MapNode => !!target)
+                .sort((a, b) => a.slot - b.slot);
 
-                if (!edgeGroups.has(node.depth)) {
-                    edgeGroups.set(node.depth, []);
-                }
+            const x1 = this.nodeX(node);
+            const y1 = this.nodeY(node);
 
-                edgeGroups.get(node.depth)?.push({ from: node, to: target });
-            });
-        });
-
-        edgeGroups.forEach((edges) => {
-            edges.sort((left, right) =>
-                left.from.slot !== right.from.slot
-                    ? left.from.slot - right.from.slot
-                    : left.to.slot - right.to.slot
-            );
-
-            const totalEdges = edges.length;
-            edges.forEach((edge, index) => {
-                const active =
-                    !edge.from.cleared &&
-                    forwardIds.has(edge.to.id) &&
-                    edge.from.id === this.dungeon.currentNode.id;
-                const lineColor = edge.from.cleared ? 0x323232 : active ? 0x8b8b8b : 0x474747;
-                const lineAlpha = edge.from.cleared ? 0.2 : active ? 1 : 0.42;
+            targets.forEach((target, index) => {
+                const active = !node.cleared && forwardIds.has(target.id) && node.id === currentId;
+                const lineColor = node.cleared ? 0x2a2a2a : active ? 0x9b9b9b : 0x3b3b3b;
+                const lineAlpha = node.cleared ? 0.18 : active ? 1 : 0.35;
                 const lineWidth = active ? 3 : 2;
 
-                const x1 = this.nodeX(edge.from);
-                const y1 = this.nodeY(edge.from);
-                const x2 = this.nodeX(edge.to);
-                const y2 = this.nodeY(edge.to);
-                const laneX = x1 + ((x2 - x1) * (index + 1)) / (totalEdges + 1);
+                const x2 = this.nodeX(target);
+                const y2 = this.nodeY(target);
+
+                // Fan out: bias lane from source based on this target's
+                // relative rank, not the target's slot (which was the
+                // bug that made lines cross). Spread range is 25%-75%
+                // of the corridor between the two columns.
+                const rank = (index + 1) / (targets.length + 1);
+                const laneX = x1 + (x2 - x1) * (0.35 + rank * 0.30);
 
                 this.edgeGfx.lineStyle(lineWidth, lineColor, lineAlpha);
                 this.edgeGfx.beginPath();
@@ -874,28 +1043,6 @@ export class GameScene extends Phaser.Scene {
         milestones.forEach((milestone) => {
             this.log.addMessage(`Unlocked forever: ${milestone.label}.`, '#66b8ff');
             this.showUnlockBanner(milestone.label);
-            milestone.unlocks.forEach((unlockId) => {
-                switch (unlockId) {
-                    case 'currency_gold':
-                        this.player.unlockGold();
-                        break;
-                    case 'resource_potions':
-                        this.player.unlockPotions(EXPEDITION_CONFIG.startingPotions);
-                        break;
-                    case 'resource_resolve':
-                        this.player.unlockResolve(EXPEDITION_CONFIG.startingResolve);
-                        break;
-                    case 'resource_light':
-                        this.player.unlockLight(this.getStartingLight());
-                        this.skipLightSpendThisRoom = true;
-                        break;
-                    case 'currency_relic_shards':
-                        this.player.unlockRelicShards();
-                        break;
-                    default:
-                        break;
-                }
-            });
         });
 
         this.refreshAvailableRoomPool(this.dungeon.currentDepth);
@@ -1087,15 +1234,26 @@ export class GameScene extends Phaser.Scene {
         this.tracker.trackMax('bestDepth', this.dungeon.currentDepth);
         this.applyRoomTint(node.type);
 
-        if (this.player.isLightUnlocked) {
-            if (this.skipLightSpendThisRoom) {
-                this.skipLightSpendThisRoom = false;
-            } else {
-                const spent = this.player.spendLight(EXPEDITION_CONFIG.lightLossPerRoom);
-                if (spent > 0) {
-                    this.log.addMessage(`Your lantern burns lower: -${spent} light.`, '#e0c873');
-                }
+        const sparesLight =
+            this.player.aggregate.emptyRoomsSpareLight && node.type === RoomType.EMPTY;
+        if (this.skipLightSpendThisRoom) {
+            this.skipLightSpendThisRoom = false;
+        } else if (!sparesLight) {
+            const spent = this.player.spendLight(EXPEDITION_CONFIG.lightLossPerRoom);
+            if (spent > 0) {
+                this.log.addMessage(`Your lantern burns lower: -${spent} light.`, '#e0c873');
             }
+        }
+
+        // Low-light stress bite.
+        if (this.player.hasLowLight && node.type !== RoomType.START) {
+            this.stress.add(STRESS_CONFIG.onLowLightRoom, this.player.aggregate.stressReductionPct);
+            if (Math.random() < 0.3) {
+                this.log.addMessage(narrate('low_light'), '#c4a35a');
+            }
+        }
+        if (this.player.hasHighLight && node.type === RoomType.EMPTY) {
+            this.stress.add(STRESS_CONFIG.onEmptyRoomHighLight, this.player.aggregate.stressReductionPct);
         }
 
         this.log.addDivider(`Depth ${this.dungeon.currentDepth}`);
@@ -1184,23 +1342,24 @@ export class GameScene extends Phaser.Scene {
             },
         ];
 
-        if (this.meta.isUnlocked('action_skill')) {
+        // Skill loadout: up to 2 skills from the loadout become 2 buttons.
+        this.skillLoadout.forEach((id) => {
+            const def = SKILLS[id];
+            const cost = Math.max(1, def.resolveCost + (this.stress?.resolveCostMod() ?? 0));
             actions.push({
-                label: '[3] Skill',
-                callback: () => this.performCombatAction('skill'),
-                enabled: this.player.resources.resolve >= COMBAT_CONFIG.skillCost,
-                fill: 0x5a2d78,
+                label: `[${actions.length + 1}] ${def.short} ${cost}r`,
+                callback: () => this.performCombatAction({ kind: 'skill', id }),
+                enabled: this.player.resources.resolve >= cost,
+                fill: def.color,
             });
-        }
+        });
 
-        if (this.meta.isUnlocked('action_potion')) {
-            actions.push({
-                label: `[${actions.length + 1}] Potion`,
-                callback: () => this.performCombatAction('potion'),
-                enabled: this.player.resources.potions > 0,
-                fill: 0x1f5b2f,
-            });
-        }
+        actions.push({
+            label: `[${actions.length + 1}] Potion`,
+            callback: () => this.performCombatAction('potion'),
+            enabled: this.player.resources.potions > 0,
+            fill: 0x1f5b2f,
+        });
 
         this.setRoomButtons(actions);
         this.enemyIntelText.setText(this.buildCombatIntel());
@@ -1217,12 +1376,13 @@ export class GameScene extends Phaser.Scene {
 
         const hpBefore = this.combat.enemy.hp;
         this.tracker.record('turnsInCombat');
-        if (action === 'skill') this.tracker.record('skillsUsed');
-        if (action === 'defend') {
+        const actionKind = typeof action === 'string' ? action : action.kind;
+        if (actionKind === 'skill') this.tracker.record('skillsUsed');
+        if (actionKind === 'defend') {
             this.tracker.record('defendsUsed');
             VFX.shieldFlash(this, 126, 82);
         }
-        if (action === 'potion') {
+        if (actionKind === 'potion') {
             this.tracker.record('potionsUsed');
             VFX.healGlow(this, 126, 82);
         }
@@ -1306,6 +1466,8 @@ export class GameScene extends Phaser.Scene {
             'Claim the spoils and move on.'
         );
         this.log.addMessage(`Treasure secured: ${rewardParts.join(', ')}.`, '#f7d46b');
+        this.maybeDropRelic('treasure');
+        this.stress.relieve(STRESS_CONFIG.onTreasure);
         this.showReturnButton();
     }
 
@@ -1378,14 +1540,18 @@ export class GameScene extends Phaser.Scene {
             'The coals are low, but still warm enough to matter.',
             0x2f8b4b,
             '+',
-            'Recover your body or focus your mind.'
+            'Recover body, mind, or spirit.'
         );
 
         this.setRoomButtons([
             {
                 label: '[1] Recover',
                 callback: () => {
-                    const healed = this.player.heal(ROOM_CONFIG.rest.recoverHeal + this.meta.getBonuses().rooms.restHealBonus);
+                    const healed = this.player.heal(
+                        ROOM_CONFIG.rest.recoverHeal +
+                            this.meta.getBonuses().rooms.restHealBonus +
+                            this.player.aggregate.restHealBonus
+                    );
                     if (healed > 0) this.tracker.record('healingDone', healed);
                     const lightGained = this.player.gainLight(ROOM_CONFIG.rest.recoverLight);
                     const summary = [`${healed} HP`];
@@ -1401,17 +1567,25 @@ export class GameScene extends Phaser.Scene {
             {
                 label: '[2] Focus',
                 callback: () => {
-                    if (this.player.isResolveUnlocked) {
-                        const gained = this.player.gainResolve(ROOM_CONFIG.rest.focusResolve);
-                        this.log.addMessage(`You focus and gain ${gained} resolve.`, '#9bc8ff');
-                    } else {
-                        const gainedXp = this.player.gainXp(ROOM_CONFIG.rest.focusXp);
-                        this.log.addMessage(`You study the quiet and gain ${gainedXp} XP.`, '#f7d46b');
-                    }
+                    const gained = this.player.gainResolve(ROOM_CONFIG.rest.focusResolve);
+                    this.log.addMessage(`You focus and gain ${gained} resolve.`, '#9bc8ff');
                     this.enemyIntelText.setText('You leave steadier than you arrived.');
                     this.showReturnButton();
                 },
                 fill: 0x1b335b,
+            },
+            {
+                label: '[3] Meditate',
+                callback: () => {
+                    this.stress.relieve(ROOM_CONFIG.rest.meditateStressRelief);
+                    this.log.addMessage(
+                        `You breathe through the weight. -${ROOM_CONFIG.rest.meditateStressRelief} stress.`,
+                        '#d6b8ff'
+                    );
+                    this.enemyIntelText.setText('The shadows lose an edge, if briefly.');
+                    this.showReturnButton();
+                },
+                fill: 0x3e2260,
             },
         ]);
     }
@@ -1824,6 +1998,16 @@ export class GameScene extends Phaser.Scene {
 
         this.player.registerKill();
         this.log.addMessage(`Victory rewards: ${rewardLines.join(', ')}.`, '#9be0a7');
+
+        if (payload.kind === 'boss') {
+            this.maybeDropRelic('boss');
+        } else if (payload.kind === 'elite') {
+            this.maybeDropRelic('elite');
+        } else if (Math.random() < 0.07) {
+            // Small chance for normal-kill relic scraps.
+            this.maybeDropRelic('normal');
+        }
+
         this.enemyIntelText.setText('The path forward is open again.');
         this.showReturnButton();
         this.refreshUI();
@@ -2133,13 +2317,6 @@ export class GameScene extends Phaser.Scene {
             yoyo: true,
             onComplete: () => { bannerBg.destroy(); bannerText.destroy(); },
         });
-    }
-
-    private getStartingLight(): number {
-        return Math.min(
-            EXPEDITION_CONFIG.maxLight,
-            EXPEDITION_CONFIG.startingLight + this.meta.getBonuses().player.startingLightBonus
-        );
     }
 
     private randomBetween(min: number, max: number): number {
