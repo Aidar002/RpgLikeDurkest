@@ -137,15 +137,15 @@ export class EventLog {
             oldest?.container.destroy();
         }
 
-        let currentY = this.height - 20;
-        for (let index = this.entries.length - 1; index >= 0; index--) {
+        let currentY = this.contentTop + 10;
+        for (let index = 0; index < this.entries.length; index++) {
             const entry = this.entries[index];
             const entryHeight = Math.max(entry.text.height, entry.rail.height) + 8;
-            const targetY = currentY - entryHeight;
+            const targetY = currentY;
             const age = this.entries.length - 1 - index;
             const alpha = Math.max(0.42, 1 - age * 0.10);
 
-            if (targetY < this.contentTop && index > 0) {
+            if (targetY + entryHeight > this.height - 16 && this.entries.length > 1) {
                 const removed = this.entries.shift();
                 removed?.container.destroy();
                 this.recalculatePositions();
@@ -164,7 +164,7 @@ export class EventLog {
             entry.marker.setAlpha(age === 0 ? 1 : 0.65);
             entry.rail.setAlpha(age === 0 ? 0.95 : 0.45);
             entry.rule.setAlpha(age === 0 ? 0.65 : 0.3);
-            currentY = targetY - 5;
+            currentY = targetY + entryHeight + 5;
         }
     }
 
