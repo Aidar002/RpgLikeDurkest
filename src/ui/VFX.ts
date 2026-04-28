@@ -1,8 +1,8 @@
-import * as Phaser from 'phaser';
+﻿import * as Phaser from 'phaser';
 
 export class VFX {
 
-    /** Тёмный виньет по краям экрана */
+    /** РўС‘РјРЅС‹Р№ РІРёРЅСЊРµС‚ РїРѕ РєСЂР°СЏРј СЌРєСЂР°РЅР° */
     static vignette(scene: Phaser.Scene, w = 800, h = 600) {
         const g = scene.add.graphics().setDepth(210).setScrollFactor(0);
         g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.8, 0.8, 0, 0);
@@ -15,25 +15,25 @@ export class VFX {
         g.fillRect(w * 0.88, 0, w * 0.12, h);
     }
 
-    /** CRT-скан-линии */
+    /** CRT-СЃРєР°РЅ-Р»РёРЅРёРё */
     static scanlines(scene: Phaser.Scene, w = 800, h = 600) {
         const g = scene.add.graphics().setDepth(209).setScrollFactor(0);
-        g.lineStyle(1, 0x000000, 0.10);
-        for (let y = 0; y < h; y += 4) {
+        g.lineStyle(1, 0x000000, 0.018);
+        for (let y = 0; y < h; y += 6) {
             g.beginPath(); g.moveTo(0, y); g.lineTo(w, y); g.strokePath();
         }
     }
 
-    /** Плавающий текст (урон, лечение) */
+    /** РџР»Р°РІР°СЋС‰РёР№ С‚РµРєСЃС‚ (СѓСЂРѕРЅ, Р»РµС‡РµРЅРёРµ) */
     static floatText(scene: Phaser.Scene, x: number, y: number, text: string, color = '#ffffff') {
         const t = scene.add.text(x, y, text, {
-            fontFamily: 'Courier New', fontSize: '22px', color,
+            fontFamily: 'Segoe UI, Arial, sans-serif', fontSize: '22px', color,
             stroke: '#000000', strokeThickness: 3
         }).setOrigin(0.5).setDepth(160);
         scene.tweens.add({ targets: t, y: y - 70, alpha: 0, duration: 900, ease: 'Quad.out', onComplete: () => t.destroy() });
     }
 
-    /** Потряхивание объекта */
+    /** РџРѕС‚СЂСЏС…РёРІР°РЅРёРµ РѕР±СЉРµРєС‚Р° */
     static shake(scene: Phaser.Scene, obj: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject, intensity = 6) {
         const bx = (obj as any).x, by = (obj as any).y;
         scene.tweens.add({
@@ -43,14 +43,14 @@ export class VFX {
         });
     }
 
-    /** Вспышка цвета на Rectangle */
+    /** Р’СЃРїС‹С€РєР° С†РІРµС‚Р° РЅР° Rectangle */
     static flash(scene: Phaser.Scene, rect: Phaser.GameObjects.Rectangle, color: number, ms = 150) {
         const orig = rect.fillColor;
         rect.setFillStyle(color);
         scene.time.delayedCall(ms, () => rect.setFillStyle(orig));
     }
 
-    /** Пульсирующий ореол за нодой */
+    /** РџСѓР»СЊСЃРёСЂСѓСЋС‰РёР№ РѕСЂРµРѕР» Р·Р° РЅРѕРґРѕР№ */
     static nodeGlow(scene: Phaser.Scene, x: number, y: number, color: number, size: number): Phaser.GameObjects.Graphics {
         const g = scene.add.graphics();
         [5, 9, 14].forEach((off, i) => {
@@ -61,7 +61,7 @@ export class VFX {
         return g;
     }
 
-    /** Золотая вспышка критического удара */
+    /** Р—РѕР»РѕС‚Р°СЏ РІСЃРїС‹С€РєР° РєСЂРёС‚РёС‡РµСЃРєРѕРіРѕ СѓРґР°СЂР° */
     static critFlash(scene: Phaser.Scene) {
         const flash = scene.add.rectangle(400, 300, 800, 600, 0xffc800, 0.22).setDepth(89);
         scene.tweens.add({
@@ -70,7 +70,7 @@ export class VFX {
         });
     }
 
-    /** Зеленый ореол лечения */
+    /** Р—РµР»РµРЅС‹Р№ РѕСЂРµРѕР» Р»РµС‡РµРЅРёСЏ */
     static healGlow(scene: Phaser.Scene, x: number, y: number) {
         const ring = scene.add.circle(x, y, 28, 0x44dd66, 0.35).setDepth(87);
         scene.tweens.add({
@@ -79,7 +79,7 @@ export class VFX {
         });
     }
 
-    /** Синий индикатор щита при защите */
+    /** РЎРёРЅРёР№ РёРЅРґРёРєР°С‚РѕСЂ С‰РёС‚Р° РїСЂРё Р·Р°С‰РёС‚Рµ */
     static shieldFlash(scene: Phaser.Scene, x: number, y: number) {
         const shield = scene.add.rectangle(x, y, 60, 60, 0x4488ff, 0.3).setDepth(87)
             .setStrokeStyle(2, 0x88bbff);
@@ -89,7 +89,7 @@ export class VFX {
         });
     }
 
-    /** Жгучие искры/пыль на фоне (самовозобновляемые) */
+    /** Р–РіСѓС‡РёРµ РёСЃРєСЂС‹/РїС‹Р»СЊ РЅР° С„РѕРЅРµ (СЃР°РјРѕРІРѕР·РѕР±РЅРѕРІР»СЏРµРјС‹Рµ) */
     static ambientEmbers(scene: Phaser.Scene, count = 18) {
         const spawn = () => {
             const x = 80 + Math.random() * 640;

@@ -32,13 +32,13 @@ export class BootScene extends Phaser.Scene {
         }
 
         const title = this.add.text(400, 200, 'DARKEST\nDESCENT', {
-            fontFamily: 'Courier New',
-            fontSize: '52px',
-            color: '#c4a35a',
+            fontFamily: 'Georgia, Times New Roman, serif',
+            fontSize: '54px',
+            color: '#ffd977',
             align: 'center',
             lineSpacing: 6,
-            stroke: '#000000',
-            strokeThickness: 4,
+            stroke: '#020202',
+            strokeThickness: 2,
         }).setOrigin(0.5).setDepth(3);
 
         this.tweens.add({
@@ -50,9 +50,11 @@ export class BootScene extends Phaser.Scene {
         });
 
         const tagline = this.add.text(400, 300, 'A roguelike of ruin and persistence.', {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#7a7a7a',
+            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontSize: '16px',
+            color: '#d4dae1',
+            stroke: '#05070b',
+            strokeThickness: 2,
         }).setOrigin(0.5).setAlpha(0).setDepth(3);
 
         this.tweens.add({
@@ -65,9 +67,9 @@ export class BootScene extends Phaser.Scene {
         const startBtn = this.add.rectangle(400, 400, 240, 46, 0x1c1c1c)
             .setStrokeStyle(1, 0x5a5a5a).setInteractive({ useHandCursor: true }).setAlpha(0).setDepth(3);
         const startText = this.add.text(400, 400, 'Begin Expedition', {
-            fontFamily: 'Courier New',
-            fontSize: '18px',
-            color: '#e0e0e0',
+            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontSize: '19px',
+            color: '#ffffff',
         }).setOrigin(0.5).setAlpha(0).setDepth(4);
 
         this.tweens.add({
@@ -85,15 +87,15 @@ export class BootScene extends Phaser.Scene {
         });
 
         this.add.text(780, 580, 'v0.3', {
-            fontFamily: 'Courier New',
-            fontSize: '10px',
-            color: '#3a3a3a',
+            fontFamily: 'Segoe UI, Arial, sans-serif',
+            fontSize: '11px',
+            color: '#68717a',
         }).setOrigin(1, 1);
 
         // Scanlines overlay
         const scanGfx = this.add.graphics().setDepth(10);
-        scanGfx.lineStyle(1, 0x000000, 0.06);
-        for (let y = 0; y < 600; y += 4) {
+        scanGfx.lineStyle(1, 0x000000, 0.012);
+        for (let y = 0; y < 600; y += 6) {
             scanGfx.beginPath(); scanGfx.moveTo(0, y); scanGfx.lineTo(800, y); scanGfx.strokePath();
         }
     }
