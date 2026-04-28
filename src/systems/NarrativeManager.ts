@@ -52,23 +52,23 @@ export class NarrativeManager {
             this.mark('darkness');
             if (this.memory.darkness === 2) {
                 return this.text(
-                    'The dark no longer feels empty. Something is learning your outline.',
-                    'Тьма больше не кажется пустой. Кто-то в ней уже выучил твой силуэт.'
+                    'The lantern is weak. Corners hide movement now.',
+                    'Фонарь слабеет. В углах уже видно движение.'
                 );
             }
         }
 
         if (depth === 4) {
             return this.text(
-                'The corridors begin repeating shapes you never learned, yet almost remember.',
-                'Коридоры складываются в узоры, которых ты не учил, но почему-то узнаешь.'
+                'You find old boot prints beside your own. They turn back before the next room.',
+                'Рядом с твоими следами видны старые. Они разворачиваются перед следующей комнатой.'
             );
         }
 
         if (depth === 8) {
             return this.text(
-                'Far below, something starts walking in time with you.',
-                'Где-то внизу кто-то начинает идти в такт твоим шагам.'
+                'The walls carry cut marks from past runs. Some look fresh.',
+                'На стенах зарубки прошлых забегов. Некоторые выглядят свежими.'
             );
         }
 
@@ -81,84 +81,84 @@ export class NarrativeManager {
         switch (type) {
             case RoomType.TREASURE:
                 return {
-                    title: tone === 'greed' ? this.text('Hungry Cache', 'Голодный тайник') : this.text('Forgotten Cache', 'Забытый тайник'),
+                    title: tone === 'greed' ? this.text('Heavy Cache', 'Тяжелый тайник') : this.text('Old Cache', 'Старый тайник'),
                     description:
                         tone === 'greed'
-                            ? this.text('The lock clicks like teeth. Whatever is inside wants to be wanted.', 'Замок щелкает, как зубы. То, что внутри, хочет, чтобы его захотели.')
-                            : this.text('A cracked chest waits in the dust. It can be opened, forced, or left alone.', 'В пыли ждет треснувший сундук. Его можно открыть, взломать или оставить в покое.'),
-                    intel: this.text('Careful is safe. Force is richer but risky. Leave restores nerve.', 'Осторожно - безопаснее. Взлом богаче, но опаснее. Уход возвращает волю.'),
+                            ? this.text('The chest is heavy, and the lock is damaged. Someone tried to force it before you.', 'Сундук тяжелый, замок поврежден. Кто-то уже пытался вскрыть его до тебя.')
+                            : this.text('A cracked chest sits in the dust. It may hold supplies, or a trap in the lock.', 'В пыли стоит треснувший сундук. Внутри могут быть припасы или ловушка в замке.'),
+                    intel: this.text('Careful: safer. Force: more reward, more risk. Leave: recover resolve or light.', 'Осторожно: безопаснее. Вскрыть: больше награда и риск. Оставить: вернуть волю или свет.'),
                 };
             case RoomType.TRAP:
                 return {
-                    title: tone === 'craft' ? this.text('Familiar Snare', 'Знакомый силок') : this.text('Old Mechanism', 'Старый механизм'),
+                    title: tone === 'craft' ? this.text('Known Trap', 'Знакомая ловушка') : this.text('Floor Trap', 'Ловушка в полу'),
                     description:
                         tone === 'craft'
-                            ? this.text('The device is old, and your hands almost know its lie.', 'Механизм старый, и руки почти понимают, где он лжет.')
-                            : this.text('A pressure plate sighs awake beneath your boot.', 'Нажимная плита вздыхает под твоим сапогом.'),
-                    intel: this.text('Push through, disarm it, or spend resolve to study it.', 'Прорвись, разряди ловушку или потрать волю, чтобы изучить ее.'),
+                            ? this.text('You recognize the wire and the loose stone. You can handle it if you slow down.', 'Ты узнаешь проволоку и шатающийся камень. Если не спешить, ловушку можно разобрать.')
+                            : this.text('A thin wire crosses the floor. The wall beside it is full of small holes.', 'Через пол тянется тонкая проволока. В стене рядом много маленьких отверстий.'),
+                    intel: this.text('Rush: take damage. Disarm: chance for gold. Study: costs resolve, safest.', 'Прорваться: получишь урон. Разрядить: можно найти золото. Изучить: тратит волю, но безопаснее.'),
                 };
             case RoomType.REST:
                 return {
-                    title: tone === 'violence' ? this.text('Quiet After Blood', 'Тишина после крови') : this.text('Low Fire', 'Тлеющий костер'),
+                    title: tone === 'violence' ? this.text('Used Camp', 'Чужой привал') : this.text('Small Fire', 'Малый костер'),
                     description:
                         tone === 'violence'
-                            ? this.text('The coals hiss softly, counting what you survived.', 'Угли тихо шипят, считая то, что ты пережил.')
-                            : this.text('The fire is nearly dead, but still warm enough to matter.', 'Костер почти погас, но его тепла еще хватает, чтобы выжить.'),
-                    intel: this.text('Heal your body or steady your mind.', 'Восстанови тело или собери мысли.'),
+                            ? this.text('The fire is low. A broken blade lies near it, cleaned and left behind.', 'Костер почти погас. Рядом лежит сломанный клинок, вытертый и брошенный.')
+                            : this.text('Someone made a small fire here. There is enough warmth for a short rest.', 'Кто-то развел здесь малый костер. Тепла хватит на короткую передышку.'),
+                    intel: this.text('Rest to heal, or focus to gain resolve and experience.', 'Отдохни, чтобы вылечиться, или соберись ради воли и опыта.'),
                 };
             case RoomType.SHRINE:
                 return {
-                    title: tone === 'faith' ? this.text('Listening Altar', 'Слышащий алтарь') : this.text('Buried Altar', 'Погребенный алтарь'),
+                    title: tone === 'faith' ? this.text('Used Altar', 'Тронутый алтарь') : this.text('Stone Altar', 'Каменный алтарь'),
                     description:
                         tone === 'faith'
-                            ? this.text('The altar turns toward you without moving.', 'Алтарь поворачивается к тебе, хотя камень не движется.')
-                            : this.text('Something old waits beneath the stone and pretends to be patient.', 'Под камнем ждет что-то древнее и делает вид, что умеет терпеть.'),
-                    intel: this.text('Pray, make an offering, or retreat.', 'Молись, принеси жертву или отступи.'),
+                            ? this.text('Your old offering is still on the stone. It is dry, but not gone.', 'Твоя старая жертва все еще лежит на камне. Она высохла, но не исчезла.')
+                            : this.text('Coins, ash, and dried blood cover the altar. The bargain is simple and ugly.', 'Алтарь покрыт монетами, пеплом и засохшей кровью. Сделка простая и неприятная.'),
+                    intel: this.text('Pray for attack, offer gold for health, or leave.', 'Молитва дает атаку, жертва золота дает здоровье, уход ничего не стоит.'),
                 };
             case RoomType.MERCHANT:
                 return {
-                    title: this.text('Shadow Trader', 'Теневой торговец'),
+                    title: this.text('Quiet Trader', 'Тихий торговец'),
                     description:
                         tone === 'commerce'
-                            ? this.text('The trader names your usual price before you ask.', 'Торговец называет твою обычную цену еще до вопроса.')
-                            : this.text('A hooded figure has already weighed your fear.', 'Фигура в капюшоне уже взвесила твой страх.'),
-                    intel: this.text('Buy carefully. This room allows one choice.', 'Покупай осторожно. Здесь будет только один выбор.'),
+                            ? this.text('The trader has already laid out the goods you usually buy.', 'Торговец уже разложил товары, которые ты обычно берешь.')
+                            : this.text('A masked trader waits behind a torn cloth. The prices are clear.', 'За рваной тканью ждет торговец в маске. Цены написаны заранее.'),
+                    intel: this.text('Buy one thing. Gold buys supplies. Shards buy stronger help.', 'Купить можно один раз. За золото - припасы. За осколки - помощь сильнее.'),
                 };
             case RoomType.EMPTY:
                 return {
-                    title: tone === 'caution' ? this.text('Listening Chamber', 'Слушающая комната') : this.text('Dusty Chamber', 'Пыльная комната'),
+                    title: tone === 'caution' ? this.text('Quiet Room', 'Тихая комната') : this.text('Empty Room', 'Пустая комната'),
                     description:
                         tone === 'caution'
-                            ? this.text('The room stays still for anyone patient enough to notice.', 'Комната замирает для того, кто умеет замечать.')
-                            : this.text('Stillness can hide a cache, a lesson, or nothing at all.', 'Тишина может прятать тайник, урок или пустоту.'),
-                    intel: this.text('Search the room or keep yourself steady.', 'Обыщи комнату или сохрани самообладание.'),
+                            ? this.text('The room is quiet enough to hear water behind the wall.', 'В комнате так тихо, что слышно воду за стеной.')
+                            : this.text('No enemy waits here. Dust on the floor shows fresh marks.', 'Здесь нет врага. На пыльном полу видны свежие следы.'),
+                    intel: this.text('Search for supplies, or pause and recover resolve.', 'Обыщи комнату ради припасов или возьми паузу ради воли.'),
                 };
             case RoomType.ELITE:
                 return {
-                    title: this.text('Marked Challenger', 'Меченый противник'),
-                    description: this.text('A hardened enemy blocks the corridor. It has survived better plans than yours.', 'Закаленный враг перекрывает коридор. Он переживал планы и получше твоих.'),
-                    intel: this.text('Victory here should hurt, but it should pay.', 'Победа здесь будет дорогой, но не пустой.'),
+                    title: this.text('Marked Enemy', 'Меченый враг'),
+                    description: this.text('This one carries old scars and a fresh trophy. It has killed explorers before.', 'На нем старые шрамы и свежий трофей. Он уже убивал таких, как ты.'),
+                    intel: this.text('Hard fight. Win for better rewards.', 'Тяжелый бой. Победа даст награду лучше обычной.'),
                 };
             case RoomType.BOSS:
                 return {
-                    title: depth >= 16 ? this.text('The Old Sentence', 'Старый приговор') : this.text('Floor Tyrant', 'Хозяин этажа'),
-                    description: this.text('The ruler of this floor rises like a verdict you delayed too long.', 'Хозяин этажа поднимается, как приговор, который ты слишком долго откладывал.'),
+                    title: depth >= 16 ? this.text('Deep Keeper', 'Глубинный хранитель') : this.text('Floor Keeper', 'Хранитель этажа'),
+                    description: this.text('The floor keeper blocks the only passage down. You cannot go around it.', 'Хранитель этажа перекрывает единственный проход вниз. Обойти его нельзя.'),
                     intel: this.bossAccusation(),
                 };
             case RoomType.ENEMY:
                 return {
-                    title: this.text('Threat Nearby', 'Угроза рядом'),
+                    title: this.text('Blocked Path', 'Путь перекрыт'),
                     description:
                         tone === 'darkness'
-                            ? this.text('Something waits where the lantern refuses to reach.', 'Кто-то ждет там, куда фонарь уже не достает.')
-                            : this.text('The corridor narrows. Something in the dark chooses you first.', 'Коридор сужается. Во тьме кто-то первым выбирает тебя.'),
-                    intel: this.text('Read its intent before you spend blood.', 'Смотри на намерение врага, прежде чем платить кровью.'),
+                            ? this.text('Something moves beyond the weak lantern light and steps into the path.', 'За слабым светом фонаря что-то шевелится и выходит на дорогу.')
+                            : this.text('The corridor narrows. An enemy stands between you and the next room.', 'Коридор сужается. Между тобой и следующей комнатой стоит враг.'),
+                    intel: this.text('Watch the intent. Guard, attack, or break the next move.', 'Смотри на намерение. Блокируй, бей или ломай следующий ход.'),
                 };
             case RoomType.START:
                 return {
                     title: this.text('Camp', 'Лагерь'),
-                    description: this.text('The entrance is behind you. The only honest path now leads down.', 'Вход остался позади. Теперь честная дорога ведет только вниз.'),
-                    intel: this.text('Move when you are ready.', 'Иди, когда будешь готов.'),
+                    description: this.text('Your camp is above the first stair. Everything useful must be found below.', 'Лагерь стоит над первой лестницей. Все полезное придется искать внизу.'),
+                    intel: this.text('Choose a path and start the descent.', 'Выбери путь и начни спуск.'),
                 };
         }
     }
@@ -166,20 +166,20 @@ export class NarrativeManager {
     combatIntro(kind: EncounterKind, enemyName: string): string {
         if (kind === 'boss') {
             return this.text(
-                `${enemyName} studies the shape your choices have made.`,
-                `${enemyName} смотрит на след, который оставили твои решения.`
+                `${enemyName} bars the stair down.`,
+                `${enemyName} закрывает путь к лестнице вниз.`
             );
         }
 
         if (kind === 'elite') {
             this.mark('violence');
             return this.text(
-                `${enemyName} does not block the path. It claims it.`,
-                `${enemyName} не преграждает путь. Он объявляет его своим.`
+                `${enemyName} has seen explorers before. It moves first.`,
+                `${enemyName} уже видел экспедиции. Он двигается первым.`
             );
         }
 
-        return this.text(`${enemyName} brings a lesson with teeth.`, `${enemyName} приносит урок с зубами.`);
+        return this.text(`${enemyName} blocks the corridor.`, `${enemyName} перекрывает коридор.`);
     }
 
     choiceLine(mark: NarrativeMark): string {
@@ -187,37 +187,37 @@ export class NarrativeManager {
 
         switch (mark) {
             case 'greed':
-                return this.text('The dungeon remembers what your hand reached for first.', 'Подземелье запоминает, к чему первой потянулась твоя рука.');
+                return this.text('You take more than you need. The pack grows heavier.', 'Ты берешь больше, чем нужно. Рюкзак становится тяжелее.');
             case 'caution':
-                return this.text('You leave slower, but harder to kill.', 'Ты уходишь медленнее, зато убить тебя становится сложнее.');
+                return this.text('You slow down and leave fewer mistakes behind.', 'Ты замедляешься и оставляешь меньше ошибок.');
             case 'faith':
-                return this.text('Something under the stone answers by remembering you.', 'Что-то под камнем отвечает тем, что запоминает тебя.');
+                return this.text('The altar takes its price. The mark stays warm.', 'Алтарь берет цену. Метка остается теплой.');
             case 'violence':
-                return this.text('The corridor accepts another red signature.', 'Коридор принимает еще одну красную подпись.');
+                return this.text('The floor is quieter after the fight.', 'После боя этаж становится тише.');
             case 'darkness':
-                return this.text('The lantern dims, and the dark leans closer.', 'Фонарь тускнеет, и тьма наклоняется ближе.');
+                return this.text('The light shrinks. The room feels larger.', 'Свет сжимается. Комната кажется больше.');
             case 'mercy':
-                return this.text('Not every victory needs a wound.', 'Не каждой победе нужна рана.');
+                return this.text('You leave it untouched and save your strength.', 'Ты не трогаешь это и бережешь силы.');
             case 'craft':
-                return this.text('Metal tells the truth when questioned carefully.', 'Металл говорит правду, если спрашивать осторожно.');
+                return this.text('You learn how this place is built to hurt people.', 'Ты понимаешь, как это место устроено, чтобы калечить людей.');
             case 'commerce':
-                return this.text('The trader smiles, as if the bargain was made before you arrived.', 'Торговец улыбается так, будто сделка была заключена до твоего прихода.');
+                return this.text('The trader takes payment and says nothing else.', 'Торговец берет плату и больше ничего не говорит.');
         }
     }
 
     victoryLine(enemyName: string): string {
         if (this.memory.violence >= 4) {
             return this.text(
-                `${enemyName} falls into a silence that already knows your name.`,
-                `${enemyName} падает в тишину, которая уже знает твое имя.`
+                `${enemyName} falls. Your hands stop shaking later than they should.`,
+                `${enemyName} падает. Руки перестают дрожать не сразу.`
             );
         }
 
         if (this.memory.caution >= 3) {
-            return this.text(`${enemyName} falls. You are already counting exits.`, `${enemyName} падает. Ты уже считаешь выходы.`);
+            return this.text(`${enemyName} falls. You check the exits before the body stops moving.`, `${enemyName} падает. Ты проверяешь выходы раньше, чем тело затихает.`);
         }
 
-        return this.text(`${enemyName} falls, and the floor keeps listening.`, `${enemyName} падает, а этаж продолжает слушать.`);
+        return this.text(`${enemyName} falls. The next room waits.`, `${enemyName} падает. Следующая комната ждет.`);
     }
 
     deathLine(): string {
@@ -225,19 +225,19 @@ export class NarrativeManager {
 
         switch (tone) {
             case 'greed':
-                return this.text('In the end, the dungeon keeps everything you reached for.', 'В конце подземелье забирает все, к чему ты тянулся.');
+                return this.text('You carried too much out of rooms that wanted payment.', 'Ты вынес слишком много из комнат, которые требовали плату.');
             case 'faith':
-                return this.text('The last sound is not mercy. It is recognition.', 'Последний звук - не милость. Это узнавание.');
+                return this.text('The altar keeps the mark. The body stays below.', 'Алтарь сохраняет метку. Тело остается внизу.');
             case 'darkness':
-                return this.text('The lantern goes out. Something gently finishes your name.', 'Фонарь гаснет. Кто-то мягко договаривает твое имя.');
+                return this.text('The lantern dies first. After that, the map stops mattering.', 'Сначала гаснет фонарь. Потом карта уже не важна.');
             case 'caution':
-                return this.text('You measured every risk except the final one.', 'Ты просчитал каждый риск, кроме последнего.');
+                return this.text('You avoided many mistakes. Not the last one.', 'Ты избежал многих ошибок. Но не последней.');
             case 'commerce':
-                return this.text('Somewhere below, a trader closes your account.', 'Где-то внизу торговец закрывает твой счет.');
+                return this.text('The trader will sell your gear to the next fool.', 'Торговец продаст твои вещи следующему глупцу.');
             default:
                 return this.text(
-                    `The expedition ends at depth ${this.deepestRoom}. The dungeon remembers the route.`,
-                    `Экспедиция заканчивается на глубине ${this.deepestRoom}. Подземелье запомнит маршрут.`
+                    `The run ends at depth ${this.deepestRoom}. Some lessons return with you.`,
+                    `Забег заканчивается на глубине ${this.deepestRoom}. Часть уроков возвращается с тобой.`
                 );
         }
     }
@@ -246,19 +246,19 @@ export class NarrativeManager {
         const tone = this.dominantTone();
 
         if (tone === 'greed') {
-            return this.text('It counted every lock you forced.', 'Он считал каждый замок, который ты вскрыл.');
+            return this.text('It has watched every chest you forced open.', 'Он видел каждый сундук, который ты вскрыл силой.');
         }
         if (tone === 'faith') {
-            return this.text('It speaks with the voices that answered your prayers.', 'Он говорит голосами, которые отвечали на твои молитвы.');
+            return this.text('The altar mark burns as it approaches.', 'Метка алтаря жжет кожу, пока он приближается.');
         }
         if (tone === 'darkness') {
-            return this.text('It knows how long you walked without light.', 'Он знает, как долго ты шел без света.');
+            return this.text('Low light makes this fight more dangerous.', 'При слабом свете этот бой опаснее.');
         }
         if (tone === 'caution') {
-            return this.text('It waited for the moment you stopped measuring risk.', 'Он ждал, когда ты перестанешь считать риски.');
+            return this.text('You have survived by reading danger. Read this one fast.', 'Ты выжил, потому что читал опасность. Эту нужно прочитать быстро.');
         }
 
-        return this.text('Everything you relied on is being tested at once.', 'Все, на что ты опирался, проверяется одновременно.');
+        return this.text('It tests everything you learned on this floor.', 'Он проверяет все, чему тебя научил этот этаж.');
     }
 
     private text(en: string, ru: string): string {
