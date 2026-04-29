@@ -2510,7 +2510,7 @@ export class GameScene extends Phaser.Scene {
             depth: this.runBestDepth,
             bosses: this.runBossKills,
         });
-        this.add.text(400, 300, summaryBody, {
+        const summaryText = this.add.text(400, 300, summaryBody, {
             fontFamily: 'Courier New',
             fontSize: '13px',
             color: '#c8cdd2',
@@ -2520,7 +2520,7 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5).setDepth(102);
 
         const statLines = this.tracker.getSummaryLines(this.loc.language);
-        this.add.text(400, 380, statLines.join('\n'), {
+        const statsText = this.add.text(400, 380, statLines.join('\n'), {
             fontFamily: 'Courier New',
             fontSize: '11px',
             color: '#9a9a9a',
@@ -2531,7 +2531,7 @@ export class GameScene extends Phaser.Scene {
         const restartButton = this.add.rectangle(400, 510, 260, 42, 0x1c2a3a).setDepth(102);
         restartButton.setStrokeStyle(1, 0x6a8fcc);
         restartButton.setInteractive({ useHandCursor: true });
-        this.add.text(400, 510, this.loc.t('victoryNewRun'), {
+        const restartLabel = this.add.text(400, 510, this.loc.t('victoryNewRun'), {
             fontFamily: 'Courier New',
             fontSize: '17px',
             color: '#f0f0f0',
@@ -2542,7 +2542,7 @@ export class GameScene extends Phaser.Scene {
         restartButton.on('pointerdown', () => this.scene.restart());
 
         this.tweens.add({
-            targets: [overlay, panel, title, artifactIcon, restartButton],
+            targets: [overlay, panel, title, artifactIcon, summaryText, statsText, restartButton, restartLabel],
             alpha: { from: 0, to: 1 },
             duration: 600,
             ease: 'Quad.out',
