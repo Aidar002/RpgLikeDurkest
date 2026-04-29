@@ -1140,8 +1140,10 @@ export class GameScene extends Phaser.Scene {
             visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333);
             visual.icon.setColor('#474747');
 
+            const tweenTargets: Phaser.GameObjects.GameObject[] = [visual.rect, visual.icon];
+            if (visual.sprite) { visual.sprite.setTint(0x555555); tweenTargets.push(visual.sprite); }
             this.tweens.add({
-                targets: [visual.rect, visual.icon],
+                targets: tweenTargets,
                 alpha: 0.35,
                 duration: 280,
                 ease: 'Quad.in',
@@ -1872,6 +1874,7 @@ export class GameScene extends Phaser.Scene {
         this.enemyIntelText.setText(picked.npc.flavor);
         this.enemyIntelText.setVisible(true);
         this.roomFlavorText.setText(picked.beat.text);
+        this.enemySpriteImage.setVisible(false);
         this.enemyHpBarBg.setVisible(false);
         this.enemyHpBar.setVisible(false);
         this.enemyHpText.setVisible(false);
@@ -2466,6 +2469,9 @@ export class GameScene extends Phaser.Scene {
             if (this.textures.exists(sprKey)) {
                 this.enemySpriteImage.setTexture(sprKey).setVisible(true);
                 this.enemyIconText.setVisible(false);
+            } else {
+                this.enemySpriteImage.setVisible(false);
+                this.enemyIconText.setVisible(true);
             }
         } else {
             this.enemySpriteImage.setVisible(false);
