@@ -22,9 +22,9 @@ export type NarrationEvent =
 
 const LINES: Record<NarrationEvent, string[]> = {
     expedition_start: [
-        'The door closes behind you. The darkness is patient.',
-        'Forward, then. The dungeon notices.',
-        'Another expedition, another wound on this place.',
+        'The door closes behind you. The artifact waits below.',
+        'Forward, then. Treasure hunters never look back.',
+        'Another descent. The artifact still waits at the bottom.',
     ],
     first_blood: [
         'A promising start. A terrible omen.',
@@ -41,9 +41,9 @@ const LINES: Record<NarrationEvent, string[]> = {
         'Not every enemy is feral. Remember that.',
     ],
     enter_boss: [
-        'The dungeon rises to meet you. Stand fast.',
+        'A keeper guards the path to deeper treasure. Stand fast.',
         'Everything you learned is being tested at once.',
-        'A ruler claims this floor. Claim it back.',
+        'Between you and the treasure below — this.',
     ],
     crit_landed: [
         'A clean strike. Remember the feeling.',
@@ -90,8 +90,8 @@ const LINES: Record<NarrationEvent, string[]> = {
     ],
     death: [
         'Overconfidence is a slow and insidious killer.',
-        'The dungeon adds another name to its walls.',
-        'Ruin arrives on time, as it always does.',
+        'Another treasure hunter joins the bones on these walls.',
+        'The artifact remains unclaimed. The dungeon remains patient.',
     ],
 };
 

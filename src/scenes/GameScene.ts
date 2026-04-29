@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { COMBAT_CONFIG, EXPEDITION_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
+import { COMBAT_CONFIG, EXPEDITION_CONFIG, MAP_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
 import { DungeonManager } from '../systems/DungeonManager';
 import {
     MapGenerator,
@@ -231,7 +231,12 @@ export class GameScene extends Phaser.Scene {
         VFX.scanlines(this, 800, 600);
         VFX.ambientEmbers(this, 22);
 
-        this.log.addMessage('The expedition begins in silence.', '#999999');
+        this.log.addMessage(
+            this.loc.language === 'ru'
+                ? 'Охота за Артефактом Желаний начинается.'
+                : 'The hunt for the Wish Artifact begins.',
+            '#999999'
+        );
         this.buildDepthLabels();
     }
 
@@ -1265,6 +1270,51 @@ export class GameScene extends Phaser.Scene {
 
         this.log.addDivider(`Depth ${this.dungeon.currentDepth}`);
 
+        const d = this.dungeon.currentDepth;
+        if (d === 3) {
+            this.log.addMessage(
+                this.loc.language === 'ru'
+                    ? 'На стене нацарапано: «Сокровища внизу. Назад — наверху».'
+                    : 'Scratched into the wall: "Treasure below. Turn back above."',
+                '#c4a35a'
+            );
+        } else if (d === 10) {
+            this.log.addMessage(
+                this.loc.language === 'ru'
+                    ? 'У стены сидит мёртвый охотник за сокровищами. Его карта указывает глубже.'
+                    : 'A dead treasure hunter sits against the wall. His map points deeper.',
+                '#c4a35a'
+            );
+        } else if (d === 15) {
+            this.log.addMessage(
+                this.loc.language === 'ru'
+                    ? 'Воздух гудит. Артефакт ближе — ты чувствуешь это.'
+                    : 'The air hums. The artifact is closer — you can feel it.',
+                '#c4a35a'
+            );
+        } else if (d === 20) {
+            this.log.addMessage(
+                this.loc.language === 'ru'
+                    ? 'Ты зашел дальше всех экспедиций. Никаких чужих отметок.'
+                    : 'You are past the last known expedition. No marks but yours.',
+                '#c4a35a'
+            );
+        } else if (d === MAP_CONFIG.finalDepth - 1) {
+            this.log.addMessage(
+                this.loc.language === 'ru'
+                    ? 'Стены слабо светятся. Артефакт Желаний совсем рядом.'
+                    : 'The walls glow faintly. The Wish Artifact is close.',
+                '#ffd36e'
+            );
+        } else if (d >= MAP_CONFIG.finalDepth && node.type === RoomType.BOSS) {
+            this.log.addMessage(
+                this.loc.language === 'ru'
+                    ? 'Последний этаж. Страж Артефакта ждёт.'
+                    : 'The final floor. The Artifact Guardian awaits.',
+                '#ffd36e'
+            );
+        }
+
         switch (node.type) {
             case RoomType.ENEMY:
                 this.startCombatEncounter('normal');
@@ -1294,20 +1344,34 @@ export class GameScene extends Phaser.Scene {
                 this.showEmptyOptions();
                 return;
             case RoomType.START:
-                this.showRoomCard('START', 'Camp', 'The entry is behind you. The only path now is deeper.', 0x555555, '@', 'Continue when you are ready.');
+                this.showRoomCard(
+                    'START',
+                    this.loc.language === 'ru' ? 'Лагерь' : 'Camp',
+                    this.loc.language === 'ru'
+                        ? 'Вход позади. Артефакт Желаний ждёт на самом дне подземелья.'
+                        : 'The entry is behind you. The Wish Artifact waits at the very bottom.',
+                    0x555555,
+                    '@',
+                    this.loc.language === 'ru' ? 'Продолжай, когда будешь готов.' : 'Continue when you are ready.'
+                );
                 this.showReturnButton();
                 return;
         }
     }
 
     private startCombatEncounter(kind: 'normal' | 'elite' | 'boss') {
+        const isFinalBoss = kind === 'boss' && this.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
         const card = kind === 'boss'
             ? {
-                  header: 'BOSS',
-                  title: 'A ruler of this floor rises.',
-                  description: 'Every system you earned is being tested at once.',
-                  color: 0xa52f2f,
-                  icon: 'B',
+                  header: isFinalBoss ? (this.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN') : 'BOSS',
+                  title: isFinalBoss
+                      ? (this.loc.language === 'ru' ? 'Хранитель Артефакта Желаний.' : 'The Guardian of the Wish Artifact.')
+                      : 'A ruler of this floor rises.',
+                  description: isFinalBoss
+                      ? (this.loc.language === 'ru' ? 'Последний страж. За ним — артефакт, исполняющий желания.' : 'The final keeper. Beyond it lies the wish-granting artifact.')
+                      : 'Every system you earned is being tested at once.',
+                  color: isFinalBoss ? 0xc8a030 : 0xa52f2f,
+                  icon: isFinalBoss ? '\u2726' : 'B',
               }
             : kind === 'elite'
               ? {
@@ -2359,6 +2423,11 @@ export class GameScene extends Phaser.Scene {
                 const line = farewells[Math.floor(Math.random() * farewells.length)];
                 this.log.addMessage(line, '#cdb8ff');
             }
+
+            if (this.dungeon.currentDepth >= MAP_CONFIG.finalDepth) {
+                this.time.delayedCall(800, () => this.showVictoryScreen());
+                return;
+            }
         } else if (payload.kind === 'elite') {
             this.maybeDropRelic('elite');
         } else if (Math.random() < 0.07) {
@@ -2394,6 +2463,90 @@ export class GameScene extends Phaser.Scene {
             const recall = this.npcs.pickLowHpRecall();
             if (recall) this.log.addMessage(recall, '#a89dc4');
         }
+    }
+
+    private showVictoryScreen() {
+        this.mapContainer.setVisible(false);
+        this.roomContainer.setVisible(false);
+        this.uiContainer.setVisible(false);
+
+        if (!this.prestigeAwarded) {
+            this.prestigeReward = this.meta.awardPrestigeForRun(this.runBestDepth, this.runBossKills);
+            this.prestigeAwarded = true;
+        }
+
+        this.tracker.trackMax('bestDepth', this.runBestDepth);
+        this.tracker.trackMax('levelReached', this.player.stats.level);
+
+        const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.92).setDepth(100);
+        const panel = this.add.rectangle(400, 300, 620, 420, 0x0a0a18).setDepth(101);
+        panel.setStrokeStyle(2, 0x6a8fcc);
+
+        const title = this.add.text(400, 100, this.loc.t('victoryScreenTitle'), {
+            fontFamily: 'Courier New',
+            fontSize: '32px',
+            color: '#ffd36e',
+        }).setOrigin(0.5).setDepth(102);
+
+        const artifactGlow = this.add.rectangle(400, 230, 64, 64, 0xffd36e, 0.25).setDepth(102);
+        const artifactIcon = this.add.text(400, 230, '\u2726', {
+            fontFamily: 'Courier New',
+            fontSize: '40px',
+            color: '#ffd36e',
+        }).setOrigin(0.5).setDepth(103);
+
+        this.tweens.add({
+            targets: [artifactGlow],
+            alpha: { from: 0.15, to: 0.5 },
+            scaleX: { from: 1, to: 1.3 },
+            scaleY: { from: 1, to: 1.3 },
+            duration: 1200,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.inOut',
+        });
+
+        const summaryBody = this.loc.t('victoryScreenSummary', {
+            depth: this.runBestDepth,
+            bosses: this.runBossKills,
+        });
+        this.add.text(400, 300, summaryBody, {
+            fontFamily: 'Courier New',
+            fontSize: '13px',
+            color: '#c8cdd2',
+            align: 'center',
+            lineSpacing: 6,
+            wordWrap: { width: 500 },
+        }).setOrigin(0.5).setDepth(102);
+
+        const statLines = this.tracker.getSummaryLines(this.loc.language);
+        this.add.text(400, 380, statLines.join('\n'), {
+            fontFamily: 'Courier New',
+            fontSize: '11px',
+            color: '#9a9a9a',
+            align: 'center',
+            lineSpacing: 3,
+        }).setOrigin(0.5, 0).setDepth(102);
+
+        const restartButton = this.add.rectangle(400, 510, 260, 42, 0x1c2a3a).setDepth(102);
+        restartButton.setStrokeStyle(1, 0x6a8fcc);
+        restartButton.setInteractive({ useHandCursor: true });
+        this.add.text(400, 510, this.loc.t('victoryNewRun'), {
+            fontFamily: 'Courier New',
+            fontSize: '17px',
+            color: '#f0f0f0',
+        }).setOrigin(0.5).setDepth(103);
+
+        restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
+        restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x6a8fcc));
+        restartButton.on('pointerdown', () => this.scene.restart());
+
+        this.tweens.add({
+            targets: [overlay, panel, title, artifactIcon, restartButton],
+            alpha: { from: 0, to: 1 },
+            duration: 600,
+            ease: 'Quad.out',
+        });
     }
 
     private showDeathScreen() {

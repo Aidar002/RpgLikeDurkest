@@ -97,6 +97,8 @@ export const MAP_CONFIG = {
     initialLookahead: 5,
     lookaheadBuffer: 3,
     bossEveryNDepths: 5,
+    /** The boss at this depth guards the Wish Artifact. Defeating it wins the run. */
+    finalDepth: 25,
     branchRolls: {
         one: 0.18,
         two: 0.52,

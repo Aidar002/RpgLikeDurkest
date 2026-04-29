@@ -6,7 +6,7 @@ const STORAGE_KEY = 'rpglikedurkest-language';
 
 const TEXT = {
     en: {
-        bootTagline: 'Go down, bring back what you can, remember what killed you.',
+        bootTagline: 'They say a wish-granting artifact lies at the bottom. Go find it.',
         bootStart: 'Begin Expedition',
         uiVital: 'LIFE',
         eventLog: 'JOURNAL',
@@ -97,6 +97,9 @@ const TEXT = {
         deathTitle: 'EXPEDITION LOST',
         deathSummary: 'Best depth: {depth}\nBosses defeated: {bosses}\nPrestige earned: +{prestige}\n{line}',
         deathRunLine: 'Depth {depth}  |  Bosses {bosses}  |  Prestige +{prestige}',
+        victoryScreenTitle: 'THE ARTIFACT IS YOURS',
+        victoryScreenSummary: 'You descended through {depth} layers of darkness, defeated {bosses} keepers, and claimed the Wish Artifact.\nThe dungeon has nothing left to take from you.',
+        victoryNewRun: 'Descend Again',
         restart: 'Start New Run',
         reset: 'Reset soul memory',
         prestigeBank: 'Prestige bank: {value}',
@@ -164,7 +167,7 @@ const TEXT = {
         absorb: 'Your guard absorbs the hit.',
     },
     ru: {
-        bootTagline: 'Спустись, вынеси добычу, запомни, что тебя убило.',
+        bootTagline: 'Говорят, на дне подземелья лежит артефакт, исполняющий желания. Найди его.',
         bootStart: 'Начать экспедицию',
         uiVital: 'ЖИЗНЬ',
         eventLog: 'ЖУРНАЛ',
@@ -255,6 +258,9 @@ const TEXT = {
         deathTitle: 'ЭКСПЕДИЦИЯ ПОТЕРЯНА',
         deathSummary: 'Лучшая глубина: {depth}\nБоссов побеждено: {bosses}\nПрестиж: +{prestige}\n{line}',
         deathRunLine: 'Глубина {depth}  |  Боссы {bosses}  |  Престиж +{prestige}',
+        victoryScreenTitle: 'АРТЕФАКТ ТВОЙ',
+        victoryScreenSummary: 'Ты прошел {depth} уровней тьмы, победил {bosses} хранителей и забрал Артефакт Желаний.\nПодземелью больше нечего у тебя отнять.',
+        victoryNewRun: 'Спуститься снова',
         restart: 'Новый забег',
         reset: 'Стереть память души',
         prestigeBank: 'Запас престижа: {value}',
