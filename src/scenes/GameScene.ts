@@ -2338,12 +2338,15 @@ export class GameScene extends Phaser.Scene {
         const unlocks = this.meta.getUiUnlockState();
         const description = this.combat.enemy?.description ?? 'An unnamed threat emerges.';
 
+        const isFinalBoss = this.combat.enemy?.kind === 'boss' && this.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
         this.roomHeaderText.setText(
-            this.combat.enemy?.kind === 'boss'
-                ? 'BOSS'
-                : this.combat.enemy?.kind === 'elite'
-                  ? 'ELITE'
-                  : 'HOSTILE'
+            isFinalBoss
+                ? (this.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN')
+                : this.combat.enemy?.kind === 'boss'
+                  ? 'BOSS'
+                  : this.combat.enemy?.kind === 'elite'
+                    ? 'ELITE'
+                    : 'HOSTILE'
         );
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
