@@ -32,6 +32,7 @@ import type { NpcEvalContext, NpcManager, PickedDialog } from '../systems/NpcMan
 import type { NpcId, NpcOfferTemplate } from '../systems/Npcs';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
+import { SoundManager } from '../systems/SoundManager';
 
 const COL_W = 150;
 const ROW_H = 110;
@@ -83,6 +84,7 @@ export class GameScene extends Phaser.Scene {
     private stress!: StressManager;
     private skillLoadout: SkillId[] = [...STARTER_LOADOUT];
     private loc: Localization = new Localization();
+    private sfx: SoundManager = new SoundManager();
     private npcs!: NpcManager;
     private vethSharpenedThisRoom = false;
 
@@ -103,6 +105,7 @@ export class GameScene extends Phaser.Scene {
     private prestigeAwarded = false;
     private skipLightSpendThisRoom = false;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
+    private muteButton!: Phaser.GameObjects.Text;
 
     private hpBar!: Phaser.GameObjects.Rectangle;
     private hpValueText!: Phaser.GameObjects.Text;
@@ -230,6 +233,9 @@ export class GameScene extends Phaser.Scene {
         VFX.vignette(this, 800, 600);
         VFX.scanlines(this, 800, 600);
         VFX.ambientEmbers(this, 22);
+
+        this.setupSoundToggle();
+        this.sfx.startAmbient(0);
 
         this.log.addMessage(
             this.loc.language === 'ru'
@@ -411,6 +417,7 @@ export class GameScene extends Phaser.Scene {
             this.tracker.trackMax('levelReached', level);
             this.log.addMessage(`You rise to level ${level}.`, '#fff17a');
             VFX.floatText(this, 300, 20, `LVL ${level}`, '#fff17a');
+            this.sfx.play('levelUp');
             const flash = this.add.rectangle(400, 300, 800, 600, 0xfff17a, 0.08).setDepth(88);
             this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
             this.refreshUI();
@@ -426,6 +433,8 @@ export class GameScene extends Phaser.Scene {
 
             this.deathSequenceStarted = true;
             this.dead = true;
+            this.sfx.play('death');
+            this.sfx.stopAmbient();
             this.cameras.main.shake(650, 0.04);
             this.time.delayedCall(320, () => this.showDeathScreen());
         };
@@ -529,6 +538,7 @@ export class GameScene extends Phaser.Scene {
 
     private handleStressResolution(r: Resolution) {
         this.tracker.record('stressResolutions');
+        this.sfx.play('stressSpike');
         this.log.addMessage(
             r.kind === 'virtue'
                 ? `VIRTUE: ${r.name}. ${r.description}`
@@ -592,6 +602,7 @@ export class GameScene extends Phaser.Scene {
             if (!fallback) return false;
             this.player.addRelic(fallback);
             this.tracker.record('relicsFound');
+            this.sfx.play('relicDrop');
             this.log.addMessage(
                 `Relic obtained: ${RELICS[fallback].name}. ${RELICS[fallback].description}`,
                 '#ffcc99'
@@ -601,6 +612,7 @@ export class GameScene extends Phaser.Scene {
 
         this.player.addRelic(relicId);
         this.tracker.record('relicsFound');
+        this.sfx.play('relicDrop');
         this.log.addMessage(
             `Relic obtained: ${relic.name}. ${relic.description}`,
             relic.rarity === 'unique' ? '#f0a8ff' : relic.rarity === 'rare' ? '#ffd36e' : '#ffcc99'
@@ -706,6 +718,7 @@ export class GameScene extends Phaser.Scene {
             background.on('pointerover', () => {
                 if (actionButton.enabled) {
                     background.setStrokeStyle(2, 0xffffff);
+                    this.sfx.play('buttonHover');
                 }
             });
             background.on('pointerout', () => {
@@ -713,6 +726,7 @@ export class GameScene extends Phaser.Scene {
             });
             background.on('pointerdown', () => {
                 if (actionButton.enabled && actionButton.callback) {
+                    this.sfx.play('buttonClick');
                     actionButton.callback();
                 }
             });
@@ -937,6 +951,7 @@ export class GameScene extends Phaser.Scene {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', () => {
             if (this.canUseMapNode(node)) {
+                this.sfx.play('nodeSelect');
                 this.advanceToNode(node);
             }
         });
@@ -1245,6 +1260,8 @@ export class GameScene extends Phaser.Scene {
         this.tracker.record('roomsVisited');
         this.tracker.trackMax('bestDepth', this.dungeon.currentDepth);
         this.applyRoomTint(node.type);
+        this.sfx.play('footstep');
+        this.sfx.updateAmbientDepth(this.dungeon.currentDepth);
 
         const sparesLight =
             this.player.aggregate.emptyRoomsSpareLight && node.type === RoomType.EMPTY;
@@ -1272,6 +1289,7 @@ export class GameScene extends Phaser.Scene {
 
         const d = this.dungeon.currentDepth;
         if (d === 3) {
+            this.sfx.play('whisper');
             this.log.addMessage(
                 this.loc.language === 'ru'
                     ? 'На стене нацарапано: «Сокровища внизу. Назад — наверху».'
@@ -1279,6 +1297,7 @@ export class GameScene extends Phaser.Scene {
                 '#c4a35a'
             );
         } else if (d === 10) {
+            this.sfx.play('whisper');
             this.log.addMessage(
                 this.loc.language === 'ru'
                     ? 'У стены сидит мёртвый охотник за сокровищами. Его карта указывает глубже.'
@@ -1286,6 +1305,7 @@ export class GameScene extends Phaser.Scene {
                 '#c4a35a'
             );
         } else if (d === 15) {
+            this.sfx.play('whisper');
             this.log.addMessage(
                 this.loc.language === 'ru'
                     ? 'Воздух гудит. Артефакт ближе — ты чувствуешь это.'
@@ -1293,6 +1313,7 @@ export class GameScene extends Phaser.Scene {
                 '#c4a35a'
             );
         } else if (d === 20) {
+            this.sfx.play('whisper');
             this.log.addMessage(
                 this.loc.language === 'ru'
                     ? 'Ты зашел дальше всех экспедиций. Никаких чужих отметок.'
@@ -1300,6 +1321,7 @@ export class GameScene extends Phaser.Scene {
                 '#c4a35a'
             );
         } else if (d === MAP_CONFIG.finalDepth - 1) {
+            this.sfx.play('whisper');
             this.log.addMessage(
                 this.loc.language === 'ru'
                     ? 'Стены слабо светятся. Артефакт Желаний совсем рядом.'
@@ -1307,6 +1329,7 @@ export class GameScene extends Phaser.Scene {
                 '#ffd36e'
             );
         } else if (d >= MAP_CONFIG.finalDepth && node.type === RoomType.BOSS) {
+            this.sfx.play('whisper');
             this.log.addMessage(
                 this.loc.language === 'ru'
                     ? 'Последний этаж. Страж Артефакта ждёт.'
@@ -1393,6 +1416,12 @@ export class GameScene extends Phaser.Scene {
         this.combat.startCombat(this.dungeon.currentDepth, kind);
         this.refreshCombatButtons();
 
+        if (kind === 'boss') {
+            this.sfx.play('bossAppear');
+        } else if (kind === 'elite') {
+            this.sfx.play('eliteAppear');
+        }
+
         // Boss intro from a recurring NPC the player has bonded with.
         if (kind === 'boss') {
             const intro = this.npcs.pickBossIntro();
@@ -1456,14 +1485,19 @@ export class GameScene extends Phaser.Scene {
         const hpBefore = this.combat.enemy.hp;
         this.tracker.record('turnsInCombat');
         const actionKind = typeof action === 'string' ? action : action.kind;
-        if (actionKind === 'skill') this.tracker.record('skillsUsed');
+        if (actionKind === 'skill') {
+            this.tracker.record('skillsUsed');
+            this.sfx.play('skillUse');
+        }
         if (actionKind === 'defend') {
             this.tracker.record('defendsUsed');
             VFX.shieldFlash(this, 126, 82);
+            this.sfx.play('defend');
         }
         if (actionKind === 'potion') {
             this.tracker.record('potionsUsed');
             VFX.healGlow(this, 126, 82);
+            this.sfx.play('potion');
         }
 
         this.combat.processTurn(action);
@@ -1471,6 +1505,9 @@ export class GameScene extends Phaser.Scene {
         if (this.combat.lastActionResult.critical) {
             this.tracker.record('criticalHits');
             VFX.critFlash(this);
+            this.sfx.play('crit');
+        } else if (actionKind === 'attack' || actionKind === 'skill') {
+            this.sfx.play('hit');
         }
 
         const dmgDealt = hpBefore - (this.combat.enemy?.hp ?? 0);
@@ -1545,6 +1582,7 @@ export class GameScene extends Phaser.Scene {
             'Claim the spoils and move on.'
         );
         this.log.addMessage(`Treasure secured: ${rewardParts.join(', ')}.`, '#f7d46b');
+        this.sfx.play('treasure');
         this.maybeDropRelic('treasure');
         this.stress.relieve(STRESS_CONFIG.onTreasure);
         this.showReturnButton();
@@ -1575,6 +1613,7 @@ export class GameScene extends Phaser.Scene {
                     const damage = this.applyTrapDamage(
                         this.randomBetween(ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.rushDamageMax)
                     );
+                    this.sfx.play('trapTrigger');
                     this.log.addMessage(`You rush the trap and suffer ${damage} damage.`, '#ff7777');
                     if (this.player.stats.hp > 0) {
                         this.showReturnButton();
@@ -1590,6 +1629,7 @@ export class GameScene extends Phaser.Scene {
                         const gold = this.player.gainGold(
                             this.randomBetween(ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
                         );
+                        this.sfx.play('trapDisarm');
                         this.log.addMessage(`You disarm it cleanly and salvage ${gold} gold.`, '#f7d46b');
                         this.enemyIntelText.setText('The mechanism falls apart in your hands.');
                     } else {
@@ -1599,6 +1639,7 @@ export class GameScene extends Phaser.Scene {
                                 ROOM_CONFIG.trap.disarmFailDamageMax
                             )
                         );
+                        this.sfx.play('trapTrigger');
                         this.log.addMessage(`The mechanism snaps shut for ${damage} damage.`, '#ff7777');
                         this.enemyIntelText.setText('The trap bites before you can pull away.');
                     }
@@ -1613,6 +1654,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showRestOptions() {
+        this.sfx.play('rest');
         this.showRoomCard(
             'REST',
             'Campfire',
@@ -2022,6 +2064,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showShrineOptions() {
+        this.sfx.play('shrine');
         this.tracker.record('shrinesVisited');
         const npcId = this.npcs.pickForRole('shrine', this.dungeon.currentDepth);
         if (npcId) {
@@ -2073,6 +2116,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showMerchantOptions() {
+        this.sfx.play('merchant');
         this.tracker.record('merchantsVisited');
         const npcId = this.npcs.pickForRole('merchant', this.dungeon.currentDepth);
         if (npcId) {
@@ -2445,6 +2489,7 @@ export class GameScene extends Phaser.Scene {
 
     private onPlayerHit(damage: number) {
         this.tracker.record('damageTaken', damage);
+        this.sfx.play('enemyHit');
         const intensity = Math.min(0.015, 0.004 * damage);
         this.cameras.main.shake(220, intensity);
         const flash = this.add.rectangle(400, 300, 800, 600, 0xff0000, 0.18).setDepth(88);
@@ -2469,6 +2514,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showVictoryScreen() {
+        this.sfx.play('victory');
+        this.sfx.stopAmbient();
         this.mapContainer.setVisible(false);
         this.roomContainer.setVisible(false);
         this.uiContainer.setVisible(false);
@@ -2852,6 +2899,27 @@ export class GameScene extends Phaser.Scene {
 
     private randomBetween(min: number, max: number): number {
         return Math.floor(Math.random() * (max - min + 1)) + min;
+    }
+
+    private setupSoundToggle() {
+        const icon = this.sfx.muted ? '\u266A' : '\u266B';
+        this.muteButton = this.add.text(20, 580, icon, {
+            fontFamily: 'Courier New',
+            fontSize: '16px',
+            color: this.sfx.muted ? '#555555' : '#aaaaaa',
+        }).setDepth(215).setInteractive({ useHandCursor: true });
+
+        this.muteButton.on('pointerdown', () => {
+            const muted = this.sfx.toggleMute();
+            this.muteButton.setText(muted ? '\u266A' : '\u266B');
+            this.muteButton.setColor(muted ? '#555555' : '#aaaaaa');
+        });
+        this.muteButton.on('pointerover', () => {
+            this.muteButton.setColor('#ffffff');
+        });
+        this.muteButton.on('pointerout', () => {
+            this.muteButton.setColor(this.sfx.muted ? '#555555' : '#aaaaaa');
+        });
     }
 
     private compactText(text: string, maxLength: number): string {
