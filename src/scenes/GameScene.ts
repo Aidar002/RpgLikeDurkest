@@ -1688,6 +1688,10 @@ export class GameScene extends Phaser.Scene {
                 return true;
             case 'kessa_token':
                 return !this.npcs.hasFlag('kessa', 'gave-token');
+            case 'casimir_pray':
+                // Pray can deal up to prayDamage on a bad roll; require a
+                // safety margin so a 1 HP player can't accidentally die here.
+                return this.player.stats.hp > ROOM_CONFIG.shrine.prayDamage;
             default:
                 return true;
         }
@@ -1845,12 +1849,18 @@ export class GameScene extends Phaser.Scene {
                 this.npcs.addFlag('hollow', 'paid-in-blood');
                 break;
             }
-            case 'hollow_shards_for_relic':
+            case 'hollow_shards_for_relic': {
                 if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
-                this.maybeDropRelic('boss');
-                this.log.addMessage('The Trader trades absence for absence. A relic settles into your kit.', '#f0a8ff');
+                const got = this.maybeDropRelic('boss');
+                if (!got) {
+                    this.player.gainGold(8);
+                    this.log.addMessage('The Trader finds nothing to trade. Coin fills the gap.', '#a8a0c0');
+                } else {
+                    this.log.addMessage('The Trader trades absence for absence. A relic settles into your kit.', '#f0a8ff');
+                }
                 affinityDelta = 2;
                 break;
+            }
             case 'hollow_potion_for_gold':
                 if (this.player.resources.potions <= 0) { consumed = false; break; }
                 this.player.resources.potions -= 1;
@@ -1943,6 +1953,13 @@ export class GameScene extends Phaser.Scene {
 
             default:
                 consumed = false;
+        }
+
+        // If the offer killed the player (e.g. casimir_pray on low HP), bail
+        // out before persisting affinity or rendering the return button — the
+        // death screen will take over via PlayerManager.onDeath.
+        if (this.player.stats.hp <= 0) {
+            return;
         }
 
         if (consumed && affinityDelta !== 0) {
