@@ -33,6 +33,7 @@ import type { NpcId, NpcOfferTemplate } from '../systems/Npcs';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
+import { PixelSprite } from '../ui/PixelSprite';
 
 const COL_W = 150;
 const ROW_H = 110;
@@ -45,6 +46,7 @@ const VIEW_Y = 300;
 interface NodeVisual {
     rect: Phaser.GameObjects.Rectangle;
     icon: Phaser.GameObjects.Text;
+    sprite?: Phaser.GameObjects.Image;
 }
 
 interface ActionButton {
@@ -132,6 +134,7 @@ export class GameScene extends Phaser.Scene {
     private roomHeaderText!: Phaser.GameObjects.Text;
     private enemyPortrait!: Phaser.GameObjects.Rectangle;
     private enemyIconText!: Phaser.GameObjects.Text;
+    private enemySpriteImage!: Phaser.GameObjects.Image;
     private enemyNameText!: Phaser.GameObjects.Text;
     private enemyHpBar!: Phaser.GameObjects.Rectangle;
     private enemyHpBarBg!: Phaser.GameObjects.Rectangle;
@@ -188,6 +191,8 @@ export class GameScene extends Phaser.Scene {
             (node, previous) => this.afterMove(node, previous),
             (fromDepth) => this.appendLayer(fromDepth)
         );
+
+        PixelSprite.registerAll(this);
 
         this.mapContainer = this.add.container(0, 0);
         this.roomContainer = this.add.container(0, 0);
@@ -636,6 +641,8 @@ export class GameScene extends Phaser.Scene {
             fontSize: '36px',
             color: '#ffffff',
         }).setOrigin(0.5);
+        this.enemySpriteImage = this.add.image(616, 166, '__DEFAULT')
+            .setVisible(false).setOrigin(0.5);
 
         this.enemyNameText = this.add.text(616, 226, '', {
             fontFamily: 'Courier New',
@@ -675,6 +682,7 @@ export class GameScene extends Phaser.Scene {
             this.roomHeaderText,
             this.enemyPortrait,
             this.enemyIconText,
+            this.enemySpriteImage,
             this.enemyNameText,
             this.enemyHpBarBg,
             this.enemyHpBar,
@@ -887,11 +895,23 @@ export class GameScene extends Phaser.Scene {
                 .setOrigin(0.5)
                 .setAlpha(alpha);
 
+            const spriteKey = PixelSprite.roomKey(this.roomSpriteKey(node.type));
+            let sprite: Phaser.GameObjects.Image | undefined;
+            if (revealed && knowsType && this.textures.exists(spriteKey)) {
+                icon.setVisible(false);
+                sprite = this.add.image(x, y, spriteKey)
+                    .setOrigin(0.5)
+                    .setAlpha(alpha);
+                if (node.cleared) sprite.setTint(0x555555);
+            }
+
             if (fadeIn && !node.cleared) {
                 rect.setAlpha(0);
                 icon.setAlpha(0);
+                const targets: Phaser.GameObjects.GameObject[] = [rect, icon];
+                if (sprite) { sprite.setAlpha(0); targets.push(sprite); }
                 this.tweens.add({
-                    targets: [rect, icon],
+                    targets,
                     alpha: 1,
                     duration: 420,
                     ease: 'Quad.out',
@@ -900,8 +920,10 @@ export class GameScene extends Phaser.Scene {
 
             this.makeClickable(rect, node);
 
-            this.mapContainer.add([rect, icon]);
-            this.visuals.set(node.id, { rect, icon });
+            const children: Phaser.GameObjects.GameObject[] = [rect, icon];
+            if (sprite) children.push(sprite);
+            this.mapContainer.add(children);
+            this.visuals.set(node.id, { rect, icon, sprite });
         });
     }
 
@@ -930,6 +952,21 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5);
         this.mapContainer.add(label);
         this.depthLabels.set(depth, label);
+    }
+
+    private roomSpriteKey(type: RoomTypeValue): string {
+        switch (type) {
+            case RoomType.START: return 'START';
+            case RoomType.ENEMY: return 'ENEMY';
+            case RoomType.TREASURE: return 'TREASURE';
+            case RoomType.TRAP: return 'TRAP';
+            case RoomType.REST: return 'REST';
+            case RoomType.SHRINE: return 'SHRINE';
+            case RoomType.MERCHANT: return 'MERCHANT';
+            case RoomType.ELITE: return 'ELITE';
+            case RoomType.BOSS: return 'BOSS';
+            case RoomType.EMPTY: return 'EMPTY';
+        }
     }
 
     private roomTypeName(type: RoomTypeValue): string {
@@ -1149,6 +1186,7 @@ export class GameScene extends Phaser.Scene {
             if (node.cleared) {
                 visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333).setAlpha(0.35);
                 visual.icon.setColor('#474747').setAlpha(0.35);
+                if (visual.sprite) visual.sprite.setAlpha(0.35).setTint(0x555555);
                 return;
             }
 
@@ -1160,7 +1198,22 @@ export class GameScene extends Phaser.Scene {
 
             visual.rect.setFillStyle(revealed ? this.roomColor(node) : 0x1a1a1a).setAlpha(1);
             visual.rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
-            visual.icon.setText(iconText).setColor('#ffffff').setAlpha(1);
+
+            const spriteKey = PixelSprite.roomKey(this.roomSpriteKey(node.type));
+            if (revealed && knowsType && this.textures.exists(spriteKey)) {
+                if (!visual.sprite) {
+                    visual.sprite = this.add.image(this.nodeX(node), this.nodeY(node), spriteKey)
+                        .setOrigin(0.5);
+                    this.mapContainer.add(visual.sprite);
+                } else {
+                    visual.sprite.setTexture(spriteKey);
+                }
+                visual.sprite.setAlpha(1).clearTint().setVisible(true);
+                visual.icon.setVisible(false);
+            } else {
+                visual.icon.setText(iconText).setColor('#ffffff').setAlpha(1).setVisible(true);
+                if (visual.sprite) visual.sprite.setVisible(false);
+            }
 
             if (isForward) {
                 const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), this.roomColor(node), NODE_SZ);
@@ -2318,6 +2371,15 @@ export class GameScene extends Phaser.Scene {
         this.enemyHpBar.setVisible(false);
         this.enemyHpText.setVisible(false);
         this.roomPanelGroup.setVisible(true);
+
+        const roomKey = PixelSprite.roomKey(header);
+        if (this.textures.exists(roomKey)) {
+            this.enemySpriteImage.setTexture(roomKey).setVisible(true);
+            this.enemyIconText.setVisible(false);
+        } else {
+            this.enemySpriteImage.setVisible(false);
+            this.enemyIconText.setVisible(true);
+        }
     }
 
     private showReturnButton() {
@@ -2397,6 +2459,18 @@ export class GameScene extends Phaser.Scene {
         this.enemyNameText.setText(this.compactText(name, 28));
         this.roomFlavorText.setText(this.compactText(description, 72));
         this.roomPanelGroup.setVisible(true);
+
+        const profile = this.combat.enemy?.profile;
+        if (profile) {
+            const sprKey = PixelSprite.enemyKey(profile);
+            if (this.textures.exists(sprKey)) {
+                this.enemySpriteImage.setTexture(sprKey).setVisible(true);
+                this.enemyIconText.setVisible(false);
+            }
+        } else {
+            this.enemySpriteImage.setVisible(false);
+            this.enemyIconText.setVisible(true);
+        }
 
         const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
         this.enemyHpBar.setDisplaySize(ratio * 220, 12);
