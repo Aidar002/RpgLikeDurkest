@@ -147,16 +147,13 @@ function drawStalker(): Grid {
     const g = createGrid(16, 16);
     // head (small, hunched)
     fillRect(g, 6, 2, 4, 3, P.stalkerBody);
-    setPixel(g, 7, 3, P.stalkerLight); setPixel(g, 8, 3, P.stalkerLight);
+    setPixel(g, 6, 3, P.stalkerLight); setPixel(g, 9, 3, P.stalkerLight);
     setPixel(g, 7, 3, P.red); setPixel(g, 8, 3, P.red);
     // ears
     setPixel(g, 5, 1, P.stalkerBody); setPixel(g, 10, 1, P.stalkerBody);
     // body (lean, hunched forward)
     fillRect(g, 5, 5, 6, 4, P.stalkerBody);
     fillRect(g, 6, 6, 4, 2, P.stalkerLight);
-    // tail
-    setPixel(g, 11, 8, P.stalkerDark); setPixel(g, 12, 7, P.stalkerDark);
-    setPixel(g, 13, 6, P.stalkerDark);
     // arms with claws
     fillRect(g, 3, 5, 2, 3, P.stalkerDark);
     fillRect(g, 11, 5, 2, 3, P.stalkerDark);
@@ -170,7 +167,11 @@ function drawStalker(): Grid {
     // feet
     fillRect(g, 4, 14, 3, 1, P.stalkerDark);
     fillRect(g, 9, 14, 3, 1, P.stalkerDark);
-    return mirrorH(g);
+    // mirror symmetric parts, then add asymmetric tail
+    const m = mirrorH(g);
+    setPixel(m, 11, 8, P.stalkerDark); setPixel(m, 12, 7, P.stalkerDark);
+    setPixel(m, 13, 6, P.stalkerDark);
+    return m;
 }
 
 function drawMage(): Grid {
@@ -280,10 +281,11 @@ function drawDisruptor(): Grid {
     setPixel(g, 9, 12, P.disruptorDark); setPixel(g, 11, 12, P.disruptorDark);
     setPixel(g, 5, 13, P.disruptorDark); setPixel(g, 8, 13, P.disruptorDark);
     setPixel(g, 10, 13, P.disruptorDark);
-    // glow aura particles
-    setPixel(g, 3, 3, P.disruptorGlow); setPixel(g, 12, 1, P.disruptorGlow);
-    setPixel(g, 2, 9, P.disruptorGlow); setPixel(g, 13, 4, P.disruptorGlow);
-    return mirrorH(g);
+    // mirror symmetric body, then add asymmetric glow particles
+    const m = mirrorH(g);
+    setPixel(m, 3, 3, P.disruptorGlow); setPixel(m, 12, 1, P.disruptorGlow);
+    setPixel(m, 2, 9, P.disruptorGlow); setPixel(m, 13, 4, P.disruptorGlow);
+    return m;
 }
 
 // ─── room icon generators (12x12, rendered at scale) ────────────
