@@ -172,9 +172,11 @@ export class GameScene extends Phaser.Scene {
 
         this.mapGen = new MapGenerator(this.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
 
+        this.actionButtons = [];
         this.visuals = new Map();
         this.glowMap = new Map();
         this.depthLabels = new Map();
+        this.roomTintOverlay = null;
         this.animating = false;
         this.dead = false;
         this.deathSequenceStarted = false;
@@ -782,7 +784,7 @@ export class GameScene extends Phaser.Scene {
         button.background.setInteractive({ useHandCursor: true });
         button.background.setFillStyle(action.fill ?? 0x1b1b1b);
         button.background.setStrokeStyle(1, enabled ? 0x8a8a8a : 0x3e3e3e);
-        button.label.setText(this.compactText(action.label, button.defaultWidth > 200 ? 34 : 16));
+        button.label.setText(this.compactText(action.label, button.defaultWidth > 200 ? 34 : 19));
         button.label.setColor(enabled ? '#f0f0f0' : '#686868');
     }
 
@@ -1873,7 +1875,7 @@ export class GameScene extends Phaser.Scene {
         // Scene flavor (italic-feel, smaller) goes in intel; dialog beat in body.
         this.enemyIntelText.setText(picked.npc.flavor);
         this.enemyIntelText.setVisible(true);
-        this.roomFlavorText.setText(picked.beat.text);
+        this.roomFlavorText.setText(this.compactText(picked.beat.text, 90));
         this.enemySpriteImage.setVisible(false);
         this.enemyIconText.setVisible(true);
         this.enemyHpBarBg.setVisible(false);
@@ -2670,7 +2672,7 @@ export class GameScene extends Phaser.Scene {
 
         restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
         restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x6a8fcc));
-        restartButton.on('pointerdown', () => this.scene.restart());
+        restartButton.on('pointerdown', () => this.safeRestart());
 
         this.tweens.add({
             targets: [overlay, panel, title, artifactIcon, summaryText, statsText, restartButton, restartLabel],
@@ -2836,7 +2838,7 @@ export class GameScene extends Phaser.Scene {
 
         restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
         restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x8a8a8a));
-        restartButton.on('pointerdown', () => this.scene.restart());
+        restartButton.on('pointerdown', () => this.safeRestart());
 
         resetButton.on('pointerover', () => resetButton.setStrokeStyle(2, 0xffd7d7));
         resetButton.on('pointerout', () => resetButton.setStrokeStyle(1, 0xa35a5a));
@@ -2932,7 +2934,7 @@ export class GameScene extends Phaser.Scene {
         confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
         confirmResetButton.on('pointerdown', () => {
             this.meta.resetProgress();
-            this.scene.restart();
+            this.safeRestart();
         });
 
         refreshShop();
@@ -2954,6 +2956,13 @@ export class GameScene extends Phaser.Scene {
             duration: 280,
             ease: 'Quad.out',
         });
+    }
+
+    private safeRestart() {
+        this.tweens.killAll();
+        this.time.removeAllEvents();
+        this.input.removeAllListeners();
+        this.scene.restart();
     }
 
     private showUnlockBanner(label: string) {
@@ -3001,6 +3010,20 @@ export class GameScene extends Phaser.Scene {
         this.muteButton.on('pointerout', () => {
             this.muteButton.setColor(this.sfx.muted ? '#555555' : '#aaaaaa');
         });
+
+        const langBtn = this.add.text(46, 580, this.loc.language === 'ru' ? 'RU' : 'EN', {
+            fontFamily: 'Courier New',
+            fontSize: '12px',
+            color: '#aaaaaa',
+        }).setDepth(215).setInteractive({ useHandCursor: true });
+
+        langBtn.on('pointerdown', () => {
+            const next = this.loc.toggle();
+            langBtn.setText(next === 'ru' ? 'RU' : 'EN');
+            this.safeRestart();
+        });
+        langBtn.on('pointerover', () => langBtn.setColor('#ffffff'));
+        langBtn.on('pointerout', () => langBtn.setColor('#aaaaaa'));
     }
 
     private compactText(text: string, maxLength: number): string {
