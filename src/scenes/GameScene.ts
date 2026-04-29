@@ -1694,12 +1694,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     private presentNpcRoom(npcId: NpcId, headerLabel: string) {
-        // Mark encounter (bumps metCount + lastDepthMet).
-        this.npcs.markEncounter(npcId, this.dungeon.currentDepth);
         this.vethSharpenedThisRoom = false;
 
+        // Pick dialog *before* marking the encounter so metCount===0 selects
+        // the 'first' stage on the very first meeting. markEncounter then
+        // bumps the count for subsequent visits.
         const ctx = this.buildNpcEvalContext();
         const picked = this.npcs.pickDialog(npcId, ctx);
+        this.npcs.markEncounter(npcId, this.dungeon.currentDepth);
 
         // Render the room card. Avoid compactText for dialog so wordWrap
         // can render the full beat — these lines are intentionally long.
@@ -1903,6 +1905,7 @@ export class GameScene extends Phaser.Scene {
                 if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
                 if (this.stress.resolution && this.stress.resolution.kind === 'affliction') {
                     this.stress.resolution = null;
+                    this.updateStressUI();
                     this.log.addMessage('The Chorister unbinds the affliction. The song carries it away.', '#ffd9f7');
                     affinityDelta = 3;
                 } else {
