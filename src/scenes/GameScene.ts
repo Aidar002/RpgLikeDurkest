@@ -28,6 +28,8 @@ import { StressManager } from '../systems/Stress';
 import type { Resolution } from '../systems/Stress';
 import { statusSummary } from '../systems/StatusEffects';
 import { Localization } from '../systems/Localization';
+import type { NpcEvalContext, NpcManager, PickedDialog } from '../systems/NpcManager';
+import type { NpcId, NpcOfferTemplate } from '../systems/Npcs';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 
@@ -81,6 +83,8 @@ export class GameScene extends Phaser.Scene {
     private stress!: StressManager;
     private skillLoadout: SkillId[] = [...STARTER_LOADOUT];
     private loc: Localization = new Localization();
+    private npcs!: NpcManager;
+    private vethSharpenedThisRoom = false;
 
     private mapContainer!: Phaser.GameObjects.Container;
     private roomContainer!: Phaser.GameObjects.Container;
@@ -140,6 +144,7 @@ export class GameScene extends Phaser.Scene {
 
     create() {
         this.meta = new MetaProgressionManager();
+        this.npcs = this.meta.getNpcManager();
         const metaBonuses = this.meta.getBonuses();
 
         this.tracker = new RunTracker();
@@ -1323,6 +1328,14 @@ export class GameScene extends Phaser.Scene {
         this.showRoomCard(card.header, card.title, card.description, card.color, card.icon, 'Choose your next move.');
         this.combat.startCombat(this.dungeon.currentDepth, kind);
         this.refreshCombatButtons();
+
+        // Boss intro from a recurring NPC the player has bonded with.
+        if (kind === 'boss') {
+            const intro = this.npcs.pickBossIntro();
+            if (intro) {
+                this.log.addMessage(intro.line, '#cdb8ff');
+            }
+        }
     }
 
     private refreshCombatButtons() {
@@ -1592,8 +1605,369 @@ export class GameScene extends Phaser.Scene {
         ]);
     }
 
+    // === NPC presentation ====================================================
+
+    private buildNpcEvalContext(): NpcEvalContext {
+        const hpFrac = this.player.stats.maxHp > 0
+            ? this.player.stats.hp / this.player.stats.maxHp
+            : 1;
+        const r = this.stress.resolution;
+        return {
+            depth: this.dungeon.currentDepth,
+            hpFrac,
+            stress: this.stress.value,
+            resolution: r ? r.kind : 'none',
+            bleedDamageDealt: this.tracker.current.bleedDamageDealt,
+            relicsFound: this.tracker.current.relicsFound,
+            bossesKilledEver: this.meta.bossesKilledEver,
+        };
+    }
+
+    private npcOfferCost(offerId: string, _npcId: NpcId): number {
+        switch (offerId) {
+            case 'mira_potion':
+                return ROOM_CONFIG.merchant.potionCost;
+            case 'mira_lantern':
+                return ROOM_CONFIG.merchant.lanternCost;
+            case 'mira_armor':
+                return ROOM_CONFIG.merchant.armorCost;
+            case 'mira_relic_oil':
+                return ROOM_CONFIG.merchant.premiumShardCost;
+            case 'casimir_offer':
+                return ROOM_CONFIG.shrine.offerGoldCost;
+            case 'casimir_rite':
+                return ROOM_CONFIG.shrine.premiumShardCost;
+            case 'hollow_relic_for_hp':
+                return Math.max(4, Math.floor(this.player.stats.maxHp * 0.25));
+            case 'hollow_shards_for_relic':
+                return 2;
+            case 'hollow_potion_for_gold':
+                return ROOM_CONFIG.merchant.potionCost - 2;
+            case 'veth_challenge':
+                return Math.max(3, Math.floor(this.player.stats.maxHp * 0.15));
+            case 'veth_lesson':
+                return 25;
+            case 'chorister_relieve':
+                return ROOM_CONFIG.shrine.offerGoldCost - 6;
+            case 'chorister_resolve':
+                return ROOM_CONFIG.shrine.offerGoldCost - 8;
+            case 'chorister_unbind':
+                return ROOM_CONFIG.shrine.premiumShardCost;
+            default:
+                return 0;
+        }
+    }
+
+    private isNpcOfferEnabled(offer: NpcOfferTemplate, npcId: NpcId): boolean {
+        const cost = this.npcOfferCost(offer.id, npcId);
+        switch (offer.id) {
+            case 'mira_potion':
+            case 'mira_lantern':
+            case 'mira_armor':
+            case 'casimir_offer':
+            case 'chorister_relieve':
+            case 'chorister_resolve':
+                return this.player.resources.gold >= cost;
+            case 'mira_relic_oil':
+            case 'casimir_rite':
+            case 'hollow_shards_for_relic':
+            case 'chorister_unbind':
+                return this.player.resources.relicShards >= cost;
+            case 'hollow_relic_for_hp':
+            case 'veth_challenge':
+                return this.player.stats.hp > cost + 1;
+            case 'veth_lesson':
+                // Costs stress: only enabled if stress isn't capped already.
+                return this.stress.value < 100;
+            case 'hollow_potion_for_gold':
+                return this.player.resources.potions > 0;
+            case 'veth_strop':
+                return !this.vethSharpenedThisRoom;
+            case 'kessa_tea':
+            case 'kessa_warning':
+                return true;
+            case 'kessa_token':
+                return !this.npcs.hasFlag('kessa', 'gave-token');
+            default:
+                return true;
+        }
+    }
+
+    private presentNpcRoom(npcId: NpcId, headerLabel: string) {
+        this.vethSharpenedThisRoom = false;
+
+        // Pick dialog *before* marking the encounter so metCount===0 selects
+        // the 'first' stage on the very first meeting. markEncounter then
+        // bumps the count for subsequent visits.
+        const ctx = this.buildNpcEvalContext();
+        const picked = this.npcs.pickDialog(npcId, ctx);
+        this.npcs.markEncounter(npcId, this.dungeon.currentDepth);
+
+        // Render the room card. Avoid compactText for dialog so wordWrap
+        // can render the full beat — these lines are intentionally long.
+        this.roomHeaderText.setText(headerLabel);
+        this.enemyPortrait.setFillStyle(picked.npc.color);
+        this.enemyIconText.setText(picked.npc.glyph);
+        this.enemyNameText.setText(this.compactText(`${picked.npc.name}, ${picked.npc.title}`, 28));
+        // Scene flavor (italic-feel, smaller) goes in intel; dialog beat in body.
+        this.enemyIntelText.setText(picked.npc.flavor);
+        this.enemyIntelText.setVisible(true);
+        this.roomFlavorText.setText(picked.beat.text);
+        this.enemyHpBarBg.setVisible(false);
+        this.enemyHpBar.setVisible(false);
+        this.enemyHpText.setVisible(false);
+        this.roomPanelGroup.setVisible(true);
+
+        // Log the dialog beat so it persists in the run log too.
+        this.log.addMessage(picked.beat.text, '#cdb8ff');
+
+        const actions = picked.offers.map<RoomButtonAction>((offer, idx) => {
+            const cost = this.npcOfferCost(offer.id, npcId);
+            const labelText = offer.label.replace('{cost}', String(cost));
+            return {
+                label: labelText.replace(/^\[\d+\]/, `[${idx + 1}]`),
+                callback: () => this.handleNpcOffer(npcId, offer),
+                enabled: this.isNpcOfferEnabled(offer, npcId),
+                fill: picked.npc.color,
+            };
+        });
+
+        actions.push({
+            label: `[${actions.length + 1}] Leave`,
+            callback: () => this.leaveNpcRoom(picked),
+            fill: 0x202020,
+        });
+
+        this.setRoomButtons(actions);
+    }
+
+    private leaveNpcRoom(picked: PickedDialog) {
+        if (picked.farewell) {
+            this.log.addMessage(picked.farewell.text, '#a89dc4');
+            this.enemyIntelText.setText(this.compactText(picked.farewell.text, 60));
+        }
+        this.showReturnButton();
+    }
+
+    private handleNpcOffer(npcId: NpcId, offer: NpcOfferTemplate) {
+        const cost = this.npcOfferCost(offer.id, npcId);
+        let consumed = true;
+        let affinityDelta = 1;
+
+        switch (offer.id) {
+            // -- Mira ------------------------------------------------------------
+            case 'mira_potion':
+                if (!this.player.spendGold(cost)) { consumed = false; break; }
+                this.tracker.record('goldSpent', cost);
+                this.player.gainPotions(1);
+                this.log.addMessage('Mira slides a potion across without comment.', '#9be0a7');
+                break;
+            case 'mira_lantern': {
+                if (!this.player.spendGold(cost)) { consumed = false; break; }
+                this.tracker.record('goldSpent', cost);
+                const gainedLight = this.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
+                this.log.addMessage(`Mira refills your lantern: +${gainedLight} light.`, '#ffe08a');
+                affinityDelta = 2;
+                break;
+            }
+            case 'mira_armor':
+                if (!this.player.spendGold(cost)) { consumed = false; break; }
+                this.tracker.record('goldSpent', cost);
+                this.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
+                this.log.addMessage(`Mira fastens armor straps: +${ROOM_CONFIG.merchant.armorDefenseGain} defense.`, '#b8d3ff');
+                break;
+            case 'mira_relic_oil':
+                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
+                this.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
+                this.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
+                this.log.addMessage(
+                    `Mira anoints your blade. +${ROOM_CONFIG.merchant.premiumAttackBonus} attack, +${ROOM_CONFIG.merchant.premiumPotionBonus} potion.`,
+                    '#ffd9f7'
+                );
+                affinityDelta = 2;
+                break;
+
+            // -- Casimir ---------------------------------------------------------
+            case 'casimir_pray':
+                if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
+                    this.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
+                    this.log.addMessage(
+                        `Casimir whispers a heretical line. +${ROOM_CONFIG.shrine.prayAttackBonus} attack.`,
+                        '#d7b6ff'
+                    );
+                    affinityDelta = 2;
+                } else {
+                    const damage = this.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
+                    const resolve = this.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
+                    this.log.addMessage(
+                        `The altar pays him in your blood. -${damage} HP, +${resolve} resolve.`,
+                        '#c99cff'
+                    );
+                    affinityDelta = 1;
+                }
+                break;
+            case 'casimir_offer':
+                if (!this.player.spendGold(cost)) { consumed = false; break; }
+                this.tracker.record('goldSpent', cost);
+                this.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
+                this.log.addMessage(
+                    `Casimir feeds the altar. +${ROOM_CONFIG.shrine.offerMaxHpBonus} max HP this run.`,
+                    '#ffd36e'
+                );
+                affinityDelta = 2;
+                break;
+            case 'casimir_rite':
+                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
+                this.player.addMaxHpBonus(
+                    ROOM_CONFIG.shrine.premiumMaxHpBonus,
+                    ROOM_CONFIG.shrine.premiumMaxHpBonus
+                );
+                this.player.gainResolve(ROOM_CONFIG.shrine.premiumResolveBonus);
+                this.log.addMessage(
+                    `Casimir performs the wrong rite, perfectly. +${ROOM_CONFIG.shrine.premiumMaxHpBonus} max HP, +${ROOM_CONFIG.shrine.premiumResolveBonus} resolve.`,
+                    '#ffd9f7'
+                );
+                affinityDelta = 2;
+                break;
+
+            // -- Hollow Trader ---------------------------------------------------
+            case 'hollow_relic_for_hp': {
+                this.player.takeDamage(cost, 0, 'true');
+                const got = this.maybeDropRelic('elite');
+                if (!got) {
+                    // Always grant *something* — refund some gold instead.
+                    this.player.gainGold(8);
+                    this.log.addMessage('The Trader pays in coin instead. The deal is honoured.', '#a8a0c0');
+                } else {
+                    this.log.addMessage('The Hollow Trader marks the ledger. The pain is precise.', '#a8a0c0');
+                }
+                affinityDelta = 2;
+                this.npcs.addFlag('hollow', 'paid-in-blood');
+                break;
+            }
+            case 'hollow_shards_for_relic':
+                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
+                this.maybeDropRelic('boss');
+                this.log.addMessage('The Trader trades absence for absence. A relic settles into your kit.', '#f0a8ff');
+                affinityDelta = 2;
+                break;
+            case 'hollow_potion_for_gold':
+                if (this.player.resources.potions <= 0) { consumed = false; break; }
+                this.player.resources.potions -= 1;
+                this.player.gainGold(cost);
+                this.log.addMessage(`The Trader takes the potion as if it were never there. +${cost} gold.`, '#ffd36e');
+                break;
+
+            // -- Veth ------------------------------------------------------------
+            case 'veth_challenge': {
+                this.player.takeDamage(cost, 0, 'true');
+                const got = this.maybeDropRelic('elite');
+                if (!got) {
+                    this.player.gainGold(20);
+                    this.log.addMessage('Veth pockets her pact and pays you in coin. "A scar is a scar."', '#ffb084');
+                } else {
+                    this.log.addMessage('Veth admires the line she drew. "Carry it well."', '#ffb084');
+                }
+                affinityDelta = 2;
+                this.npcs.addFlag('veth', 'pacted');
+                break;
+            }
+            case 'veth_lesson':
+                this.stress.add(cost);
+                this.player.addAttackBonus(2);
+                this.log.addMessage('Veth teaches the third cut. +2 attack this run; the lesson costs.', '#ffb084');
+                affinityDelta = 2;
+                this.npcs.addFlag('veth', 'taught');
+                break;
+            case 'veth_strop':
+                if (this.vethSharpenedThisRoom) { consumed = false; break; }
+                this.vethSharpenedThisRoom = true;
+                this.player.addAttackBonus(1);
+                this.log.addMessage('Veth strops your blade against the leather. +1 attack.', '#ffb084');
+                affinityDelta = 1;
+                break;
+
+            // -- Chorister -------------------------------------------------------
+            case 'chorister_relieve':
+                if (!this.player.spendGold(cost)) { consumed = false; break; }
+                this.tracker.record('goldSpent', cost);
+                this.stress.relieve(20);
+                this.log.addMessage('The Chorister sings. -20 stress.', '#d6b8ff');
+                affinityDelta = 2;
+                break;
+            case 'chorister_resolve':
+                if (!this.player.spendGold(cost)) { consumed = false; break; }
+                this.tracker.record('goldSpent', cost);
+                this.player.gainResolve(2);
+                this.log.addMessage('The Chorister steadies your hands. +2 resolve.', '#9bc8ff');
+                break;
+            case 'chorister_unbind':
+                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
+                if (this.stress.resolution && this.stress.resolution.kind === 'affliction') {
+                    this.stress.resolution = null;
+                    this.updateStressUI();
+                    this.log.addMessage('The Chorister unbinds the affliction. The song carries it away.', '#ffd9f7');
+                    affinityDelta = 3;
+                } else {
+                    this.player.gainResolve(3);
+                    this.log.addMessage('There is no crack to mend today. The song becomes resolve. +3 resolve.', '#ffd9f7');
+                    affinityDelta = 1;
+                }
+                break;
+
+            // -- Kessa -----------------------------------------------------------
+            case 'kessa_tea':
+                this.player.heal(4);
+                this.stress.relieve(10);
+                this.log.addMessage('Kessa pours the second cup. +4 HP, -10 stress.', '#9be0a7');
+                affinityDelta = 2;
+                break;
+            case 'kessa_warning':
+                this.player.gainResolve(1);
+                this.log.addMessage(
+                    'Kessa: "Third room of any depth lies. Bring two potions if you can." (+1 resolve)',
+                    '#9bc8ff'
+                );
+                affinityDelta = 1;
+                break;
+            case 'kessa_token':
+                this.player.addAttackBonus(1);
+                this.player.addDefenseBonus(1);
+                this.log.addMessage(
+                    'Kessa presses Sera\'s brass earring into your palm. +1 attack, +1 defense for this run.',
+                    '#ffd36e'
+                );
+                this.npcs.addFlag('kessa', 'gave-token');
+                affinityDelta = 3;
+                break;
+
+            default:
+                consumed = false;
+        }
+
+        if (consumed && affinityDelta !== 0) {
+            this.npcs.adjustAffinity(npcId, affinityDelta);
+        }
+
+        // Stay in the room — show the offer's flavor as intel, then a return button.
+        const flavor = offer.flavor ?? '';
+        if (flavor) {
+            this.enemyIntelText.setText(this.compactText(flavor, 60));
+        }
+        this.showReturnButton();
+    }
+
     private showShrineOptions() {
         this.tracker.record('shrinesVisited');
+        const npcId = this.npcs.pickForRole('shrine', this.dungeon.currentDepth);
+        if (npcId) {
+            this.presentNpcRoom(npcId, 'SHRINE');
+        } else {
+            this.showGenericShrineOptions();
+        }
+    }
+
+    private showGenericShrineOptions() {
         const actions: RoomButtonAction[] = [
             {
                 label: '[1] Pray',
@@ -1617,54 +1991,11 @@ export class GameScene extends Phaser.Scene {
                 fill: 0x5f4e8a,
             },
             {
-                label: `[2] Offer ${ROOM_CONFIG.shrine.offerGoldCost}g`,
-                callback: () => {
-                    if (!this.player.spendGold(ROOM_CONFIG.shrine.offerGoldCost)) {
-                        return;
-                    }
-                    this.tracker.record('goldSpent', ROOM_CONFIG.shrine.offerGoldCost);
-                    this.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
-                    this.log.addMessage(
-                        `You offer gold and gain +${ROOM_CONFIG.shrine.offerMaxHpBonus} max HP for this run.`,
-                        '#ffd36e'
-                    );
-                    this.enemyIntelText.setText('The altar gives strength, not kindness.');
-                    this.showReturnButton();
-                },
-                enabled: this.player.resources.gold >= ROOM_CONFIG.shrine.offerGoldCost,
-                fill: 0x8a5d2d,
+                label: `[2] Leave`,
+                callback: () => this.showReturnButton(),
+                fill: 0x202020,
             },
         ];
-
-        if (this.meta.isUnlocked('shrine_premium')) {
-            actions.push({
-                label: `[3] Rite ${ROOM_CONFIG.shrine.premiumShardCost}s`,
-                callback: () => {
-                    if (!this.player.spendRelicShard(ROOM_CONFIG.shrine.premiumShardCost)) {
-                        return;
-                    }
-                    this.player.addMaxHpBonus(
-                        ROOM_CONFIG.shrine.premiumMaxHpBonus,
-                        ROOM_CONFIG.shrine.premiumMaxHpBonus
-                    );
-                    this.player.gainResolve(ROOM_CONFIG.shrine.premiumResolveBonus);
-                    this.log.addMessage(
-                        `The relic rite grants +${ROOM_CONFIG.shrine.premiumMaxHpBonus} max HP and +${ROOM_CONFIG.shrine.premiumResolveBonus} resolve.`,
-                        '#ffd9f7'
-                    );
-                    this.enemyIntelText.setText('Old power bends around you for one more descent.');
-                    this.showReturnButton();
-                },
-                enabled: this.player.resources.relicShards >= ROOM_CONFIG.shrine.premiumShardCost,
-                fill: 0x7a3d6a,
-            });
-        }
-
-        actions.push({
-            label: `[${actions.length + 1}] Leave`,
-            callback: () => this.showReturnButton(),
-            fill: 0x202020,
-        });
 
         this.showRoomCard(
             'SHRINE',
@@ -1679,6 +2010,15 @@ export class GameScene extends Phaser.Scene {
 
     private showMerchantOptions() {
         this.tracker.record('merchantsVisited');
+        const npcId = this.npcs.pickForRole('merchant', this.dungeon.currentDepth);
+        if (npcId) {
+            this.presentNpcRoom(npcId, 'MERCHANT');
+            return;
+        }
+        this.showGenericMerchantOptions();
+    }
+
+    private showGenericMerchantOptions() {
         const actions: RoomButtonAction[] = [
             {
                 label: `[1] Potion ${ROOM_CONFIG.merchant.potionCost}g`,
@@ -1770,6 +2110,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     private showEmptyOptions() {
+        // 35% chance to roll a wandering NPC into an empty room (Veth or Kessa).
+        if (Math.random() < 0.35) {
+            const npcId = this.npcs.pickForRole('wanderer', this.dungeon.currentDepth);
+            if (npcId) {
+                this.presentNpcRoom(npcId, 'ENCOUNTER');
+                return;
+            }
+        }
+
         const subEvents = [
             { title: 'Dusty Chamber', desc: 'Stillness can hide a cache or steady a shaking hand.', icon: '.' },
             { title: 'Collapsed Passage', desc: 'Rubble blocks the way, but gaps reveal hidden corners.', icon: '~' },
@@ -2003,6 +2352,13 @@ export class GameScene extends Phaser.Scene {
 
         if (payload.kind === 'boss') {
             this.maybeDropRelic('boss');
+            // Surviving a boss steadies known NPCs' regard for you.
+            const intro = this.npcs.pickBossIntro();
+            if (intro) {
+                const farewells = intro.npc.voice.farewell;
+                const line = farewells[Math.floor(Math.random() * farewells.length)];
+                this.log.addMessage(line, '#cdb8ff');
+            }
         } else if (payload.kind === 'elite') {
             this.maybeDropRelic('elite');
         } else if (Math.random() < 0.07) {
@@ -2027,6 +2383,17 @@ export class GameScene extends Phaser.Scene {
             onComplete: () => flash.destroy(),
         });
         VFX.floatText(this, 126, 82, `-${damage}`, '#ff5555');
+
+        // Below ~25% HP after a hit: a known NPC's voice surfaces in memory.
+        // Throttled by chance so it doesn't fire every hit.
+        if (
+            this.player.stats.maxHp > 0 &&
+            this.player.stats.hp / this.player.stats.maxHp <= 0.25 &&
+            Math.random() < 0.4
+        ) {
+            const recall = this.npcs.pickLowHpRecall();
+            if (recall) this.log.addMessage(recall, '#a89dc4');
+        }
     }
 
     private showDeathScreen() {
@@ -2056,10 +2423,16 @@ export class GameScene extends Phaser.Scene {
             `Depth ${this.runBestDepth}  |  Bosses ${this.runBossKills}  |  Prestige +${this.prestigeReward}`,
         ];
         const statLines = this.tracker.getSummaryLines(this.loc.language);
+        const npcLines = this.npcs.getMemorySummary();
+        const allLines = [
+            ...summaryLines,
+            ...statLines,
+            ...(npcLines.length > 0 ? ['', '— Acquaintances —', ...npcLines] : []),
+        ];
         const summary = this.add.text(
             400,
             88,
-            summaryLines.join('\n') + '\n' + statLines.join('\n'),
+            allLines.join('\n'),
             {
                 fontFamily: 'Courier New',
                 fontSize: '11px',
