@@ -1,4 +1,10 @@
 import type { SkillId } from './Skills';
+import {
+    NpcManager,
+    makeDefaultNpcMemoryMap,
+    sanitizeNpcMemoryMap,
+    type NpcMemoryMap,
+} from './NpcManager';
 
 // Historical unlock ids kept for backward compatibility with older saves.
 // The game no longer gates the base HUD or base resources on these — they
@@ -94,6 +100,7 @@ export interface MetaProfile {
     bossesKilledEver: number;
     upgrades: Record<UpgradeId, number>;
     contentUnlocks: ContentUnlockState;
+    npcMemory: NpcMemoryMap;
 }
 
 export interface UpgradeCardInfo {
@@ -183,6 +190,7 @@ const DEFAULT_PROFILE: MetaProfile = {
         lastStand: 0,
     },
     contentUnlocks: { ...DEFAULT_CONTENT_UNLOCKS },
+    npcMemory: makeDefaultNpcMemoryMap(),
 };
 
 const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
@@ -285,9 +293,15 @@ const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
 
 export class MetaProgressionManager {
     private profile: MetaProfile;
+    private npcManager: NpcManager;
 
     constructor() {
         this.profile = this.loadProfile();
+        this.npcManager = new NpcManager(this.profile.npcMemory, () => this.saveProfile());
+    }
+
+    getNpcManager(): NpcManager {
+        return this.npcManager;
     }
 
     get availablePrestige(): number {
@@ -513,6 +527,7 @@ export class MetaProgressionManager {
 
     resetProgress() {
         this.profile = this.cloneDefaultProfile();
+        this.npcManager = new NpcManager(this.profile.npcMemory, () => this.saveProfile());
 
         try {
             window.localStorage.removeItem(STORAGE_KEY);
@@ -570,6 +585,7 @@ export class MetaProgressionManager {
                 ...DEFAULT_CONTENT_UNLOCKS,
                 ...profile.contentUnlocks,
             },
+            npcMemory: sanitizeNpcMemoryMap(profile.npcMemory),
         };
     }
 
@@ -637,6 +653,7 @@ export class MetaProgressionManager {
             ...DEFAULT_PROFILE,
             upgrades: { ...DEFAULT_PROFILE.upgrades },
             contentUnlocks: { ...DEFAULT_PROFILE.contentUnlocks },
+            npcMemory: makeDefaultNpcMemoryMap(),
         };
     }
 }
