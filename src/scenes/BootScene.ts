@@ -101,6 +101,22 @@ export class BootScene extends Phaser.Scene {
             color: '#68717a',
         }).setOrigin(1, 1);
 
+        // Language toggle button
+        const langLabel = this.add.text(20, 580, loc.language === 'ru' ? 'RU' : 'EN', {
+            fontFamily: 'Lucida Console, Consolas, monospace',
+            fontSize: '13px',
+            color: '#aaaaaa',
+        }).setOrigin(0, 1).setDepth(11).setInteractive({ useHandCursor: true });
+
+        langLabel.on('pointerdown', () => {
+            const next = loc.toggle();
+            langLabel.setText(next === 'ru' ? 'RU' : 'EN');
+            tagline.setText(loc.t('bootTagline'));
+            startText.setText(loc.t('bootStart'));
+        });
+        langLabel.on('pointerover', () => langLabel.setColor('#ffffff'));
+        langLabel.on('pointerout', () => langLabel.setColor('#aaaaaa'));
+
         // Scanlines overlay
         const scanGfx = this.add.graphics().setDepth(10);
         scanGfx.lineStyle(1, 0x000000, 0.012);

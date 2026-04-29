@@ -393,7 +393,7 @@ const RU_ENEMIES: Record<string, { name: string; description: string }> = {
 };
 
 export class Localization {
-    readonly language: Language;
+    language: Language;
 
     constructor(language: Language = getSavedLanguage()) {
         this.language = language;
@@ -488,6 +488,7 @@ export class Localization {
 
     toggle(): Language {
         const next = this.language === 'ru' ? 'en' : 'ru';
+        this.language = next;
         saveLanguage(next);
         return next;
     }
