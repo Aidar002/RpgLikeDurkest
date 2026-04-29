@@ -133,9 +133,11 @@ export class GameScene extends Phaser.Scene {
         this.mapGen = new MapGenerator(this.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
 
         this.tracker = new RunTracker();
+        this.actionButtons = [];
         this.visuals = new Map();
         this.glowMap = new Map();
         this.depthLabels = new Map();
+        this.roomTintOverlay = null;
         this.animating = false;
         this.dead = false;
         this.deathSequenceStarted = false;
@@ -1993,7 +1995,7 @@ export class GameScene extends Phaser.Scene {
 
         restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
         restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x8a8a8a));
-        restartButton.on('pointerdown', () => this.scene.restart());
+        restartButton.on('pointerdown', () => this.safeRestart());
 
         resetButton.on('pointerover', () => resetButton.setStrokeStyle(2, 0xffd7d7));
         resetButton.on('pointerout', () => resetButton.setStrokeStyle(1, 0xa35a5a));
@@ -2089,7 +2091,7 @@ export class GameScene extends Phaser.Scene {
         confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
         confirmResetButton.on('pointerdown', () => {
             this.meta.resetProgress();
-            this.scene.restart();
+            this.safeRestart();
         });
 
         refreshShop();
@@ -2111,6 +2113,13 @@ export class GameScene extends Phaser.Scene {
             duration: 280,
             ease: 'Quad.out',
         });
+    }
+
+    private safeRestart() {
+        this.tweens.killAll();
+        this.time.removeAllEvents();
+        this.input.removeAllListeners();
+        this.scene.restart();
     }
 
     private showUnlockBanner(label: string) {
