@@ -1875,6 +1875,7 @@ export class GameScene extends Phaser.Scene {
         this.enemyIntelText.setVisible(true);
         this.roomFlavorText.setText(picked.beat.text);
         this.enemySpriteImage.setVisible(false);
+        this.enemyIconText.setVisible(true);
         this.enemyHpBarBg.setVisible(false);
         this.enemyHpBar.setVisible(false);
         this.enemyHpText.setVisible(false);
