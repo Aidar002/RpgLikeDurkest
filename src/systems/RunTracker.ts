@@ -111,6 +111,7 @@ export class RunTracker {
     getRunTitle(language: Language): string {
         const s = this.stats;
         if (language === 'ru') {
+            if (s.bossesKilled >= 3) return 'ГЛУБОКАЯ ОХОТА';
             if (s.bossesKilled > 0) return 'ХРАНИТЕЛЬ ПАЛ';
             if (s.elitesKilled > 0) return 'СИЛЬНЫЙ ЗАБЕГ';
             if (s.bestDepth >= 5) return 'ГЛУБОКИЙ СПУСК';
@@ -119,6 +120,7 @@ export class RunTracker {
             return 'КОРОТКИЙ СПУСК';
         }
 
+        if (s.bossesKilled >= 3) return 'A DEEP HUNT';
         if (s.bossesKilled > 0) return 'A KEEPER FELL';
         if (s.elitesKilled > 0) return 'A STRONG RUN';
         if (s.bestDepth >= 5) return 'A DEEP DESCENT';

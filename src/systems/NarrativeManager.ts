@@ -2,6 +2,7 @@ import { RoomType } from './MapGenerator';
 import type { RoomType as RoomTypeValue } from './MapGenerator';
 import type { EncounterKind } from './CombatManager';
 import { Localization } from './Localization';
+import { MAP_CONFIG } from '../data/GameConfig';
 
 export type NarrativeMark =
     | 'greed'
@@ -58,6 +59,13 @@ export class NarrativeManager {
             }
         }
 
+        if (depth === 3) {
+            return this.text(
+                'Scratched into the wall: "Treasure below. Turn back above."',
+                'Нацарапано на стене: «Сокровища внизу. Назад — наверху».'
+            );
+        }
+
         if (depth === 4) {
             return this.text(
                 'You find old boot prints beside your own. They turn back before the next room.',
@@ -69,6 +77,34 @@ export class NarrativeManager {
             return this.text(
                 'The walls carry cut marks from past runs. Some look fresh.',
                 'На стенах зарубки прошлых забегов. Некоторые выглядят свежими.'
+            );
+        }
+
+        if (depth === 10) {
+            return this.text(
+                'A dead treasure hunter sits against the wall. His pack is empty, but his map points deeper.',
+                'У стены сидит мёртвый охотник за сокровищами. Рюкзак пуст, но его карта указывает глубже.'
+            );
+        }
+
+        if (depth === 15) {
+            return this.text(
+                'The air hums with something old. The artifact is closer — you can feel it pulling.',
+                'Воздух гудит от чего-то древнего. Артефакт ближе — ты чувствуешь, как он тянет к себе.'
+            );
+        }
+
+        if (depth === 20) {
+            return this.text(
+                'No one has carved marks this deep. You are past the last known expedition.',
+                'На такой глубине нет чужих отметок. Ты зашел дальше всех экспедиций.'
+            );
+        }
+
+        if (depth >= MAP_CONFIG.finalDepth - 1 && depth < MAP_CONFIG.finalDepth) {
+            return this.text(
+                'The walls glow faintly. The Wish Artifact is on the next floor. Its guardian waits.',
+                'Стены слабо светятся. Артефакт Желаний на следующем этаже. Его страж ждёт.'
             );
         }
 
@@ -139,12 +175,21 @@ export class NarrativeManager {
                     description: this.text('This one carries old scars and a fresh trophy. It has killed explorers before.', 'На нем старые шрамы и свежий трофей. Он уже убивал таких, как ты.'),
                     intel: this.text('It wears trophies from older expeditions.', 'На нем трофеи старых экспедиций.'),
                 };
-            case RoomType.BOSS:
-                return {
-                    title: depth >= 16 ? this.text('Deep Keeper', 'Глубинный хранитель') : this.text('Floor Keeper', 'Хранитель этажа'),
-                    description: this.text('The floor keeper blocks the only passage down. You cannot go around it.', 'Хранитель этажа перекрывает единственный проход вниз. Обойти его нельзя.'),
-                    intel: this.bossAccusation(),
-                };
+            case RoomType.BOSS: {
+                const isFinal = depth >= MAP_CONFIG.finalDepth;
+                const title = isFinal
+                    ? this.text('Artifact Guardian', 'Страж Артефакта')
+                    : depth >= 16
+                      ? this.text('Deep Keeper', 'Глубинный хранитель')
+                      : this.text('Floor Keeper', 'Хранитель этажа');
+                const description = isFinal
+                    ? this.text(
+                          'The last keeper stands between you and the Wish Artifact. It will not let you pass.',
+                          'Последний хранитель стоит между тобой и Артефактом Желаний. Он не пропустит.'
+                      )
+                    : this.text('The floor keeper blocks the only passage down. You cannot go around it.', 'Хранитель этажа перекрывает единственный проход вниз. Обойти его нельзя.');
+                return { title, description, intel: this.bossAccusation() };
+            }
             case RoomType.ENEMY:
                 return {
                     title: this.text('Blocked Path', 'Путь перекрыт'),
@@ -157,8 +202,8 @@ export class NarrativeManager {
             case RoomType.START:
                 return {
                     title: this.text('Camp', 'Лагерь'),
-                    description: this.text('Your camp is above the first stair. Everything useful must be found below.', 'Лагерь стоит над первой лестницей. Все полезное придется искать внизу.'),
-                    intel: this.text('The first steps are quiet. That never lasts.', 'Первые шаги тихие. Так бывает недолго.'),
+                    description: this.text('Your camp is above the first stair. Somewhere far below lies the Wish Artifact.', 'Лагерь стоит над первой лестницей. Где-то далеко внизу лежит Артефакт Желаний.'),
+                    intel: this.text('The first steps are quiet. The artifact waits at the bottom.', 'Первые шаги тихие. Артефакт ждёт на самом дне.'),
                 };
         }
     }
@@ -225,21 +270,48 @@ export class NarrativeManager {
 
         switch (tone) {
             case 'greed':
-                return this.text('You carried too much out of rooms that wanted payment.', 'Ты вынес слишком много из комнат, которые требовали плату.');
+                return this.text('You filled your pack but never reached the artifact.', 'Ты набил рюкзак, но так и не дошёл до артефакта.');
             case 'faith':
-                return this.text('The altar keeps the mark. The body stays below.', 'Алтарь сохраняет метку. Тело остается внизу.');
+                return this.text('The altar keeps the mark. The artifact remains unclaimed.', 'Алтарь сохраняет метку. Артефакт по-прежнему ничей.');
             case 'darkness':
-                return this.text('The lantern dies first. After that, the map stops mattering.', 'Сначала гаснет фонарь. Потом карта уже не важна.');
+                return this.text('The lantern dies first. The artifact stays hidden in the dark.', 'Сначала гаснет фонарь. Артефакт остаётся скрыт во тьме.');
             case 'caution':
-                return this.text('You avoided many mistakes. Not the last one.', 'Ты избежал многих ошибок. Но не последней.');
+                return this.text('You avoided many mistakes. Not the last one. The artifact waits for the next hunter.', 'Ты избежал многих ошибок. Но не последней. Артефакт ждёт следующего охотника.');
             case 'commerce':
-                return this.text('The trader will sell your gear to the next fool.', 'Торговец продаст твои вещи следующему глупцу.');
+                return this.text('The trader will sell your gear to the next treasure hunter.', 'Торговец продаст твои вещи следующему охотнику за сокровищами.');
             default:
                 return this.text(
-                    `The run ends at depth ${this.deepestRoom}. Some lessons return with you.`,
-                    `Забег заканчивается на глубине ${this.deepestRoom}. Часть уроков возвращается с тобой.`
+                    `The hunt ends at depth ${this.deepestRoom}. The artifact still waits below.`,
+                    `Охота заканчивается на глубине ${this.deepestRoom}. Артефакт всё ещё ждёт внизу.`
                 );
         }
+    }
+
+    artifactLine(): string {
+        const tone = this.dominantTone();
+
+        if (tone === 'greed') {
+            return this.text(
+                'The Wish Artifact glows in your hands. Every treasure you took led here.',
+                'Артефакт Желаний светится в твоих руках. Каждое сокровище вело тебя сюда.'
+            );
+        }
+        if (tone === 'faith') {
+            return this.text(
+                'The artifact pulses like a prayer answered. The altars were guiding you all along.',
+                'Артефакт пульсирует, как услышанная молитва. Алтари вели тебя всё это время.'
+            );
+        }
+        if (tone === 'violence') {
+            return this.text(
+                'Every fight was a step toward this. The artifact rests in your bloodied hands.',
+                'Каждый бой был шагом к этому. Артефакт лежит в твоих окровавленных руках.'
+            );
+        }
+        return this.text(
+            'The Wish Artifact is warm in your hands. The dungeon falls silent around you.',
+            'Артефакт Желаний тёплый в твоих руках. Подземелье затихает вокруг.'
+        );
     }
 
     private bossAccusation(): string {
