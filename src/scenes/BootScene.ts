@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { Localization } from '../systems/Localization';
+import { SoundManager } from '../systems/SoundManager';
 
 export class BootScene extends Phaser.Scene {
     constructor() {
@@ -12,6 +13,7 @@ export class BootScene extends Phaser.Scene {
 
     create() {
         const loc = new Localization();
+        const sfx = new SoundManager();
         this.cameras.main.setBackgroundColor('#050505');
 
         const bg = this.add.graphics();
@@ -82,9 +84,13 @@ export class BootScene extends Phaser.Scene {
             duration: 500,
         });
 
-        startBtn.on('pointerover', () => startBtn.setStrokeStyle(2, 0xffffff));
+        startBtn.on('pointerover', () => {
+            startBtn.setStrokeStyle(2, 0xffffff);
+            sfx.play('buttonHover');
+        });
         startBtn.on('pointerout', () => startBtn.setStrokeStyle(1, 0x5a5a5a));
         startBtn.on('pointerdown', () => {
+            sfx.play('buttonClick');
             this.cameras.main.fadeOut(400, 0, 0, 0);
             this.time.delayedCall(400, () => this.scene.start('GameScene'));
         });
