@@ -15,6 +15,7 @@ export class BootScene extends Phaser.Scene {
         const loc = new Localization();
         const sfx = new SoundManager();
         this.cameras.main.setBackgroundColor('#050505');
+        const titleText = () => (loc.language === 'ru' ? 'НИЖНИЙ\nСПУСК' : 'DARKEST\nDESCENT');
 
         const bg = this.add.graphics();
         bg.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x151520, 0x151520, 1, 1, 1, 1);
@@ -34,7 +35,7 @@ export class BootScene extends Phaser.Scene {
             });
         }
 
-        const title = this.add.text(400, 200, 'DARKEST\nDESCENT', {
+        const title = this.add.text(400, 200, titleText(), {
             fontFamily: 'Lucida Console, Consolas, monospace',
             fontSize: '48px',
             color: '#f1c75d',
@@ -111,6 +112,7 @@ export class BootScene extends Phaser.Scene {
         langLabel.on('pointerdown', () => {
             const next = loc.toggle();
             langLabel.setText(next === 'ru' ? 'RU' : 'EN');
+            title.setText(titleText());
             tagline.setText(loc.t('bootTagline'));
             startText.setText(loc.t('bootStart'));
         });

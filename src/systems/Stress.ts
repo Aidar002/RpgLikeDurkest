@@ -1,3 +1,6 @@
+import type { LocalizedText } from './LocalizedText';
+import { lt } from './LocalizedText';
+
 // Stress mechanic, inspired by Darkest Dungeon.
 //
 // Stress builds from certain combat/exploration events. When it reaches 100
@@ -20,34 +23,46 @@ export type Virtue =
 export interface Resolution {
     kind: 'affliction' | 'virtue';
     id: Affliction | Virtue;
-    name: string;
-    description: string;
+    name: LocalizedText;
+    description: LocalizedText;
 }
 
 export const AFFLICTIONS: Record<Affliction, Resolution> = {
     paranoid: {
         kind: 'affliction',
         id: 'paranoid',
-        name: 'Paranoid',
-        description: 'Every shadow hurts. +1 damage taken from enemies.',
+        name: lt('Настороженный', 'Paranoid'),
+        description: lt(
+            'Ты вздрагиваешь от каждого шороха. +1 к урону от врагов.',
+            'Every shadow hurts. +1 damage taken from enemies.'
+        ),
     },
     hopeless: {
         kind: 'affliction',
         id: 'hopeless',
-        name: 'Hopeless',
-        description: 'Your blows feel weightless. -1 damage dealt.',
+        name: lt('Сломленный', 'Hopeless'),
+        description: lt(
+            'Рука не вкладывает вес в удар. -1 к наносимому урону.',
+            'Your blows feel weightless. -1 damage dealt.'
+        ),
     },
     fearful: {
         kind: 'affliction',
         id: 'fearful',
-        name: 'Fearful',
-        description: 'Your hands shake. Skills cost +1 resolve.',
+        name: lt('Перепуганный', 'Fearful'),
+        description: lt(
+            'Пальцы дрожат на рукояти. Навыки стоят на 1 волю больше.',
+            'Your hands shake. Skills cost +1 resolve.'
+        ),
     },
     abusive: {
         kind: 'affliction',
         id: 'abusive',
-        name: 'Abusive',
-        description: 'Stress feeds on itself. Stress gain +50%.',
+        name: lt('Ожесточённый', 'Abusive'),
+        description: lt(
+            'Злость цепляется за каждую мелочь. Получение стресса +50%.',
+            'Stress feeds on itself. Stress gain +50%.'
+        ),
     },
 };
 
@@ -55,26 +70,38 @@ export const VIRTUES: Record<Virtue, Resolution> = {
     courageous: {
         kind: 'virtue',
         id: 'courageous',
-        name: 'Courageous',
-        description: 'You step toward the dark. +1 damage dealt.',
+        name: lt('Отважный', 'Courageous'),
+        description: lt(
+            'Ты сам делаешь шаг в темноту. +1 к наносимому урону.',
+            'You step toward the dark. +1 damage dealt.'
+        ),
     },
     stalwart: {
         kind: 'virtue',
         id: 'stalwart',
-        name: 'Stalwart',
-        description: 'You shrug off the first ripple of every blow. -1 damage taken.',
+        name: lt('Непоколебимый', 'Stalwart'),
+        description: lt(
+            'Ты принимаешь удар корпусом. -1 к получаемому урону.',
+            'You shrug off the first ripple of every blow. -1 damage taken.'
+        ),
     },
     focused: {
         kind: 'virtue',
         id: 'focused',
-        name: 'Focused',
-        description: 'Your thoughts sharpen. Skills cost -1 resolve.',
+        name: lt('Сосредоточенный', 'Focused'),
+        description: lt(
+            'Мысли собираются в линию. Навыки стоят на 1 волю меньше.',
+            'Your thoughts sharpen. Skills cost -1 resolve.'
+        ),
     },
     vigorous: {
         kind: 'virtue',
         id: 'vigorous',
-        name: 'Vigorous',
-        description: 'Adrenaline returns on cue. +1 resolve at combat start.',
+        name: lt('Живой', 'Vigorous'),
+        description: lt(
+            'Кровь горячая, дыхание ровное. +1 воля в начале боя.',
+            'Adrenaline returns on cue. +1 resolve at combat start.'
+        ),
     },
 };
 

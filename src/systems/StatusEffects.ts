@@ -27,6 +27,8 @@ export interface StatusState {
     regen: { turns: number; amount: number };
 }
 
+type StatusLanguage = 'ru' | 'en';
+
 export function emptyStatusState(): StatusState {
     return {
         bleed: { stacks: 0, turns: 0 },
@@ -153,14 +155,24 @@ export function consumeGuardBlock(s: StatusState, incoming: number): number {
     return incoming - blocked;
 }
 
-export function statusSummary(s: StatusState): string {
+export function statusSummary(s: StatusState, language: StatusLanguage = 'en'): string {
     const parts: string[] = [];
-    if (s.bleed.turns > 0) parts.push(`Bleed x${s.bleed.stacks}/${s.bleed.turns}t`);
-    if (s.stun.turns > 0) parts.push(`Stun ${s.stun.turns}t`);
-    if (s.weaken.turns > 0) parts.push(`Weaken -${s.weaken.amount}/${s.weaken.turns}t`);
-    if (s.mark.turns > 0) parts.push(`Marked`);
-    if (s.guard.hits > 0) parts.push(`Guard ${s.guard.amount}x${s.guard.hits}`);
-    if (s.focus.turns > 0) parts.push(`Focus +${s.focus.amount}/${s.focus.turns}t`);
-    if (s.regen.turns > 0) parts.push(`Regen +${s.regen.amount}/${s.regen.turns}t`);
+    if (language === 'ru') {
+        if (s.bleed.turns > 0) parts.push(`Кровотечение x${s.bleed.stacks}/${s.bleed.turns}х`);
+        if (s.stun.turns > 0) parts.push(`Оглуш. ${s.stun.turns}х`);
+        if (s.weaken.turns > 0) parts.push(`Слаб. -${s.weaken.amount}/${s.weaken.turns}х`);
+        if (s.mark.turns > 0) parts.push('Метка');
+        if (s.guard.hits > 0) parts.push(`Защита ${s.guard.amount}x${s.guard.hits}`);
+        if (s.focus.turns > 0) parts.push(`Фокус +${s.focus.amount}/${s.focus.turns}х`);
+        if (s.regen.turns > 0) parts.push(`Реген. +${s.regen.amount}/${s.regen.turns}х`);
+    } else {
+        if (s.bleed.turns > 0) parts.push(`Bleed x${s.bleed.stacks}/${s.bleed.turns}t`);
+        if (s.stun.turns > 0) parts.push(`Stun ${s.stun.turns}t`);
+        if (s.weaken.turns > 0) parts.push(`Weaken -${s.weaken.amount}/${s.weaken.turns}t`);
+        if (s.mark.turns > 0) parts.push('Marked');
+        if (s.guard.hits > 0) parts.push(`Guard ${s.guard.amount}x${s.guard.hits}`);
+        if (s.focus.turns > 0) parts.push(`Focus +${s.focus.amount}/${s.focus.turns}t`);
+        if (s.regen.turns > 0) parts.push(`Regen +${s.regen.amount}/${s.regen.turns}t`);
+    }
     return parts.join(' | ');
 }

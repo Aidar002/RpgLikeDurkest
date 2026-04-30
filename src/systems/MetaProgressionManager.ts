@@ -1,3 +1,5 @@
+import { lt, pickLocalized } from './LocalizedText';
+import type { LocalizedText } from './LocalizedText';
 import type { SkillId } from './Skills';
 import {
     NpcManager,
@@ -7,7 +9,7 @@ import {
 } from './NpcManager';
 
 // Historical unlock ids kept for backward compatibility with older saves.
-// The game no longer gates the base HUD or base resources on these — they
+// The game no longer gates the base HUD or base resources on these - they
 // all exist from run 1. New installs keep them `true` by default. Meta
 // unlocks now meaningfully gate *new* skills and relic-tier quality.
 export const ALL_UNLOCK_IDS = [
@@ -40,13 +42,11 @@ export const ALL_UNLOCK_IDS = [
     'merchant_premium',
     'shrine_premium',
     'ui_prestige_forecast',
-    // New meta unlocks: skills.
     'skill_parry_stance',
     'skill_focused_strike',
     'skill_rupture',
     'skill_adrenaline',
     'skill_crushing_blow',
-    // New meta unlocks: relic-tier quality.
     'relic_pool_rare',
     'relic_pool_unique',
 ] as const;
@@ -115,8 +115,8 @@ export interface UpgradeCardInfo {
 
 export interface ContentUnlockMilestone {
     id: string;
-    label: string;
-    requirement: string;
+    label: LocalizedText;
+    requirement: LocalizedText;
     depth?: number;
     requiresFirstBossKill?: boolean;
     unlocks: UnlockId[];
@@ -124,18 +124,15 @@ export interface ContentUnlockMilestone {
 
 interface MetaUpgradeDefinition {
     id: UpgradeId;
-    title: string;
+    title: LocalizedText;
     maxLevel: number;
     costs: number[];
-    description: (nextLevel: number) => string;
+    description: (nextLevel: number) => LocalizedText;
 }
 
 const STORAGE_KEY = 'rpglikedurkest-meta-v3';
 const LEGACY_STORAGE_KEYS = ['rpglikedurkest-meta-v2', 'rpglikedurkest-meta-v1'];
 
-// HUD, core resources and base actions are always available now. Only
-// *additional* content (extra skills, higher relic rarities) needs
-// meta progression to unlock.
 const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     room_enemy: true,
     room_empty: true,
@@ -166,7 +163,6 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     merchant_premium: true,
     shrine_premium: true,
     ui_prestige_forecast: true,
-    // Extra skills / rare relics start locked.
     skill_parry_stance: false,
     skill_focused_strike: false,
     skill_rupture: false,
@@ -196,29 +192,29 @@ const DEFAULT_PROFILE: MetaProfile = {
 const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
     {
         id: 'depth-3',
-        label: 'Skill: Parry Stance',
-        requirement: 'Reach depth 3',
+        label: lt('Навык: Парирующая стойка', 'Skill: Parry Stance'),
+        requirement: lt('Достигни глубины 3', 'Reach depth 3'),
         depth: 3,
         unlocks: ['skill_parry_stance'],
     },
     {
         id: 'depth-5',
-        label: 'Skill: Focused Strike',
-        requirement: 'Reach depth 5',
+        label: lt('Навык: Точный удар', 'Skill: Focused Strike'),
+        requirement: lt('Достигни глубины 5', 'Reach depth 5'),
         depth: 5,
         unlocks: ['skill_focused_strike'],
     },
     {
         id: 'depth-7',
-        label: 'Rare relic rolls',
-        requirement: 'Reach depth 7',
+        label: lt('Редкие реликвии в добыче', 'Rare relic rolls'),
+        requirement: lt('Достигни глубины 7', 'Reach depth 7'),
         depth: 7,
         unlocks: ['relic_pool_rare'],
     },
     {
         id: 'depth-10',
-        label: 'Skill: Adrenaline',
-        requirement: 'Reach depth 10',
+        label: lt('Навык: Адреналин', 'Skill: Adrenaline'),
+        requirement: lt('Достигни глубины 10', 'Reach depth 10'),
         depth: 10,
         unlocks: ['skill_adrenaline'],
     },
@@ -226,16 +222,16 @@ const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
 
 const FIRST_BOSS_MILESTONE: ContentUnlockMilestone = {
     id: 'first-boss',
-    label: 'Skill: Rupture + unique relics',
-    requirement: 'Defeat your first boss',
+    label: lt('Навык: Разрыв и уникальные реликвии', 'Skill: Rupture + unique relics'),
+    requirement: lt('Победи первого босса', 'Defeat your first boss'),
     requiresFirstBossKill: true,
     unlocks: ['skill_rupture', 'relic_pool_unique'],
 };
 
 const SECOND_BOSS_MILESTONE: ContentUnlockMilestone = {
     id: 'second-boss',
-    label: 'Skill: Crushing Blow',
-    requirement: 'Defeat 3 bosses total',
+    label: lt('Навык: Сокрушающий удар', 'Skill: Crushing Blow'),
+    requirement: lt('Победи 3 боссов за все забеги', 'Defeat 3 bosses total'),
     requiresFirstBossKill: true,
     unlocks: ['skill_crushing_blow'],
 };
@@ -249,45 +245,63 @@ const ALL_MILESTONES: ContentUnlockMilestone[] = [
 const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
     {
         id: 'vitality',
-        title: 'Vitality',
+        title: lt('Живучесть', 'Vitality'),
         maxLevel: 5,
         costs: [2, 4, 7, 10, 14],
-        description: (nextLevel) => `Start each run with +${nextLevel * 3} max HP.`,
+        description: (nextLevel) => lt(
+            `Каждый забег начинается с +${nextLevel * 3} к максимуму ОЗ.`,
+            `Start each run with +${nextLevel * 3} max HP.`
+        ),
     },
     {
         id: 'might',
-        title: 'Might',
+        title: lt('Сила', 'Might'),
         maxLevel: 3,
         costs: [3, 6, 10],
-        description: (nextLevel) => `Start each run with +${nextLevel} attack.`,
+        description: (nextLevel) => lt(
+            `Каждый забег начинается с +${nextLevel} к атаке.`,
+            `Start each run with +${nextLevel} attack.`
+        ),
     },
     {
         id: 'wisdom',
-        title: 'Wisdom',
+        title: lt('Память', 'Wisdom'),
         maxLevel: 4,
         costs: [2, 4, 7, 11],
-        description: (nextLevel) => `Gain +${nextLevel * 15}% XP from every source.`,
+        description: (nextLevel) => lt(
+            `Получай +${nextLevel * 15}% опыта из любых источников.`,
+            `Gain +${nextLevel * 15}% XP from every source.`
+        ),
     },
     {
         id: 'recovery',
-        title: 'Recovery',
+        title: lt('Передышка', 'Recovery'),
         maxLevel: 4,
         costs: [2, 4, 7, 10],
-        description: (nextLevel) => `Rest heals +${nextLevel * 2}; traps deal -${nextLevel}.`,
+        description: (nextLevel) => lt(
+            `Отдых лечит ещё на ${nextLevel * 2}, а ловушки наносят на ${nextLevel} меньше урона.`,
+            `Rest heals +${nextLevel * 2}; traps deal -${nextLevel}.`
+        ),
     },
     {
         id: 'preparation',
-        title: 'Preparation',
+        title: lt('Подготовка', 'Preparation'),
         maxLevel: 3,
         costs: [2, 5, 9],
-        description: (nextLevel) => `Start with +${nextLevel} light.`,
+        description: (nextLevel) => lt(
+            `Начинай забег с +${nextLevel} света.`,
+            `Start with +${nextLevel} light.`
+        ),
     },
     {
         id: 'lastStand',
-        title: 'Last Stand',
+        title: lt('Последний шанс', 'Last Stand'),
         maxLevel: 1,
         costs: [10],
-        description: () => 'Gain 1 revive charge per run.',
+        description: () => lt(
+            'Даёт 1 заряд воскрешения на каждый забег.',
+            'Gain 1 revive charge per run.'
+        ),
     },
 ];
 
@@ -355,7 +369,6 @@ export class MetaProgressionManager {
         return !!this.profile.contentUnlocks[id];
     }
 
-    /** Extra skills the player has earned through meta progression. */
     getUnlockedExtraSkills(): SkillId[] {
         const unlocked: SkillId[] = [];
         if (this.isUnlocked('skill_parry_stance')) unlocked.push('parry_stance');
@@ -458,7 +471,6 @@ export class MetaProgressionManager {
     }
 
     getUiUnlockState(): UiUnlockState {
-        // Base HUD is always available now. Kept as a struct for compatibility.
         return {
             showHpNumbers: true,
             showDepthReadout: true,
@@ -508,15 +520,15 @@ export class MetaProgressionManager {
         return true;
     }
 
-    getUpgradeCards(): UpgradeCardInfo[] {
+    getUpgradeCards(language: 'ru' | 'en' = 'ru'): UpgradeCardInfo[] {
         return UPGRADE_DEFINITIONS.map((definition) => {
             const level = this.getUpgradeLevel(definition.id);
             const cost = level >= definition.maxLevel ? null : definition.costs[level];
 
             return {
                 id: definition.id,
-                title: definition.title,
-                description: definition.description(level + 1),
+                title: pickLocalized(language, definition.title),
+                description: pickLocalized(language, definition.description(level + 1)),
                 level,
                 maxLevel: definition.maxLevel,
                 cost,
@@ -652,7 +664,7 @@ export class MetaProgressionManager {
         return {
             ...DEFAULT_PROFILE,
             upgrades: { ...DEFAULT_PROFILE.upgrades },
-            contentUnlocks: { ...DEFAULT_PROFILE.contentUnlocks },
+            contentUnlocks: { ...DEFAULT_CONTENT_UNLOCKS },
             npcMemory: makeDefaultNpcMemoryMap(),
         };
     }

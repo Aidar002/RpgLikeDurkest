@@ -1,3 +1,7 @@
+import type { LocalizedText } from './LocalizedText';
+import { RU_ENEMY_TEXT } from '../data/EnemyTextConfig';
+import { pickLocalized } from './LocalizedText';
+
 export type Language = 'ru' | 'en';
 
 type Vars = Record<string, string | number>;
@@ -167,111 +171,111 @@ const TEXT = {
         absorb: 'Your guard absorbs the hit.',
     },
     ru: {
-        bootTagline: 'Говорят, на дне подземелья лежит артефакт, исполняющий желания. Найди его.',
+        bootTagline: 'Говорят, внизу лежит артефакт, исполняющий желания. Спустись и проверь.',
         bootStart: 'Начать экспедицию',
-        uiVital: 'ЖИЗНЬ',
+        uiVital: 'ОЗ',
         eventLog: 'ЖУРНАЛ',
         hp: 'ОЗ',
         level: 'УР',
-        xp: 'ОПЫТ',
+        xp: 'ОП',
         attackShort: 'АТК',
-        defenseShort: 'ЗЩТ',
-        reviveShort: 'ШНС',
-        bright: 'СВЕТ',
-        dark: 'ТЬМА',
+        defenseShort: 'ЗАЩ',
+        reviveShort: 'ЖИЗН',
+        bright: 'СВТ',
+        dark: 'МРАК',
         goldShort: 'З',
         potionShort: 'Э',
         resolveShort: 'В',
         lightShort: 'С',
-        shardShort: 'О',
+        shardShort: 'ОСК',
         depthShort: 'Г',
         killShort: 'У',
         bossShort: 'Б',
         prestige: 'ПРЕСТИЖ',
         depth: 'Глубина',
         mapDepth: 'ГЛУБИНА',
-        returnToMap: '[Пробел] К карте',
-        beginSilence: 'Ворота закрываются за спиной.',
-        dungeonListens: 'Каждая комната учит следующую, как тебя убить.',
-        levelUp: 'Получен уровень {level}.',
-        revive: 'Последний шанс спасает тебя. Осталось: {count}.',
-        lightLower: 'Фонарь теряет {count} света.',
-        unlocked: 'Открыто навсегда: {label}.',
-        chooseMove: 'Выбери ход.',
+        returnToMap: '[Пробел] На карту',
+        beginSilence: 'Ворота за спиной встают на засов.',
+        dungeonListens: 'Каждая комната оставляет урок на камне.',
+        levelUp: 'Уровень {level}.',
+        revive: 'Последний шанс сработал. Зарядов: {count}.',
+        lightLower: 'Фонарь гаснет на {count}.',
+        unlocked: 'Память закрепила: {label}.',
+        chooseMove: 'Твой ход.',
         actionAttack: '[1] Удар',
-        actionDefend: '[2] Блок',
-        actionStagger: '[3] Сломать',
+        actionDefend: '[2] Защита',
+        actionStagger: '[3] Сорвать',
         actionPotion: '[{num}] Эликсир',
         actionCareful: '[1] Осторожно',
         actionForce: '[2] Вскрыть',
         actionLeave: '[3] Оставить',
         actionRush: '[1] Прорваться',
-        actionDisarm: '[2] Разрядить',
+        actionDisarm: '[2] Обезвредить',
         actionProbe: '[3] Изучить',
         actionRecover: '[1] Отдохнуть',
         actionFocus: '[2] Собраться',
         actionScout: '[1] Обыскать',
-        actionSteady: '[2] Устоять',
+        actionSteady: '[2] Выдохнуть',
         actionPray: '[1] Молиться',
-        actionOffer: '[2] Жертва {cost}з',
+        actionOffer: '[2] Подношение {cost}з',
         actionRite: '[3] Обряд {cost}о',
         actionDynamicLeave: '[{num}] Уйти',
         actionBuyPotion: '[1] Эликсир {cost}з',
         actionLantern: '[{num}] Масло {cost}з',
         actionArmor: '[{num}] Броня {cost}з',
-        actionRelic: '[{num}] Масло {cost}о',
-        collectSelf: 'Переведи дыхание и иди дальше.',
+        actionRelic: '[{num}] Реликтовое масло {cost}о',
+        collectSelf: 'Выдохни и иди глубже.',
         intentLine: '{detail}',
-        guardLine: 'Блок: {guard}.',
-        treasureLeaveGain: 'Ты оставляешь тайник закрытым и восстанавливаешь {parts}.',
-        treasureLeaveNoGain: 'Ты оставляешь тайник и идешь дальше.',
-        treasureSecured: 'Ты забираешь: {parts}.',
-        lockBites: 'Замок режет ладонь: {damage} урона.',
+        guardLine: 'Защита: {guard}.',
+        treasureLeaveGain: 'Ты не трогаешь тайник и приходишь в себя: {parts}.',
+        treasureLeaveNoGain: 'Ты оставляешь тайник и уходишь.',
+        treasureSecured: 'Добыча: {parts}.',
+        lockBites: 'Замок вспарывает ладонь: {damage} урона.',
         plusXp: '+{value} опыта',
         plusGold: '+{value} золота',
         plusPotion: '+1 эликсир',
         plusAttack: '+{value} атаки',
-        plusShard: '+{value} осколок',
-        trapRush: 'Ты прорываешься и получаешь {damage} урона.',
-        trapDisarm: 'Ты разряжаешь ловушку и находишь {gold} золота.',
+        plusShard: '+{value} осколк.',
+        trapRush: 'Ты проскакиваешь ловушку: {damage} урона.',
+        trapDisarm: 'Ты обезвреживаешь механизм и находишь {gold} золота.',
         trapSnap: 'Ловушка срабатывает: {damage} урона.',
-        trapSnapIntel: 'Ловушка срабатывает раньше, чем ты отдергиваешь руку.',
-        trapProbe: 'Ты тратишь волю и разбираешь ловушку: {parts}.',
-        restRecover: 'Ты отдыхаешь и восстанавливаешь {parts}.',
-        focusResolve: 'Ты выравниваешь дыхание и получаешь {value} воли.',
-        focusXp: 'Ты изучаешь комнату и получаешь {value} опыта.',
-        shrineAttack: 'Алтарь метит оружие: +1 атаки до конца забега.',
-        shrineWound: 'Алтарь забирает {damage} ОЗ и дает {resolve} воли.',
-        shrineOffer: 'Жертва дает +{value} макс. ОЗ до конца забега.',
-        shrineRite: 'Обряд дает +{hp} макс. ОЗ и +{resolve} воли.',
-        buyPotion: 'Ты покупаешь эликсир.',
+        trapSnapIntel: 'Механизм щёлкает раньше, чем ты отдёргиваешь руку.',
+        trapProbe: 'Ты разбираешь механизм ценой воли: {parts}.',
+        restRecover: 'Короткий отдых даёт {parts}.',
+        focusResolve: 'Ты ровняешь дыхание: +{value} воли.',
+        focusXp: 'Ты читаешь следы в комнате: +{value} опыта.',
+        shrineAttack: 'Алтарь оставляет зарубку на оружии: +1 атаки до конца забега.',
+        shrineWound: 'Алтарь берёт {damage} ОЗ и возвращает {resolve} воли.',
+        shrineOffer: 'Подношение укрепляет тело: +{value} макс. ОЗ до конца забега.',
+        shrineRite: 'Обряд даёт +{hp} макс. ОЗ и +{resolve} воли.',
+        buyPotion: 'Ты берёшь эликсир.',
         buyLantern: 'Ты доливаешь масло: +{value} света.',
-        buyArmor: 'Ты усиливаешь броню: +{value} защиты.',
-        buyRelic: 'Реликтовое масло дает +{attack} атаки и +{potions} эликсир.',
-        emptyScout: 'Ты обыскиваешь комнату и находишь {parts}.',
-        emptySteady: 'Ты берешь паузу и получаешь {value} воли.',
-        emptyStudy: 'Ты изучаешь метки на стенах и получаешь {value} опыта.',
-        enemyFallback: 'Кто-то выходит на свет.',
-        enemyInfoLocked: 'Сведения о врагах откроются глубже.',
+        buyArmor: 'Ремни подтянуты: +{value} защиты.',
+        buyRelic: 'Реликтовое масло даёт +{attack} атаки и +{potions} эликсир.',
+        emptyScout: 'Ты обыскиваешь комнату: {parts}.',
+        emptySteady: 'Ты берёшь паузу: +{value} воли.',
+        emptyStudy: 'Ты сверяешь зарубки на стенах: +{value} опыта.',
+        enemyFallback: 'Что-то входит в свет фонаря.',
+        enemyInfoLocked: 'Подробности о врагах придут с опытом.',
         pathOpen: 'Путь свободен.',
         victoryRewards: 'Награда: {parts}.',
-        deathTitle: 'ЭКСПЕДИЦИЯ ПОТЕРЯНА',
+        deathTitle: 'ЭКСПЕДИЦИЯ НЕ ВЕРНУЛАСЬ',
         deathSummary: 'Лучшая глубина: {depth}\nБоссов побеждено: {bosses}\nПрестиж: +{prestige}\n{line}',
         deathRunLine: 'Глубина {depth}  |  Боссы {bosses}  |  Престиж +{prestige}',
-        victoryScreenTitle: 'АРТЕФАКТ ТВОЙ',
-        victoryScreenSummary: 'Ты прошел {depth} уровней тьмы, победил {bosses} хранителей и забрал Артефакт Желаний.\nПодземелью больше нечего у тебя отнять.',
+        victoryScreenTitle: 'АРТЕФАКТ У ТЕБЯ',
+        victoryScreenSummary: 'Ты прошёл {depth} глубин, победил {bosses} хранителей и вынес Артефакт Желаний.\nВнизу больше нечего у тебя забрать.',
         victoryNewRun: 'Спуститься снова',
         restart: 'Новый забег',
-        reset: 'Стереть память души',
+        reset: 'Стереть память',
         prestigeBank: 'Запас престижа: {value}',
         nextDiscovery: 'Следующее открытие: {requirement} -> {label}.',
-        allDiscovered: 'Все постоянные открытия уже получены.',
+        allDiscovered: 'Все постоянные открытия уже закреплены.',
         levelCard: 'Ур {level}/{max}',
         max: 'МАКС',
         cost: 'Цена {cost}',
-        confirmResetTitle: 'Сбросить весь прогресс?',
-        confirmResetBody: 'Это сотрет престиж, постоянные улучшения и открытия.\nСледующий забег начнется с чистого профиля.',
-        confirmResetYes: 'Да, стереть все',
+        confirmResetTitle: 'Стереть весь прогресс?',
+        confirmResetBody: 'Это сотрёт престиж, улучшения и открытия.\nСледующий забег начнётся с чистого профиля.',
+        confirmResetYes: 'Да, стереть всё',
         cancel: 'Отмена',
         hostile: 'ВРАГ',
         elite: 'ЭЛИТА',
@@ -282,7 +286,7 @@ const TEXT = {
         rest: 'ПРИВАЛ',
         shrine: 'АЛТАРЬ',
         merchant: 'ТОРГОВЕЦ',
-        empty: 'ПУСТО',
+        empty: 'ПУСТАЯ',
         roomCamp: 'Лагерь',
         roomEnemy: 'Враг',
         roomTreasure: 'Тайник',
@@ -294,103 +298,40 @@ const TEXT = {
         roomBoss: 'Босс',
         roomEmpty: 'Пустая комната',
         intentAttack: 'Удар',
-        intentAttackDetail: 'Готовится к удару.',
+        intentAttackDetail: 'Собирается ударить.',
         intentHeavy: 'Сильный удар',
-        intentHeavyDetail: 'Замахивается для сильного удара.',
+        intentHeavyDetail: 'Поднимает оружие для тяжёлого удара.',
         intentGuard: 'Защита',
-        intentGuardDetail: 'Отступает и прикрывается.',
+        intentGuardDetail: 'Отходит и закрывается.',
         intentCharge: 'Подготовка',
-        intentChargeDetail: 'Готовит удар сильнее обычного.',
+        intentChargeDetail: 'Копит силу для следующего удара.',
         intentCurse: 'Проклятие',
-        intentCurseDetail: 'Шепчет проклятие.',
-        combatBoss: 'Хранитель этажа перекрывает путь.',
-        combatElite: 'Сильный враг перекрывает путь.',
-        combatHostile: 'Враг рядом.',
+        intentCurseDetail: 'Шепчет сквозь зубы.',
+        combatBoss: 'Хранитель перекрыл лестницу вниз.',
+        combatElite: 'Опытный враг держит проход.',
+        combatHostile: 'Контакт с врагом.',
         strikeCrit: 'Критический удар: {damage} урона.',
         strike: 'Ты наносишь {damage} урона.',
-        brace: 'Ты поднимаешь блок.',
+        brace: 'Ты встаёшь в защиту.',
         needResolve: 'Не хватает воли.',
-        skillStagger: 'Ты ломаешь "{intent}" и наносишь {damage} урона.',
-        skillLand: 'Прием наносит {damage} урона.',
+        skillStagger: 'Ты срываешь "{intent}" и наносишь {damage} урона.',
+        skillLand: 'Приём наносит {damage} урона.',
         noPotions: 'Эликсиров нет.',
-        drinkPotion: 'Ты пьешь эликсир и лечишь {healed} ОЗ.',
+        drinkPotion: 'Ты пьёшь эликсир: +{healed} ОЗ.',
         enemyFalls: '{name} падает.',
-        planBreaks: 'Ход {name} сорван.',
-        darknessCloses: 'Ты падаешь в темноте.',
-        guardAbsorbs: 'Блок {name} поглощает {blocked}.',
-        enemyGuard: '{name} получает {guard} блока.',
-        enemyCharge: '{name} готовит сильный удар.',
+        planBreaks: 'Действие {name} сорвано.',
+        darknessCloses: 'Свет гаснет. Ты падаешь.',
+        guardAbsorbs: 'Защита {name} поглощает {blocked}.',
+        enemyGuard: '{name} получает {guard} защиты.',
+        enemyCharge: '{name} копит силу для удара.',
         enemyCurse: '{name} проклинает тебя: {damage}{suffix}.',
         curseSuffix: ' и гасит {light} света',
-        enemyStrikes: '{name} бьет',
-        enemyHeavy: '{name} бьет со всей силы',
+        enemyStrikes: '{name} бьёт',
+        enemyHeavy: '{name} бьёт со всей силы',
         enemyHits: '{label}: {damage} урона.',
-        absorb: 'Твой блок поглощает удар.',
+        absorb: 'Твоя защита держит удар.',
     },
 } as const;
-
-const RU_ENEMIES: Record<string, { name: string; description: string }> = {
-    'Ash Rat': {
-        name: 'Пепельная крыса',
-        description: 'Маленькая, быстрая, всегда первой бросается к крови.',
-    },
-    'Rot Walker': {
-        name: 'Гнилой ходок',
-        description: 'Медленный мертвец. Его трудно добить быстро.',
-    },
-    'Grave Bat': {
-        name: 'Могильная мышь',
-        description: 'Падает сверху и не дает спокойно лечиться.',
-    },
-    'Bone Warden': {
-        name: 'Костяной страж',
-        description: 'Старый страж в ржавой броне. Часто прикрывается.',
-    },
-    'Gloom Adept': {
-        name: 'Адепт мрака',
-        description: 'Колдун, который тянет бой и гасит свет.',
-    },
-    'Hollow Hound': {
-        name: 'Полая гончая',
-        description: 'Быстрая тварь. Наказывает промедление.',
-    },
-    'Catacomb Veteran': {
-        name: 'Ветеран катакомб',
-        description: 'Опытный боец. Проверяет, умеешь ли ты защищаться.',
-    },
-    'Shade Hunter': {
-        name: 'Охотник из тени',
-        description: 'Становится опаснее, когда ты уже ранен.',
-    },
-    'Ossuary Arcanist': {
-        name: 'Арканист костницы',
-        description: 'Терпеливый маг. Жадные ходы против него опасны.',
-    },
-    'Dread Knight': {
-        name: 'Рыцарь ужаса',
-        description: 'Тяжелый боец. Чем дольше бой, тем хуже для тебя.',
-    },
-    'Void Channeler': {
-        name: 'Проводник пустоты',
-        description: 'Копит силу и ломает план, если дать ему время.',
-    },
-    'Night Talon': {
-        name: 'Ночной коготь',
-        description: 'Быстрый охотник. Слабая подготовка против него заметна сразу.',
-    },
-    'Necromancer Regent': {
-        name: 'Некромант-регент',
-        description: 'Хранитель первых глубин. Проверяет весь твой маршрут.',
-    },
-    'The Lich of Cinders': {
-        name: 'Лич пепла',
-        description: 'Ждет тех, кто научился выживать долго.',
-    },
-    'Nameless Maw': {
-        name: 'Безымянная пасть',
-        description: 'Глубина, которая перестала притворяться комнатой.',
-    },
-};
 
 export class Localization {
     language: Language;
@@ -407,83 +348,24 @@ export class Localization {
         );
     }
 
+    pick(text: LocalizedText | string | null | undefined): string {
+        return pickLocalized(this.language, text);
+    }
+
+    format(text: LocalizedText | string | null | undefined, vars: Vars = {}): string {
+        const template = this.pick(text);
+        return Object.entries(vars).reduce(
+            (result, [name, value]) => result.replaceAll(`{${name}}`, String(value)),
+            template
+        );
+    }
+
     enemyName(name: string): string {
-        return this.language === 'ru' ? RU_ENEMIES[name]?.name ?? name : name;
+        return this.language === 'ru' ? RU_ENEMY_TEXT[name]?.name ?? name : name;
     }
 
     enemyDescription(name: string, fallback: string): string {
-        return this.language === 'ru' ? RU_ENEMIES[name]?.description ?? fallback : fallback;
-    }
-
-    upgradeTitle(id: string, fallback: string): string {
-        if (this.language === 'en') {
-            return fallback;
-        }
-
-        return (
-            {
-                vitality: 'Живучесть',
-                might: 'Сила',
-                wisdom: 'Опыт',
-                recovery: 'Передышка',
-                preparation: 'Подготовка',
-                lastStand: 'Последний шанс',
-            } as Record<string, string>
-        )[id] ?? fallback;
-    }
-
-    upgradeDescription(id: string, fallback: string, nextLevel: number): string {
-        if (this.language === 'en') {
-            return fallback;
-        }
-
-        switch (id) {
-            case 'vitality':
-                return `В начале забега: +${nextLevel * 3} макс. ОЗ.`;
-            case 'might':
-                return `В начале забега: +${nextLevel} атаки.`;
-            case 'wisdom':
-                return `Опыт из всех источников: +${nextLevel * 15}%.`;
-            case 'recovery':
-                return `Привал лечит на +${nextLevel * 2}; ловушки наносят -${nextLevel} урона.`;
-            case 'preparation':
-                return `Когда открыт свет, забег начинается с +${nextLevel} света.`;
-            case 'lastStand':
-                return 'Один раз за забег переживи смертельный удар.';
-            default:
-                return fallback;
-        }
-    }
-
-    milestoneLabel(id: string, fallback: string): string {
-        if (this.language === 'en') {
-            return fallback;
-        }
-
-        return (
-            {
-                'depth-1': 'числа здоровья и текущая глубина',
-                'depth-2': 'иконки комнат, опыт и золото',
-                'depth-3': 'ловушки и боевые характеристики',
-                'depth-4': 'торговцы, эликсиры и лечение в бою',
-                'depth-5': 'воля, алтари и прием "Сломать"',
-                'depth-6': 'свет, тьма и фонарь',
-                'depth-7': 'элитные комнаты, здоровье врагов и счетчики забега',
-                'first-boss': 'осколки, редкие обряды и прогноз престижа',
-            } as Record<string, string>
-        )[id] ?? fallback;
-    }
-
-    milestoneRequirement(id: string, fallback: string): string {
-        if (this.language === 'en') {
-            return fallback;
-        }
-
-        if (id === 'first-boss') {
-            return 'Победи первого босса';
-        }
-
-        return fallback.replace('Reach depth', 'Достигни глубины');
+        return this.language === 'ru' ? RU_ENEMY_TEXT[name]?.description ?? fallback : fallback;
     }
 
     toggle(): Language {

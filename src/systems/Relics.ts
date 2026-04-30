@@ -1,3 +1,6 @@
+import type { LocalizedText } from './LocalizedText';
+import { lt } from './LocalizedText';
+
 // Relic catalog. Relics are permanent modifiers for the current run.
 // They stack additively. Relics are acquired from boss rooms, elite rooms,
 // treasure rooms (small chance), merchants (via shards), and shrines.
@@ -30,145 +33,202 @@ export type RelicRarity = 'common' | 'rare' | 'unique';
 
 export interface RelicDef {
     id: RelicId;
-    name: string;
-    short: string;
+    name: LocalizedText;
+    short: LocalizedText;
     rarity: RelicRarity;
-    description: string;
+    description: LocalizedText;
 }
 
 export const RELICS: Record<RelicId, RelicDef> = {
     bloodied_fang: {
         id: 'bloodied_fang',
-        name: 'Bloodied Fang',
-        short: 'Fang',
+        name: lt('Окровавленный клык', 'Bloodied Fang'),
+        short: lt('Клык', 'Fang'),
         rarity: 'common',
-        description: 'Basic attacks also inflict Bleed 1 for 2 turns.',
+        description: lt(
+            'Обычные атаки накладывают Кровотечение 1 на 2 хода.',
+            'Basic attacks also inflict Bleed 1 for 2 turns.'
+        ),
     },
     iron_will: {
         id: 'iron_will',
-        name: 'Iron Will',
-        short: 'Iron',
+        name: lt('Железная воля', 'Iron Will'),
+        short: lt('Воля', 'Iron'),
         rarity: 'common',
-        description: '+1 Defense. You resist the first stun each combat.',
+        description: lt(
+            '+1 к защите. Первое Оглушение в каждом бою не срабатывает.',
+            '+1 Defense. You resist the first stun each combat.'
+        ),
     },
     embervow: {
         id: 'embervow',
-        name: 'Ember Vow',
-        short: 'Ember',
+        name: lt('Угольный обет', 'Ember Vow'),
+        short: lt('Уголь', 'Ember'),
         rarity: 'rare',
-        description: '+25% damage while at or below 33% HP.',
+        description: lt(
+            '+25% к урону, пока у тебя не больше 33% ОЗ.',
+            '+25% damage while at or below 33% HP.'
+        ),
     },
     lanterns_oath: {
         id: 'lanterns_oath',
-        name: "Lantern's Oath",
-        short: 'Oath',
+        name: lt('Обет фонаря', "Lantern's Oath"),
+        short: lt('Обет', 'Oath'),
         rarity: 'common',
-        description: 'Empty rooms do not drain your light.',
+        description: lt(
+            'Пустые комнаты не гасят фонарь.',
+            'Empty rooms do not drain your light.'
+        ),
     },
     gamblers_knuckle: {
         id: 'gamblers_knuckle',
-        name: "Gambler's Knuckle",
-        short: 'Knuck',
+        name: lt('Костяшка игрока', "Gambler's Knuckle"),
+        short: lt('Кость', 'Knuck'),
         rarity: 'rare',
-        description: '+12% crit chance. Your crits restore 1 resolve.',
+        description: lt(
+            '+12% к шансу крита. Криты возвращают 1 волю.',
+            '+12% crit chance. Your crits restore 1 resolve.'
+        ),
     },
     shade_mask: {
         id: 'shade_mask',
-        name: 'Shade Mask',
-        short: 'Mask',
+        name: lt('Маска тени', 'Shade Mask'),
+        short: lt('Маска', 'Mask'),
         rarity: 'rare',
-        description: 'First enemy action each combat is evaded.',
+        description: lt(
+            'Первая атака врага в каждом бою проходит мимо.',
+            'First enemy action each combat is evaded.'
+        ),
     },
     thorned_mail: {
         id: 'thorned_mail',
-        name: 'Thorned Mail',
-        short: 'Thorns',
+        name: lt('Шипастая кольчуга', 'Thorned Mail'),
+        short: lt('Шипы', 'Thorns'),
         rarity: 'common',
-        description: 'Enemies take 2 damage whenever they hit you.',
+        description: lt(
+            'Враги получают 2 урона каждый раз, когда попадают по тебе.',
+            'Enemies take 2 damage whenever they hit you.'
+        ),
     },
     vampiric_sigil: {
         id: 'vampiric_sigil',
-        name: 'Vampiric Sigil',
-        short: 'Sigil',
+        name: lt('Вампирская печать', 'Vampiric Sigil'),
+        short: lt('Печать', 'Sigil'),
         rarity: 'rare',
-        description: 'Heal 2 HP each time you kill an enemy or crit.',
+        description: lt(
+            'Убийство или крит восстанавливают 2 ОЗ.',
+            'Heal 2 HP each time you kill an enemy or crit.'
+        ),
     },
     stoneheart: {
         id: 'stoneheart',
-        name: 'Stoneheart',
-        short: 'Stone',
+        name: lt('Каменное сердце', 'Stoneheart'),
+        short: lt('Камень', 'Stone'),
         rarity: 'common',
-        description: '+8 Max HP. Heal +3 at every Rest.',
+        description: lt(
+            '+8 к макс. ОЗ. Отдых лечит ещё на 3.',
+            '+8 Max HP. Heal +3 at every Rest.'
+        ),
     },
     rally_standard: {
         id: 'rally_standard',
-        name: 'Rally Standard',
-        short: 'Rally',
+        name: lt('Стяг сбора', 'Rally Standard'),
+        short: lt('Стяг', 'Rally'),
         rarity: 'rare',
-        description: 'Start combat with Focus +1 for 3 turns.',
+        description: lt(
+            'В начале боя: Фокус +1 на 3 хода.',
+            'Start combat with Focus +1 for 3 turns.'
+        ),
     },
     cursed_coin: {
         id: 'cursed_coin',
-        name: 'Cursed Coin',
-        short: 'Coin',
+        name: lt('Проклятая монета', 'Cursed Coin'),
+        short: lt('Монета', 'Coin'),
         rarity: 'common',
-        description: '+50% gold gain. You take +1 damage from traps.',
+        description: lt(
+            '+50% к золоту. Ловушки наносят тебе +1 урона.',
+            '+50% gold gain. You take +1 damage from traps.'
+        ),
     },
     ossuary_rosary: {
         id: 'ossuary_rosary',
-        name: 'Ossuary Rosary',
-        short: 'Rosary',
+        name: lt('Костяные чётки', 'Ossuary Rosary'),
+        short: lt('Чётки', 'Rosary'),
         rarity: 'common',
-        description: 'Stress gain is reduced by 30%.',
+        description: lt(
+            'Получаемый стресс снижен на 30%.',
+            'Stress gain is reduced by 30%.'
+        ),
     },
     witchglass: {
         id: 'witchglass',
-        name: 'Witchglass',
-        short: 'Glass',
+        name: lt('Ведьмино стекло', 'Witchglass'),
+        short: lt('Стекло', 'Glass'),
         rarity: 'rare',
-        description: 'Always see the next TWO layers of rooms.',
+        description: lt(
+            'Показывает два следующих слоя комнат.',
+            'Always see the next TWO layers of rooms.'
+        ),
     },
     pyre_ash: {
         id: 'pyre_ash',
-        name: 'Pyre Ash',
-        short: 'Pyre',
+        name: lt('Пепел костра', 'Pyre Ash'),
+        short: lt('Пепел', 'Pyre'),
         rarity: 'rare',
-        description: 'Bleed you apply lasts +1 turn and has +1 stack.',
+        description: lt(
+            'Твоё Кровотечение длится на 1 ход дольше и получает +1 заряд.',
+            'Bleed you apply lasts +1 turn and has +1 stack.'
+        ),
     },
     silent_boots: {
         id: 'silent_boots',
-        name: 'Silent Boots',
-        short: 'Boots',
+        name: lt('Тихие сапоги', 'Silent Boots'),
+        short: lt('Сапоги', 'Boots'),
         rarity: 'common',
-        description: 'Always act first. +5% crit chance.',
+        description: lt(
+            'Ты всегда ходишь первым. +5% к шансу крита.',
+            'Always act first. +5% crit chance.'
+        ),
     },
     warden_oath: {
         id: 'warden_oath',
-        name: "Warden's Oath",
-        short: 'Warden',
+        name: lt('Обет стража', "Warden's Oath"),
+        short: lt('Страж', 'Warden'),
         rarity: 'rare',
-        description: 'Defending blocks +3 extra damage.',
+        description: lt(
+            'Защита блокирует ещё 3 урона.',
+            'Defending blocks +3 extra damage.'
+        ),
     },
     revenants_spite: {
         id: 'revenants_spite',
-        name: "Revenant's Spite",
-        short: 'Spite',
+        name: lt('Злоба ревенанта', "Revenant's Spite"),
+        short: lt('Злоба', 'Spite'),
         rarity: 'unique',
-        description: 'When you would die, instead heal 10 HP. Once per run.',
+        description: lt(
+            'Смертельный удар вместо смерти восстанавливает 10 ОЗ. Один раз за забег.',
+            'When you would die, instead heal 10 HP. Once per run.'
+        ),
     },
     herbalist_kit: {
         id: 'herbalist_kit',
-        name: "Herbalist's Kit",
-        short: 'Herbs',
+        name: lt('Набор травника', "Herbalist's Kit"),
+        short: lt('Травы', 'Herbs'),
         rarity: 'common',
-        description: 'Potions heal +4 HP and grant Regen 1 for 3 turns.',
+        description: lt(
+            'Эликсиры лечат ещё на 4 ОЗ и дают Регенерацию 1 на 3 хода.',
+            'Potions heal +4 HP and grant Regen 1 for 3 turns.'
+        ),
     },
     mercy_token: {
         id: 'mercy_token',
-        name: 'Mercy Token',
-        short: 'Mercy',
+        name: lt('Жетон милости', 'Mercy Token'),
+        short: lt('Милость', 'Mercy'),
         rarity: 'unique',
-        description: 'Low-light penalties are halved. +1 starting light.',
+        description: lt(
+            'Штрафы от слабого света вдвое меньше. +1 стартовый свет.',
+            'Low-light penalties are halved. +1 starting light.'
+        ),
     },
 };
 

@@ -1,3 +1,4 @@
+import { pickLocalized } from './LocalizedText';
 import { ALL_NPC_IDS, NPCS } from './Npcs';
 import type { NpcDialogBeat, NpcId, NpcOfferTemplate, NpcProfile, NpcRole, NpcStateTag } from './Npcs';
 
@@ -198,7 +199,7 @@ export class NpcManager {
 
     // Pick a boss-intro line from the most-known NPC (highest met OR affinity).
     // Returns null if the player has met no one yet.
-    pickBossIntro(): { npc: NpcProfile; line: string } | null {
+    pickBossIntro(language: 'ru' | 'en' = 'en'): { npc: NpcProfile; line: string } | null {
         const known = ALL_NPC_IDS
             .filter((id) => this.memory[id].metCount > 0)
             .sort((a, b) => {
@@ -209,35 +210,41 @@ export class NpcManager {
         if (known.length === 0) return null;
         const npc = NPCS[known[0]];
         const lines = npc.voice.bossIntro;
-        const line = lines[Math.floor(Math.random() * lines.length)];
+        const line = pickLocalized(language, lines[Math.floor(Math.random() * lines.length)]);
         return { npc, line };
     }
 
     // Snapshot of all known NPCs for end-of-run summary. Returns lines like
     // "Mira  |  met x3  |  trusted" suitable for display.
-    getMemorySummary(): string[] {
+    getMemorySummary(language: 'ru' | 'en' = 'en'): string[] {
         const lines: string[] = [];
         for (const id of ALL_NPC_IDS) {
             const m = this.memory[id];
             if (m.metCount === 0) continue;
             const npc = NPCS[id];
-            let bond = 'distant';
-            if (m.affinity >= 4) bond = 'trusted';
-            else if (m.affinity >= 2) bond = 'liked';
-            else if (m.affinity <= -2) bond = 'wary';
-            else if (m.metCount >= 1) bond = 'familiar';
-            lines.push(`${npc.name} (${npc.title})  |  met x${m.metCount}  |  ${bond}`);
+            const name = pickLocalized(language, npc.name);
+            const title = pickLocalized(language, npc.title);
+            let bond = language === 'ru' ? 'далёкий' : 'distant';
+            if (m.affinity >= 4) bond = language === 'ru' ? 'доверие' : 'trusted';
+            else if (m.affinity >= 2) bond = language === 'ru' ? 'расположен' : 'liked';
+            else if (m.affinity <= -2) bond = language === 'ru' ? 'насторожен' : 'wary';
+            else if (m.metCount >= 1) bond = language === 'ru' ? 'знаком' : 'familiar';
+            lines.push(
+                language === 'ru'
+                    ? `${name} (${title})  |  встреч x${m.metCount}  |  ${bond}`
+                    : `${name} (${title})  |  met x${m.metCount}  |  ${bond}`
+            );
         }
         return lines;
     }
 
     // Pick a low-hp recall barb from any NPC the player has bonded with
     // (affinity >= 1). Used for the "voice in your head" fallback.
-    pickLowHpRecall(): string | null {
+    pickLowHpRecall(language: 'ru' | 'en' = 'en'): string | null {
         const friends = ALL_NPC_IDS.filter((id) => this.memory[id].affinity >= 1);
         if (friends.length === 0) return null;
         const npc = NPCS[friends[Math.floor(Math.random() * friends.length)]];
         const lines = npc.voice.lowHpRecall;
-        return lines[Math.floor(Math.random() * lines.length)];
+        return pickLocalized(language, lines[Math.floor(Math.random() * lines.length)]);
     }
 }

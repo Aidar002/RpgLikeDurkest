@@ -5,6 +5,7 @@ import {
     PLAYER_CONFIG,
 } from '../data/GameConfig';
 import type { PlayerMetaBonuses } from './MetaProgressionManager';
+import { pickLocalized } from './LocalizedText';
 import type { RelicAggregate, RelicId } from './Relics';
 import { aggregateRelics, emptyAggregate, RELICS } from './Relics';
 import { emptyStatusState } from './StatusEffects';
@@ -277,8 +278,8 @@ export class PlayerManager {
         this.recomputeAggregate();
     }
 
-    getRelicNames(): string[] {
-        return this.relics.map((id) => RELICS[id].name);
+    getRelicNames(language: 'ru' | 'en' = 'ru'): string[] {
+        return this.relics.map((id) => pickLocalized(language, RELICS[id].name));
     }
 
     addAttackBonus(amount: number) {

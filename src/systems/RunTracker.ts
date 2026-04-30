@@ -74,7 +74,7 @@ export class RunTracker {
         if (language === 'ru') {
             lines.push(`Комнат пройдено: ${s.roomsVisited}`);
             lines.push(`Врагов побеждено: ${s.enemiesKilled}`);
-            if (s.elitesKilled > 0) lines.push(`Элиты побеждено: ${s.elitesKilled}`);
+            if (s.elitesKilled > 0) lines.push(`Элит побеждено: ${s.elitesKilled}`);
             if (s.bossesKilled > 0) lines.push(`Боссов побеждено: ${s.bossesKilled}`);
             lines.push(`Урон: ${s.damageDealt} нанесено  |  ${s.damageTaken} получено`);
             if (s.criticalHits > 0) lines.push(`Критических ударов: ${s.criticalHits}`);
@@ -82,11 +82,11 @@ export class RunTracker {
             if (s.potionsUsed > 0) lines.push(`Эликсиров выпито: ${s.potionsUsed}`);
             if (s.healingDone > 0) lines.push(`ОЗ восстановлено: ${s.healingDone}`);
             lines.push(`Ходов в бою: ${s.turnsInCombat}`);
-            lines.push(`Достигнутый уровень: ${s.levelReached}`);
+            lines.push(`Уровень: ${s.levelReached}`);
             if (s.relicsFound > 0) lines.push(`Реликвий найдено: ${s.relicsFound}`);
             if (s.bleedDamageDealt > 0) lines.push(`Урон кровотечением: ${s.bleedDamageDealt}`);
             if (s.peakStress > 0) lines.push(`Пик стресса: ${s.peakStress}`);
-            if (s.stressResolutions > 0) lines.push(`Срывов/откровений: ${s.stressResolutions}`);
+            if (s.stressResolutions > 0) lines.push(`Срывов/доблестей: ${s.stressResolutions}`);
             return lines;
         }
 
@@ -111,11 +111,11 @@ export class RunTracker {
     getRunTitle(language: Language): string {
         const s = this.stats;
         if (language === 'ru') {
-            if (s.bossesKilled >= 3) return 'ГЛУБОКАЯ ОХОТА';
+            if (s.bossesKilled >= 3) return 'ГЛУБОКИЙ СЛЕД';
             if (s.bossesKilled > 0) return 'ХРАНИТЕЛЬ ПАЛ';
-            if (s.elitesKilled > 0) return 'СИЛЬНЫЙ ЗАБЕГ';
+            if (s.elitesKilled > 0) return 'КРЕПКИЙ ЗАБЕГ';
             if (s.bestDepth >= 5) return 'ГЛУБОКИЙ СПУСК';
-            if (s.enemiesKilled >= 5) return 'ТЯЖЕЛЫЙ БОЙ';
+            if (s.enemiesKilled >= 5) return 'ТЯЖЁЛЫЙ БОЙ';
             if (s.bestDepth >= 3) return 'ХОРОШЕЕ НАЧАЛО';
             return 'КОРОТКИЙ СПУСК';
         }
