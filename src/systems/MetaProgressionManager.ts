@@ -574,6 +574,13 @@ export class MetaProgressionManager {
     }
 
     private sanitizeProfile(profile: Partial<MetaProfile>): MetaProfile {
+        const sanitizedUpgrades = {} as Record<UpgradeId, number>;
+        for (const definition of UPGRADE_DEFINITIONS) {
+            const incoming =
+                profile.upgrades?.[definition.id] ?? DEFAULT_PROFILE.upgrades[definition.id];
+            sanitizedUpgrades[definition.id] = Math.max(0, Math.min(definition.maxLevel, incoming));
+        }
+
         return {
             prestigePoints: Math.max(0, profile.prestigePoints ?? DEFAULT_PROFILE.prestigePoints),
             totalPrestigeEarned: Math.max(
@@ -582,17 +589,7 @@ export class MetaProgressionManager {
             ),
             highestDepthEver: Math.max(0, profile.highestDepthEver ?? DEFAULT_PROFILE.highestDepthEver),
             bossesKilledEver: Math.max(0, profile.bossesKilledEver ?? DEFAULT_PROFILE.bossesKilledEver),
-            upgrades: {
-                vitality: Math.min(5, profile.upgrades?.vitality ?? DEFAULT_PROFILE.upgrades.vitality),
-                might: Math.min(3, profile.upgrades?.might ?? DEFAULT_PROFILE.upgrades.might),
-                wisdom: Math.min(4, profile.upgrades?.wisdom ?? DEFAULT_PROFILE.upgrades.wisdom),
-                recovery: Math.min(4, profile.upgrades?.recovery ?? DEFAULT_PROFILE.upgrades.recovery),
-                preparation: Math.min(
-                    3,
-                    profile.upgrades?.preparation ?? DEFAULT_PROFILE.upgrades.preparation
-                ),
-                lastStand: Math.min(1, profile.upgrades?.lastStand ?? DEFAULT_PROFILE.upgrades.lastStand),
-            },
+            upgrades: sanitizedUpgrades,
             contentUnlocks: {
                 ...DEFAULT_CONTENT_UNLOCKS,
                 ...profile.contentUnlocks,

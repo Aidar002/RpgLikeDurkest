@@ -151,7 +151,7 @@ export class MapGenerator {
 
     private getForcedRoomType(depth: number, allNodes: MapNode[], pendingNodes: MapNode[]): RoomType | null {
         const bossDepth = this.getUpcomingBossDepth(depth);
-        if (bossDepth === null) {
+        if (bossDepth === null || depth !== bossDepth - 1) {
             return null;
         }
 
@@ -159,34 +159,26 @@ export class MapGenerator {
         const prepWindowStart = bossDepth - 2;
         const fullSet = [...allNodes, ...pendingNodes];
 
-        if (
-            this.availableRooms.has(RoomType.ELITE) &&
-            depth >= eliteWindowStart &&
-            depth < bossDepth &&
-            !fullSet.some(
-                (node) =>
-                    node.depth >= eliteWindowStart &&
-                    node.depth < bossDepth &&
-                    node.type === RoomType.ELITE
-            ) &&
-            depth === bossDepth - 1
-        ) {
+        const hasEliteInWindow = fullSet.some(
+            (node) =>
+                node.depth >= eliteWindowStart &&
+                node.depth < bossDepth &&
+                node.type === RoomType.ELITE
+        );
+
+        if (this.availableRooms.has(RoomType.ELITE) && !hasEliteInWindow) {
             return RoomType.ELITE;
         }
 
         const availablePrepRooms = PREP_ROOM_POOL.filter((type) => this.availableRooms.has(type));
-        if (
-            availablePrepRooms.length > 0 &&
-            depth >= prepWindowStart &&
-            depth < bossDepth &&
-            !fullSet.some(
-                (node) =>
-                    node.depth >= prepWindowStart &&
-                    node.depth < bossDepth &&
-                    availablePrepRooms.includes(node.type)
-            ) &&
-            depth === bossDepth - 1
-        ) {
+        const hasPrepInWindow = fullSet.some(
+            (node) =>
+                node.depth >= prepWindowStart &&
+                node.depth < bossDepth &&
+                availablePrepRooms.includes(node.type)
+        );
+
+        if (availablePrepRooms.length > 0 && !hasPrepInWindow) {
             return this.pickWeightedRoom(availablePrepRooms);
         }
 
@@ -202,6 +194,9 @@ export class MapGenerator {
     }
 
     private pickWeightedRoom(pool: RoomType[]): RoomType {
+        if (pool.length === 0) {
+            throw new Error('pickWeightedRoom called with empty pool');
+        }
         const totalWeight = pool.reduce((sum, type) => sum + this.getWeight(type), 0);
         const roll = Math.random() * totalWeight;
         let cursor = 0;
@@ -217,27 +212,8 @@ export class MapGenerator {
     }
 
     private getWeight(type: RoomType): number {
-        switch (type) {
-            case RoomType.ENEMY:
-                return MAP_CONFIG.roomTypeWeights.ENEMY;
-            case RoomType.EMPTY:
-                return MAP_CONFIG.roomTypeWeights.EMPTY;
-            case RoomType.TREASURE:
-                return MAP_CONFIG.roomTypeWeights.TREASURE;
-            case RoomType.TRAP:
-                return MAP_CONFIG.roomTypeWeights.TRAP;
-            case RoomType.REST:
-                return MAP_CONFIG.roomTypeWeights.REST;
-            case RoomType.SHRINE:
-                return MAP_CONFIG.roomTypeWeights.SHRINE;
-            case RoomType.MERCHANT:
-                return MAP_CONFIG.roomTypeWeights.MERCHANT;
-            case RoomType.ELITE:
-                return MAP_CONFIG.roomTypeWeights.ELITE;
-            case RoomType.START:
-            case RoomType.BOSS:
-                return 0;
-        }
+        const weights: Partial<Record<RoomType, number>> = MAP_CONFIG.roomTypeWeights;
+        return weights[type] ?? 0;
     }
 
     private makeNode(depth: number, slot: number, type: RoomType): MapNode {

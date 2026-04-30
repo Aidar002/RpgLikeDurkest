@@ -2,6 +2,11 @@ import './style.css';
 import * as Phaser from 'phaser';
 import { BootScene } from './scenes/BootScene';
 import { GameScene } from './scenes/GameScene';
+import { getSavedLanguage } from './systems/Localization';
+
+// Sync the document language with the user's saved preference so screen
+// readers and Lighthouse see the right value before any scene runs.
+document.documentElement.lang = getSavedLanguage();
 
 const config: Phaser.Types.Core.GameConfig = {
     type: Phaser.AUTO,

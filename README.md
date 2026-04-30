@@ -4,10 +4,22 @@ A compact Phaser 3 roguelike prototype with procedural map exploration, text-for
 
 ## Commands
 
+PowerShell (Windows):
+
 ```powershell
 npm install
 npm.cmd run dev -- --host 127.0.0.1
 npm.cmd run build
+npm.cmd run lint
+```
+
+bash (Linux / macOS / WSL):
+
+```bash
+npm install
+npm run dev -- --host 127.0.0.1
+npm run build
+npm run lint
 ```
 
 The app is served at `http://127.0.0.1:5173/RpgLikeDurkest/` during development.
