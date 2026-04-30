@@ -574,79 +574,11 @@ export class MetaProgressionManager {
     }
 
     private sanitizeProfile(profile: Partial<MetaProfile>): MetaProfile {
-        const sanitizedUpgrades = {} as Record<UpgradeId, number>;
-        for (const definition of UPGRADE_DEFINITIONS) {
-            const incoming =
-                profile.upgrades?.[definition.id] ?? DEFAULT_PROFILE.upgrades[definition.id];
-            sanitizedUpgrades[definition.id] = Math.max(0, Math.min(definition.maxLevel, incoming));
-        }
-
-        return {
-            prestigePoints: Math.max(0, profile.prestigePoints ?? DEFAULT_PROFILE.prestigePoints),
-            totalPrestigeEarned: Math.max(
-                0,
-                profile.totalPrestigeEarned ?? DEFAULT_PROFILE.totalPrestigeEarned
-            ),
-            highestDepthEver: Math.max(0, profile.highestDepthEver ?? DEFAULT_PROFILE.highestDepthEver),
-            bossesKilledEver: Math.max(0, profile.bossesKilledEver ?? DEFAULT_PROFILE.bossesKilledEver),
-            upgrades: sanitizedUpgrades,
-            contentUnlocks: {
-                ...DEFAULT_CONTENT_UNLOCKS,
-                ...profile.contentUnlocks,
-            },
-            npcMemory: sanitizeNpcMemoryMap(profile.npcMemory),
-        };
+        return sanitizeProfile(profile);
     }
 
     private migrateLegacyProfile(legacy: Record<string, unknown>): MetaProfile {
-        const highestDepthEver = Math.max(
-            0,
-            typeof legacy.highestDepthEver === 'number' ? legacy.highestDepthEver : 0
-        );
-        const bossesKilledEver = typeof legacy.bossesKilledEver === 'number'
-            ? legacy.bossesKilledEver
-            : [8, 16, 24].filter((d) => highestDepthEver > d).length;
-        const legacyUpgrades =
-            typeof legacy.upgrades === 'object' && legacy.upgrades !== null
-                ? (legacy.upgrades as Record<string, number>)
-                : {};
-
-        const migrated = this.sanitizeProfile({
-            prestigePoints: typeof legacy.prestigePoints === 'number' ? legacy.prestigePoints : 0,
-            totalPrestigeEarned:
-                typeof legacy.totalPrestigeEarned === 'number' ? legacy.totalPrestigeEarned : 0,
-            highestDepthEver,
-            bossesKilledEver,
-            upgrades: {
-                vitality: legacyUpgrades.vitality ?? 0,
-                might: legacyUpgrades.might ?? 0,
-                wisdom: legacyUpgrades.wisdom ?? 0,
-                recovery: legacyUpgrades.recovery ?? 0,
-                preparation: legacyUpgrades.foresight ?? legacyUpgrades.preparation ?? 0,
-                lastStand: legacyUpgrades.lastStand ?? 0,
-            },
-        });
-
-        DEPTH_MILESTONES.forEach((milestone) => {
-            if (milestone.depth !== undefined && highestDepthEver >= milestone.depth) {
-                milestone.unlocks.forEach((id) => {
-                    migrated.contentUnlocks[id] = true;
-                });
-            }
-        });
-
-        if (bossesKilledEver > 0) {
-            FIRST_BOSS_MILESTONE.unlocks.forEach((id) => {
-                migrated.contentUnlocks[id] = true;
-            });
-        }
-        if (bossesKilledEver >= 3) {
-            SECOND_BOSS_MILESTONE.unlocks.forEach((id) => {
-                migrated.contentUnlocks[id] = true;
-            });
-        }
-
-        return migrated;
+        return migrateLegacyProfile(legacy);
     }
 
     private saveProfile() {
@@ -658,11 +590,94 @@ export class MetaProgressionManager {
     }
 
     private cloneDefaultProfile(): MetaProfile {
-        return {
-            ...DEFAULT_PROFILE,
-            upgrades: { ...DEFAULT_PROFILE.upgrades },
-            contentUnlocks: { ...DEFAULT_CONTENT_UNLOCKS },
-            npcMemory: makeDefaultNpcMemoryMap(),
-        };
+        return cloneDefaultProfile();
     }
+}
+
+// Exported pure helpers so tests can exercise sanitization and legacy
+// migration without touching the singleton / localStorage.
+export function cloneDefaultProfile(): MetaProfile {
+    return {
+        ...DEFAULT_PROFILE,
+        upgrades: { ...DEFAULT_PROFILE.upgrades },
+        contentUnlocks: { ...DEFAULT_CONTENT_UNLOCKS },
+        npcMemory: makeDefaultNpcMemoryMap(),
+    };
+}
+
+export function sanitizeProfile(profile: Partial<MetaProfile>): MetaProfile {
+    const sanitizedUpgrades = {} as Record<UpgradeId, number>;
+    for (const definition of UPGRADE_DEFINITIONS) {
+        const incoming =
+            profile.upgrades?.[definition.id] ?? DEFAULT_PROFILE.upgrades[definition.id];
+        sanitizedUpgrades[definition.id] = Math.max(0, Math.min(definition.maxLevel, incoming));
+    }
+
+    return {
+        prestigePoints: Math.max(0, profile.prestigePoints ?? DEFAULT_PROFILE.prestigePoints),
+        totalPrestigeEarned: Math.max(
+            0,
+            profile.totalPrestigeEarned ?? DEFAULT_PROFILE.totalPrestigeEarned
+        ),
+        highestDepthEver: Math.max(0, profile.highestDepthEver ?? DEFAULT_PROFILE.highestDepthEver),
+        bossesKilledEver: Math.max(0, profile.bossesKilledEver ?? DEFAULT_PROFILE.bossesKilledEver),
+        upgrades: sanitizedUpgrades,
+        contentUnlocks: {
+            ...DEFAULT_CONTENT_UNLOCKS,
+            ...profile.contentUnlocks,
+        },
+        npcMemory: sanitizeNpcMemoryMap(profile.npcMemory),
+    };
+}
+
+export function migrateLegacyProfile(legacy: Record<string, unknown>): MetaProfile {
+    const highestDepthEver = Math.max(
+        0,
+        typeof legacy.highestDepthEver === 'number' ? legacy.highestDepthEver : 0
+    );
+    const bossesKilledEver =
+        typeof legacy.bossesKilledEver === 'number'
+            ? legacy.bossesKilledEver
+            : [8, 16, 24].filter((d) => highestDepthEver > d).length;
+    const legacyUpgrades =
+        typeof legacy.upgrades === 'object' && legacy.upgrades !== null
+            ? (legacy.upgrades as Record<string, number>)
+            : {};
+
+    const migrated = sanitizeProfile({
+        prestigePoints: typeof legacy.prestigePoints === 'number' ? legacy.prestigePoints : 0,
+        totalPrestigeEarned:
+            typeof legacy.totalPrestigeEarned === 'number' ? legacy.totalPrestigeEarned : 0,
+        highestDepthEver,
+        bossesKilledEver,
+        upgrades: {
+            vitality: legacyUpgrades.vitality ?? 0,
+            might: legacyUpgrades.might ?? 0,
+            wisdom: legacyUpgrades.wisdom ?? 0,
+            recovery: legacyUpgrades.recovery ?? 0,
+            preparation: legacyUpgrades.foresight ?? legacyUpgrades.preparation ?? 0,
+            lastStand: legacyUpgrades.lastStand ?? 0,
+        },
+    });
+
+    DEPTH_MILESTONES.forEach((milestone) => {
+        if (milestone.depth !== undefined && highestDepthEver >= milestone.depth) {
+            milestone.unlocks.forEach((id) => {
+                migrated.contentUnlocks[id] = true;
+            });
+        }
+    });
+
+    if (bossesKilledEver > 0) {
+        FIRST_BOSS_MILESTONE.unlocks.forEach((id) => {
+            migrated.contentUnlocks[id] = true;
+        });
+    }
+    if (bossesKilledEver >= 3) {
+        SECOND_BOSS_MILESTONE.unlocks.forEach((id) => {
+            migrated.contentUnlocks[id] = true;
+        });
+    }
+
+    return migrated;
 }

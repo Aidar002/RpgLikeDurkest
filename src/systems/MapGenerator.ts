@@ -1,4 +1,5 @@
 import { MAP_CONFIG } from '../data/GameConfig';
+import { defaultRng, type Rng } from './Rng';
 
 export const RoomType = {
     START: 'START',
@@ -37,8 +38,10 @@ const PREP_ROOM_POOL: RoomType[] = [RoomType.REST, RoomType.SHRINE, RoomType.MER
 export class MapGenerator {
     private counter = 0;
     private availableRooms = new Set<RoomType>(BASE_ROOM_POOL);
+    private rng: Rng;
 
-    constructor(initialRooms: RoomType[] = BASE_ROOM_POOL) {
+    constructor(initialRooms: RoomType[] = BASE_ROOM_POOL, rng: Rng = defaultRng) {
+        this.rng = rng;
         this.setAvailableRoomTypes(initialRooms);
     }
 
@@ -68,7 +71,7 @@ export class MapGenerator {
 
     private buildLayer(depth: number, previousLayer: MapNode[], allNodes: MapNode[]): MapNode[] {
         const isBossDepth = depth > 0 && depth % MAP_CONFIG.bossEveryNDepths === 0;
-        const branchRoll = Math.random();
+        const branchRoll = this.rng.next();
         const count = isBossDepth
             ? 1
             : branchRoll < MAP_CONFIG.branchRolls.one
@@ -92,7 +95,7 @@ export class MapGenerator {
                     : Math.round((index / (previousLayer.length - 1)) * (newLayer.length - 1));
             const chosenTargets = [newLayer[anchorIndex]];
 
-            if (newLayer.length > 1 && Math.random() < MAP_CONFIG.edgeProbability) {
+            if (newLayer.length > 1 && this.rng.next() < MAP_CONFIG.edgeProbability) {
                 const side = index % 2 === 0 ? 1 : -1;
                 const neighbor = newLayer[Math.max(0, Math.min(newLayer.length - 1, anchorIndex + side))];
                 if (!chosenTargets.includes(neighbor)) {
@@ -110,7 +113,7 @@ export class MapGenerator {
         newLayer.forEach((node) => {
             const hasParent = previousLayer.some((previousNode) => previousNode.edges.includes(node.id));
             if (!hasParent) {
-                const parent = previousLayer[Math.floor(Math.random() * previousLayer.length)];
+                const parent = previousLayer[Math.floor(this.rng.next() * previousLayer.length)];
                 if (!parent.edges.includes(node.id)) {
                     parent.edges.push(node.id);
                 }
@@ -198,7 +201,7 @@ export class MapGenerator {
             throw new Error('pickWeightedRoom called with empty pool');
         }
         const totalWeight = pool.reduce((sum, type) => sum + this.getWeight(type), 0);
-        const roll = Math.random() * totalWeight;
+        const roll = this.rng.next() * totalWeight;
         let cursor = 0;
 
         for (const type of pool) {

@@ -1,5 +1,6 @@
 import type { LocalizedText } from './LocalizedText';
 import { lt } from './LocalizedText';
+import { defaultRng, type Rng } from './Rng';
 
 // Stress mechanic, inspired by Darkest Dungeon.
 //
@@ -112,6 +113,12 @@ export class StressManager {
     public onResolution: (r: Resolution) => void = () => {};
     public onChange: (value: number) => void = () => {};
 
+    private rng: Rng;
+
+    constructor(rng: Rng = defaultRng) {
+        this.rng = rng;
+    }
+
     add(amount: number, reductionPct: number = 0): Resolution | null {
         let delta = Math.max(0, amount * (1 - reductionPct));
         if (this.resolution?.id === 'abusive') delta *= 1.5;
@@ -133,19 +140,22 @@ export class StressManager {
     }
 
     private resolve(): Resolution {
-        const keys: (Affliction | Virtue)[] =
-            Math.random() < 0.5
-                ? (Object.keys(AFFLICTIONS) as Affliction[])
-                : (Object.keys(VIRTUES) as Virtue[]);
-        const pick = keys[Math.floor(Math.random() * keys.length)];
-        const next = (AFFLICTIONS as Record<string, Resolution>)[pick]
-            ?? (VIRTUES as Record<string, Resolution>)[pick];
+        const useAffliction = this.rng.next() < 0.5;
+        const next: Resolution = useAffliction
+            ? this.pickFrom(AFFLICTIONS)
+            : this.pickFrom(VIRTUES);
 
         this.resolution = next;
         this.value = 50;
         this.onChange(this.value);
         this.onResolution(next);
         return next;
+    }
+
+    private pickFrom<K extends string>(table: Record<K, Resolution>): Resolution {
+        const keys = Object.keys(table) as K[];
+        const chosen = keys[Math.floor(this.rng.next() * keys.length)];
+        return table[chosen];
     }
 
     damageTakenMod(): number {
