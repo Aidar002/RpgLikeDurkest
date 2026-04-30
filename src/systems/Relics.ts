@@ -1,5 +1,6 @@
 import type { LocalizedText } from './LocalizedText';
 import { lt } from './LocalizedText';
+import { defaultRng, type Rng } from './Rng';
 
 // Relic catalog. Relics are permanent modifiers for the current run.
 // They stack additively. Relics are acquired from boss rooms, elite rooms,
@@ -384,20 +385,27 @@ function applyRelic(agg: RelicAggregate, id: RelicId) {
 
 export function rollRelic(
     owned: RelicId[],
-    rarityHint: RelicRarity = 'common'
+    rarityHint: RelicRarity = 'common',
+    rng: Rng = defaultRng
 ): RelicId | null {
     const pool = RELIC_ORDER.filter((id) => !owned.includes(id));
     if (pool.length === 0) return null;
 
     const preferred = pool.filter((id) => RELICS[id].rarity === rarityHint);
     const target = preferred.length > 0 ? preferred : pool;
-    return target[Math.floor(Math.random() * target.length)];
+    return target[Math.floor(rng.next() * target.length)];
 }
 
-export function rollRelicFor(owned: RelicId[], kind: 'normal' | 'elite' | 'boss'): RelicId | null {
-    if (kind === 'boss') return rollRelic(owned, 'rare');
+export function rollRelicFor(
+    owned: RelicId[],
+    kind: 'normal' | 'elite' | 'boss',
+    rng: Rng = defaultRng
+): RelicId | null {
+    if (kind === 'boss') return rollRelic(owned, 'rare', rng);
     if (kind === 'elite') {
-        return Math.random() < 0.3 ? rollRelic(owned, 'rare') : rollRelic(owned, 'common');
+        return rng.next() < 0.3
+            ? rollRelic(owned, 'rare', rng)
+            : rollRelic(owned, 'common', rng);
     }
-    return rollRelic(owned, 'common');
+    return rollRelic(owned, 'common', rng);
 }
