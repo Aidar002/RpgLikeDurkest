@@ -15,7 +15,6 @@ import {
     MetaProgressionManager,
     type ContentUnlockMilestone,
     type ContentUnlockState,
-    type UpgradeId,
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { RunTracker } from '../systems/RunTracker';
@@ -34,6 +33,15 @@ import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
+import { roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
+import { compactText } from '../ui/TextHelpers';
+import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
+import {
+    showDeathScreen,
+    showVictoryScreen,
+    type EndScreenContext,
+} from '../ui/EndScreens';
+import { defaultRng, randomInt } from '../systems/Rng';
 
 const COL_W = 150;
 const ROW_H = 110;
@@ -64,15 +72,6 @@ interface RoomButtonAction {
     callback: () => void;
     enabled?: boolean;
     fill?: number;
-}
-
-interface UpgradeCardVisual {
-    id: UpgradeId;
-    background: Phaser.GameObjects.Rectangle;
-    title: Phaser.GameObjects.Text;
-    level: Phaser.GameObjects.Text;
-    body: Phaser.GameObjects.Text;
-    cost: Phaser.GameObjects.Text;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -107,7 +106,6 @@ export class GameScene extends Phaser.Scene {
     private prestigeAwarded = false;
     private skipLightSpendThisRoom = false;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
-    private muteButton!: Phaser.GameObjects.Text;
 
     private hpBar!: Phaser.GameObjects.Rectangle;
     private hpValueText!: Phaser.GameObjects.Text;
@@ -269,7 +267,7 @@ export class GameScene extends Phaser.Scene {
         VFX.scanlines(this, 800, 600);
         VFX.ambientEmbers(this, 22);
 
-        this.setupSoundToggle();
+        setupSceneChrome(this, this.sfx, this.loc, () => this.safeRestart());
         this.sfx.startAmbient(0);
 
         this.log.addMessage(
@@ -539,7 +537,7 @@ export class GameScene extends Phaser.Scene {
         const nextUnlock = this.meta.getNextContentUnlock();
         this.hintText.setText(
             nextUnlock
-                ? this.compactText(
+                ? compactText(
                     `${this.tr('Дальше', 'Next')}: ${this.milestoneRequirement(nextUnlock)}`,
                     30
                 )
@@ -598,7 +596,7 @@ export class GameScene extends Phaser.Scene {
             narrate(r.kind === 'virtue' ? 'virtue' : 'affliction', this.loc.language),
             '#c4a35a'
         );
-        this.showUnlockBanner(
+        showUnlockBanner(this, 
             r.kind === 'virtue'
                 ? `${this.tr('Доблесть', 'Virtue')}: ${info.name}`
                 : `${this.tr('Срыв', 'Affliction')}: ${info.name}`
@@ -834,7 +832,7 @@ export class GameScene extends Phaser.Scene {
         button.background.setInteractive({ useHandCursor: true });
         button.background.setFillStyle(action.fill ?? 0x1b1b1b);
         button.background.setStrokeStyle(1, enabled ? 0x8a8a8a : 0x3e3e3e);
-        button.label.setText(this.compactText(action.label, button.defaultWidth > 200 ? 34 : 19));
+        button.label.setText(compactText(action.label, button.defaultWidth > 200 ? 34 : 19));
         button.label.setColor(enabled ? '#f0f0f0' : '#686868');
     }
 
@@ -859,56 +857,6 @@ export class GameScene extends Phaser.Scene {
         this.mapContainer.setPosition(x, y);
     }
 
-    private roomColor(node: MapNode): number {
-        switch (node.type) {
-            case RoomType.START:
-                return 0x777777;
-            case RoomType.ENEMY:
-                return 0x903535;
-            case RoomType.TREASURE:
-                return 0x9b7a22;
-            case RoomType.TRAP:
-                return 0x7f4b96;
-            case RoomType.REST:
-                return 0x2f8f52;
-            case RoomType.SHRINE:
-                return 0x5f4e8a;
-            case RoomType.MERCHANT:
-                return 0x2e6c87;
-            case RoomType.ELITE:
-                return 0xb14545;
-            case RoomType.BOSS:
-                return 0xc83b3b;
-            case RoomType.EMPTY:
-                return 0x454545;
-        }
-    }
-
-    private roomIcon(type: RoomTypeValue): string {
-        switch (type) {
-            case RoomType.START:
-                return '@';
-            case RoomType.ENEMY:
-                return 'X';
-            case RoomType.TREASURE:
-                return '$';
-            case RoomType.TRAP:
-                return '^';
-            case RoomType.REST:
-                return '+';
-            case RoomType.SHRINE:
-                return 'S';
-            case RoomType.MERCHANT:
-                return 'M';
-            case RoomType.ELITE:
-                return 'E';
-            case RoomType.BOSS:
-                return 'B';
-            case RoomType.EMPTY:
-                return '.';
-        }
-    }
-
     private buildAllVisuals(fadeIn: boolean) {
         const unlocks = this.meta.getUiUnlockState();
         const currentId = this.dungeon.currentNode.id;
@@ -923,7 +871,7 @@ export class GameScene extends Phaser.Scene {
             const y = this.nodeY(node);
             const revealed = node.visited || forwardIds.has(node.id) || node.id === currentId;
             const knowsType = node.cleared || node.visited || node.id === currentId || unlocks.showRoomIcons;
-            const color = node.cleared ? 0x242424 : revealed ? this.roomColor(node) : 0x1a1a1a;
+            const color = node.cleared ? 0x242424 : revealed ? roomColor(node) : 0x1a1a1a;
             const stroke = node.cleared
                 ? 0x333333
                 : node.id === currentId
@@ -939,7 +887,7 @@ export class GameScene extends Phaser.Scene {
                 .setAlpha(alpha);
 
             const icon = this.add
-                .text(x, y, revealed && knowsType ? this.roomIcon(node.type) : '?', {
+                .text(x, y, revealed && knowsType ? roomIcon(node.type) : '?', {
                     fontFamily: 'Courier New',
                     fontSize: '18px',
                     color: node.cleared ? '#4d4d4d' : '#ffffff',
@@ -947,7 +895,7 @@ export class GameScene extends Phaser.Scene {
                 .setOrigin(0.5)
                 .setAlpha(alpha);
 
-            const spriteKey = PixelSprite.roomKey(this.roomSpriteKey(node.type));
+            const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
             let sprite: Phaser.GameObjects.Image | undefined;
             if (revealed && knowsType && this.textures.exists(spriteKey)) {
                 icon.setVisible(false);
@@ -1006,36 +954,6 @@ export class GameScene extends Phaser.Scene {
         this.depthLabels.set(depth, label);
     }
 
-    private roomSpriteKey(type: RoomTypeValue): string {
-        switch (type) {
-            case RoomType.START: return 'START';
-            case RoomType.ENEMY: return 'ENEMY';
-            case RoomType.TREASURE: return 'TREASURE';
-            case RoomType.TRAP: return 'TRAP';
-            case RoomType.REST: return 'REST';
-            case RoomType.SHRINE: return 'SHRINE';
-            case RoomType.MERCHANT: return 'MERCHANT';
-            case RoomType.ELITE: return 'ELITE';
-            case RoomType.BOSS: return 'BOSS';
-            case RoomType.EMPTY: return 'EMPTY';
-        }
-    }
-
-    private roomTypeName(type: RoomTypeValue): string {
-        switch (type) {
-            case RoomType.START: return this.loc.t('roomCamp');
-            case RoomType.ENEMY: return this.loc.t('roomEnemy');
-            case RoomType.TREASURE: return this.loc.t('roomTreasure');
-            case RoomType.TRAP: return this.loc.t('roomTrap');
-            case RoomType.REST: return this.loc.t('roomRest');
-            case RoomType.SHRINE: return this.loc.t('roomShrine');
-            case RoomType.MERCHANT: return this.loc.t('roomMerchant');
-            case RoomType.ELITE: return this.loc.t('roomElite');
-            case RoomType.BOSS: return this.loc.t('roomBoss');
-            case RoomType.EMPTY: return this.loc.t('roomEmpty');
-        }
-    }
-
     private makeClickable(rect: Phaser.GameObjects.Rectangle, node: MapNode) {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', () => {
@@ -1053,7 +971,7 @@ export class GameScene extends Phaser.Scene {
                 this.dungeon.getForwardNodes().some((n) => n.id === node.id);
             const knowsType = node.visited || node.id === this.dungeon.currentNode.id || unlocks.showRoomIcons;
             if (revealed && knowsType && !node.cleared) {
-                this.tooltipText.setText(this.roomTypeName(node.type));
+                this.tooltipText.setText(roomTypeName(node.type, this.loc));
                 const screenX = this.nodeX(node) + this.mapContainer.x;
                 const screenY = this.nodeY(node) + this.mapContainer.y - NODE_SZ / 2 - 18;
                 this.tooltipText.setPosition(screenX, screenY).setOrigin(0.5, 1).setVisible(true);
@@ -1159,7 +1077,7 @@ export class GameScene extends Phaser.Scene {
         milestones.forEach((milestone) => {
             const label = this.milestoneLabel(milestone);
             this.log.addMessage(this.loc.t('unlocked', { label }), '#66b8ff');
-            this.showUnlockBanner(label);
+            showUnlockBanner(this, label);
         });
 
         this.refreshAvailableRoomPool(this.dungeon.currentDepth);
@@ -1249,12 +1167,12 @@ export class GameScene extends Phaser.Scene {
             const isForward = forwardIds.has(id);
             const revealed = isCurrent || isForward || node.visited;
             const knowsType = node.visited || isCurrent || unlocks.showRoomIcons;
-            const iconText = revealed && knowsType ? this.roomIcon(node.type) : '?';
+            const iconText = revealed && knowsType ? roomIcon(node.type) : '?';
 
-            visual.rect.setFillStyle(revealed ? this.roomColor(node) : 0x1a1a1a).setAlpha(1);
+            visual.rect.setFillStyle(revealed ? roomColor(node) : 0x1a1a1a).setAlpha(1);
             visual.rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
 
-            const spriteKey = PixelSprite.roomKey(this.roomSpriteKey(node.type));
+            const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
             if (revealed && knowsType && this.textures.exists(spriteKey)) {
                 if (!visual.sprite) {
                     visual.sprite = this.add.image(this.nodeX(node), this.nodeY(node), spriteKey)
@@ -1271,7 +1189,7 @@ export class GameScene extends Phaser.Scene {
             }
 
             if (isForward) {
-                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), this.roomColor(node), NODE_SZ);
+                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), roomColor(node), NODE_SZ);
                 this.mapContainer.add(glow);
                 this.glowMap.set(id, glow);
             }
@@ -1679,7 +1597,7 @@ export class GameScene extends Phaser.Scene {
         let goldGained = 0;
         let potionGained = 0;
         if (goldUnlocked) {
-            goldGained = this.player.gainGold(this.randomBetween(ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
+            goldGained = this.player.gainGold(randomInt(defaultRng, ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
             if (goldGained > 0) this.tracker.record('goldEarned', goldGained);
             if (this.player.isPotionUnlocked && Math.random() < ROOM_CONFIG.treasure.potionChance) {
                 potionGained = this.player.gainPotions(1);
@@ -1749,7 +1667,7 @@ export class GameScene extends Phaser.Scene {
                 callback: () => {
                     this.tracker.record('trapsTriggered');
                     const damage = this.applyTrapDamage(
-                        this.randomBetween(ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.rushDamageMax)
+                        randomInt(defaultRng, ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.rushDamageMax)
                     );
                     this.sfx.play('trapTrigger');
                     this.log.addMessage(this.loc.t('trapRush', { damage }), '#ff7777');
@@ -1765,14 +1683,14 @@ export class GameScene extends Phaser.Scene {
                 callback: () => {
                     if (Math.random() < ROOM_CONFIG.trap.disarmChance) {
                         const gold = this.player.gainGold(
-                            this.randomBetween(ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
+                            randomInt(defaultRng, ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
                         );
                         this.sfx.play('trapDisarm');
                         this.log.addMessage(this.loc.t('trapDisarm', { gold }), '#f7d46b');
                         this.enemyIntelText.setText(this.tr('Пружина сдаётся у тебя в руках.', 'The mechanism falls apart in your hands.'));
                     } else {
                         const damage = this.applyTrapDamage(
-                            this.randomBetween(
+                            randomInt(defaultRng, 
                                 ROOM_CONFIG.trap.disarmFailDamageMin,
                                 ROOM_CONFIG.trap.disarmFailDamageMax
                             )
@@ -1957,7 +1875,7 @@ export class GameScene extends Phaser.Scene {
         this.enemyPortrait.setFillStyle(picked.npc.color);
         this.enemyIconText.setText(picked.npc.glyph);
         this.enemyNameText.setText(
-            this.compactText(
+            compactText(
                 `${this.loc.pick(picked.npc.name)}, ${this.loc.pick(picked.npc.title)}`,
                 28
             )
@@ -1965,7 +1883,7 @@ export class GameScene extends Phaser.Scene {
         // Scene flavor (italic-feel, smaller) goes in intel; dialog beat in body.
         this.enemyIntelText.setText(this.loc.pick(picked.npc.flavor));
         this.enemyIntelText.setVisible(true);
-        this.roomFlavorText.setText(this.compactText(this.loc.pick(picked.beat.text), 90));
+        this.roomFlavorText.setText(compactText(this.loc.pick(picked.beat.text), 90));
         this.enemySpriteImage.setVisible(false);
         this.enemyIconText.setVisible(true);
         this.enemyHpBarBg.setVisible(false);
@@ -1999,7 +1917,7 @@ export class GameScene extends Phaser.Scene {
         if (picked.farewell) {
             const farewell = this.loc.pick(picked.farewell.text);
             this.log.addMessage(farewell, '#a89dc4');
-            this.enemyIntelText.setText(this.compactText(farewell, 60));
+            this.enemyIntelText.setText(compactText(farewell, 60));
         }
         this.showReturnButton();
     }
@@ -2228,7 +2146,7 @@ export class GameScene extends Phaser.Scene {
         // Stay in the room — show the offer's flavor as intel, then a return button.
         const flavor = this.loc.pick(offer.flavor);
         if (flavor) {
-            this.enemyIntelText.setText(this.compactText(flavor, 60));
+            this.enemyIntelText.setText(compactText(flavor, 60));
         }
         this.showReturnButton();
     }
@@ -2445,7 +2363,7 @@ export class GameScene extends Phaser.Scene {
                         Math.random() < ROOM_CONFIG.empty.scoutGoldChance
                     ) {
                         const gold = this.player.gainGold(
-                            this.randomBetween(ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
+                            randomInt(defaultRng, ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
                         );
                         if (gold > 0) this.tracker.record('goldEarned', gold);
                         gains.push(`${gold} ${this.tr('золота', 'gold')}`);
@@ -2497,9 +2415,9 @@ export class GameScene extends Phaser.Scene {
         this.roomHeaderText.setText(header);
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
-        this.enemyNameText.setText(this.compactText(title, 28));
-        this.roomFlavorText.setText(this.compactText(description, 72));
-        this.enemyIntelText.setText(this.compactText(intel, 54));
+        this.enemyNameText.setText(compactText(title, 28));
+        this.roomFlavorText.setText(compactText(description, 72));
+        this.enemyIntelText.setText(compactText(intel, 54));
         this.enemyIntelText.setVisible(true);
         this.enemyHpBarBg.setVisible(false);
         this.enemyHpBar.setVisible(false);
@@ -2590,8 +2508,8 @@ export class GameScene extends Phaser.Scene {
         );
         this.enemyPortrait.setFillStyle(color);
         this.enemyIconText.setText(icon);
-        this.enemyNameText.setText(this.compactText(name, 28));
-        this.roomFlavorText.setText(this.compactText(description, 72));
+        this.enemyNameText.setText(compactText(name, 28));
+        this.roomFlavorText.setText(compactText(description, 72));
         this.roomPanelGroup.setVisible(true);
 
         const profile = this.combat.enemy?.profile;
@@ -2619,7 +2537,7 @@ export class GameScene extends Phaser.Scene {
         this.enemyIntelText.setVisible(true);
         this.enemyIntelText.setText(
             unlocks.showEnemyHp
-                ? this.compactText(this.buildCombatIntel(), 54)
+                ? compactText(this.buildCombatIntel(), 54)
                 : this.loc.t('enemyInfoLocked')
         );
 
@@ -2724,377 +2642,43 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
+
+    private endScreenContext(): EndScreenContext {
+        // runState proxies its fields back onto the scene, so EndScreens can
+        // mutate prestigeAwarded / prestigeReward and re-entry still sees the
+        // flag that guards double-awarding.
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const scene = this;
+        return {
+            scene: this,
+            loc: this.loc,
+            sfx: this.sfx,
+            meta: this.meta,
+            tracker: this.tracker,
+            player: this.player,
+            npcs: this.npcs,
+            mapContainer: this.mapContainer,
+            roomContainer: this.roomContainer,
+            uiContainer: this.uiContainer,
+            safeRestart: () => this.safeRestart(),
+            tr: (ru, en) => this.tr(ru, en),
+            runState: {
+                get runBestDepth() { return scene.runBestDepth; },
+                get runBossKills() { return scene.runBossKills; },
+                get prestigeAwarded() { return scene.prestigeAwarded; },
+                set prestigeAwarded(v: boolean) { scene.prestigeAwarded = v; },
+                get prestigeReward() { return scene.prestigeReward; },
+                set prestigeReward(v: number) { scene.prestigeReward = v; },
+            },
+        };
+    }
+
     private showVictoryScreen() {
-        this.sfx.play('victory');
-        this.sfx.stopAmbient();
-        this.mapContainer.setVisible(false);
-        this.roomContainer.setVisible(false);
-        this.uiContainer.setVisible(false);
-
-        if (!this.prestigeAwarded) {
-            this.prestigeReward = this.meta.awardPrestigeForRun(this.runBestDepth, this.runBossKills);
-            this.prestigeAwarded = true;
-        }
-
-        this.tracker.trackMax('bestDepth', this.runBestDepth);
-        this.tracker.trackMax('levelReached', this.player.stats.level);
-
-        const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.92).setDepth(100);
-        const panel = this.add.rectangle(400, 300, 620, 420, 0x0a0a18).setDepth(101);
-        panel.setStrokeStyle(2, 0x6a8fcc);
-
-        const title = this.add.text(400, 100, this.loc.t('victoryScreenTitle'), {
-            fontFamily: 'Courier New',
-            fontSize: '32px',
-            color: '#ffd36e',
-        }).setOrigin(0.5).setDepth(102);
-
-        const artifactGlow = this.add.rectangle(400, 230, 64, 64, 0xffd36e, 0.25).setDepth(102);
-        const artifactIcon = this.add.text(400, 230, '\u2726', {
-            fontFamily: 'Courier New',
-            fontSize: '40px',
-            color: '#ffd36e',
-        }).setOrigin(0.5).setDepth(103);
-
-        this.tweens.add({
-            targets: [artifactGlow],
-            alpha: { from: 0.15, to: 0.5 },
-            scaleX: { from: 1, to: 1.3 },
-            scaleY: { from: 1, to: 1.3 },
-            duration: 1200,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.inOut',
-        });
-
-        const summaryBody = this.loc.t('victoryScreenSummary', {
-            depth: this.runBestDepth,
-            bosses: this.runBossKills,
-        });
-        const summaryText = this.add.text(400, 300, summaryBody, {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#c8cdd2',
-            align: 'center',
-            lineSpacing: 6,
-            wordWrap: { width: 500 },
-        }).setOrigin(0.5).setDepth(102);
-
-        const statLines = this.tracker.getSummaryLines(this.loc.language);
-        const statsText = this.add.text(400, 380, statLines.join('\n'), {
-            fontFamily: 'Courier New',
-            fontSize: '11px',
-            color: '#9a9a9a',
-            align: 'center',
-            lineSpacing: 3,
-        }).setOrigin(0.5, 0).setDepth(102);
-
-        const restartButton = this.add.rectangle(400, 510, 260, 42, 0x1c2a3a).setDepth(102);
-        restartButton.setStrokeStyle(1, 0x6a8fcc);
-        restartButton.setInteractive({ useHandCursor: true });
-        const restartLabel = this.add.text(400, 510, this.loc.t('victoryNewRun'), {
-            fontFamily: 'Courier New',
-            fontSize: '17px',
-            color: '#f0f0f0',
-        }).setOrigin(0.5).setDepth(103);
-
-        restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
-        restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x6a8fcc));
-        restartButton.on('pointerdown', () => this.safeRestart());
-
-        this.tweens.add({
-            targets: [overlay, panel, title, artifactIcon, summaryText, statsText, restartButton, restartLabel],
-            alpha: { from: 0, to: 1 },
-            duration: 600,
-            ease: 'Quad.out',
-        });
+        showVictoryScreen(this.endScreenContext());
     }
 
     private showDeathScreen() {
-        this.mapContainer.setVisible(false);
-        this.roomContainer.setVisible(false);
-        this.uiContainer.setVisible(false);
-
-        if (!this.prestigeAwarded) {
-            this.prestigeReward = this.meta.awardPrestigeForRun(this.runBestDepth, this.runBossKills);
-            this.prestigeAwarded = true;
-        }
-
-        this.tracker.trackMax('bestDepth', this.runBestDepth);
-        this.tracker.trackMax('levelReached', this.player.stats.level);
-
-        const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000, 0.92).setDepth(100);
-        const panel = this.add.rectangle(400, 300, 736, 530, 0x121212).setDepth(101);
-        panel.setStrokeStyle(2, 0x5a2f2f);
-
-        const title = this.add.text(400, 56, this.tracker.getRunTitle(this.loc.language), {
-            fontFamily: 'Courier New',
-            fontSize: '28px',
-            color: '#d65a5a',
-        }).setOrigin(0.5).setDepth(102);
-
-        const summaryLines = [
-            this.loc.t('deathRunLine', {
-                depth: this.runBestDepth,
-                bosses: this.runBossKills,
-                prestige: this.prestigeReward,
-            }),
-        ];
-        const statLines = this.tracker.getSummaryLines(this.loc.language);
-        const npcLines = this.npcs.getMemorySummary(this.loc.language);
-        const allLines = [
-            ...summaryLines,
-            ...statLines,
-        ...(npcLines.length > 0 ? ['', this.tr('— Встреченные —', '— Acquaintances —'), ...npcLines] : []),
-        ];
-        const summary = this.add.text(
-            400,
-            88,
-            allLines.join('\n'),
-            {
-                fontFamily: 'Courier New',
-                fontSize: '11px',
-                color: '#9a9a9a',
-                align: 'center',
-                lineSpacing: 3,
-            }
-        ).setOrigin(0.5, 0).setDepth(102);
-
-        const pointsText = this.add.text(400, 228, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: '#ffd36e',
-        }).setOrigin(0.5).setDepth(102);
-
-        const unlockText = this.add.text(400, 250, '', {
-            fontFamily: 'Courier New',
-            fontSize: '11px',
-            color: '#8fb8ff',
-            align: 'center',
-            wordWrap: { width: 580 },
-        }).setOrigin(0.5).setDepth(102);
-
-        const cards: UpgradeCardVisual[] = [];
-        const cardPositions = [
-            { x: 230, y: 304 },
-            { x: 570, y: 304 },
-            { x: 230, y: 382 },
-            { x: 570, y: 382 },
-            { x: 230, y: 460 },
-            { x: 570, y: 460 },
-        ];
-
-        this.meta.getUpgradeCards(this.loc.language).forEach((card, index) => {
-            const position = cardPositions[index];
-
-            const background = this.add
-                .rectangle(position.x, position.y, 300, 68, 0x1c1c1c)
-                .setStrokeStyle(1, 0x4a4a4a)
-                .setDepth(102)
-                .setInteractive({ useHandCursor: true });
-
-            const cardTitle = this.add.text(position.x - 136, position.y - 22, card.title, {
-                fontFamily: 'Courier New',
-                fontSize: '15px',
-                color: '#f0f0f0',
-            }).setDepth(103);
-
-            const cardLevel = this.add.text(position.x + 136, position.y - 22, '', {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#a8a8a8',
-            }).setOrigin(1, 0).setDepth(103);
-
-            const cardBody = this.add.text(position.x - 136, position.y - 2, '', {
-                fontFamily: 'Courier New',
-                fontSize: '12px',
-                color: '#9a9a9a',
-                wordWrap: { width: 220 },
-            }).setDepth(103);
-
-            const cardCost = this.add.text(position.x + 136, position.y + 14, '', {
-                fontFamily: 'Courier New',
-                fontSize: '13px',
-                color: '#ffd36e',
-            }).setOrigin(1, 0).setDepth(103);
-
-            const visual: UpgradeCardVisual = {
-                id: card.id,
-                background,
-                title: cardTitle,
-                level: cardLevel,
-                body: cardBody,
-                cost: cardCost,
-            };
-
-            background.on('pointerover', () => {
-                if ((background as unknown as { canPurchase?: boolean }).canPurchase) {
-                    background.setStrokeStyle(2, 0xffffff);
-                }
-            });
-            background.on('pointerout', () => {
-                const canPurchase = (background as unknown as { canPurchase?: boolean }).canPurchase;
-                background.setStrokeStyle(1, canPurchase ? 0x8a8a8a : 0x4a4a4a);
-            });
-            background.on('pointerdown', () => {
-                const info = this.meta.getUpgradeCards(this.loc.language).find((upgrade) => upgrade.id === visual.id);
-                if (!info?.canPurchase) {
-                    return;
-                }
-
-                if (this.meta.purchaseUpgrade(visual.id)) {
-                    refreshShop();
-                }
-            });
-
-            cards.push(visual);
-        });
-
-        const restartButton = this.add.rectangle(400, 548, 260, 42, 0x2b2b2b).setDepth(102);
-        restartButton.setStrokeStyle(1, 0x8a8a8a);
-        restartButton.setInteractive({ useHandCursor: true });
-        const restartText = this.add.text(400, 548, this.tr('Новый забег', 'Begin New Expedition'), {
-            fontFamily: 'Courier New',
-            fontSize: '17px',
-            color: '#f0f0f0',
-        }).setOrigin(0.5).setDepth(103);
-
-        const resetButton = this.add.rectangle(400, 592, 260, 34, 0x3a1818).setDepth(102);
-        resetButton.setStrokeStyle(1, 0xa35a5a);
-        resetButton.setInteractive({ useHandCursor: true });
-        const resetText = this.add.text(400, 592, this.tr('Стереть память', 'Reset soul progress'), {
-            fontFamily: 'Courier New',
-            fontSize: '14px',
-            color: '#ffd0d0',
-        }).setOrigin(0.5).setDepth(103);
-
-        restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
-        restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x8a8a8a));
-        restartButton.on('pointerdown', () => this.safeRestart());
-
-        resetButton.on('pointerover', () => resetButton.setStrokeStyle(2, 0xffd7d7));
-        resetButton.on('pointerout', () => resetButton.setStrokeStyle(1, 0xa35a5a));
-
-        const refreshShop = () => {
-            pointsText.setText(`${this.tr('Запас престижа', 'Prestige bank')}: ${this.meta.availablePrestige}`);
-
-            const nextUnlock = this.meta.getNextContentUnlock();
-            unlockText.setText(
-                nextUnlock
-                ? `${this.tr('Следующее открытие', 'Next permanent discovery')}: ${this.loc.pick(nextUnlock.requirement)} -> ${this.loc.pick(nextUnlock.label)}.`
-                : this.tr(
-                    'Все постоянные открытия уже закреплены.',
-                        'Every planned layer of permanent content has been unlocked.'
-                    )
-            );
-
-            const upgradeCards = this.meta.getUpgradeCards(this.loc.language);
-            cards.forEach((card) => {
-                const info = upgradeCards.find((upgrade) => upgrade.id === card.id);
-                if (!info) {
-                    return;
-                }
-
-                card.level.setText(`Lv ${info.level}/${info.maxLevel}`);
-                card.body.setText(info.description);
-                card.cost.setText(
-                    info.cost === null
-                        ? this.tr('МАКС', 'MAX')
-                        : `${this.tr('Цена', 'Cost')} ${info.cost}`
-                );
-                card.background.setFillStyle(info.canPurchase ? 0x242424 : 0x1c1c1c);
-                card.background.setStrokeStyle(1, info.canPurchase ? 0x8a8a8a : 0x4a4a4a);
-                (card.background as unknown as { canPurchase?: boolean }).canPurchase = info.canPurchase;
-                card.cost.setColor(info.cost === null ? '#6acb7f' : info.canPurchase ? '#ffd36e' : '#6f6f6f');
-                card.title.setColor(info.canPurchase ? '#f0f0f0' : '#a7a7a7');
-                card.body.setColor(info.canPurchase ? '#9a9a9a' : '#727272');
-            });
-        };
-
-        const confirmOverlay = this.add
-            .rectangle(400, 300, 800, 600, 0x000000, 0.76)
-            .setDepth(110)
-            .setInteractive();
-        const confirmPanel = this.add.rectangle(400, 300, 430, 190, 0x181818).setDepth(111);
-        confirmPanel.setStrokeStyle(2, 0x8a4d4d);
-        const confirmTitle = this.add.text(400, 244, 'Стереть весь прогресс?', {
-            fontFamily: 'Courier New',
-            fontSize: '22px',
-            color: '#ffd2d2',
-        }).setOrigin(0.5).setDepth(112);
-        const confirmBody = this.add.text(
-            400,
-            290,
-            'Это сотрёт престиж, открытия и улучшения.\nСледующий забег начнётся с пустой памяти.',
-            {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#d6d6d6',
-                align: 'center',
-                lineSpacing: 8,
-                wordWrap: { width: 360 },
-            }
-        ).setOrigin(0.5).setDepth(112);
-        const confirmResetButton = this.add.rectangle(320, 358, 170, 38, 0x5a1d1d).setDepth(112);
-        confirmResetButton.setStrokeStyle(1, 0xc57d7d);
-        confirmResetButton.setInteractive({ useHandCursor: true });
-        const confirmResetText = this.add.text(320, 358, this.tr('Да, удалить всё', 'Yes, delete everything'), {
-            fontFamily: 'Courier New',
-            fontSize: '14px',
-            color: '#ffe8e8',
-        }).setOrigin(0.5).setDepth(113);
-        const cancelResetButton = this.add.rectangle(480, 358, 170, 38, 0x252525).setDepth(112);
-        cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
-        cancelResetButton.setInteractive({ useHandCursor: true });
-        const cancelResetText = this.add.text(480, 358, this.tr('Отмена', 'Cancel'), {
-            fontFamily: 'Courier New',
-            fontSize: '14px',
-            color: '#f0f0f0',
-        }).setOrigin(0.5).setDepth(113);
-
-        const confirmWidgets = [
-            confirmOverlay,
-            confirmPanel,
-            confirmTitle,
-            confirmBody,
-            confirmResetButton,
-            confirmResetText,
-            cancelResetButton,
-            cancelResetText,
-        ];
-        confirmWidgets.forEach((widget) => widget.setVisible(false));
-
-        const setConfirmVisible = (visible: boolean) => {
-            confirmWidgets.forEach((widget) => widget.setVisible(visible));
-        };
-
-        resetButton.on('pointerdown', () => setConfirmVisible(true));
-        cancelResetButton.on('pointerdown', () => setConfirmVisible(false));
-        confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
-        confirmResetButton.on('pointerdown', () => {
-            this.meta.resetProgress();
-            this.safeRestart();
-        });
-
-        refreshShop();
-
-        this.tweens.add({
-            targets: [
-                overlay,
-                panel,
-                title,
-                summary,
-                pointsText,
-                unlockText,
-                restartButton,
-                restartText,
-                resetButton,
-                resetText,
-            ],
-            alpha: { from: 0, to: 1 },
-            duration: 280,
-            ease: 'Quad.out',
-        });
+        showDeathScreen(this.endScreenContext());
     }
 
     private safeRestart() {
@@ -3104,73 +2688,4 @@ export class GameScene extends Phaser.Scene {
         this.scene.restart();
     }
 
-    private showUnlockBanner(label: string) {
-        const bannerBg = this.add.rectangle(400, 580, 700, 36, 0x0a1a33, 0.92)
-            .setStrokeStyle(1, 0x4488cc)
-            .setDepth(200)
-            .setAlpha(0);
-        const bannerText = this.add.text(400, 580, `\u2726  ${this.compactText(label, 52)}`, {
-            fontFamily: 'Courier New',
-            fontSize: '14px',
-            color: '#88ccff',
-        }).setOrigin(0.5).setDepth(201).setAlpha(0);
-
-        this.tweens.add({
-            targets: [bannerBg, bannerText],
-            alpha: 1,
-            duration: 300,
-            ease: 'Quad.out',
-            hold: 2400,
-            yoyo: true,
-            onComplete: () => { bannerBg.destroy(); bannerText.destroy(); },
-        });
-    }
-
-    private randomBetween(min: number, max: number): number {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
-    }
-
-    private setupSoundToggle() {
-        const icon = this.sfx.muted ? '\u266A' : '\u266B';
-        this.muteButton = this.add.text(20, 580, icon, {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: this.sfx.muted ? '#555555' : '#aaaaaa',
-        }).setDepth(215).setInteractive({ useHandCursor: true });
-
-        this.muteButton.on('pointerdown', () => {
-            const muted = this.sfx.toggleMute();
-            this.muteButton.setText(muted ? '\u266A' : '\u266B');
-            this.muteButton.setColor(muted ? '#555555' : '#aaaaaa');
-        });
-        this.muteButton.on('pointerover', () => {
-            this.muteButton.setColor('#ffffff');
-        });
-        this.muteButton.on('pointerout', () => {
-            this.muteButton.setColor(this.sfx.muted ? '#555555' : '#aaaaaa');
-        });
-
-        const langBtn = this.add.text(46, 580, this.loc.language === 'ru' ? 'RU' : 'EN', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#aaaaaa',
-        }).setDepth(215).setInteractive({ useHandCursor: true });
-
-        langBtn.on('pointerdown', () => {
-            const next = this.loc.toggle();
-            langBtn.setText(next === 'ru' ? 'RU' : 'EN');
-            this.safeRestart();
-        });
-        langBtn.on('pointerover', () => langBtn.setColor('#ffffff'));
-        langBtn.on('pointerout', () => langBtn.setColor('#aaaaaa'));
-    }
-
-    private compactText(text: string, maxLength: number): string {
-        const clean = text.replace(/\s+/g, ' ').trim();
-        if (clean.length <= maxLength) {
-            return clean;
-        }
-
-        return `${clean.slice(0, Math.max(0, maxLength - 3)).trimEnd()}...`;
-    }
 }
