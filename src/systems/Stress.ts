@@ -16,7 +16,7 @@ export type Affliction =
 
 export type Virtue =
     | 'courageous' // +1 outgoing damage
-    | 'stalwart' // -1 incoming damage, min 0
+    | 'stalwart' // -1 incoming damage (combat min damage still applies)
     | 'focused' // skills cost -1 resolve (min 1)
     | 'vigorous'; // +1 resolve at combat start
 

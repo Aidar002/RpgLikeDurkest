@@ -390,4 +390,7 @@ export function saveLanguage(language: Language): void {
     } catch {
         // Language still applies for the current restart path.
     }
+    if (typeof document !== 'undefined') {
+        document.documentElement.lang = language;
+    }
 }

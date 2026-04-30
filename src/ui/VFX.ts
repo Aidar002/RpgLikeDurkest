@@ -1,4 +1,4 @@
-﻿import * as Phaser from 'phaser';
+import * as Phaser from 'phaser';
 
 export class VFX {
 
@@ -35,11 +35,12 @@ export class VFX {
 
     /** Short object shake. */
     static shake(scene: Phaser.Scene, obj: Phaser.GameObjects.Components.Transform & Phaser.GameObjects.GameObject, intensity = 6) {
-        const bx = (obj as any).x, by = (obj as any).y;
+        const bx = obj.x;
+        const by = obj.y;
         scene.tweens.add({
             targets: obj, x: bx + intensity, duration: 40,
             yoyo: true, repeat: 3, ease: 'Sine.inOut',
-            onComplete: () => { (obj as any).setX(bx); (obj as any).setY(by); }
+            onComplete: () => { obj.setX(bx); obj.setY(by); }
         });
     }
 

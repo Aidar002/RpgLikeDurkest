@@ -155,24 +155,46 @@ export function consumeGuardBlock(s: StatusState, incoming: number): number {
     return incoming - blocked;
 }
 
+interface StatusLabels {
+    bleed: (stacks: number, turns: number) => string;
+    stun: (turns: number) => string;
+    weaken: (amount: number, turns: number) => string;
+    mark: () => string;
+    guard: (amount: number, hits: number) => string;
+    focus: (amount: number, turns: number) => string;
+    regen: (amount: number, turns: number) => string;
+}
+
+const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
+    ru: {
+        bleed: (stacks, turns) => `Кровотечение x${stacks}/${turns}х`,
+        stun: (turns) => `Оглуш. ${turns}х`,
+        weaken: (amount, turns) => `Слаб. -${amount}/${turns}х`,
+        mark: () => 'Метка',
+        guard: (amount, hits) => `Защита ${amount}x${hits}`,
+        focus: (amount, turns) => `Фокус +${amount}/${turns}х`,
+        regen: (amount, turns) => `Реген. +${amount}/${turns}х`,
+    },
+    en: {
+        bleed: (stacks, turns) => `Bleed x${stacks}/${turns}t`,
+        stun: (turns) => `Stun ${turns}t`,
+        weaken: (amount, turns) => `Weaken -${amount}/${turns}t`,
+        mark: () => 'Marked',
+        guard: (amount, hits) => `Guard ${amount}x${hits}`,
+        focus: (amount, turns) => `Focus +${amount}/${turns}t`,
+        regen: (amount, turns) => `Regen +${amount}/${turns}t`,
+    },
+};
+
 export function statusSummary(s: StatusState, language: StatusLanguage = 'en'): string {
+    const labels = STATUS_LABELS[language];
     const parts: string[] = [];
-    if (language === 'ru') {
-        if (s.bleed.turns > 0) parts.push(`Кровотечение x${s.bleed.stacks}/${s.bleed.turns}х`);
-        if (s.stun.turns > 0) parts.push(`Оглуш. ${s.stun.turns}х`);
-        if (s.weaken.turns > 0) parts.push(`Слаб. -${s.weaken.amount}/${s.weaken.turns}х`);
-        if (s.mark.turns > 0) parts.push('Метка');
-        if (s.guard.hits > 0) parts.push(`Защита ${s.guard.amount}x${s.guard.hits}`);
-        if (s.focus.turns > 0) parts.push(`Фокус +${s.focus.amount}/${s.focus.turns}х`);
-        if (s.regen.turns > 0) parts.push(`Реген. +${s.regen.amount}/${s.regen.turns}х`);
-    } else {
-        if (s.bleed.turns > 0) parts.push(`Bleed x${s.bleed.stacks}/${s.bleed.turns}t`);
-        if (s.stun.turns > 0) parts.push(`Stun ${s.stun.turns}t`);
-        if (s.weaken.turns > 0) parts.push(`Weaken -${s.weaken.amount}/${s.weaken.turns}t`);
-        if (s.mark.turns > 0) parts.push('Marked');
-        if (s.guard.hits > 0) parts.push(`Guard ${s.guard.amount}x${s.guard.hits}`);
-        if (s.focus.turns > 0) parts.push(`Focus +${s.focus.amount}/${s.focus.turns}t`);
-        if (s.regen.turns > 0) parts.push(`Regen +${s.regen.amount}/${s.regen.turns}t`);
-    }
+    if (s.bleed.turns > 0) parts.push(labels.bleed(s.bleed.stacks, s.bleed.turns));
+    if (s.stun.turns > 0) parts.push(labels.stun(s.stun.turns));
+    if (s.weaken.turns > 0) parts.push(labels.weaken(s.weaken.amount, s.weaken.turns));
+    if (s.mark.turns > 0) parts.push(labels.mark());
+    if (s.guard.hits > 0) parts.push(labels.guard(s.guard.amount, s.guard.hits));
+    if (s.focus.turns > 0) parts.push(labels.focus(s.focus.amount, s.focus.turns));
+    if (s.regen.turns > 0) parts.push(labels.regen(s.regen.amount, s.regen.turns));
     return parts.join(' | ');
 }
