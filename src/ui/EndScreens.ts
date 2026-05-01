@@ -8,6 +8,7 @@ import type { NpcManager } from '../systems/NpcManager';
 import type { PlayerManager } from '../systems/PlayerManager';
 import type { RunTracker } from '../systems/RunTracker';
 import type { SoundManager } from '../systems/SoundManager';
+import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 
 // End-of-run overlays: the boss-defeated victory screen and the post-death
 // meta-progression shop. Both are terminal modals that hide the live scene
@@ -45,6 +46,7 @@ interface UpgradeCardVisual {
     level: Phaser.GameObjects.Text;
     body: Phaser.GameObjects.Text;
     cost: Phaser.GameObjects.Text;
+    canPurchase: boolean;
 }
 
 function awardPrestigeOnce(ctx: EndScreenContext) {
@@ -74,8 +76,8 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     tracker.trackMax('bestDepth', runState.runBestDepth);
     tracker.trackMax('levelReached', player.stats.level);
 
-    const overlay = scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.92).setDepth(100);
-    const panel = scene.add.rectangle(400, 300, 620, 420, 0x0a0a18).setDepth(101);
+    const overlay = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.92).setDepth(Depths.EndScreenOverlay);
+    const panel = scene.add.rectangle(400, 300, 620, 420, 0x0a0a18).setDepth(Depths.EndScreenPanel);
     panel.setStrokeStyle(2, 0x6a8fcc);
 
     const title = scene.add
@@ -85,9 +87,9 @@ export function showVictoryScreen(ctx: EndScreenContext) {
             color: '#ffd36e',
         })
         .setOrigin(0.5)
-        .setDepth(102);
+        .setDepth(Depths.EndScreenContent);
 
-    const artifactGlow = scene.add.rectangle(400, 230, 64, 64, 0xffd36e, 0.25).setDepth(102);
+    const artifactGlow = scene.add.rectangle(400, 230, 64, 64, 0xffd36e, 0.25).setDepth(Depths.EndScreenContent);
     const artifactIcon = scene.add
         .text(400, 230, '\u2726', {
             fontFamily: 'Courier New',
@@ -95,7 +97,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
             color: '#ffd36e',
         })
         .setOrigin(0.5)
-        .setDepth(103);
+        .setDepth(Depths.EndScreenForeground);
 
     scene.tweens.add({
         targets: [artifactGlow],
@@ -122,7 +124,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
             wordWrap: { width: 500 },
         })
         .setOrigin(0.5)
-        .setDepth(102);
+        .setDepth(Depths.EndScreenContent);
 
     const statLines = tracker.getSummaryLines(loc.language);
     const statsText = scene.add
@@ -134,9 +136,9 @@ export function showVictoryScreen(ctx: EndScreenContext) {
             lineSpacing: 3,
         })
         .setOrigin(0.5, 0)
-        .setDepth(102);
+        .setDepth(Depths.EndScreenContent);
 
-    const restartButton = scene.add.rectangle(400, 510, 260, 42, 0x1c2a3a).setDepth(102);
+    const restartButton = scene.add.rectangle(400, 510, 260, 42, 0x1c2a3a).setDepth(Depths.EndScreenContent);
     restartButton.setStrokeStyle(1, 0x6a8fcc);
     restartButton.setInteractive({ useHandCursor: true });
     const restartLabel = scene.add
@@ -146,7 +148,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
             color: '#f0f0f0',
         })
         .setOrigin(0.5)
-        .setDepth(103);
+        .setDepth(Depths.EndScreenForeground);
 
     restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
     restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x6a8fcc));
@@ -169,8 +171,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
     tracker.trackMax('bestDepth', runState.runBestDepth);
     tracker.trackMax('levelReached', player.stats.level);
 
-    const overlay = scene.add.rectangle(400, 300, 800, 600, 0x000000, 0.92).setDepth(100);
-    const panel = scene.add.rectangle(400, 300, 736, 530, 0x121212).setDepth(101);
+    const overlay = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.92).setDepth(Depths.EndScreenOverlay);
+    const panel = scene.add.rectangle(400, 300, 736, 530, 0x121212).setDepth(Depths.EndScreenPanel);
     panel.setStrokeStyle(2, 0x5a2f2f);
 
     const title = scene.add
@@ -180,7 +182,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#d65a5a',
         })
         .setOrigin(0.5)
-        .setDepth(102);
+        .setDepth(Depths.EndScreenContent);
 
     const summaryLines = [
         loc.t('deathRunLine', {
@@ -205,7 +207,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             lineSpacing: 3,
         })
         .setOrigin(0.5, 0)
-        .setDepth(102);
+        .setDepth(Depths.EndScreenContent);
 
     const pointsText = scene.add
         .text(400, 228, '', {
@@ -214,7 +216,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#ffd36e',
         })
         .setOrigin(0.5)
-        .setDepth(102);
+        .setDepth(Depths.EndScreenContent);
 
     const unlockText = scene.add
         .text(400, 250, '', {
@@ -225,7 +227,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             wordWrap: { width: 580 },
         })
         .setOrigin(0.5)
-        .setDepth(102);
+        .setDepth(Depths.EndScreenContent);
 
     const cards: UpgradeCardVisual[] = [];
     const cardPositions = [
@@ -243,7 +245,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         const background = scene.add
             .rectangle(position.x, position.y, 300, 68, 0x1c1c1c)
             .setStrokeStyle(1, 0x4a4a4a)
-            .setDepth(102)
+            .setDepth(Depths.EndScreenContent)
             .setInteractive({ useHandCursor: true });
 
         const cardTitle = scene.add
@@ -252,7 +254,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 fontSize: '15px',
                 color: '#f0f0f0',
             })
-            .setDepth(103);
+            .setDepth(Depths.EndScreenForeground);
 
         const cardLevel = scene.add
             .text(position.x + 136, position.y - 22, '', {
@@ -261,7 +263,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 color: '#a8a8a8',
             })
             .setOrigin(1, 0)
-            .setDepth(103);
+            .setDepth(Depths.EndScreenForeground);
 
         const cardBody = scene.add
             .text(position.x - 136, position.y - 2, '', {
@@ -270,7 +272,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 color: '#9a9a9a',
                 wordWrap: { width: 220 },
             })
-            .setDepth(103);
+            .setDepth(Depths.EndScreenForeground);
 
         const cardCost = scene.add
             .text(position.x + 136, position.y + 14, '', {
@@ -279,7 +281,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 color: '#ffd36e',
             })
             .setOrigin(1, 0)
-            .setDepth(103);
+            .setDepth(Depths.EndScreenForeground);
 
         const visual: UpgradeCardVisual = {
             id: card.id,
@@ -288,16 +290,16 @@ export function showDeathScreen(ctx: EndScreenContext) {
             level: cardLevel,
             body: cardBody,
             cost: cardCost,
+            canPurchase: false,
         };
 
         background.on('pointerover', () => {
-            if ((background as unknown as { canPurchase?: boolean }).canPurchase) {
+            if (visual.canPurchase) {
                 background.setStrokeStyle(2, 0xffffff);
             }
         });
         background.on('pointerout', () => {
-            const canPurchase = (background as unknown as { canPurchase?: boolean }).canPurchase;
-            background.setStrokeStyle(1, canPurchase ? 0x8a8a8a : 0x4a4a4a);
+            background.setStrokeStyle(1, visual.canPurchase ? 0x8a8a8a : 0x4a4a4a);
         });
         background.on('pointerdown', () => {
             const info = meta.getUpgradeCards(loc.language).find((upgrade) => upgrade.id === visual.id);
@@ -313,7 +315,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         cards.push(visual);
     });
 
-    const restartButton = scene.add.rectangle(400, 548, 260, 42, 0x2b2b2b).setDepth(102);
+    const restartButton = scene.add.rectangle(400, 548, 260, 42, 0x2b2b2b).setDepth(Depths.EndScreenContent);
     restartButton.setStrokeStyle(1, 0x8a8a8a);
     restartButton.setInteractive({ useHandCursor: true });
     const restartText = scene.add
@@ -323,9 +325,9 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#f0f0f0',
         })
         .setOrigin(0.5)
-        .setDepth(103);
+        .setDepth(Depths.EndScreenForeground);
 
-    const resetButton = scene.add.rectangle(400, 592, 260, 34, 0x3a1818).setDepth(102);
+    const resetButton = scene.add.rectangle(400, 592, 260, 34, 0x3a1818).setDepth(Depths.EndScreenContent);
     resetButton.setStrokeStyle(1, 0xa35a5a);
     resetButton.setInteractive({ useHandCursor: true });
     const resetText = scene.add
@@ -335,7 +337,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#ffd0d0',
         })
         .setOrigin(0.5)
-        .setDepth(103);
+        .setDepth(Depths.EndScreenForeground);
 
     restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
     restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x8a8a8a));
@@ -368,7 +370,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             );
             card.background.setFillStyle(info.canPurchase ? 0x242424 : 0x1c1c1c);
             card.background.setStrokeStyle(1, info.canPurchase ? 0x8a8a8a : 0x4a4a4a);
-            (card.background as unknown as { canPurchase?: boolean }).canPurchase = info.canPurchase;
+            card.canPurchase = info.canPurchase;
             card.cost.setColor(info.cost === null ? '#6acb7f' : info.canPurchase ? '#ffd36e' : '#6f6f6f');
             card.title.setColor(info.canPurchase ? '#f0f0f0' : '#a7a7a7');
             card.body.setColor(info.canPurchase ? '#9a9a9a' : '#727272');
@@ -376,10 +378,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
     };
 
     const confirmOverlay = scene.add
-        .rectangle(400, 300, 800, 600, 0x000000, 0.76)
-        .setDepth(110)
+        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
+        .setDepth(Depths.ConfirmOverlay)
         .setInteractive();
-    const confirmPanel = scene.add.rectangle(400, 300, 430, 190, 0x181818).setDepth(111);
+    const confirmPanel = scene.add.rectangle(400, 300, 430, 190, 0x181818).setDepth(Depths.ConfirmPanel);
     confirmPanel.setStrokeStyle(2, 0x8a4d4d);
     const confirmTitle = scene.add
         .text(400, 244, 'Стереть весь прогресс?', {
@@ -388,7 +390,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#ffd2d2',
         })
         .setOrigin(0.5)
-        .setDepth(112);
+        .setDepth(Depths.ConfirmContent);
     const confirmBody = scene.add
         .text(
             400,
@@ -404,8 +406,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
             }
         )
         .setOrigin(0.5)
-        .setDepth(112);
-    const confirmResetButton = scene.add.rectangle(320, 358, 170, 38, 0x5a1d1d).setDepth(112);
+        .setDepth(Depths.ConfirmContent);
+    const confirmResetButton = scene.add.rectangle(320, 358, 170, 38, 0x5a1d1d).setDepth(Depths.ConfirmContent);
     confirmResetButton.setStrokeStyle(1, 0xc57d7d);
     confirmResetButton.setInteractive({ useHandCursor: true });
     const confirmResetText = scene.add
@@ -415,8 +417,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#ffe8e8',
         })
         .setOrigin(0.5)
-        .setDepth(113);
-    const cancelResetButton = scene.add.rectangle(480, 358, 170, 38, 0x252525).setDepth(112);
+        .setDepth(Depths.ConfirmForeground);
+    const cancelResetButton = scene.add.rectangle(480, 358, 170, 38, 0x252525).setDepth(Depths.ConfirmContent);
     cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
     cancelResetButton.setInteractive({ useHandCursor: true });
     const cancelResetText = scene.add
@@ -426,7 +428,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#f0f0f0',
         })
         .setOrigin(0.5)
-        .setDepth(113);
+        .setDepth(Depths.ConfirmForeground);
 
     const confirmWidgets = [
         confirmOverlay,

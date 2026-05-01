@@ -31,6 +31,7 @@ import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
 import { roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
+import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
 import {
     showDeathScreen,
@@ -257,10 +258,10 @@ export class GameScene extends Phaser.Scene {
             color: '#d0d0d0',
             backgroundColor: '#1a1a1aee',
             padding: { x: 6, y: 3 },
-        }).setDepth(220).setVisible(false);
+        }).setDepth(Depths.Tooltip).setVisible(false);
 
-        VFX.vignette(this, 800, 600);
-        VFX.scanlines(this, 800, 600);
+        VFX.vignette(this, GAME_WIDTH, GAME_HEIGHT);
+        VFX.scanlines(this, GAME_WIDTH, GAME_HEIGHT);
         VFX.ambientEmbers(this, 22);
 
         setupSceneChrome(this, this.sfx, this.loc, () => this.safeRestart());
@@ -447,7 +448,7 @@ export class GameScene extends Phaser.Scene {
             this.log.addMessage(this.loc.t('levelUp', { level }), '#fff17a');
             VFX.floatText(this, 300, 20, `${this.loc.t('level')} ${level}`, '#fff17a');
             this.sfx.play('levelUp');
-            const flash = this.add.rectangle(400, 300, 800, 600, 0xfff17a, 0.08).setDepth(88);
+            const flash = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xfff17a, 0.08).setDepth(Depths.ScreenFlash);
             this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
             this.refreshUI();
         };
@@ -1219,7 +1220,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private fadeToRoom(node: MapNode) {
-        const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000).setAlpha(0).setDepth(90);
+        const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.tweens.add({
             targets: overlay,
             alpha: 1,
@@ -1260,7 +1261,7 @@ export class GameScene extends Phaser.Scene {
             this.roomTintOverlay = null;
         }
         const tint = this.roomTintColor(type);
-        this.roomTintOverlay = this.add.rectangle(400, 300, 800, 600, tint.color, tint.alpha)
+        this.roomTintOverlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, tint.color, tint.alpha)
             .setDepth(1).setScrollFactor(0);
     }
 
@@ -1329,7 +1330,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     public returnToMap() {
-        const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000).setAlpha(0).setDepth(90);
+        const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.tweens.add({
             targets: overlay,
             alpha: 1,

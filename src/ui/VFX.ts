@@ -1,9 +1,10 @@
 import * as Phaser from 'phaser';
+import { CENTER_X, CENTER_Y, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 
 export class VFX {
 
     /** Dark vignette around the screen edges. */
-    static vignette(scene: Phaser.Scene, w = 800, h = 600) {
+    static vignette(scene: Phaser.Scene, w = GAME_WIDTH, h = GAME_HEIGHT) {
         const g = scene.add.graphics().setDepth(210).setScrollFactor(0);
         g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.8, 0.8, 0, 0);
         g.fillRect(0, 0, w, h * 0.18);
@@ -16,7 +17,7 @@ export class VFX {
     }
 
     /** CRT scanlines. */
-    static scanlines(scene: Phaser.Scene, w = 800, h = 600) {
+    static scanlines(scene: Phaser.Scene, w = GAME_WIDTH, h = GAME_HEIGHT) {
         const g = scene.add.graphics().setDepth(209).setScrollFactor(0);
         g.lineStyle(1, 0x000000, 0.018);
         for (let y = 0; y < h; y += 6) {
@@ -64,7 +65,7 @@ export class VFX {
 
     /** Gold flash for critical hits. */
     static critFlash(scene: Phaser.Scene) {
-        const flash = scene.add.rectangle(400, 300, 800, 600, 0xffc800, 0.22).setDepth(89);
+        const flash = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xffc800, 0.22).setDepth(89);
         scene.tweens.add({
             targets: flash, alpha: 0, duration: 250, ease: 'Quad.out',
             onComplete: () => flash.destroy()
