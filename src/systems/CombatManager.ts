@@ -1,7 +1,7 @@
 import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
 import { COMBAT_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyProfile } from '../data/GameConfig';
-import { EventLog } from '../ui/EventLog';
+import type { EventLog } from '../ui/EventLog';
 import { narrate } from './Narrator';
 import { Localization } from './Localization';
 import { PlayerManager } from './PlayerManager';
