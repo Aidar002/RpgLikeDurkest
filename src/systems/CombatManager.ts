@@ -2,6 +2,7 @@ import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
 import { COMBAT_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyProfile } from '../data/GameConfig';
 import type { EventLog } from '../ui/EventLog';
+import { Emitter } from './Emitter';
 import { narrate } from './Narrator';
 import { Localization } from './Localization';
 import { PlayerManager } from './PlayerManager';
@@ -71,13 +72,19 @@ export interface CombatEndPayload {
     killedByBleed: boolean;
 }
 
+export interface EnemyUpdatePayload {
+    hp: number;
+    maxHp: number;
+    color: number;
+    name: string;
+    icon: string;
+}
+
 export class CombatManager {
     private player: PlayerManager;
     private log: EventLog;
     private stress: StressManager | null;
     private loc: Localization;
-    private onCombatEnd: (payload: CombatEndPayload) => void;
-    private onPlayerHit: (damage: number) => void;
     private rng: Rng;
 
     public enemy: ActiveEnemy | null = null;
@@ -94,29 +101,21 @@ export class CombatManager {
         enemyStunned: false,
         enemyEvaded: false,
     };
-    public onEnemyUpdate: (
-        hp: number,
-        maxHp: number,
-        color: number,
-        name: string,
-        icon: string
-    ) => void = () => {};
-    public onPlayerStatusChange: () => void = () => {};
-    public onEnemyStatusChange: () => void = () => {};
+    public readonly enemyUpdate = new Emitter<EnemyUpdatePayload>();
+    public readonly playerStatusChange = new Emitter<void>();
+    public readonly enemyStatusChange = new Emitter<void>();
+    public readonly playerHit = new Emitter<{ damage: number }>();
+    public readonly combatEnd = new Emitter<CombatEndPayload>();
 
     constructor(
         player: PlayerManager,
         log: EventLog,
-        onCombatEnd: (payload: CombatEndPayload) => void,
-        onPlayerHit: (damage: number) => void = () => {},
         stress: StressManager | null = null,
         loc: Localization = new Localization(),
         rng: Rng = defaultRng
     ) {
         this.player = player;
         this.log = log;
-        this.onCombatEnd = onCombatEnd;
-        this.onPlayerHit = onPlayerHit;
         this.stress = stress;
         this.loc = loc;
         this.rng = rng;
@@ -195,7 +194,7 @@ export class CombatManager {
         const agg = this.player.aggregate;
         if (agg.startCombatFocus > 0) {
             applyFocus(this.player.status, 1, agg.startCombatFocus);
-            this.onPlayerStatusChange();
+            this.playerStatusChange.emit();
         }
         if (agg.evadeFirstHit) {
             this.enemy.firstHitEvaded = true;
@@ -208,15 +207,9 @@ export class CombatManager {
         const virtueResolve = this.stress?.combatStartResolve() ?? 0;
         if (virtueResolve > 0) this.player.gainResolve(virtueResolve);
 
-        this.onEnemyUpdate(
-            this.enemy.hp,
-            this.enemy.maxHp,
-            this.enemy.color,
-            this.enemy.name,
-            this.enemy.icon
-        );
-        this.onPlayerStatusChange();
-        this.onEnemyStatusChange();
+        this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
+        this.playerStatusChange.emit();
+        this.enemyStatusChange.emit();
     }
 
     processTurn(action: CombatAction) {
@@ -259,15 +252,9 @@ export class CombatManager {
                     this.loc.t('cm_004', { name: this.enemy.name, bleedDamage: enemyTick.bleedDamage }),
                     '#c15a5a'
                 );
-                this.onEnemyUpdate(
-                    this.enemy.hp,
-                    this.enemy.maxHp,
-                    this.enemy.color,
-                    this.enemy.name,
-                    this.enemy.icon
-                );
+                this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
             }
-            this.onEnemyStatusChange();
+            this.enemyStatusChange.emit();
         }
 
         if (this.enemy && this.enemy.hp <= 0) {
@@ -289,7 +276,7 @@ export class CombatManager {
                 );
             }
         }
-        this.onPlayerStatusChange();
+        this.playerStatusChange.emit();
     }
 
     private handlePlayerAttack() {
@@ -429,7 +416,7 @@ export class CombatManager {
             // apply via status state
             this.player.status.regen.amount = Math.max(this.player.status.regen.amount, regenAmount);
             this.player.status.regen.turns = Math.max(this.player.status.regen.turns, turns);
-            this.onPlayerStatusChange();
+            this.playerStatusChange.emit();
         }
         return true;
     }
@@ -447,13 +434,7 @@ export class CombatManager {
 
         this.enemy.hp = Math.max(0, this.enemy.hp - damage);
         this.lastActionResult.critical = this.lastActionResult.critical || critical;
-        this.onEnemyUpdate(
-            this.enemy.hp,
-            this.enemy.maxHp,
-            this.enemy.color,
-            this.enemy.name,
-            this.enemy.icon
-        );
+        this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
 
         if (critical) {
             const agg = this.player.aggregate;
@@ -502,7 +483,7 @@ export class CombatManager {
                 this.loc.t('cm_015', { name: this.enemy.name }),
                 '#7aaaff'
             );
-            this.onEnemyStatusChange();
+            this.enemyStatusChange.emit();
             return;
         }
 
@@ -622,7 +603,7 @@ export class CombatManager {
             if (this.rng.next() < 0.25) this.log.addMessage(narrate('low_hp', this.loc.language), '#c4a35a');
         }
 
-        this.onPlayerStatusChange();
+        this.playerStatusChange.emit();
     }
 
     private applyEnemyHitToPlayer(rawAttack: number, flatBlock: number): number {
@@ -647,7 +628,7 @@ export class CombatManager {
                 this.player.aggregate.stressReductionPct
             );
             if (crit) this.log.addMessage(narrate('crit_received', this.loc.language), '#c4a35a');
-            this.onPlayerHit(taken);
+            this.playerHit.emit({ damage: taken });
 
             // Thorns damage back at the attacker.
             const thorns = this.player.aggregate.thornsDamage;
@@ -657,13 +638,7 @@ export class CombatManager {
                     this.loc.t('cm_024', { thorns }),
                     '#88cc88'
                 );
-                this.onEnemyUpdate(
-                    this.enemy.hp,
-                    this.enemy.maxHp,
-                    this.enemy.color,
-                    this.enemy.name,
-                    this.enemy.icon
-                );
+                this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
             }
         }
         return taken;
@@ -684,7 +659,7 @@ export class CombatManager {
         else if (this.enemy.kind === 'elite') this.stress?.relieve(STRESS_CONFIG.onEliteKill * -1);
 
         this.enemy = null;
-        this.onCombatEnd(payload);
+        this.combatEnd.emit(payload);
     }
 
     private logDeath() {

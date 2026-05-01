@@ -20,8 +20,6 @@ function makeManager(seed: number): {
     const combat = new CombatManager(
         player,
         log,
-        () => {},
-        () => {},
         null,
         undefined,
         new Mulberry32(seed)
