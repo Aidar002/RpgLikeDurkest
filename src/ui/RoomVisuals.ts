@@ -4,82 +4,71 @@ import { RoomType, type MapNode, type RoomType as RoomTypeValue } from '../syste
 // Pure visual lookups for map-node rendering. Extracted from GameScene so
 // they're trivially testable and reusable by other UI helpers.
 
+const ROOM_COLOR: Record<RoomTypeValue, number> = {
+    [RoomType.START]: 0x777777,
+    [RoomType.ENEMY]: 0x903535,
+    [RoomType.TREASURE]: 0x9b7a22,
+    [RoomType.TRAP]: 0x7f4b96,
+    [RoomType.REST]: 0x2f8f52,
+    [RoomType.SHRINE]: 0x5f4e8a,
+    [RoomType.MERCHANT]: 0x2e6c87,
+    [RoomType.ELITE]: 0xb14545,
+    [RoomType.BOSS]: 0xc83b3b,
+    [RoomType.EMPTY]: 0x454545,
+};
+
+const ROOM_ICON: Record<RoomTypeValue, string> = {
+    [RoomType.START]: '@',
+    [RoomType.ENEMY]: 'X',
+    [RoomType.TREASURE]: '$',
+    [RoomType.TRAP]: '^',
+    [RoomType.REST]: '+',
+    [RoomType.SHRINE]: 'S',
+    [RoomType.MERCHANT]: 'M',
+    [RoomType.ELITE]: 'E',
+    [RoomType.BOSS]: 'B',
+    [RoomType.EMPTY]: '.',
+};
+
+const ROOM_SPRITE_KEY: Record<RoomTypeValue, string> = {
+    [RoomType.START]: 'START',
+    [RoomType.ENEMY]: 'ENEMY',
+    [RoomType.TREASURE]: 'TREASURE',
+    [RoomType.TRAP]: 'TRAP',
+    [RoomType.REST]: 'REST',
+    [RoomType.SHRINE]: 'SHRINE',
+    [RoomType.MERCHANT]: 'MERCHANT',
+    [RoomType.ELITE]: 'ELITE',
+    [RoomType.BOSS]: 'BOSS',
+    [RoomType.EMPTY]: 'EMPTY',
+};
+
+/** Localization key per room type, used by `roomTypeName`. */
+const ROOM_NAME_KEY = {
+    [RoomType.START]: 'roomCamp',
+    [RoomType.ENEMY]: 'roomEnemy',
+    [RoomType.TREASURE]: 'roomTreasure',
+    [RoomType.TRAP]: 'roomTrap',
+    [RoomType.REST]: 'roomRest',
+    [RoomType.SHRINE]: 'roomShrine',
+    [RoomType.MERCHANT]: 'roomMerchant',
+    [RoomType.ELITE]: 'roomElite',
+    [RoomType.BOSS]: 'roomBoss',
+    [RoomType.EMPTY]: 'roomEmpty',
+} as const satisfies Record<RoomTypeValue, string>;
+
 export function roomColor(node: MapNode): number {
-    switch (node.type) {
-        case RoomType.START:
-            return 0x777777;
-        case RoomType.ENEMY:
-            return 0x903535;
-        case RoomType.TREASURE:
-            return 0x9b7a22;
-        case RoomType.TRAP:
-            return 0x7f4b96;
-        case RoomType.REST:
-            return 0x2f8f52;
-        case RoomType.SHRINE:
-            return 0x5f4e8a;
-        case RoomType.MERCHANT:
-            return 0x2e6c87;
-        case RoomType.ELITE:
-            return 0xb14545;
-        case RoomType.BOSS:
-            return 0xc83b3b;
-        case RoomType.EMPTY:
-            return 0x454545;
-    }
+    return ROOM_COLOR[node.type];
 }
 
 export function roomIcon(type: RoomTypeValue): string {
-    switch (type) {
-        case RoomType.START:
-            return '@';
-        case RoomType.ENEMY:
-            return 'X';
-        case RoomType.TREASURE:
-            return '$';
-        case RoomType.TRAP:
-            return '^';
-        case RoomType.REST:
-            return '+';
-        case RoomType.SHRINE:
-            return 'S';
-        case RoomType.MERCHANT:
-            return 'M';
-        case RoomType.ELITE:
-            return 'E';
-        case RoomType.BOSS:
-            return 'B';
-        case RoomType.EMPTY:
-            return '.';
-    }
+    return ROOM_ICON[type];
 }
 
 export function roomSpriteKey(type: RoomTypeValue): string {
-    switch (type) {
-        case RoomType.START: return 'START';
-        case RoomType.ENEMY: return 'ENEMY';
-        case RoomType.TREASURE: return 'TREASURE';
-        case RoomType.TRAP: return 'TRAP';
-        case RoomType.REST: return 'REST';
-        case RoomType.SHRINE: return 'SHRINE';
-        case RoomType.MERCHANT: return 'MERCHANT';
-        case RoomType.ELITE: return 'ELITE';
-        case RoomType.BOSS: return 'BOSS';
-        case RoomType.EMPTY: return 'EMPTY';
-    }
+    return ROOM_SPRITE_KEY[type];
 }
 
 export function roomTypeName(type: RoomTypeValue, loc: Localization): string {
-    switch (type) {
-        case RoomType.START: return loc.t('roomCamp');
-        case RoomType.ENEMY: return loc.t('roomEnemy');
-        case RoomType.TREASURE: return loc.t('roomTreasure');
-        case RoomType.TRAP: return loc.t('roomTrap');
-        case RoomType.REST: return loc.t('roomRest');
-        case RoomType.SHRINE: return loc.t('roomShrine');
-        case RoomType.MERCHANT: return loc.t('roomMerchant');
-        case RoomType.ELITE: return loc.t('roomElite');
-        case RoomType.BOSS: return loc.t('roomBoss');
-        case RoomType.EMPTY: return loc.t('roomEmpty');
-    }
+    return loc.t(ROOM_NAME_KEY[type]);
 }

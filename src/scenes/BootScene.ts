@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { Localization } from '../systems/Localization';
 import { SoundManager } from '../systems/SoundManager';
+import { GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 
 export class BootScene extends Phaser.Scene {
     constructor() {
@@ -19,7 +20,7 @@ export class BootScene extends Phaser.Scene {
 
         const bg = this.add.graphics();
         bg.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x151520, 0x151520, 1, 1, 1, 1);
-        bg.fillRect(0, 0, 800, 600);
+        bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
 
         // Ambient embers on title
         for (let i = 0; i < 12; i++) {
@@ -122,8 +123,8 @@ export class BootScene extends Phaser.Scene {
         // Scanlines overlay
         const scanGfx = this.add.graphics().setDepth(10);
         scanGfx.lineStyle(1, 0x000000, 0.012);
-        for (let y = 0; y < 600; y += 6) {
-            scanGfx.beginPath(); scanGfx.moveTo(0, y); scanGfx.lineTo(800, y); scanGfx.strokePath();
+        for (let y = 0; y < GAME_HEIGHT; y += 6) {
+            scanGfx.beginPath(); scanGfx.moveTo(0, y); scanGfx.lineTo(GAME_WIDTH, y); scanGfx.strokePath();
         }
     }
 }

@@ -3,6 +3,7 @@ import { COMBAT_CONFIG, MAP_CONFIG } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
 import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
+import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { PixelSprite } from '../ui/PixelSprite';
 import { VFX } from '../ui/VFX';
 import type { GameScene, RoomButtonAction } from './GameScene';
@@ -329,7 +330,7 @@ export class CombatHudController {
         scene.sfx.play('enemyHit');
         const intensity = Math.min(0.015, 0.004 * damage);
         scene.cameras.main.shake(220, intensity);
-        const flash = scene.add.rectangle(400, 300, 800, 600, 0xff0000, 0.18).setDepth(88);
+        const flash = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0.18).setDepth(Depths.ScreenFlash);
         scene.tweens.add({
             targets: flash,
             alpha: 0,
