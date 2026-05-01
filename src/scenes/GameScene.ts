@@ -82,8 +82,8 @@ export class GameScene extends Phaser.Scene {
     public tracker!: RunTracker;
     public stress!: StressManager;
     public skillLoadout: SkillId[] = [...STARTER_LOADOUT];
-    public loc: Localization = new Localization();
-    public sfx: SoundManager = new SoundManager();
+    public loc!: Localization;
+    public sfx!: SoundManager;
     public npcs!: NpcManager;
     public vethSharpenedThisRoom = false;
 
@@ -145,6 +145,18 @@ export class GameScene extends Phaser.Scene {
 
     constructor() {
         super('GameScene');
+    }
+
+    /**
+     * Receive shared services from the previous scene (BootScene). Falls back
+     * to fresh instances so the scene still works if started directly (e.g.
+     * future tests or hot-reload). Phaser carries init data through
+     * `scene.restart()`, so the same `loc` / `sfx` references survive a run
+     * restart from the death screen.
+     */
+    init(data?: { loc?: Localization; sfx?: SoundManager }) {
+        this.loc = data?.loc ?? new Localization();
+        this.sfx = data?.sfx ?? new SoundManager();
     }
 
     public skillShort(id: SkillId): string {
