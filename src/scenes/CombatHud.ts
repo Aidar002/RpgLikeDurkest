@@ -23,25 +23,25 @@ export class CombatHudController {
                   header: isFinalBoss ? (scene.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN') : scene.loc.t('boss'),
                   title: isFinalBoss
                       ? (scene.loc.language === 'ru' ? 'Хранитель Артефакта Желаний.' : 'The Guardian of the Wish Artifact.')
-                      : scene.loc.t('ch_001'),
+                      : scene.loc.t('hudBossPrologueA'),
                   description: isFinalBoss
                       ? (scene.loc.language === 'ru' ? 'Последний страж. За ним лежит Артефакт Желаний.' : 'The final keeper. Beyond it lies the wish-granting artifact.')
-                      : scene.loc.t('ch_002'),
+                      : scene.loc.t('hudBossPrologueB'),
                   color: isFinalBoss ? 0xc8a030 : 0xa52f2f,
                   icon: isFinalBoss ? '\u2726' : 'B',
               }
             : kind === 'elite'
               ? {
                     header: scene.loc.t('elite'),
-                    title: scene.loc.t('ch_003'),
-                    description: scene.loc.t('ch_004'),
+                    title: scene.loc.t('hudEliteIntroTitle'),
+                    description: scene.loc.t('hudEliteIntroBody'),
                     color: 0xa14a4a,
                     icon: 'E',
                 }
               : {
                     header: scene.loc.t('hostile'),
-                    title: scene.loc.t('ch_005'),
-                    description: scene.loc.t('ch_006'),
+                    title: scene.loc.t('hudCombatContactTitle'),
+                    description: scene.loc.t('hudCombatContactBody'),
                     color: 0x6b3030,
                     icon: 'X',
                 };
@@ -164,30 +164,30 @@ export class CombatHudController {
     buildIntel(): string {
         const scene = this.scene;
         if (!scene.combat.enemy) {
-            return scene.loc.t('ch_007');
+            return scene.loc.t('hudReturnHint');
         }
 
         const enemy = scene.combat.enemy;
         const profileHints: Record<string, string> = {
-            brute: scene.loc.t('ch_008'),
-            stalker: scene.loc.t('ch_009'),
-            mage: scene.loc.t('ch_010'),
-            boss: scene.loc.t('ch_011'),
+            brute: scene.loc.t('hudProfileBrute'),
+            stalker: scene.loc.t('hudProfileStalker'),
+            mage: scene.loc.t('hudProfileMage'),
+            boss: scene.loc.t('hudProfileBoss'),
         };
 
         const hints: string[] = [];
         hints.push(profileHints[enemy.profile] ?? '');
 
         if (enemy.enraged) {
-            hints.push(scene.loc.t('ch_012'));
+            hints.push(scene.loc.t('hudHintEnraged'));
         }
         if (enemy.charging) {
-            hints.push(scene.loc.t('ch_013'));
+            hints.push(scene.loc.t('hudHintCharging'));
         }
 
         if (scene.meta.isUnlocked('action_skill')) {
             hints.push(
-                scene.loc.t('ch_014', { skillCost: COMBAT_CONFIG.skillCost })
+                scene.loc.t('hudHintSkillCost', { skillCost: COMBAT_CONFIG.skillCost })
             );
         }
 

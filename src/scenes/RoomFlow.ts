@@ -176,11 +176,11 @@ export class RoomFlowController {
 
         scene.showRoomCard(
             scene.loc.t('treasure'),
-            scene.loc.t('rf_001'),
-            scene.loc.t('rf_002', { value: rewardParts.join(', ') }),
+            scene.loc.t('roomTreasureName'),
+            scene.loc.t('roomTreasureDesc', { value: rewardParts.join(', ') }),
             0x8d6a21,
             '$',
-            scene.loc.t('rf_003'),
+            scene.loc.t('roomTreasureHint'),
             'TREASURE'
         );
         scene.log.addMessage(scene.loc.t('treasureSecured', { parts: rewardParts.join(', ') }), '#f7d46b');
@@ -194,18 +194,18 @@ export class RoomFlowController {
         const scene = this.scene;
         const trapVariants = [
             {
-                title: scene.loc.t('rf_004'),
-                desc: scene.loc.t('rf_005'),
+                title: scene.loc.t('trapMechanicalName'),
+                desc: scene.loc.t('trapMechanicalDesc'),
                 icon: '^',
             },
             {
-                title: scene.loc.t('rf_006'),
-                desc: scene.loc.t('rf_007'),
+                title: scene.loc.t('trapDartName'),
+                desc: scene.loc.t('trapDartDesc'),
                 icon: '!',
             },
             {
-                title: scene.loc.t('rf_008'),
-                desc: scene.loc.t('rf_009'),
+                title: scene.loc.t('trapCollapseName'),
+                desc: scene.loc.t('trapCollapseDesc'),
                 icon: 'v',
             },
         ];
@@ -217,7 +217,7 @@ export class RoomFlowController {
             trap.desc,
             0x75458a,
             trap.icon,
-            scene.loc.t('rf_010'),
+            scene.loc.t('trapHint'),
             'TRAP'
         );
 
@@ -233,7 +233,7 @@ export class RoomFlowController {
                     scene.log.addMessage(scene.loc.t('trapRush', { damage }), '#ff7777');
                     if (scene.player.stats.hp > 0) {
                         scene.showReturnButton();
-                        scene.enemyIntelText.setText(scene.loc.t('rf_011'));
+                        scene.enemyIntelText.setText(scene.loc.t('trapAfterRush'));
                     }
                 },
                 fill: 0x5a1d1d,
@@ -247,7 +247,7 @@ export class RoomFlowController {
                         );
                         scene.sfx.play('trapDisarm');
                         scene.log.addMessage(scene.loc.t('trapDisarm', { gold }), '#f7d46b');
-                        scene.enemyIntelText.setText(scene.loc.t('rf_012'));
+                        scene.enemyIntelText.setText(scene.loc.t('trapAfterDisarm'));
                     } else {
                         const damage = scene.applyTrapDamage(
                             randomInt(defaultRng,
@@ -273,11 +273,11 @@ export class RoomFlowController {
         scene.sfx.play('rest');
         scene.showRoomCard(
             scene.loc.t('rest'),
-            scene.loc.t('rf_013'),
-            scene.loc.t('rf_014'),
+            scene.loc.t('restCampfireName'),
+            scene.loc.t('restCampfireDesc'),
             0x2f8b4b,
             '+',
-            scene.loc.t('rf_015'),
+            scene.loc.t('restHint'),
             'REST'
         );
 
@@ -294,10 +294,10 @@ export class RoomFlowController {
                     const lightGained = scene.player.gainLight(ROOM_CONFIG.rest.recoverLight);
                     const summary = [`${healed} ${scene.loc.t('hp')}`];
                     if (lightGained > 0) {
-                        summary.push(`${lightGained} ${scene.loc.t('rf_016')}`);
+                        summary.push(`${lightGained} ${scene.loc.t('unitLight')}`);
                     }
                     scene.log.addMessage(scene.loc.t('restRecover', { parts: summary.join(', ') }), '#79e28f');
-                    scene.enemyIntelText.setText(scene.loc.t('rf_017'));
+                    scene.enemyIntelText.setText(scene.loc.t('restAfterHint'));
                     scene.showReturnButton();
                 },
                 fill: 0x1f5b2f,
@@ -307,20 +307,20 @@ export class RoomFlowController {
                 callback: () => {
                     const gained = scene.player.gainResolve(ROOM_CONFIG.rest.focusResolve);
                     scene.log.addMessage(scene.loc.t('focusResolve', { value: gained }), '#9bc8ff');
-                    scene.enemyIntelText.setText(scene.loc.t('rf_018'));
+                    scene.enemyIntelText.setText(scene.loc.t('restAfterSteady'));
                     scene.showReturnButton();
                 },
                 fill: 0x1b335b,
             },
             {
-                label: scene.loc.t('rf_019'),
+                label: scene.loc.t('restMeditateLabel'),
                 callback: () => {
                     scene.stress.relieve(ROOM_CONFIG.rest.meditateStressRelief);
                     scene.log.addMessage(
-                        scene.loc.t('rf_020', { meditateStressRelief: ROOM_CONFIG.rest.meditateStressRelief }),
+                        scene.loc.t('restMeditateApplied', { meditateStressRelief: ROOM_CONFIG.rest.meditateStressRelief }),
                         '#d6b8ff'
                     );
-                    scene.enemyIntelText.setText(scene.loc.t('rf_021'));
+                    scene.enemyIntelText.setText(scene.loc.t('restMeditateAfter'));
                     scene.showReturnButton();
                 },
                 fill: 0x3e2260,
@@ -486,13 +486,13 @@ export class RoomFlowController {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.player.gainPotions(1);
-                scene.log.addMessage(scene.loc.t('rf_022'), '#9be0a7');
+                scene.log.addMessage(scene.loc.t('npcMiraPotion'), '#9be0a7');
                 break;
             case 'mira_lantern': {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 const gainedLight = scene.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
-                scene.log.addMessage(scene.loc.t('rf_023', { gainedLight }), '#ffe08a');
+                scene.log.addMessage(scene.loc.t('npcMiraLight', { gainedLight }), '#ffe08a');
                 affinityDelta = 2;
                 break;
             }
@@ -500,14 +500,14 @@ export class RoomFlowController {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
-                scene.log.addMessage(scene.loc.t('rf_024', { armorDefenseGain: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
+                scene.log.addMessage(scene.loc.t('npcMiraArmor', { armorDefenseGain: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
                 break;
             case 'mira_relic_oil':
                 if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
                 scene.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
                 scene.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
                 scene.log.addMessage(
-                    scene.loc.t('rf_025', { premiumAttackBonus: ROOM_CONFIG.merchant.premiumAttackBonus, premiumPotionBonus: ROOM_CONFIG.merchant.premiumPotionBonus }),
+                    scene.loc.t('npcMiraPremium', { premiumAttackBonus: ROOM_CONFIG.merchant.premiumAttackBonus, premiumPotionBonus: ROOM_CONFIG.merchant.premiumPotionBonus }),
                     '#ffd9f7'
                 );
                 affinityDelta = 2;
@@ -518,7 +518,7 @@ export class RoomFlowController {
                 if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
                     scene.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
                     scene.log.addMessage(
-                        scene.loc.t('rf_026', { prayAttackBonus: ROOM_CONFIG.shrine.prayAttackBonus }),
+                        scene.loc.t('npcCasimirPray', { prayAttackBonus: ROOM_CONFIG.shrine.prayAttackBonus }),
                         '#d7b6ff'
                     );
                     affinityDelta = 2;
@@ -526,7 +526,7 @@ export class RoomFlowController {
                     const damage = scene.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
                     const resolve = scene.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
                     scene.log.addMessage(
-                        scene.loc.t('rf_027', { damage, resolve }),
+                        scene.loc.t('npcCasimirOffer', { damage, resolve }),
                         '#c99cff'
                     );
                     affinityDelta = 1;
@@ -537,7 +537,7 @@ export class RoomFlowController {
                 scene.tracker.record('goldSpent', cost);
                 scene.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
                 scene.log.addMessage(
-                    scene.loc.t('rf_028', { offerMaxHpBonus: ROOM_CONFIG.shrine.offerMaxHpBonus }),
+                    scene.loc.t('npcCasimirFeed', { offerMaxHpBonus: ROOM_CONFIG.shrine.offerMaxHpBonus }),
                     '#ffd36e'
                 );
                 affinityDelta = 2;
@@ -550,7 +550,7 @@ export class RoomFlowController {
                 );
                 scene.player.gainResolve(ROOM_CONFIG.shrine.premiumResolveBonus);
                 scene.log.addMessage(
-                    scene.loc.t('rf_029', { premiumMaxHpBonus: ROOM_CONFIG.shrine.premiumMaxHpBonus, premiumResolveBonus: ROOM_CONFIG.shrine.premiumResolveBonus }),
+                    scene.loc.t('npcCasimirRite', { premiumMaxHpBonus: ROOM_CONFIG.shrine.premiumMaxHpBonus, premiumResolveBonus: ROOM_CONFIG.shrine.premiumResolveBonus }),
                     '#ffd9f7'
                 );
                 affinityDelta = 2;
@@ -562,9 +562,9 @@ export class RoomFlowController {
                 const got = scene.maybeDropRelic('elite');
                 if (!got) {
                     scene.player.gainGold(8);
-                    scene.log.addMessage(scene.loc.t('rf_030'), '#a8a0c0');
+                    scene.log.addMessage(scene.loc.t('npcHollowPay'), '#a8a0c0');
                 } else {
-                    scene.log.addMessage(scene.loc.t('rf_031'), '#a8a0c0');
+                    scene.log.addMessage(scene.loc.t('npcHollowMark'), '#a8a0c0');
                 }
                 affinityDelta = 2;
                 scene.npcs.addFlag('hollow', 'paid-in-blood');
@@ -573,14 +573,14 @@ export class RoomFlowController {
             case 'hollow_shards_for_relic':
                 if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
                 scene.maybeDropRelic('boss');
-                scene.log.addMessage(scene.loc.t('rf_032'), '#f0a8ff');
+                scene.log.addMessage(scene.loc.t('npcHollowRelic'), '#f0a8ff');
                 affinityDelta = 2;
                 break;
             case 'hollow_potion_for_gold':
                 if (scene.player.resources.potions <= 0) { consumed = false; break; }
                 scene.player.resources.potions -= 1;
                 scene.player.gainGold(cost);
-                scene.log.addMessage(scene.loc.t('rf_033', { cost }), '#ffd36e');
+                scene.log.addMessage(scene.loc.t('npcHollowPotion', { cost }), '#ffd36e');
                 break;
 
             // -- Veth ------------------------------------------------------------
@@ -589,9 +589,9 @@ export class RoomFlowController {
                 const got = scene.maybeDropRelic('elite');
                 if (!got) {
                     scene.player.gainGold(20);
-                    scene.log.addMessage(scene.loc.t('rf_034'), '#ffb084');
+                    scene.log.addMessage(scene.loc.t('npcVethCoin'), '#ffb084');
                 } else {
-                    scene.log.addMessage(scene.loc.t('rf_035'), '#ffb084');
+                    scene.log.addMessage(scene.loc.t('npcVethCarry'), '#ffb084');
                 }
                 affinityDelta = 2;
                 scene.npcs.addFlag('veth', 'pacted');
@@ -600,7 +600,7 @@ export class RoomFlowController {
             case 'veth_lesson':
                 scene.stress.add(cost);
                 scene.player.addAttackBonus(2);
-                scene.log.addMessage(scene.loc.t('rf_036'), '#ffb084');
+                scene.log.addMessage(scene.loc.t('npcVethThirdCut'), '#ffb084');
                 affinityDelta = 2;
                 scene.npcs.addFlag('veth', 'taught');
                 break;
@@ -608,7 +608,7 @@ export class RoomFlowController {
                 if (scene.vethSharpenedThisRoom) { consumed = false; break; }
                 scene.vethSharpenedThisRoom = true;
                 scene.player.addAttackBonus(1);
-                scene.log.addMessage(scene.loc.t('rf_037'), '#ffb084');
+                scene.log.addMessage(scene.loc.t('npcVethStrop'), '#ffb084');
                 affinityDelta = 1;
                 break;
 
@@ -617,25 +617,25 @@ export class RoomFlowController {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.stress.relieve(20);
-                scene.log.addMessage(scene.loc.t('rf_038'), '#d6b8ff');
+                scene.log.addMessage(scene.loc.t('npcChoristerSong'), '#d6b8ff');
                 affinityDelta = 2;
                 break;
             case 'chorister_resolve':
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.player.gainResolve(2);
-                scene.log.addMessage(scene.loc.t('rf_039'), '#9bc8ff');
+                scene.log.addMessage(scene.loc.t('npcChoristerSteady'), '#9bc8ff');
                 break;
             case 'chorister_unbind':
                 if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
                 if (scene.stress.resolution && scene.stress.resolution.kind === 'affliction') {
                     scene.stress.resolution = null;
                     scene.updateStressUI();
-                    scene.log.addMessage(scene.loc.t('rf_040'), '#ffd9f7');
+                    scene.log.addMessage(scene.loc.t('npcChoristerUnbind'), '#ffd9f7');
                     affinityDelta = 3;
                 } else {
                     scene.player.gainResolve(3);
-                    scene.log.addMessage(scene.loc.t('rf_041'), '#ffd9f7');
+                    scene.log.addMessage(scene.loc.t('npcChoristerCarry'), '#ffd9f7');
                     affinityDelta = 1;
                 }
                 break;
@@ -644,13 +644,13 @@ export class RoomFlowController {
             case 'kessa_tea':
                 scene.player.heal(4);
                 scene.stress.relieve(10);
-                scene.log.addMessage(scene.loc.t('rf_042'), '#9be0a7');
+                scene.log.addMessage(scene.loc.t('npcKessaCup'), '#9be0a7');
                 affinityDelta = 2;
                 break;
             case 'kessa_warning':
                 scene.player.gainResolve(1);
                 scene.log.addMessage(
-                    scene.loc.t('rf_043'),
+                    scene.loc.t('npcKessaTip'),
                     '#9bc8ff'
                 );
                 affinityDelta = 1;
@@ -659,7 +659,7 @@ export class RoomFlowController {
                 scene.player.addAttackBonus(1);
                 scene.player.addDefenseBonus(1);
                 scene.log.addMessage(
-                    scene.loc.t('rf_044'),
+                    scene.loc.t('npcKessaEarring'),
                     '#ffd36e'
                 );
                 scene.npcs.addFlag('kessa', 'gave-token');
@@ -708,7 +708,7 @@ export class RoomFlowController {
                         scene.log.addMessage(scene.loc.t('shrineWound', { damage, resolve }), '#c99cff');
                     }
                     if (scene.player.stats.hp > 0) {
-                        scene.enemyIntelText.setText(scene.loc.t('rf_045'));
+                        scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
                         scene.showReturnButton();
                     }
                 },
@@ -723,11 +723,11 @@ export class RoomFlowController {
 
         scene.showRoomCard(
             scene.loc.t('shrine'),
-            scene.loc.t('rf_046'),
-            scene.loc.t('rf_047'),
+            scene.loc.t('roomShrineGenericName'),
+            scene.loc.t('roomShrineGenericDesc'),
             0x5f4e8a,
             'S',
-            scene.loc.t('rf_048'),
+            scene.loc.t('roomShrineGenericHint'),
             'SHRINE'
         );
         scene.setRoomButtons(actions);
@@ -757,7 +757,7 @@ export class RoomFlowController {
                     scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.potionCost);
                     scene.player.gainPotions(1);
                     scene.log.addMessage(scene.loc.t('buyPotion'), '#9be0a7');
-                    scene.enemyIntelText.setText(scene.loc.t('rf_049'));
+                    scene.enemyIntelText.setText(scene.loc.t('npcMerchantPay'));
                     scene.showReturnButton();
                 },
                 enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.potionCost,
@@ -775,7 +775,7 @@ export class RoomFlowController {
                     scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.lanternCost);
                     const gainedLight = scene.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
                     scene.log.addMessage(scene.loc.t('buyLantern', { value: gainedLight }), '#ffe08a');
-                    scene.enemyIntelText.setText(scene.loc.t('rf_050'));
+                    scene.enemyIntelText.setText(scene.loc.t('npcMerchantOil'));
                     scene.showReturnButton();
                 },
                 enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.lanternCost,
@@ -792,7 +792,7 @@ export class RoomFlowController {
                 scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.armorCost);
                 scene.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
                 scene.log.addMessage(scene.loc.t('buyArmor', { value: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
-                scene.enemyIntelText.setText(scene.loc.t('rf_051'));
+                scene.enemyIntelText.setText(scene.loc.t('npcMerchantFair'));
                 scene.showReturnButton();
             },
             enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.armorCost,
@@ -812,7 +812,7 @@ export class RoomFlowController {
                         attack: ROOM_CONFIG.merchant.premiumAttackBonus,
                         potions: ROOM_CONFIG.merchant.premiumPotionBonus,
                     }), '#ffd9f7');
-                    scene.enemyIntelText.setText(scene.loc.t('rf_052'));
+                    scene.enemyIntelText.setText(scene.loc.t('npcMerchantSmile'));
                     scene.showReturnButton();
                 },
                 enabled: scene.player.resources.relicShards >= ROOM_CONFIG.merchant.premiumShardCost,
@@ -828,11 +828,11 @@ export class RoomFlowController {
 
         scene.showRoomCard(
             scene.loc.t('merchant'),
-            scene.loc.t('rf_053'),
-            scene.loc.t('rf_054'),
+            scene.loc.t('roomShadowTraderName'),
+            scene.loc.t('roomShadowTraderDesc'),
             0x2e6c87,
             'M',
-            scene.loc.t('rf_055'),
+            scene.loc.t('roomShadowTraderHint'),
             'MERCHANT'
         );
         scene.setRoomButtons(actions);
@@ -843,30 +843,30 @@ export class RoomFlowController {
         if (Math.random() < 0.35) {
             const npcId = scene.npcs.pickForRole('wanderer', scene.dungeon.currentDepth);
             if (npcId) {
-                this.presentNpcRoom(npcId, scene.loc.t('rf_056'));
+                this.presentNpcRoom(npcId, scene.loc.t('roomEnemyEncounterTitle'));
                 return;
             }
         }
 
         const subEvents = [
             {
-                title: scene.loc.t('rf_057'),
-                desc: scene.loc.t('rf_058'),
+                title: scene.loc.t('roomEmptyDustyName'),
+                desc: scene.loc.t('roomEmptyDustyDesc'),
                 icon: '.',
             },
             {
-                title: scene.loc.t('rf_059'),
-                desc: scene.loc.t('rf_060'),
+                title: scene.loc.t('roomEmptyCollapsedName'),
+                desc: scene.loc.t('roomEmptyCollapsedDesc'),
                 icon: '~',
             },
             {
-                title: scene.loc.t('rf_061'),
-                desc: scene.loc.t('rf_062'),
+                title: scene.loc.t('roomEmptyEchoingName'),
+                desc: scene.loc.t('roomEmptyEchoingDesc'),
                 icon: '"',
             },
             {
-                title: scene.loc.t('rf_063'),
-                desc: scene.loc.t('rf_064'),
+                title: scene.loc.t('roomEmptyAlcoveName'),
+                desc: scene.loc.t('roomEmptyAlcoveDesc'),
                 icon: '\'',
             },
         ];
@@ -878,7 +878,7 @@ export class RoomFlowController {
             event.desc,
             0x444444,
             event.icon,
-            scene.loc.t('rf_065'),
+            scene.loc.t('roomEmptyHint'),
             'EMPTY'
         );
 
@@ -889,7 +889,7 @@ export class RoomFlowController {
                     const gains: string[] = [];
                     const lightGain = scene.player.gainLight(ROOM_CONFIG.empty.scoutLightGain);
                     if (lightGain > 0) {
-                        gains.push(`${lightGain} ${scene.loc.t('rf_066')}`);
+                        gains.push(`${lightGain} ${scene.loc.t('unitLight')}`);
                     }
 
                     if (
@@ -900,7 +900,7 @@ export class RoomFlowController {
                             randomInt(defaultRng, ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
                         );
                         if (gold > 0) scene.tracker.record('goldEarned', gold);
-                        gains.push(`${gold} ${scene.loc.t('rf_067')}`);
+                        gains.push(`${gold} ${scene.loc.t('unitGold')}`);
                     }
 
                     if (gains.length === 0) {
@@ -909,7 +909,7 @@ export class RoomFlowController {
                     }
 
                     scene.log.addMessage(scene.loc.t('emptyScout', { parts: gains.join(', ') }), '#bbbbbb');
-                    scene.enemyIntelText.setText(scene.loc.t('rf_068'));
+                    scene.enemyIntelText.setText(scene.loc.t('roomEmptyAfterSearch'));
                     scene.showReturnButton();
                 },
                 fill: 0x3d3d3d,
@@ -924,7 +924,7 @@ export class RoomFlowController {
                         const gainedXp = scene.player.gainXp(1);
                         scene.log.addMessage(scene.loc.t('emptyStudy', { value: gainedXp }), '#bbbbbb');
                     }
-                    scene.enemyIntelText.setText(scene.loc.t('rf_069'));
+                    scene.enemyIntelText.setText(scene.loc.t('roomEmptyAfterSkip'));
                     scene.showReturnButton();
                 },
                 fill: 0x2b2b2b,

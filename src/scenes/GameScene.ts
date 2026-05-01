@@ -384,7 +384,7 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0, 0.5);
 
         // Stress bar (second row, below HP).
-        const stressLabel = this.add.text(12, 46, this.loc.t('gs_001'), {
+        const stressLabel = this.add.text(12, 46, this.loc.t('stressBarLabel'), {
             fontFamily: 'Courier New',
             fontSize: '9px',
             color: '#8a7a99',
@@ -547,7 +547,7 @@ export class GameScene extends Phaser.Scene {
         this.hintText.setText(
             nextUnlock
                 ? compactText(
-                    `${this.loc.t('gs_002')}: ${this.milestoneRequirement(nextUnlock)}`,
+                    `${this.loc.t('stressNextLabel')}: ${this.milestoneRequirement(nextUnlock)}`,
                     30
                 )
                 : ''
@@ -597,8 +597,8 @@ export class GameScene extends Phaser.Scene {
         const info = this.resolutionInfo(r);
         this.log.addMessage(
             r.kind === 'virtue'
-                ? `${this.loc.t('gs_003')}: ${info.name}. ${info.description}`
-                : `${this.loc.t('gs_004')}: ${info.name}. ${info.description}`,
+                ? `${this.loc.t('stressVirtueShort')}: ${info.name}. ${info.description}`
+                : `${this.loc.t('stressAfflictionShort')}: ${info.name}. ${info.description}`,
             r.kind === 'virtue' ? '#8bd8ff' : '#e07070'
         );
         this.log.addMessage(
@@ -607,8 +607,8 @@ export class GameScene extends Phaser.Scene {
         );
         showUnlockBanner(this, 
             r.kind === 'virtue'
-                ? `${this.loc.t('gs_005')}: ${info.name}`
-                : `${this.loc.t('gs_006')}: ${info.name}`
+                ? `${this.loc.t('stressVirtueTitle')}: ${info.name}`
+                : `${this.loc.t('stressAfflictionTitle')}: ${info.name}`
         );
     }
 
@@ -628,7 +628,7 @@ export class GameScene extends Phaser.Scene {
 
     public relicSummary(): string {
         if (this.player.relics.length === 0) return '';
-        return this.loc.t('gs_007') + this.player.relics
+        return this.loc.t('relicsLabel') + this.player.relics
             .map((id) => this.loc.pick(RELICS[id].short))
             .join(', ');
     }
@@ -662,7 +662,7 @@ export class GameScene extends Phaser.Scene {
             this.tracker.record('relicsFound');
             this.sfx.play('relicDrop');
             this.log.addMessage(
-                this.loc.t('gs_008', { value: this.loc.pick(RELICS[fallback].name), value2: this.loc.pick(RELICS[fallback].description) }),
+                this.loc.t('relicObtained', { value: this.loc.pick(RELICS[fallback].name), value2: this.loc.pick(RELICS[fallback].description) }),
                 '#ffcc99'
             );
             return true;
@@ -672,7 +672,7 @@ export class GameScene extends Phaser.Scene {
         this.tracker.record('relicsFound');
         this.sfx.play('relicDrop');
         this.log.addMessage(
-            this.loc.t('gs_009', { value: this.loc.pick(relic.name), value2: this.loc.pick(relic.description) }),
+            this.loc.t('relicObtained', { value: this.loc.pick(relic.name), value2: this.loc.pick(relic.description) }),
             relic.rarity === 'unique' ? '#f0a8ff' : relic.rarity === 'rare' ? '#ffd36e' : '#ffcc99'
         );
         return true;
