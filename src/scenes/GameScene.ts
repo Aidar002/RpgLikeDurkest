@@ -190,14 +190,14 @@ export class GameScene extends Phaser.Scene {
         this.tracker = new RunTracker();
 
         this.player = new PlayerManager(metaBonuses.player);
-        this.player.onRelicsChange = () => this.refreshUI();
+        this.player.relicsChange.on(() => this.refreshUI());
 
         this.stress = new StressManager();
-        this.stress.onChange = (v) => {
-            if (v > this.tracker.current.peakStress) this.tracker.trackMax('peakStress', v);
+        this.stress.valueChange.on(({ value }) => {
+            if (value > this.tracker.current.peakStress) this.tracker.trackMax('peakStress', value);
             this.updateStressUI();
-        };
-        this.stress.onResolution = (r) => this.handleStressResolution(r);
+        });
+        this.stress.resolutionChange.on((r) => this.handleStressResolution(r));
 
         // Pick loadout: first 2 skills from [starter + meta-unlocked extras].
         const extras = this.meta.getUnlockedExtraSkills();
@@ -246,15 +246,15 @@ export class GameScene extends Phaser.Scene {
         this.combat = new CombatManager(
             this.player,
             this.log,
-            (payload) => this.combatHud.handleVictory(payload),
-            (damage) => this.combatHud.onPlayerHit(damage),
             this.stress,
             this.loc
         );
-        this.combat.onEnemyUpdate = (hp, maxHp, color, name, icon) =>
-            this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon);
-        this.combat.onPlayerStatusChange = () => this.updatePlayerStatusUI();
-        this.combat.onEnemyStatusChange = () => this.updateEnemyStatusUI();
+        this.combat.combatEnd.on((payload) => this.combatHud.handleVictory(payload));
+        this.combat.playerHit.on(({ damage }) => this.combatHud.onPlayerHit(damage));
+        this.combat.enemyUpdate.on(({ hp, maxHp, color, name, icon }) =>
+            this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon));
+        this.combat.playerStatusChange.on(() => this.updatePlayerStatusUI());
+        this.combat.enemyStatusChange.on(() => this.updateEnemyStatusUI());
 
         this.setupRoomUI();
         this.setupKeyboardShortcuts();
@@ -447,15 +447,15 @@ export class GameScene extends Phaser.Scene {
 
         this.roomContainer.add(this.enemyStatusText);
 
-        this.player.onHpChange = () => this.refreshUI();
-        this.player.onStatsChange = () => this.refreshUI();
-        this.player.onResourcesChange = () => {
+        this.player.hpChange.on(() => this.refreshUI());
+        this.player.statsChange.on(() => this.refreshUI());
+        this.player.resourcesChange.on(() => {
             this.refreshUI();
             if (this.combat.enemy) {
                 this.combatHud.refreshButtons();
             }
-        };
-        this.player.onLevelUp = (level) => {
+        });
+        this.player.levelUp.on(({ level }) => {
             this.tracker.trackMax('levelReached', level);
             this.log.addMessage(this.loc.t('levelUp', { level }), '#fff17a');
             VFX.floatText(this, 300, 20, `${this.loc.t('level')} ${level}`, '#fff17a');
@@ -463,12 +463,12 @@ export class GameScene extends Phaser.Scene {
             const flash = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xfff17a, 0.08).setDepth(Depths.ScreenFlash);
             this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
             this.refreshUI();
-        };
-        this.player.onRevive = (remaining) => {
+        });
+        this.player.revive.on(({ remaining }) => {
             this.log.addMessage(this.loc.t('revive', { count: remaining }), '#ffcb73');
             this.refreshUI();
-        };
-        this.player.onDeath = () => {
+        });
+        this.player.death.on(() => {
             if (this.deathSequenceStarted) {
                 return;
             }
@@ -479,7 +479,7 @@ export class GameScene extends Phaser.Scene {
             this.sfx.stopAmbient();
             this.cameras.main.shake(650, 0.04);
             this.time.delayedCall(320, () => this.showDeathScreen());
-        };
+        });
     }
 
     public refreshUI() {

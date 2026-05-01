@@ -4,6 +4,7 @@ import {
     LEVEL_UP_CONFIG,
     PLAYER_CONFIG,
 } from '../data/GameConfig';
+import { Emitter } from './Emitter';
 import type { PlayerMetaBonuses } from './MetaProgressionManager';
 import { pickLocalized } from './LocalizedText';
 import type { RelicAggregate, RelicId } from './Relics';
@@ -36,13 +37,13 @@ export class PlayerManager {
     public status: StatusState = emptyStatusState();
     public relics: RelicId[] = [];
 
-    public onHpChange: (hp: number, max: number) => void = () => {};
-    public onDeath: () => void = () => {};
-    public onLevelUp: (level: number) => void = () => {};
-    public onStatsChange: () => void = () => {};
-    public onResourcesChange: () => void = () => {};
-    public onRevive: (remaining: number) => void = () => {};
-    public onRelicsChange: () => void = () => {};
+    public readonly hpChange = new Emitter<{ hp: number; max: number }>();
+    public readonly death = new Emitter<void>();
+    public readonly levelUp = new Emitter<{ level: number }>();
+    public readonly statsChange = new Emitter<void>();
+    public readonly resourcesChange = new Emitter<void>();
+    public readonly revive = new Emitter<{ remaining: number }>();
+    public readonly relicsChange = new Emitter<void>();
 
     private xpMultiplier: number;
     private reviveCharges: number;
@@ -145,14 +146,14 @@ export class PlayerManager {
                 this.relicAggregate.reviveOnce = false;
                 this.stats.hp = 10;
                 this.emitAllChanges();
-                this.onRevive(this.reviveCharges);
+                this.revive.emit({ remaining: this.reviveCharges });
                 return actual;
             }
             if (this.reviveCharges > 0) {
                 this.reviveCharges--;
                 this.stats.hp = Math.max(1, Math.ceil(this.stats.maxHp * 0.4));
                 this.emitAllChanges();
-                this.onRevive(this.reviveCharges);
+                this.revive.emit({ remaining: this.reviveCharges });
                 return actual;
             }
         }
@@ -160,7 +161,7 @@ export class PlayerManager {
         this.emitAllChanges();
 
         if (this.stats.hp === 0) {
-            this.onDeath();
+            this.death.emit();
         }
 
         return actual;
@@ -179,7 +180,7 @@ export class PlayerManager {
 
         while (this.stats.xp >= this.xpToNextLevel) {
             this.stats.xp -= this.xpToNextLevel;
-            this.levelUp();
+            this.applyLevelUp();
         }
 
         this.emitStats();
@@ -326,10 +327,10 @@ export class PlayerManager {
 
         this.relicAggregate = next;
         this.emitAllChanges();
-        this.onRelicsChange();
+        this.relicsChange.emit();
     }
 
-    private levelUp() {
+    private applyLevelUp() {
         this.stats.level++;
         this.stats.maxHp += LEVEL_UP_CONFIG.hpGainPerLevel;
         this.stats.attack += LEVEL_UP_CONFIG.attackGainPerLevel;
@@ -348,21 +349,21 @@ export class PlayerManager {
         }
 
         this.emitAllChanges();
-        this.onLevelUp(this.stats.level);
+        this.levelUp.emit({ level: this.stats.level });
     }
 
     private emitStats() {
-        this.onHpChange(this.stats.hp, this.stats.maxHp);
-        this.onStatsChange();
+        this.hpChange.emit({ hp: this.stats.hp, max: this.stats.maxHp });
+        this.statsChange.emit();
     }
 
     private emitResources() {
-        this.onResourcesChange();
-        this.onStatsChange();
+        this.resourcesChange.emit();
+        this.statsChange.emit();
     }
 
     private emitAllChanges() {
         this.emitStats();
-        this.onResourcesChange();
+        this.resourcesChange.emit();
     }
 }

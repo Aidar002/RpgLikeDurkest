@@ -1,5 +1,6 @@
 import type { LocalizedText } from './LocalizedText';
 import { lt } from './LocalizedText';
+import { Emitter } from './Emitter';
 import { defaultRng, type Rng } from './Rng';
 
 // Stress mechanic, inspired by Darkest Dungeon.
@@ -110,8 +111,8 @@ export class StressManager {
     public value = 0;
     public resolution: Resolution | null = null;
 
-    public onResolution: (r: Resolution) => void = () => {};
-    public onChange: (value: number) => void = () => {};
+    public readonly resolutionChange = new Emitter<Resolution>();
+    public readonly valueChange = new Emitter<{ value: number }>();
 
     private rng: Rng;
 
@@ -123,7 +124,7 @@ export class StressManager {
         let delta = Math.max(0, amount * (1 - reductionPct));
         if (this.resolution?.id === 'abusive') delta *= 1.5;
         this.value = Math.min(100, this.value + Math.round(delta));
-        this.onChange(this.value);
+        this.valueChange.emit({ value: this.value });
         if (this.value >= 100) {
             return this.resolve();
         }
@@ -132,7 +133,7 @@ export class StressManager {
 
     relieve(amount: number) {
         this.value = Math.max(0, this.value - amount);
-        this.onChange(this.value);
+        this.valueChange.emit({ value: this.value });
     }
 
     get isOverwhelmed(): boolean {
@@ -147,8 +148,8 @@ export class StressManager {
 
         this.resolution = next;
         this.value = 50;
-        this.onChange(this.value);
-        this.onResolution(next);
+        this.valueChange.emit({ value: this.value });
+        this.resolutionChange.emit(next);
         return next;
     }
 
