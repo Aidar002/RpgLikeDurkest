@@ -94,7 +94,7 @@ export class BootScene extends Phaser.Scene {
         startBtn.on('pointerdown', () => {
             sfx.play('buttonClick');
             this.cameras.main.fadeOut(400, 0, 0, 0);
-            this.time.delayedCall(400, () => this.scene.start('GameScene'));
+            this.time.delayedCall(400, () => this.scene.start('GameScene', { loc, sfx }));
         });
 
         this.add.text(780, 580, 'v0.3', {
