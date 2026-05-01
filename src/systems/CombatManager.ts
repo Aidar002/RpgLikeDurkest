@@ -23,6 +23,7 @@ import {
 } from './StatusEffects';
 import type { StatusState } from './StatusEffects';
 import type { StressManager } from './Stress';
+import { defaultRng, randomInt, type Rng } from './Rng';
 
 export type CombatAction =
     | 'attack'
@@ -77,6 +78,7 @@ export class CombatManager {
     private loc: Localization;
     private onCombatEnd: (payload: CombatEndPayload) => void;
     private onPlayerHit: (damage: number) => void;
+    private rng: Rng;
 
     public enemy: ActiveEnemy | null = null;
     public lastActionResult: {
@@ -108,7 +110,8 @@ export class CombatManager {
         onCombatEnd: (payload: CombatEndPayload) => void,
         onPlayerHit: (damage: number) => void = () => {},
         stress: StressManager | null = null,
-        loc: Localization = new Localization()
+        loc: Localization = new Localization(),
+        rng: Rng = defaultRng
     ) {
         this.player = player;
         this.log = log;
@@ -116,6 +119,7 @@ export class CombatManager {
         this.onPlayerHit = onPlayerHit;
         this.stress = stress;
         this.loc = loc;
+        this.rng = rng;
     }
 
     private tr(ru: string, en: string): string {
@@ -183,7 +187,7 @@ export class CombatManager {
         } else if (kind === 'elite') {
             this.log.addMessage(narrate('enter_elite', this.loc.language), '#c4a35a');
             this.stress?.add(STRESS_CONFIG.onEliteStart, this.player.aggregate.stressReductionPct);
-        } else if (depth > 0 && Math.random() < 0.25) {
+        } else if (depth > 0 && this.rng.next() < 0.25) {
             this.log.addMessage(narrate('enter_combat', this.loc.language), '#7a7a7a');
         }
 
@@ -306,7 +310,7 @@ export class CombatManager {
                 : this.loc.t('strike', { damage: result.damage }),
             result.critical ? '#ffe08a' : '#dddddd'
         );
-        if (result.critical && Math.random() < 0.35) {
+        if (result.critical && this.rng.next() < 0.35) {
             this.log.addMessage(narrate('crit_landed', this.loc.language), '#c4a35a');
         }
         this.applyOnAttackRelics();
@@ -556,7 +560,7 @@ export class CombatManager {
                 this.stress?.add(STRESS_CONFIG.onEnemyEnrage, this.player.aggregate.stressReductionPct);
             }
         } else if (this.enemy.profile === 'stalker') {
-            if (Math.random() < 0.3) {
+            if (this.rng.next() < 0.3) {
                 const firstHit = this.applyEnemyHitToPlayer(attackPower, flatBlock);
                 multiStrikeFirstDamage = firstHit;
                 if (firstHit > 0) {
@@ -586,7 +590,7 @@ export class CombatManager {
                 this.enemy.charging = false;
             }
         } else if (this.enemy.profile === 'bleeder') {
-            if (this.enemy.inflictBleed && Math.random() < this.enemy.inflictBleed.chance) {
+            if (this.enemy.inflictBleed && this.rng.next() < this.enemy.inflictBleed.chance) {
                 applyBleed(
                     this.player.status,
                     this.enemy.inflictBleed.stacks,
@@ -631,7 +635,7 @@ export class CombatManager {
 
         if (this.player.stats.hp > 0 && this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * 0.25)) {
             this.stress?.add(STRESS_CONFIG.onLowHp, this.player.aggregate.stressReductionPct);
-            if (Math.random() < 0.25) this.log.addMessage(narrate('low_hp', this.loc.language), '#c4a35a');
+            if (this.rng.next() < 0.25) this.log.addMessage(narrate('low_hp', this.loc.language), '#c4a35a');
         }
 
         this.onPlayerStatusChange();
@@ -647,7 +651,7 @@ export class CombatManager {
 
         // Enemy crits: 8% flat.
         let crit = false;
-        if (Math.random() < 0.08) {
+        if (this.rng.next() < 0.08) {
             crit = true;
             amount = Math.max(1, Math.round(amount * 1.5));
         }
@@ -709,7 +713,7 @@ export class CombatManager {
                 ? this.randomBetween(-COMBAT_CONFIG.randomVariance, COMBAT_CONFIG.randomVariance)
                 : 0;
         const baseDamage = Math.max(1, this.player.getAttackPower() + variance + this.effectiveDamageMod());
-        const critical = Math.random() < this.player.getCritChance();
+        const critical = this.rng.next() < this.player.getCritChance();
 
         return {
             damage: critical
@@ -749,6 +753,6 @@ export class CombatManager {
     }
 
     private randomBetween(min: number, max: number): number {
-        return Math.floor(Math.random() * (max - min + 1)) + min;
+        return randomInt(this.rng, min, max);
     }
 }
