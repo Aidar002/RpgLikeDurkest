@@ -1,16 +1,12 @@
 import * as Phaser from 'phaser';
-import { COMBAT_CONFIG, EXPEDITION_CONFIG, MAP_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
+import { EXPEDITION_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import { DungeonManager } from '../systems/DungeonManager';
 import {
     MapGenerator,
     RoomType,
 } from '../systems/MapGenerator';
 import type { MapNode, RoomType as RoomTypeValue } from '../systems/MapGenerator';
-import {
-    CombatManager,
-    type CombatAction,
-    type CombatEndPayload,
-} from '../systems/CombatManager';
+import { CombatManager } from '../systems/CombatManager';
 import {
     MetaProgressionManager,
     type ContentUnlockMilestone,
@@ -42,6 +38,7 @@ import {
     type EndScreenContext,
 } from '../ui/EndScreens';
 import { RoomFlowController } from './RoomFlow';
+import { CombatHudController } from './CombatHud';
 
 const COL_W = 150;
 const ROW_H = 110;
@@ -101,7 +98,7 @@ export class GameScene extends Phaser.Scene {
     private deathSequenceStarted = false;
     public lastEnemyHp = 0;
     private runBestDepth = 0;
-    private runBossKills = 0;
+    public runBossKills = 0;
     private prestigeReward = 0;
     private prestigeAwarded = false;
     public skipLightSpendThisRoom = false;
@@ -143,6 +140,7 @@ export class GameScene extends Phaser.Scene {
     public actionButtons: ActionButton[] = [];
 
     private roomFlow: RoomFlowController = new RoomFlowController(this);
+    private combatHud: CombatHudController = new CombatHudController(this);
 
     constructor() {
         super('GameScene');
@@ -152,7 +150,7 @@ export class GameScene extends Phaser.Scene {
         return this.loc.language === 'ru' ? ru : en;
     }
 
-    private skillShort(id: SkillId): string {
+    public skillShort(id: SkillId): string {
         return this.loc.pick(SKILLS[id].short);
     }
 
@@ -239,13 +237,13 @@ export class GameScene extends Phaser.Scene {
         this.combat = new CombatManager(
             this.player,
             this.log,
-            (payload) => this.handleCombatVictory(payload),
-            (damage) => this.onPlayerHit(damage),
+            (payload) => this.combatHud.handleVictory(payload),
+            (damage) => this.combatHud.onPlayerHit(damage),
             this.stress,
             this.loc
         );
         this.combat.onEnemyUpdate = (hp, maxHp, color, name, icon) =>
-            this.updateEnemyUI(hp, maxHp, color, name, icon);
+            this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon);
         this.combat.onPlayerStatusChange = () => this.updatePlayerStatusUI();
         this.combat.onEnemyStatusChange = () => this.updateEnemyStatusUI();
 
@@ -445,7 +443,7 @@ export class GameScene extends Phaser.Scene {
         this.player.onResourcesChange = () => {
             this.refreshUI();
             if (this.combat.enemy) {
-                this.refreshCombatButtons();
+                this.combatHud.refreshButtons();
             }
         };
         this.player.onLevelUp = (level) => {
@@ -1071,7 +1069,7 @@ export class GameScene extends Phaser.Scene {
         this.refreshUI();
     }
 
-    private handleMilestoneUnlocks(milestones: ContentUnlockMilestone[]) {
+    public handleMilestoneUnlocks(milestones: ContentUnlockMilestone[]) {
         if (milestones.length === 0) {
             return;
         }
@@ -1288,188 +1286,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     public startCombatEncounter(kind: 'normal' | 'elite' | 'boss') {
-        const isFinalBoss = kind === 'boss' && this.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
-        const card = kind === 'boss'
-            ? {
-                  header: isFinalBoss ? (this.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN') : this.loc.t('boss'),
-                  title: isFinalBoss
-                      ? (this.loc.language === 'ru' ? 'Хранитель Артефакта Желаний.' : 'The Guardian of the Wish Artifact.')
-                      : this.tr('Хранитель этажа перекрывает лестницу.', 'A ruler of this floor rises.'),
-                  description: isFinalBoss
-                      ? (this.loc.language === 'ru' ? 'Последний страж. За ним лежит Артефакт Желаний.' : 'The final keeper. Beyond it lies the wish-granting artifact.')
-                      : this.tr('Сейчас пригодится всё, чему тебя научил спуск.', 'Every system you earned is being tested at once.'),
-                  color: isFinalBoss ? 0xc8a030 : 0xa52f2f,
-                  icon: isFinalBoss ? '\u2726' : 'B',
-              }
-            : kind === 'elite'
-              ? {
-                    header: this.loc.t('elite'),
-                    title: this.tr('Опытный враг держит коридор.', 'A hardened threat bars the corridor.'),
-                    description: this.tr('Победа здесь будет дорогой. Добыча тоже.', 'Winning here should feel costly and worth it.'),
-                    color: 0xa14a4a,
-                    icon: 'E',
-                }
-              : {
-                    header: this.loc.t('hostile'),
-                    title: this.tr('Контакт', 'Threat detected'),
-                    description: this.tr('Коридор сужается. Впереди заняли проход.', 'The corridor narrows. Something waits in the dark.'),
-                    color: 0x6b3030,
-                    icon: 'X',
-                };
-
-        this.showRoomCard(
-            card.header,
-            card.title,
-            card.description,
-            card.color,
-            card.icon,
-            this.loc.t('chooseMove'),
-            kind === 'boss' ? 'BOSS' : kind === 'elite' ? 'ELITE' : 'ENEMY'
-        );
-        this.combat.startCombat(this.dungeon.currentDepth, kind);
-        this.refreshCombatButtons();
-
-        if (kind === 'boss') {
-            this.sfx.play('bossAppear');
-        } else if (kind === 'elite') {
-            this.sfx.play('eliteAppear');
-        }
-
-        // Boss intro from a recurring NPC the player has bonded with.
-        if (kind === 'boss') {
-            const intro = this.npcs.pickBossIntro(this.loc.language);
-            if (intro) {
-                this.log.addMessage(intro.line, '#cdb8ff');
-            }
-        }
+        this.combatHud.start(kind);
     }
-
-    private refreshCombatButtons() {
-        if (!this.combat.enemy) {
-            this.setRoomButtons([]);
-            return;
-        }
-
-        const actions: RoomButtonAction[] = [
-            {
-                label: this.loc.t('actionAttack'),
-                callback: () => this.performCombatAction('attack'),
-                fill: 0x5a1d1d,
-            },
-            {
-                label: this.loc.t('actionDefend'),
-                callback: () => this.performCombatAction('defend'),
-                fill: 0x1b335b,
-            },
-        ];
-
-        // Skill loadout: up to 2 skills from the loadout become 2 buttons.
-        this.skillLoadout.forEach((id) => {
-            const def = SKILLS[id];
-            const cost = Math.max(1, def.resolveCost + (this.stress?.resolveCostMod() ?? 0));
-            actions.push({
-                label: `[${actions.length + 1}] ${this.skillShort(id)} ${cost}${this.loc.t('resolveShort').toLowerCase()}`,
-                callback: () => this.performCombatAction({ kind: 'skill', id }),
-                enabled: this.player.resources.resolve >= cost,
-                fill: def.color,
-            });
-        });
-
-        actions.push({
-            label: this.loc.t('actionPotion', { num: actions.length + 1 }),
-            callback: () => this.performCombatAction('potion'),
-            enabled: this.player.resources.potions > 0,
-            fill: 0x1f5b2f,
-        });
-
-        this.setRoomButtons(actions);
-        this.enemyIntelText.setText(this.buildCombatIntel());
-        this.enemyIntelText.setVisible(true);
-    }
-
-    private performCombatAction(action: CombatAction) {
-        if (!this.combat.enemy) {
-            return;
-        }
-
-        // Disable buttons to prevent spamming during combat turn
-        this.actionButtons.forEach((b) => { b.enabled = false; });
-
-        const hpBefore = this.combat.enemy.hp;
-        this.tracker.record('turnsInCombat');
-        const actionKind = typeof action === 'string' ? action : action.kind;
-        if (actionKind === 'skill') {
-            this.tracker.record('skillsUsed');
-            this.sfx.play('skillUse');
-        }
-        if (actionKind === 'defend') {
-            this.tracker.record('defendsUsed');
-            VFX.shieldFlash(this, 126, 82);
-            this.sfx.play('defend');
-        }
-        if (actionKind === 'potion') {
-            this.tracker.record('potionsUsed');
-            VFX.healGlow(this, 126, 82);
-            this.sfx.play('potion');
-        }
-
-        this.combat.processTurn(action);
-
-        if (this.combat.lastActionResult.critical) {
-            this.tracker.record('criticalHits');
-            VFX.critFlash(this);
-            this.sfx.play('crit');
-        } else if (actionKind === 'attack' || actionKind === 'skill') {
-            this.sfx.play('hit');
-        }
-
-        const dmgDealt = hpBefore - (this.combat.enemy?.hp ?? 0);
-        if (dmgDealt > 0) this.tracker.record('damageDealt', dmgDealt);
-
-        // Re-enable buttons after a brief delay for pacing
-        this.time.delayedCall(350, () => {
-            if (this.combat.enemy) {
-                this.refreshCombatButtons();
-            }
-        });
-    }
-
-    private buildCombatIntel(): string {
-        if (!this.combat.enemy) {
-            return this.tr('Выдохни и иди глубже.', 'Collect yourself and continue deeper.');
-        }
-
-        const enemy = this.combat.enemy;
-        const profileHints: Record<string, string> = {
-            brute: this.tr('Громила: ярится в ране.', 'Brute: enrages when wounded.'),
-            stalker: this.tr('Охотник: бьёт сериями.', 'Stalker: may strike twice.'),
-            mage: this.tr('Маг: копит силу для тяжёлого удара.', 'Mage: charges a heavy spell.'),
-            boss: this.tr('Босс: держит путь вниз.', 'Boss: relentless power.'),
-        };
-
-        const hints: string[] = [];
-        hints.push(profileHints[enemy.profile] ?? '');
-
-        if (enemy.enraged) {
-            hints.push(this.tr('ЯРОСТЬ!', 'ENRAGED!'));
-        }
-        if (enemy.charging) {
-            hints.push(this.tr('Копит силу...', 'Charging...'));
-        }
-
-        if (this.meta.isUnlocked('action_skill')) {
-            hints.push(
-                this.tr(
-                    `Навык: ${COMBAT_CONFIG.skillCost} ${this.loc.t('resolveShort').toLowerCase()}.`,
-                    `Skill: ${COMBAT_CONFIG.skillCost} resolve.`
-                )
-            );
-        }
-
-        return hints.filter(Boolean).join(' ');
-    }
-
-
 
     public applyTrapDamage(rawDamage: number): number {
         const mitigated = Math.max(1, rawDamage - this.meta.getBonuses().rooms.trapDamageReduction);
@@ -1566,155 +1384,8 @@ export class GameScene extends Phaser.Scene {
         name: string,
         icon: string
     ) {
-        const unlocks = this.meta.getUiUnlockState();
-        const description = this.combat.enemy?.description ?? this.loc.t('enemyFallback');
-
-        const isFinalBoss = this.combat.enemy?.kind === 'boss' && this.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
-        this.roomHeaderText.setText(
-            isFinalBoss
-                ? (this.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN')
-                : this.combat.enemy?.kind === 'boss'
-                  ? this.loc.t('boss')
-                  : this.combat.enemy?.kind === 'elite'
-                    ? this.loc.t('elite')
-                    : this.loc.t('hostile')
-        );
-        this.enemyPortrait.setFillStyle(color);
-        this.enemyIconText.setText(icon);
-        this.enemyNameText.setText(compactText(name, 28));
-        this.roomFlavorText.setText(compactText(description, 72));
-        this.roomPanelGroup.setVisible(true);
-
-        const profile = this.combat.enemy?.profile;
-        if (profile) {
-            const sprKey = PixelSprite.enemyKey(profile);
-            if (this.textures.exists(sprKey)) {
-                this.enemySpriteImage.setTexture(sprKey).setVisible(true);
-                this.enemyIconText.setVisible(false);
-            } else {
-                this.enemySpriteImage.setVisible(false);
-                this.enemyIconText.setVisible(true);
-            }
-        } else {
-            this.enemySpriteImage.setVisible(false);
-            this.enemyIconText.setVisible(true);
-        }
-
-        const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-        this.enemyHpBar.setDisplaySize(ratio * 220, 12);
-        this.enemyHpBar.setFillStyle(ratio > 0.5 ? 0xc65a2e : ratio > 0.25 ? 0xcf9e16 : 0xc63d2d);
-        this.enemyHpText.setText(`${this.loc.t('hp')} ${Math.max(0, hp)}/${maxHp}`);
-        this.enemyHpBarBg.setVisible(unlocks.showEnemyHp);
-        this.enemyHpBar.setVisible(unlocks.showEnemyHp);
-        this.enemyHpText.setVisible(unlocks.showEnemyHp);
-        this.enemyIntelText.setVisible(true);
-        this.enemyIntelText.setText(
-            unlocks.showEnemyHp
-                ? compactText(this.buildCombatIntel(), 54)
-                : this.loc.t('enemyInfoLocked')
-        );
-
-        if (this.lastEnemyHp > 0 && hp < this.lastEnemyHp) {
-            const damage = this.lastEnemyHp - hp;
-            VFX.floatText(this, 616, 138, `-${damage}`, '#ff7373');
-            VFX.shake(this, this.enemyPortrait);
-            VFX.flash(this, this.enemyPortrait, 0xff3232, 120);
-        }
-
-        this.lastEnemyHp = hp;
+        this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon);
     }
-
-    private handleCombatVictory(payload: CombatEndPayload) {
-        const rewardLines: string[] = [];
-
-        this.tracker.record('enemiesKilled');
-        if (payload.kind === 'elite') this.tracker.record('elitesKilled');
-        if (payload.kind === 'boss') {
-            this.runBossKills += 1;
-            this.tracker.record('bossesKilled');
-            const bossMilestones = this.meta.registerBossKill();
-            this.handleMilestoneUnlocks(bossMilestones);
-        }
-
-        const gainedXp = this.player.gainXp(payload.rewards.xp);
-        rewardLines.push(this.loc.t('plusXp', { value: gainedXp }));
-
-        const gainedGold = this.player.gainGold(payload.rewards.gold);
-        if (gainedGold > 0) {
-            rewardLines.push(this.loc.t('plusGold', { value: gainedGold }));
-            this.tracker.record('goldEarned', gainedGold);
-        }
-
-        const gainedPotions = this.player.gainPotions(payload.rewards.potions);
-        if (gainedPotions > 0) {
-            rewardLines.push(this.loc.t('plusPotion'));
-        }
-
-        if (payload.rewards.attackBonus > 0) {
-            this.player.addAttackBonus(payload.rewards.attackBonus);
-            rewardLines.push(this.loc.t('plusAttack', { value: payload.rewards.attackBonus }));
-        }
-
-        const gainedShards = this.player.gainRelicShards(payload.rewards.relicShards);
-        if (gainedShards > 0) {
-            rewardLines.push(this.loc.t('plusShard', { value: gainedShards }));
-        }
-
-        this.player.registerKill();
-        this.log.addMessage(this.loc.t('victoryRewards', { parts: rewardLines.join(', ') }), '#9be0a7');
-
-        if (payload.kind === 'boss') {
-            this.maybeDropRelic('boss');
-            // Surviving a boss steadies known NPCs' regard for you.
-            const intro = this.npcs.pickBossIntro(this.loc.language);
-            if (intro) {
-                const farewells = intro.npc.voice.farewell;
-                const line = this.loc.pick(farewells[Math.floor(Math.random() * farewells.length)]);
-                this.log.addMessage(line, '#cdb8ff');
-            }
-
-            if (this.dungeon.currentDepth >= MAP_CONFIG.finalDepth) {
-                this.time.delayedCall(800, () => this.showVictoryScreen());
-                return;
-            }
-        } else if (payload.kind === 'elite') {
-            this.maybeDropRelic('elite');
-        } else if (Math.random() < 0.07) {
-            // Small chance for normal-kill relic scraps.
-            this.maybeDropRelic('normal');
-        }
-
-        this.enemyIntelText.setText(this.loc.t('pathOpen'));
-        this.showReturnButton();
-        this.refreshUI();
-    }
-
-    private onPlayerHit(damage: number) {
-        this.tracker.record('damageTaken', damage);
-        this.sfx.play('enemyHit');
-        const intensity = Math.min(0.015, 0.004 * damage);
-        this.cameras.main.shake(220, intensity);
-        const flash = this.add.rectangle(400, 300, 800, 600, 0xff0000, 0.18).setDepth(88);
-        this.tweens.add({
-            targets: flash,
-            alpha: 0,
-            duration: 300,
-            onComplete: () => flash.destroy(),
-        });
-        VFX.floatText(this, 126, 82, `-${damage}`, '#ff5555');
-
-        // Below ~25% HP after a hit: a known NPC's voice surfaces in memory.
-        // Throttled by chance so it doesn't fire every hit.
-        if (
-            this.player.stats.maxHp > 0 &&
-            this.player.stats.hp / this.player.stats.maxHp <= 0.25 &&
-            Math.random() < 0.4
-        ) {
-            const recall = this.npcs.pickLowHpRecall(this.loc.language);
-            if (recall) this.log.addMessage(recall, '#a89dc4');
-        }
-    }
-
 
     private endScreenContext(): EndScreenContext {
         // runState proxies its fields back onto the scene, so EndScreens can
@@ -1746,7 +1417,7 @@ export class GameScene extends Phaser.Scene {
         };
     }
 
-    private showVictoryScreen() {
+    public showVictoryScreen() {
         showVictoryScreen(this.endScreenContext());
     }
 
