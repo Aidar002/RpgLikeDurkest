@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { COMBAT_CONFIG, EXPEDITION_CONFIG, MAP_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
+import { COMBAT_CONFIG, EXPEDITION_CONFIG, MAP_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import { DungeonManager } from '../systems/DungeonManager';
 import {
     MapGenerator,
@@ -27,8 +27,8 @@ import { StressManager } from '../systems/Stress';
 import type { Resolution } from '../systems/Stress';
 import { statusSummary } from '../systems/StatusEffects';
 import { Localization } from '../systems/Localization';
-import type { NpcEvalContext, NpcManager, PickedDialog } from '../systems/NpcManager';
-import type { NpcId, NpcOfferTemplate } from '../systems/Npcs';
+import type { NpcManager } from '../systems/NpcManager';
+import type { NpcOfferTemplate } from '../systems/Npcs';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
@@ -41,7 +41,7 @@ import {
     showVictoryScreen,
     type EndScreenContext,
 } from '../ui/EndScreens';
-import { defaultRng, randomInt } from '../systems/Rng';
+import { RoomFlowController } from './RoomFlow';
 
 const COL_W = 150;
 const ROW_H = 110;
@@ -67,7 +67,7 @@ interface ActionButton {
     defaultWidth: number;
 }
 
-interface RoomButtonAction {
+export interface RoomButtonAction {
     label: string;
     callback: () => void;
     enabled?: boolean;
@@ -75,23 +75,23 @@ interface RoomButtonAction {
 }
 
 export class GameScene extends Phaser.Scene {
-    private meta!: MetaProgressionManager;
-    private mapGen!: MapGenerator;
-    private dungeon!: DungeonManager;
-    private player!: PlayerManager;
-    private combat!: CombatManager;
-    private log!: EventLog;
-    private tracker!: RunTracker;
-    private stress!: StressManager;
-    private skillLoadout: SkillId[] = [...STARTER_LOADOUT];
-    private loc: Localization = new Localization();
-    private sfx: SoundManager = new SoundManager();
-    private npcs!: NpcManager;
-    private vethSharpenedThisRoom = false;
+    public meta!: MetaProgressionManager;
+    public mapGen!: MapGenerator;
+    public dungeon!: DungeonManager;
+    public player!: PlayerManager;
+    public combat!: CombatManager;
+    public log!: EventLog;
+    public tracker!: RunTracker;
+    public stress!: StressManager;
+    public skillLoadout: SkillId[] = [...STARTER_LOADOUT];
+    public loc: Localization = new Localization();
+    public sfx: SoundManager = new SoundManager();
+    public npcs!: NpcManager;
+    public vethSharpenedThisRoom = false;
 
-    private mapContainer!: Phaser.GameObjects.Container;
-    private roomContainer!: Phaser.GameObjects.Container;
-    private uiContainer!: Phaser.GameObjects.Container;
+    public mapContainer!: Phaser.GameObjects.Container;
+    public roomContainer!: Phaser.GameObjects.Container;
+    public uiContainer!: Phaser.GameObjects.Container;
     private edgeGfx!: Phaser.GameObjects.Graphics;
     private visuals: Map<string, NodeVisual> = new Map();
     private glowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
@@ -99,12 +99,12 @@ export class GameScene extends Phaser.Scene {
     private animating = false;
     private dead = false;
     private deathSequenceStarted = false;
-    private lastEnemyHp = 0;
+    public lastEnemyHp = 0;
     private runBestDepth = 0;
     private runBossKills = 0;
     private prestigeReward = 0;
     private prestigeAwarded = false;
-    private skipLightSpendThisRoom = false;
+    public skipLightSpendThisRoom = false;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
     private hpBar!: Phaser.GameObjects.Rectangle;
@@ -118,7 +118,7 @@ export class GameScene extends Phaser.Scene {
     private prestigeText!: Phaser.GameObjects.Text;
     private hintText!: Phaser.GameObjects.Text;
     private mapDepthText!: Phaser.GameObjects.Text;
-    private tooltipText!: Phaser.GameObjects.Text;
+    public tooltipText!: Phaser.GameObjects.Text;
     private depthLabels: Map<number, Phaser.GameObjects.Text> = new Map();
 
     private stressBarBg!: Phaser.GameObjects.Rectangle;
@@ -129,24 +129,26 @@ export class GameScene extends Phaser.Scene {
     private playerStatusText!: Phaser.GameObjects.Text;
     private enemyStatusText!: Phaser.GameObjects.Text;
 
-    private roomHeaderText!: Phaser.GameObjects.Text;
-    private enemyPortrait!: Phaser.GameObjects.Rectangle;
-    private enemyIconText!: Phaser.GameObjects.Text;
-    private enemySpriteImage!: Phaser.GameObjects.Image;
-    private enemyNameText!: Phaser.GameObjects.Text;
-    private enemyHpBar!: Phaser.GameObjects.Rectangle;
-    private enemyHpBarBg!: Phaser.GameObjects.Rectangle;
-    private enemyHpText!: Phaser.GameObjects.Text;
-    private enemyIntelText!: Phaser.GameObjects.Text;
-    private roomFlavorText!: Phaser.GameObjects.Text;
-    private roomPanelGroup!: Phaser.GameObjects.Container;
-    private actionButtons: ActionButton[] = [];
+    public roomHeaderText!: Phaser.GameObjects.Text;
+    public enemyPortrait!: Phaser.GameObjects.Rectangle;
+    public enemyIconText!: Phaser.GameObjects.Text;
+    public enemySpriteImage!: Phaser.GameObjects.Image;
+    public enemyNameText!: Phaser.GameObjects.Text;
+    public enemyHpBar!: Phaser.GameObjects.Rectangle;
+    public enemyHpBarBg!: Phaser.GameObjects.Rectangle;
+    public enemyHpText!: Phaser.GameObjects.Text;
+    public enemyIntelText!: Phaser.GameObjects.Text;
+    public roomFlavorText!: Phaser.GameObjects.Text;
+    public roomPanelGroup!: Phaser.GameObjects.Container;
+    public actionButtons: ActionButton[] = [];
+
+    private roomFlow: RoomFlowController = new RoomFlowController(this);
 
     constructor() {
         super('GameScene');
     }
 
-    private tr(ru: string, en: string): string {
+    public tr(ru: string, en: string): string {
         return this.loc.language === 'ru' ? ru : en;
     }
 
@@ -154,15 +156,15 @@ export class GameScene extends Phaser.Scene {
         return this.loc.pick(SKILLS[id].short);
     }
 
-    private milestoneLabel(milestone: ContentUnlockMilestone): string {
+    public milestoneLabel(milestone: ContentUnlockMilestone): string {
         return this.loc.pick(milestone.label);
     }
 
-    private milestoneRequirement(milestone: ContentUnlockMilestone): string {
+    public milestoneRequirement(milestone: ContentUnlockMilestone): string {
         return this.loc.pick(milestone.requirement);
     }
 
-    private npcOfferLabel(offer: NpcOfferTemplate, cost: number, index: number): string {
+    public npcOfferLabel(offer: NpcOfferTemplate, cost: number, index: number): string {
         return this.loc.format(offer.label, { cost, index });
     }
 
@@ -473,7 +475,7 @@ export class GameScene extends Phaser.Scene {
         };
     }
 
-    private refreshUI() {
+    public refreshUI() {
         const unlocks = this.meta.getUiUnlockState();
         const stats = this.player.stats;
         const resources = this.player.resources;
@@ -561,7 +563,7 @@ export class GameScene extends Phaser.Scene {
         this.updatePlayerStatusUI();
     }
 
-    private updateStressUI() {
+    public updateStressUI() {
         const v = this.stress.value;
         const ratio = Phaser.Math.Clamp(v / 100, 0, 1);
         this.stressBar.setDisplaySize(118 * ratio, 6);
@@ -603,12 +605,12 @@ export class GameScene extends Phaser.Scene {
         );
     }
 
-    private updatePlayerStatusUI() {
+    public updatePlayerStatusUI() {
         const txt = statusSummary(this.player.status, this.loc.language);
         this.playerStatusText.setText(txt);
     }
 
-    private updateEnemyStatusUI() {
+    public updateEnemyStatusUI() {
         if (!this.combat.enemy) {
             this.enemyStatusText.setText('');
             return;
@@ -617,14 +619,14 @@ export class GameScene extends Phaser.Scene {
         this.enemyStatusText.setText(txt);
     }
 
-    private relicSummary(): string {
+    public relicSummary(): string {
         if (this.player.relics.length === 0) return '';
         return this.tr('Реликвии: ', 'Relics: ') + this.player.relics
             .map((id) => this.loc.pick(RELICS[id].short))
             .join(', ');
     }
 
-    private maybeDropRelic(kind: 'normal' | 'elite' | 'boss' | 'treasure' | 'shrine'): boolean {
+    public maybeDropRelic(kind: 'normal' | 'elite' | 'boss' | 'treasure' | 'shrine'): boolean {
         const allowedRarities = this.meta.getRelicRarityPool();
         const chance = kind === 'boss'
             ? 1
@@ -796,7 +798,7 @@ export class GameScene extends Phaser.Scene {
         this.setRoomButtons([]);
     }
 
-    private setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false) {
+    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false) {
         this.actionButtons.forEach((button) => {
             button.background.setPosition(button.defaultX, button.defaultY);
             button.background.setSize(button.defaultWidth, 40);
@@ -1140,7 +1142,7 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
-    private refreshInteractivity() {
+    public refreshInteractivity() {
         const unlocks = this.meta.getUiUnlockState();
 
         this.glowMap.forEach((glow) => glow.destroy());
@@ -1264,7 +1266,7 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private applyRoomTint(type: RoomTypeValue) {
+    public applyRoomTint(type: RoomTypeValue) {
         if (this.roomTintOverlay) {
             this.roomTintOverlay.destroy();
             this.roomTintOverlay = null;
@@ -1274,7 +1276,7 @@ export class GameScene extends Phaser.Scene {
             .setDepth(1).setScrollFactor(0);
     }
 
-    private clearRoomTint() {
+    public clearRoomTint() {
         if (this.roomTintOverlay) {
             this.roomTintOverlay.destroy();
             this.roomTintOverlay = null;
@@ -1282,133 +1284,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     private enterRoom(node: MapNode) {
-        this.lastEnemyHp = 0;
-        this.tracker.record('roomsVisited');
-        this.tracker.trackMax('bestDepth', this.dungeon.currentDepth);
-        this.applyRoomTint(node.type);
-        this.sfx.play('footstep');
-        this.sfx.updateAmbientDepth(this.dungeon.currentDepth);
-
-        const sparesLight =
-            this.player.aggregate.emptyRoomsSpareLight && node.type === RoomType.EMPTY;
-        if (this.skipLightSpendThisRoom) {
-            this.skipLightSpendThisRoom = false;
-        } else if (!sparesLight) {
-            const spent = this.player.spendLight(EXPEDITION_CONFIG.lightLossPerRoom);
-            if (spent > 0) {
-                this.log.addMessage(this.loc.t('lightLower', { count: spent }), '#e0c873');
-            }
-        }
-
-        // Low-light stress bite.
-        if (this.player.hasLowLight && node.type !== RoomType.START) {
-            this.stress.add(STRESS_CONFIG.onLowLightRoom, this.player.aggregate.stressReductionPct);
-            if (Math.random() < 0.3) {
-                this.log.addMessage(narrate('low_light', this.loc.language), '#c4a35a');
-            }
-        }
-        if (this.player.hasHighLight && node.type === RoomType.EMPTY) {
-            this.stress.add(STRESS_CONFIG.onEmptyRoomHighLight, this.player.aggregate.stressReductionPct);
-        }
-
-        this.log.addDivider(`${this.loc.t('depth')} ${this.dungeon.currentDepth}`);
-
-        const d = this.dungeon.currentDepth;
-        if (d === 3) {
-            this.sfx.play('whisper');
-            this.log.addMessage(
-                this.loc.language === 'ru'
-                    ? 'На стене нацарапано: «Добыча ниже. Назад — выше».'
-                    : 'Scratched into the wall: "Treasure below. Turn back above."',
-                '#c4a35a'
-            );
-        } else if (d === 10) {
-            this.sfx.play('whisper');
-            this.log.addMessage(
-                this.loc.language === 'ru'
-                    ? 'У стены сидит мёртвый искатель. В пустом рюкзаке осталась карта вниз.'
-                    : 'A dead treasure hunter sits against the wall. His map points deeper.',
-                '#c4a35a'
-            );
-        } else if (d === 15) {
-            this.sfx.play('whisper');
-            this.log.addMessage(
-                this.loc.language === 'ru'
-                    ? 'Воздух дрожит в зубах. Артефакт ближе.'
-                    : 'The air hums. The artifact is closer — you can feel it.',
-                '#c4a35a'
-            );
-        } else if (d === 20) {
-            this.sfx.play('whisper');
-            this.log.addMessage(
-                this.loc.language === 'ru'
-                    ? 'Чужие зарубки кончились. Дальше только твои.'
-                    : 'You are past the last known expedition. No marks but yours.',
-                '#c4a35a'
-            );
-        } else if (d === MAP_CONFIG.finalDepth - 1) {
-            this.sfx.play('whisper');
-            this.log.addMessage(
-                this.loc.language === 'ru'
-                    ? 'Стены слабо светятся. Артефакт за следующей глубиной.'
-                    : 'The walls glow faintly. The Wish Artifact is close.',
-                '#ffd36e'
-            );
-        } else if (d >= MAP_CONFIG.finalDepth && node.type === RoomType.BOSS) {
-            this.sfx.play('whisper');
-            this.log.addMessage(
-                this.loc.language === 'ru'
-                    ? 'Последняя глубина. Страж ждёт у артефакта.'
-                    : 'The final floor. The Artifact Guardian awaits.',
-                '#ffd36e'
-            );
-        }
-
-        switch (node.type) {
-            case RoomType.ENEMY:
-                this.startCombatEncounter('normal');
-                return;
-            case RoomType.ELITE:
-                this.startCombatEncounter('elite');
-                return;
-            case RoomType.BOSS:
-                this.startCombatEncounter('boss');
-                return;
-            case RoomType.TREASURE:
-                this.resolveTreasureRoom();
-                return;
-            case RoomType.TRAP:
-                this.showTrapOptions();
-                return;
-            case RoomType.REST:
-                this.showRestOptions();
-                return;
-            case RoomType.SHRINE:
-                this.showShrineOptions();
-                return;
-            case RoomType.MERCHANT:
-                this.showMerchantOptions();
-                return;
-            case RoomType.EMPTY:
-                this.showEmptyOptions();
-                return;
-            case RoomType.START:
-                this.showRoomCard(
-                    this.loc.t('start'),
-                    this.loc.language === 'ru' ? 'Лагерь' : 'Camp',
-                    this.loc.language === 'ru'
-                        ? 'Вход остался сверху. Артефакт Желаний лежит внизу.'
-                        : 'The entry is behind you. The Wish Artifact waits at the very bottom.',
-                    0x555555,
-                    '@',
-                    this.loc.language === 'ru' ? 'Иди, когда выдохнешь.' : 'Continue when you are ready.'
-                );
-                this.showReturnButton();
-                return;
-        }
+        this.roomFlow.enter(node);
     }
 
-    private startCombatEncounter(kind: 'normal' | 'elite' | 'boss') {
+    public startCombatEncounter(kind: 'normal' | 'elite' | 'boss') {
         const isFinalBoss = kind === 'boss' && this.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
         const card = kind === 'boss'
             ? {
@@ -1590,820 +1469,14 @@ export class GameScene extends Phaser.Scene {
         return hints.filter(Boolean).join(' ');
     }
 
-    private resolveTreasureRoom() {
-        const goldUnlocked = this.meta.isUnlocked('currency_gold');
-        const xpGained = this.player.gainXp(ROOM_CONFIG.treasure.xpReward);
 
-        let goldGained = 0;
-        let potionGained = 0;
-        if (goldUnlocked) {
-            goldGained = this.player.gainGold(randomInt(defaultRng, ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
-            if (goldGained > 0) this.tracker.record('goldEarned', goldGained);
-            if (this.player.isPotionUnlocked && Math.random() < ROOM_CONFIG.treasure.potionChance) {
-                potionGained = this.player.gainPotions(1);
-            }
-        }
 
-        const rewardParts = [this.loc.t('plusXp', { value: xpGained })];
-        if (goldGained > 0) {
-            rewardParts.push(this.loc.t('plusGold', { value: goldGained }));
-        }
-        if (potionGained > 0) {
-            rewardParts.push(this.loc.t('plusPotion'));
-        }
-
-        this.showRoomCard(
-            this.loc.t('treasure'),
-            this.tr('Старый тайник', 'Forgotten Cache'),
-            this.tr(
-                `Треснувший сундук не любит спешки. ${rewardParts.join(', ')}.`,
-                `A cracked chest still rewards careful hands. ${rewardParts.join(', ')}.`
-            ),
-            0x8d6a21,
-            '$',
-            this.tr('Забери добычу и уходи.', 'Claim the spoils and move on.'),
-            'TREASURE'
-        );
-        this.log.addMessage(this.loc.t('treasureSecured', { parts: rewardParts.join(', ') }), '#f7d46b');
-        this.sfx.play('treasure');
-        this.maybeDropRelic('treasure');
-        this.stress.relieve(STRESS_CONFIG.onTreasure);
-        this.showReturnButton();
-    }
-
-    private showTrapOptions() {
-        const trapVariants = [
-            {
-                title: this.tr('Проволочная петля', 'Mechanical Snare'),
-                desc: this.tr('Плита щёлкает под сапогом.', 'A pressure plate snaps awake under your boot.'),
-                icon: '^',
-            },
-            {
-                title: this.tr('Дротиковая стена', 'Poison Dart Wall'),
-                desc: this.tr('В камне ряд мелких отверстий. Внутри шипит давление.', 'Tiny holes line the corridor. Something hisses inside.'),
-                icon: '!',
-            },
-            {
-                title: this.tr('Просевший пол', 'Collapsing Floor'),
-                desc: this.tr('Камни ходят под ногами. Вес решит всё.', 'The stones shift. One wrong step and the ground gives way.'),
-                icon: 'v',
-            },
-        ];
-        const trap = trapVariants[Math.floor(Math.random() * trapVariants.length)];
-
-        this.showRoomCard(
-            this.loc.t('trap'),
-            trap.title,
-            trap.desc,
-            0x75458a,
-            trap.icon,
-            this.tr('Проскочить или разобрать механизм.', 'Rush through or try to disarm it.'),
-            'TRAP'
-        );
-
-        this.setRoomButtons([
-            {
-                label: this.loc.t('actionRush'),
-                callback: () => {
-                    this.tracker.record('trapsTriggered');
-                    const damage = this.applyTrapDamage(
-                        randomInt(defaultRng, ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.rushDamageMax)
-                    );
-                    this.sfx.play('trapTrigger');
-                    this.log.addMessage(this.loc.t('trapRush', { damage }), '#ff7777');
-                    if (this.player.stats.hp > 0) {
-                        this.showReturnButton();
-                        this.enemyIntelText.setText(this.tr('Механизм замолк.', 'The worst is behind you.'));
-                    }
-                },
-                fill: 0x5a1d1d,
-            },
-            {
-                label: this.loc.t('actionDisarm'),
-                callback: () => {
-                    if (Math.random() < ROOM_CONFIG.trap.disarmChance) {
-                        const gold = this.player.gainGold(
-                            randomInt(defaultRng, ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
-                        );
-                        this.sfx.play('trapDisarm');
-                        this.log.addMessage(this.loc.t('trapDisarm', { gold }), '#f7d46b');
-                        this.enemyIntelText.setText(this.tr('Пружина сдаётся у тебя в руках.', 'The mechanism falls apart in your hands.'));
-                    } else {
-                        const damage = this.applyTrapDamage(
-                            randomInt(defaultRng, 
-                                ROOM_CONFIG.trap.disarmFailDamageMin,
-                                ROOM_CONFIG.trap.disarmFailDamageMax
-                            )
-                        );
-                        this.sfx.play('trapTrigger');
-                        this.log.addMessage(this.loc.t('trapSnap', { damage }), '#ff7777');
-                        this.enemyIntelText.setText(this.loc.t('trapSnapIntel'));
-                    }
-
-                    if (this.player.stats.hp > 0) {
-                        this.showReturnButton();
-                    }
-                },
-                fill: 0x5a2d78,
-            },
-        ]);
-    }
-
-    private showRestOptions() {
-        this.sfx.play('rest');
-        this.showRoomCard(
-            this.loc.t('rest'),
-            this.tr('Костёр', 'Campfire'),
-            this.tr('Угли уже слабые, но тепла в них ещё хватает.', 'The coals are low, but still warm enough to matter.'),
-            0x2f8b4b,
-            '+',
-            this.tr('Залатай тело, дыхание или нервы.', 'Recover body, mind, or spirit.'),
-            'REST'
-        );
-
-        this.setRoomButtons([
-            {
-                label: this.loc.t('actionRecover'),
-                callback: () => {
-                    const healed = this.player.heal(
-                        ROOM_CONFIG.rest.recoverHeal +
-                            this.meta.getBonuses().rooms.restHealBonus +
-                            this.player.aggregate.restHealBonus
-                    );
-                    if (healed > 0) this.tracker.record('healingDone', healed);
-                    const lightGained = this.player.gainLight(ROOM_CONFIG.rest.recoverLight);
-                    const summary = [`${healed} ${this.loc.t('hp')}`];
-                    if (lightGained > 0) {
-                        summary.push(`${lightGained} ${this.tr('света', 'light')}`);
-                    }
-                    this.log.addMessage(this.loc.t('restRecover', { parts: summary.join(', ') }), '#79e28f');
-                    this.enemyIntelText.setText(this.tr('Комната на минуту отпускает.', 'The room feels less hostile for a moment.'));
-                    this.showReturnButton();
-                },
-                fill: 0x1f5b2f,
-            },
-            {
-                label: this.loc.t('actionFocus'),
-                callback: () => {
-                    const gained = this.player.gainResolve(ROOM_CONFIG.rest.focusResolve);
-                    this.log.addMessage(this.loc.t('focusResolve', { value: gained }), '#9bc8ff');
-                    this.enemyIntelText.setText(this.tr('Ты уходишь ровнее, чем вошёл.', 'You leave steadier than you arrived.'));
-                    this.showReturnButton();
-                },
-                fill: 0x1b335b,
-            },
-            {
-                label: this.tr('[3] Медитация', '[3] Meditate'),
-                callback: () => {
-                    this.stress.relieve(ROOM_CONFIG.rest.meditateStressRelief);
-                    this.log.addMessage(
-                        this.tr(
-                            `Ты выдыхаешь лишний вес. -${ROOM_CONFIG.rest.meditateStressRelief} стресса.`,
-                            `You breathe through the weight. -${ROOM_CONFIG.rest.meditateStressRelief} stress.`
-                        ),
-                        '#d6b8ff'
-                    );
-                    this.enemyIntelText.setText(this.tr('Углы на миг теряют зубы.', 'The shadows lose an edge, if briefly.'));
-                    this.showReturnButton();
-                },
-                fill: 0x3e2260,
-            },
-        ]);
-    }
-
-    // === NPC presentation ====================================================
-
-    private buildNpcEvalContext(): NpcEvalContext {
-        const hpFrac = this.player.stats.maxHp > 0
-            ? this.player.stats.hp / this.player.stats.maxHp
-            : 1;
-        const r = this.stress.resolution;
-        return {
-            depth: this.dungeon.currentDepth,
-            hpFrac,
-            stress: this.stress.value,
-            resolution: r ? r.kind : 'none',
-            bleedDamageDealt: this.tracker.current.bleedDamageDealt,
-            relicsFound: this.tracker.current.relicsFound,
-            bossesKilledEver: this.meta.bossesKilledEver,
-        };
-    }
-
-    private npcOfferCost(offerId: string, _npcId: NpcId): number {
-        switch (offerId) {
-            case 'mira_potion':
-                return ROOM_CONFIG.merchant.potionCost;
-            case 'mira_lantern':
-                return ROOM_CONFIG.merchant.lanternCost;
-            case 'mira_armor':
-                return ROOM_CONFIG.merchant.armorCost;
-            case 'mira_relic_oil':
-                return ROOM_CONFIG.merchant.premiumShardCost;
-            case 'casimir_offer':
-                return ROOM_CONFIG.shrine.offerGoldCost;
-            case 'casimir_rite':
-                return ROOM_CONFIG.shrine.premiumShardCost;
-            case 'hollow_relic_for_hp':
-                return Math.max(4, Math.floor(this.player.stats.maxHp * 0.25));
-            case 'hollow_shards_for_relic':
-                return 2;
-            case 'hollow_potion_for_gold':
-                return ROOM_CONFIG.merchant.potionCost - 2;
-            case 'veth_challenge':
-                return Math.max(3, Math.floor(this.player.stats.maxHp * 0.15));
-            case 'veth_lesson':
-                return 25;
-            case 'chorister_relieve':
-                return ROOM_CONFIG.shrine.offerGoldCost - 6;
-            case 'chorister_resolve':
-                return ROOM_CONFIG.shrine.offerGoldCost - 8;
-            case 'chorister_unbind':
-                return ROOM_CONFIG.shrine.premiumShardCost;
-            default:
-                return 0;
-        }
-    }
-
-    private isNpcOfferEnabled(offer: NpcOfferTemplate, npcId: NpcId): boolean {
-        const cost = this.npcOfferCost(offer.id, npcId);
-        switch (offer.id) {
-            case 'mira_potion':
-            case 'mira_lantern':
-            case 'mira_armor':
-            case 'casimir_offer':
-            case 'chorister_relieve':
-            case 'chorister_resolve':
-                return this.player.resources.gold >= cost;
-            case 'mira_relic_oil':
-            case 'casimir_rite':
-            case 'hollow_shards_for_relic':
-            case 'chorister_unbind':
-                return this.player.resources.relicShards >= cost;
-            case 'hollow_relic_for_hp':
-            case 'veth_challenge':
-                return this.player.stats.hp > cost + 1;
-            case 'veth_lesson':
-                // Costs stress: only enabled if stress isn't capped already.
-                return this.stress.value < 100;
-            case 'hollow_potion_for_gold':
-                return this.player.resources.potions > 0;
-            case 'veth_strop':
-                return !this.vethSharpenedThisRoom;
-            case 'kessa_tea':
-            case 'kessa_warning':
-                return true;
-            case 'kessa_token':
-                return !this.npcs.hasFlag('kessa', 'gave-token');
-            default:
-                return true;
-        }
-    }
-
-    private presentNpcRoom(npcId: NpcId, headerLabel: string) {
-        this.vethSharpenedThisRoom = false;
-
-        // Pick dialog *before* marking the encounter so metCount===0 selects
-        // the 'first' stage on the very first meeting. markEncounter then
-        // bumps the count for subsequent visits.
-        const ctx = this.buildNpcEvalContext();
-        const picked = this.npcs.pickDialog(npcId, ctx);
-        this.npcs.markEncounter(npcId, this.dungeon.currentDepth);
-
-        // Render the room card. Avoid compactText for dialog so wordWrap
-        // can render the full beat — these lines are intentionally long.
-        this.roomHeaderText.setText(headerLabel);
-        this.enemyPortrait.setFillStyle(picked.npc.color);
-        this.enemyIconText.setText(picked.npc.glyph);
-        this.enemyNameText.setText(
-            compactText(
-                `${this.loc.pick(picked.npc.name)}, ${this.loc.pick(picked.npc.title)}`,
-                28
-            )
-        );
-        // Scene flavor (italic-feel, smaller) goes in intel; dialog beat in body.
-        this.enemyIntelText.setText(this.loc.pick(picked.npc.flavor));
-        this.enemyIntelText.setVisible(true);
-        this.roomFlavorText.setText(compactText(this.loc.pick(picked.beat.text), 90));
-        this.enemySpriteImage.setVisible(false);
-        this.enemyIconText.setVisible(true);
-        this.enemyHpBarBg.setVisible(false);
-        this.enemyHpBar.setVisible(false);
-        this.enemyHpText.setVisible(false);
-        this.roomPanelGroup.setVisible(true);
-
-        // Log the dialog beat so it persists in the run log too.
-        this.log.addMessage(this.loc.pick(picked.beat.text), '#cdb8ff');
-
-        const actions = picked.offers.map<RoomButtonAction>((offer, idx) => {
-            const cost = this.npcOfferCost(offer.id, npcId);
-            return {
-                label: this.npcOfferLabel(offer, cost, idx + 1),
-                callback: () => this.handleNpcOffer(npcId, offer),
-                enabled: this.isNpcOfferEnabled(offer, npcId),
-                fill: picked.npc.color,
-            };
-        });
-
-        actions.push({
-            label: this.loc.t('actionDynamicLeave', { num: actions.length + 1 }),
-            callback: () => this.leaveNpcRoom(picked),
-            fill: 0x202020,
-        });
-
-        this.setRoomButtons(actions);
-    }
-
-    private leaveNpcRoom(picked: PickedDialog) {
-        if (picked.farewell) {
-            const farewell = this.loc.pick(picked.farewell.text);
-            this.log.addMessage(farewell, '#a89dc4');
-            this.enemyIntelText.setText(compactText(farewell, 60));
-        }
-        this.showReturnButton();
-    }
-
-    private handleNpcOffer(npcId: NpcId, offer: NpcOfferTemplate) {
-        const cost = this.npcOfferCost(offer.id, npcId);
-        let consumed = true;
-        let affinityDelta = 1;
-
-        switch (offer.id) {
-            // -- Mira ------------------------------------------------------------
-            case 'mira_potion':
-                if (!this.player.spendGold(cost)) { consumed = false; break; }
-                this.tracker.record('goldSpent', cost);
-                this.player.gainPotions(1);
-                this.log.addMessage(this.tr('Мира без слов ставит эликсир ближе.', 'Mira slides a potion across without comment.'), '#9be0a7');
-                break;
-            case 'mira_lantern': {
-                if (!this.player.spendGold(cost)) { consumed = false; break; }
-                this.tracker.record('goldSpent', cost);
-                const gainedLight = this.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
-                this.log.addMessage(this.tr(`Мира доливает масло в фонарь: +${gainedLight} света.`, `Mira refills your lantern: +${gainedLight} light.`), '#ffe08a');
-                affinityDelta = 2;
-                break;
-            }
-            case 'mira_armor':
-                if (!this.player.spendGold(cost)) { consumed = false; break; }
-                this.tracker.record('goldSpent', cost);
-                this.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
-                this.log.addMessage(this.tr(`Мира затягивает ремни брони: +${ROOM_CONFIG.merchant.armorDefenseGain} защиты.`, `Mira fastens armor straps: +${ROOM_CONFIG.merchant.armorDefenseGain} defense.`), '#b8d3ff');
-                break;
-            case 'mira_relic_oil':
-                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
-                this.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
-                this.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
-                this.log.addMessage(
-                    this.tr(
-                        `Мира смазывает клинок реликтовым маслом. +${ROOM_CONFIG.merchant.premiumAttackBonus} атаки, +${ROOM_CONFIG.merchant.premiumPotionBonus} эликсир.`,
-                        `Mira anoints your blade. +${ROOM_CONFIG.merchant.premiumAttackBonus} attack, +${ROOM_CONFIG.merchant.premiumPotionBonus} potion.`
-                    ),
-                    '#ffd9f7'
-                );
-                affinityDelta = 2;
-                break;
-
-            // -- Casimir ---------------------------------------------------------
-            case 'casimir_pray':
-                if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
-                    this.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
-                    this.log.addMessage(
-                        this.tr(
-                            `Казимир шепчет строку безымянной молитвы. +${ROOM_CONFIG.shrine.prayAttackBonus} атаки.`,
-                            `Casimir whispers a heretical line. +${ROOM_CONFIG.shrine.prayAttackBonus} attack.`
-                        ),
-                        '#d7b6ff'
-                    );
-                    affinityDelta = 2;
-                } else {
-                    const damage = this.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
-                    const resolve = this.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
-                    this.log.addMessage(
-                        this.tr(
-                            `Алтарь берёт кровь и возвращает волю. -${damage} ОЗ, +${resolve} воли.`,
-                            `The altar pays him in your blood. -${damage} HP, +${resolve} resolve.`
-                        ),
-                        '#c99cff'
-                    );
-                    affinityDelta = 1;
-                }
-                break;
-            case 'casimir_offer':
-                if (!this.player.spendGold(cost)) { consumed = false; break; }
-                this.tracker.record('goldSpent', cost);
-                this.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
-                this.log.addMessage(
-                    this.tr(
-                        `Казимир кладёт подношение на камень. +${ROOM_CONFIG.shrine.offerMaxHpBonus} к макс. ОЗ на этот забег.`,
-                        `Casimir feeds the altar. +${ROOM_CONFIG.shrine.offerMaxHpBonus} max HP this run.`
-                    ),
-                    '#ffd36e'
-                );
-                affinityDelta = 2;
-                break;
-            case 'casimir_rite':
-                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
-                this.player.addMaxHpBonus(
-                    ROOM_CONFIG.shrine.premiumMaxHpBonus,
-                    ROOM_CONFIG.shrine.premiumMaxHpBonus
-                );
-                this.player.gainResolve(ROOM_CONFIG.shrine.premiumResolveBonus);
-                this.log.addMessage(
-                    this.tr(
-                        `Казимир проводит обряд слишком уверенно. +${ROOM_CONFIG.shrine.premiumMaxHpBonus} макс. ОЗ, +${ROOM_CONFIG.shrine.premiumResolveBonus} воли.`,
-                        `Casimir performs the wrong rite, perfectly. +${ROOM_CONFIG.shrine.premiumMaxHpBonus} max HP, +${ROOM_CONFIG.shrine.premiumResolveBonus} resolve.`
-                    ),
-                    '#ffd9f7'
-                );
-                affinityDelta = 2;
-                break;
-
-            // -- Hollow Trader ---------------------------------------------------
-            case 'hollow_relic_for_hp': {
-                this.player.takeDamage(cost, 0, 'true');
-                const got = this.maybeDropRelic('elite');
-                if (!got) {
-                    // Always grant *something* — refund some gold instead.
-                    this.player.gainGold(8);
-                    this.log.addMessage(this.tr('Торговец платит монетой. Сделка закрыта.', 'The Trader pays in coin instead. The deal is honoured.'), '#a8a0c0');
-                } else {
-                    this.log.addMessage(this.tr('Полый торговец ставит отметку в книге. Боль точна.', 'The Hollow Trader marks the ledger. The pain is precise.'), '#a8a0c0');
-                }
-                affinityDelta = 2;
-                this.npcs.addFlag('hollow', 'paid-in-blood');
-                break;
-            }
-            case 'hollow_shards_for_relic':
-                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
-                this.maybeDropRelic('boss');
-                this.log.addMessage(this.tr('Торговец забирает часть тебя. Реликвия ложится в сумку.', 'The Trader trades absence for absence. A relic settles into your kit.'), '#f0a8ff');
-                affinityDelta = 2;
-                break;
-            case 'hollow_potion_for_gold':
-                if (this.player.resources.potions <= 0) { consumed = false; break; }
-                this.player.resources.potions -= 1;
-                this.player.gainGold(cost);
-                this.log.addMessage(this.tr(`Торговец забирает эликсир так, будто он уже был его. +${cost} золота.`, `The Trader takes the potion as if it were never there. +${cost} gold.`), '#ffd36e');
-                break;
-
-            // -- Veth ------------------------------------------------------------
-            case 'veth_challenge': {
-                this.player.takeDamage(cost, 0, 'true');
-                const got = this.maybeDropRelic('elite');
-                if (!got) {
-                    this.player.gainGold(20);
-                    this.log.addMessage(this.tr('Вет прячет договор и платит монетой. "Шрам есть шрам."', 'Veth pockets her pact and pays you in coin. "A scar is a scar."'), '#ffb084');
-                } else {
-                    this.log.addMessage(this.tr('Вет смотрит на свежую линию. "Неси её достойно."', 'Veth admires the line she drew. "Carry it well."'), '#ffb084');
-                }
-                affinityDelta = 2;
-                this.npcs.addFlag('veth', 'pacted');
-                break;
-            }
-            case 'veth_lesson':
-                this.stress.add(cost);
-                this.player.addAttackBonus(2);
-                this.log.addMessage(this.tr('Вет показывает третий разрез: +2 атаки на этот забег. Цена остаётся с тобой.', 'Veth teaches the third cut. +2 attack this run; the lesson costs.'), '#ffb084');
-                affinityDelta = 2;
-                this.npcs.addFlag('veth', 'taught');
-                break;
-            case 'veth_strop':
-                if (this.vethSharpenedThisRoom) { consumed = false; break; }
-                this.vethSharpenedThisRoom = true;
-                this.player.addAttackBonus(1);
-                this.log.addMessage(this.tr('Вет правит клинок о старую кожу. +1 атаки.', 'Veth strops your blade against the leather. +1 attack.'), '#ffb084');
-                affinityDelta = 1;
-                break;
-
-            // -- Chorister -------------------------------------------------------
-            case 'chorister_relieve':
-                if (!this.player.spendGold(cost)) { consumed = false; break; }
-                this.tracker.record('goldSpent', cost);
-                this.stress.relieve(20);
-                this.log.addMessage(this.tr('Хорист держит низкую ноту. -20 стресса.', 'The Chorister sings. -20 stress.'), '#d6b8ff');
-                affinityDelta = 2;
-                break;
-            case 'chorister_resolve':
-                if (!this.player.spendGold(cost)) { consumed = false; break; }
-                this.tracker.record('goldSpent', cost);
-                this.player.gainResolve(2);
-                this.log.addMessage(this.tr('Хорист выравнивает твои руки. +2 воли.', 'The Chorister steadies your hands. +2 resolve.'), '#9bc8ff');
-                break;
-            case 'chorister_unbind':
-                if (!this.player.spendRelicShard(cost)) { consumed = false; break; }
-                if (this.stress.resolution && this.stress.resolution.kind === 'affliction') {
-                    this.stress.resolution = null;
-                    this.updateStressUI();
-                    this.log.addMessage(this.tr('Хорист ослабляет срыв. Песня держит трещину закрытой.', 'The Chorister unbinds the affliction. The song carries it away.'), '#ffd9f7');
-                    affinityDelta = 3;
-                } else {
-                    this.player.gainResolve(3);
-                    this.log.addMessage(this.tr('Сегодня нечего чинить. Песня становится волей. +3 воли.', 'There is no crack to mend today. The song becomes resolve. +3 resolve.'), '#ffd9f7');
-                    affinityDelta = 1;
-                }
-                break;
-
-            // -- Kessa -----------------------------------------------------------
-            case 'kessa_tea':
-                this.player.heal(4);
-                this.stress.relieve(10);
-                this.log.addMessage(this.tr('Кесса наливает вторую кружку. +4 ОЗ, -10 стресса.', 'Kessa pours the second cup. +4 HP, -10 stress.'), '#9be0a7');
-                affinityDelta = 2;
-                break;
-            case 'kessa_warning':
-                this.player.gainResolve(1);
-                this.log.addMessage(
-                    this.tr(
-                    'Кесса: "Третья комната на любой глубине врёт. Держи второй эликсир, если можешь." (+1 воля)',
-                        'Kessa: "Third room of any depth lies. Bring two potions if you can." (+1 resolve)'
-                    ),
-                    '#9bc8ff'
-                );
-                affinityDelta = 1;
-                break;
-            case 'kessa_token':
-                this.player.addAttackBonus(1);
-                this.player.addDefenseBonus(1);
-                this.log.addMessage(
-                    this.tr(
-                    'Кесса вкладывает в ладонь латунную серьгу Серы. +1 атаки и +1 защиты на этот забег.',
-                        'Kessa presses Sera\'s brass earring into your palm. +1 attack, +1 defense for this run.'
-                    ),
-                    '#ffd36e'
-                );
-                this.npcs.addFlag('kessa', 'gave-token');
-                affinityDelta = 3;
-                break;
-
-            default:
-                consumed = false;
-        }
-
-        if (consumed && affinityDelta !== 0) {
-            this.npcs.adjustAffinity(npcId, affinityDelta);
-        }
-
-        // Stay in the room — show the offer's flavor as intel, then a return button.
-        const flavor = this.loc.pick(offer.flavor);
-        if (flavor) {
-            this.enemyIntelText.setText(compactText(flavor, 60));
-        }
-        this.showReturnButton();
-    }
-
-    private showShrineOptions() {
-        this.sfx.play('shrine');
-        this.tracker.record('shrinesVisited');
-        const npcId = this.npcs.pickForRole('shrine', this.dungeon.currentDepth);
-        if (npcId) {
-            this.presentNpcRoom(npcId, this.loc.t('shrine'));
-        } else {
-            this.showGenericShrineOptions();
-        }
-    }
-
-    private showGenericShrineOptions() {
-        const actions: RoomButtonAction[] = [
-            {
-                label: this.loc.t('actionPray'),
-                callback: () => {
-                    if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
-                        this.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
-                        this.log.addMessage(this.loc.t('shrineAttack'), '#d7b6ff');
-                    } else {
-                        const damage = this.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
-                        const resolve = this.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
-                        this.log.addMessage(this.loc.t('shrineWound', { damage, resolve }), '#c99cff');
-                    }
-                    if (this.player.stats.hp > 0) {
-        this.enemyIntelText.setText(this.tr('Алтарь запомнил твою кровь.', 'The shrine remembers your name.'));
-                        this.showReturnButton();
-                    }
-                },
-                fill: 0x5f4e8a,
-            },
-            {
-                label: this.loc.t('actionDynamicLeave', { num: 2 }),
-                callback: () => this.showReturnButton(),
-                fill: 0x202020,
-            },
-        ];
-
-        this.showRoomCard(
-            this.loc.t('shrine'),
-            this.tr('Старый алтарь', 'Forgotten Altar'),
-            this.tr('Под камнем что-то слушает сквозь пыль.', 'Something old still listens from beneath the stone.'),
-            0x5f4e8a,
-            'S',
-            this.tr('Молитва, подношение или тихий уход.', 'A prayer, an offering, or a careful retreat.'),
-            'SHRINE'
-        );
-        this.setRoomButtons(actions);
-    }
-
-    private showMerchantOptions() {
-        this.sfx.play('merchant');
-        this.tracker.record('merchantsVisited');
-        const npcId = this.npcs.pickForRole('merchant', this.dungeon.currentDepth);
-        if (npcId) {
-            this.presentNpcRoom(npcId, this.loc.t('merchant'));
-            return;
-        }
-        this.showGenericMerchantOptions();
-    }
-
-    private showGenericMerchantOptions() {
-        const actions: RoomButtonAction[] = [
-            {
-                label: this.loc.t('actionBuyPotion', { cost: ROOM_CONFIG.merchant.potionCost }),
-                callback: () => {
-                    if (!this.player.spendGold(ROOM_CONFIG.merchant.potionCost)) {
-                        return;
-                    }
-                    this.tracker.record('goldSpent', ROOM_CONFIG.merchant.potionCost);
-                    this.player.gainPotions(1);
-                    this.log.addMessage(this.loc.t('buyPotion'), '#9be0a7');
-            this.enemyIntelText.setText(this.tr('Торговец считает монеты, не поднимая глаз.', 'The merchant counts the coins and looks away.'));
-                    this.showReturnButton();
-                },
-                enabled: this.player.resources.gold >= ROOM_CONFIG.merchant.potionCost,
-                fill: 0x1f5b2f,
-            },
-        ];
-
-        if (this.player.isLightUnlocked) {
-            actions.push({
-                label: this.loc.t('actionLantern', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.lanternCost }),
-                callback: () => {
-                    if (!this.player.spendGold(ROOM_CONFIG.merchant.lanternCost)) {
-                        return;
-                    }
-                    this.tracker.record('goldSpent', ROOM_CONFIG.merchant.lanternCost);
-                    const gainedLight = this.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
-                    this.log.addMessage(this.loc.t('buyLantern', { value: gainedLight }), '#ffe08a');
-            this.enemyIntelText.setText(this.tr('Масло пахнет чище здешнего воздуха.', 'The oil smells cleaner than the dungeon air.'));
-                    this.showReturnButton();
-                },
-                enabled: this.player.resources.gold >= ROOM_CONFIG.merchant.lanternCost,
-                fill: 0x8a5d2d,
-            });
-        }
-
-        actions.push({
-            label: this.loc.t('actionArmor', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.armorCost }),
-            callback: () => {
-                if (!this.player.spendGold(ROOM_CONFIG.merchant.armorCost)) {
-                    return;
-                }
-                this.tracker.record('goldSpent', ROOM_CONFIG.merchant.armorCost);
-                this.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
-                this.log.addMessage(this.loc.t('buyArmor', { value: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
-            this.enemyIntelText.setText(this.tr('Честная сделка. Насколько здесь бывает.', 'A fair trade, by dungeon standards.'));
-                this.showReturnButton();
-            },
-            enabled: this.player.resources.gold >= ROOM_CONFIG.merchant.armorCost,
-            fill: 0x355070,
-        });
-
-        if (this.meta.isUnlocked('merchant_premium')) {
-            actions.push({
-                label: this.loc.t('actionRelic', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.premiumShardCost }),
-                callback: () => {
-                    if (!this.player.spendRelicShard(ROOM_CONFIG.merchant.premiumShardCost)) {
-                        return;
-                    }
-                    this.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
-                    this.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
-                    this.log.addMessage(this.loc.t('buyRelic', {
-                        attack: ROOM_CONFIG.merchant.premiumAttackBonus,
-                        potions: ROOM_CONFIG.merchant.premiumPotionBonus,
-                    }), '#ffd9f7');
-            this.enemyIntelText.setText(this.tr('Торговец улыбается, когда реликвия меняет хозяина.', 'The merchant smiles only when relics change hands.'));
-                    this.showReturnButton();
-                },
-                enabled: this.player.resources.relicShards >= ROOM_CONFIG.merchant.premiumShardCost,
-                fill: 0x6b4c96,
-            });
-        }
-
-        actions.push({
-            label: this.loc.t('actionDynamicLeave', { num: actions.length + 1 }),
-            callback: () => this.showReturnButton(),
-            fill: 0x202020,
-        });
-
-        this.showRoomCard(
-            this.loc.t('merchant'),
-            this.tr('Торговец в капюшоне', 'Shadow Trader'),
-            this.tr('Фигура в капюшоне уже оценила твой страх.', 'A hooded figure has already decided what your fear is worth.'),
-            0x2e6c87,
-            'M',
-            this.tr('Выбирай осторожно. Здесь дают одну сделку.', 'Spend carefully. This room lasts one choice.'),
-            'MERCHANT'
-        );
-        this.setRoomButtons(actions);
-    }
-
-    private showEmptyOptions() {
-        // 35% chance to roll a wandering NPC into an empty room (Veth or Kessa).
-        if (Math.random() < 0.35) {
-            const npcId = this.npcs.pickForRole('wanderer', this.dungeon.currentDepth);
-            if (npcId) {
-                this.presentNpcRoom(npcId, this.tr('ВСТРЕЧА', 'ENCOUNTER'));
-                return;
-            }
-        }
-
-        const subEvents = [
-            {
-                title: this.tr('Пыльная камера', 'Dusty Chamber'),
-            desc: this.tr('В тишине слышно и тайник, и собственные руки.', 'Stillness can hide a cache or steady a shaking hand.'),
-                icon: '.',
-            },
-            {
-            title: this.tr('Заваленный проход', 'Collapsed Passage'),
-            desc: this.tr('Завал держит проход, но в щелях видны боковые ниши.', 'Rubble blocks the way, but gaps reveal hidden corners.'),
-                icon: '~',
-            },
-            {
-            title: this.tr('Гулкий зал', 'Echoing Hall'),
-            desc: this.tr('Шаги возвращаются позднее, чем должны.', 'Footsteps return from walls that should not be so far away.'),
-                icon: '"',
-            },
-            {
-            title: this.tr('Старая ниша', 'Forgotten Alcove'),
-            desc: this.tr('Здесь уже прятались. Царапины на камне ещё светлые.', 'Someone sheltered here before. Their scratches mark the stone.'),
-                icon: '\'',
-            },
-        ];
-        const event = subEvents[Math.floor(Math.random() * subEvents.length)];
-
-        this.showRoomCard(
-            this.loc.t('empty'),
-            event.title,
-            event.desc,
-            0x444444,
-            event.icon,
-            this.tr('Обыскать комнату или выровнять дыхание.', 'Search the room or keep your footing.'),
-            'EMPTY'
-        );
-
-        this.setRoomButtons([
-            {
-                label: this.loc.t('actionScout'),
-                callback: () => {
-                    const gains: string[] = [];
-                    const lightGain = this.player.gainLight(ROOM_CONFIG.empty.scoutLightGain);
-                    if (lightGain > 0) {
-                        gains.push(`${lightGain} ${this.tr('света', 'light')}`);
-                    }
-
-                    if (
-                        this.player.isGoldUnlocked &&
-                        Math.random() < ROOM_CONFIG.empty.scoutGoldChance
-                    ) {
-                        const gold = this.player.gainGold(
-                            randomInt(defaultRng, ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
-                        );
-                        if (gold > 0) this.tracker.record('goldEarned', gold);
-                        gains.push(`${gold} ${this.tr('золота', 'gold')}`);
-                    }
-
-                    if (gains.length === 0) {
-                        const xp = this.player.gainXp(1);
-                        gains.push(this.loc.t('plusXp', { value: xp }).replace(/^\+/, ''));
-                    }
-
-                    this.log.addMessage(this.loc.t('emptyScout', { parts: gains.join(', ') }), '#bbbbbb');
-                this.enemyIntelText.setText(this.tr('Ты уходишь с более ясной картой углов.', 'You leave with a slightly clearer picture of the dark.'));
-                    this.showReturnButton();
-                },
-                fill: 0x3d3d3d,
-            },
-            {
-                label: this.loc.t('actionSteady'),
-                callback: () => {
-                    if (this.player.isResolveUnlocked) {
-                        const gained = this.player.gainResolve(ROOM_CONFIG.empty.steadyResolveGain);
-                        this.log.addMessage(this.loc.t('emptySteady', { value: gained }), '#9bc8ff');
-                    } else {
-                        const gainedXp = this.player.gainXp(1);
-                        this.log.addMessage(this.loc.t('emptyStudy', { value: gainedXp }), '#bbbbbb');
-                    }
-            this.enemyIntelText.setText(this.tr('Комната ничего не требует. Этого достаточно.', 'The room gives nothing, and that helps.'));
-                    this.showReturnButton();
-                },
-                fill: 0x2b2b2b,
-            },
-        ]);
-    }
-
-    private applyTrapDamage(rawDamage: number): number {
+    public applyTrapDamage(rawDamage: number): number {
         const mitigated = Math.max(1, rawDamage - this.meta.getBonuses().rooms.trapDamageReduction);
         return this.player.takeDamage(mitigated);
     }
 
-    private showRoomCard(
+    public showRoomCard(
         header: string,
         title: string,
         description: string,
@@ -2434,7 +1507,7 @@ export class GameScene extends Phaser.Scene {
         }
     }
 
-    private showReturnButton() {
+    public showReturnButton() {
         this.setRoomButtons(
             [
                 {
@@ -2447,7 +1520,7 @@ export class GameScene extends Phaser.Scene {
         );
     }
 
-    private returnToMap() {
+    public returnToMap() {
         const overlay = this.add.rectangle(400, 300, 800, 600, 0x000000).setAlpha(0).setDepth(90);
         this.tweens.add({
             targets: overlay,
@@ -2473,7 +1546,7 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
-    private advanceToNode(node: MapNode) {
+    public advanceToNode(node: MapNode) {
         if (!this.canUseMapNode(node)) {
             return;
         }
@@ -2486,7 +1559,7 @@ export class GameScene extends Phaser.Scene {
         this.dungeon.moveTo(node.id);
     }
 
-    private updateEnemyUI(
+    public updateEnemyUI(
         hp: number,
         maxHp: number,
         color: number,
