@@ -170,10 +170,10 @@ export class CombatManager {
 
         const header =
             kind === 'boss'
-            ? this.loc.t('cm_001')
+            ? this.loc.t('combatBossEncounter')
             : kind === 'elite'
-              ? this.loc.t('cm_002')
-                  : this.loc.t('cm_003');
+              ? this.loc.t('combatEliteEncounter')
+                  : this.loc.t('combatHostileContact');
         this.log.addMessage(`${header} ${this.enemy.name} ${definition.icon}`, '#ff6666');
 
         if (kind === 'boss') {
@@ -249,7 +249,7 @@ export class CombatManager {
             if (enemyTick.bleedDamage > 0) {
                 this.enemy.hp = Math.max(0, this.enemy.hp - enemyTick.bleedDamage);
                 this.log.addMessage(
-                    this.loc.t('cm_004', { name: this.enemy.name, bleedDamage: enemyTick.bleedDamage }),
+                    this.loc.t('combatBleedTick', { name: this.enemy.name, bleedDamage: enemyTick.bleedDamage }),
                     '#c15a5a'
                 );
                 this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
@@ -271,7 +271,7 @@ export class CombatManager {
             const healed = this.player.heal(playerTick.regenHeal);
             if (healed > 0) {
                 this.log.addMessage(
-                    this.loc.t('cm_005', { healed }),
+                    this.loc.t('combatRegenTick', { healed }),
                     '#8be0a7'
                 );
             }
@@ -309,7 +309,7 @@ export class CombatManager {
         const cost = Math.max(1, skill.resolveCost + stressMod);
         if (!this.player.spendResolve(cost)) {
             this.log.addMessage(
-                this.loc.t('cm_006', { cost, value: this.skillName(skillId) }),
+                this.loc.t('combatNeedResolveForSkill', { cost, value: this.skillName(skillId) }),
                 '#8899aa'
             );
             return false;
@@ -322,7 +322,7 @@ export class CombatManager {
                     Math.ceil(this.player.getAttackPower() * 1.8) + 2 + this.effectiveDamageMod()
                 );
                 this.applyPlayerDamage(dmg, false);
-                this.log.addMessage(this.loc.t('cm_007', { dmg }), '#b893ff');
+                this.log.addMessage(this.loc.t('combatSkillCleave', { dmg }), '#b893ff');
                 this.applyOnAttackRelics();
                 break;
             }
@@ -335,7 +335,7 @@ export class CombatManager {
                 const agg = this.player.aggregate;
                 applyBleed(this.enemy.status, 2 + agg.bleedStackBonus, 3 + agg.bleedTurnBonus);
                 this.log.addMessage(
-                    this.loc.t('cm_008', { dmg }),
+                    this.loc.t('combatSkillBleedStrike', { dmg }),
                     '#d06060'
                 );
                 this.applyOnAttackRelics();
@@ -344,10 +344,10 @@ export class CombatManager {
             case 'parry_stance': {
                 applyGuard(this.player.status, 2, 4);
                 if (this.tryStun(1)) {
-                    this.log.addMessage(this.loc.t('cm_009'), '#7fa9ff');
+                    this.log.addMessage(this.loc.t('combatSkillParryBreak'), '#7fa9ff');
                     this.log.addMessage(narrate('stun_landed', this.loc.language), '#c4a35a');
                 } else {
-                    this.log.addMessage(this.loc.t('cm_010'), '#7fa9ff');
+                    this.log.addMessage(this.loc.t('combatSkillParrySteady'), '#7fa9ff');
                 }
                 this.player.gainResolve(1);
                 break;
@@ -360,7 +360,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 applyMark(this.enemy.status, 2);
                 this.log.addMessage(
-                    this.loc.t('cm_011', { dmg }),
+                    this.loc.t('combatSkillFocusedStrike', { dmg }),
                     '#d6c260'
                 );
                 this.applyOnAttackRelics();
@@ -370,7 +370,7 @@ export class CombatManager {
                 const pct = Math.ceil(this.enemy.maxHp * 0.22);
                 const dmg = Math.max(this.player.getAttackPower(), pct) + this.effectiveDamageMod();
                 this.applyPlayerDamage(dmg, false);
-                this.log.addMessage(this.loc.t('cm_012', { dmg }), '#c048a0');
+                this.log.addMessage(this.loc.t('combatSkillRupture', { dmg }), '#c048a0');
                 this.applyOnAttackRelics();
                 break;
             }
@@ -379,7 +379,7 @@ export class CombatManager {
                 this.player.gainResolve(1);
                 applyFocus(this.player.status, 1, 3);
                 this.log.addMessage(
-                    this.loc.t('cm_013', { healed }),
+                    this.loc.t('combatSkillRally', { healed }),
                     '#66dd88'
                 );
                 break;
@@ -392,7 +392,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 this.player.takeDamage(3, 0, 'true');
                 this.log.addMessage(
-                    this.loc.t('cm_014', { dmg }),
+                    this.loc.t('combatSkillCrushingBlow', { dmg }),
                     '#e06040'
                 );
                 this.applyOnAttackRelics();
@@ -480,7 +480,7 @@ export class CombatManager {
         // Stun check.
         if (consumeStunForTurn(this.enemy.status)) {
             this.log.addMessage(
-                this.loc.t('cm_015', { name: this.enemy.name }),
+                this.loc.t('combatEnemyStunned', { name: this.enemy.name }),
                 '#7aaaff'
             );
             this.enemyStatusChange.emit();
@@ -492,7 +492,7 @@ export class CombatManager {
             this.enemy.firstHitEvaded = false;
             this.lastActionResult.enemyEvaded = true;
             this.log.addMessage(
-                    this.loc.t('cm_016', { name: this.enemy.name }),
+                    this.loc.t('combatEnemyEvadeFirst', { name: this.enemy.name }),
                 '#9fb4c4'
             );
             return;
@@ -519,7 +519,7 @@ export class CombatManager {
                 this.enemy.attack += 2;
                 attackPower += 2;
                 this.log.addMessage(
-                    this.loc.t('cm_017', { name: this.enemy.name }),
+                    this.loc.t('combatEnemyEnrage', { name: this.enemy.name }),
                     '#ff9944'
                 );
                 this.stress?.add(STRESS_CONFIG.onEnemyEnrage, this.player.aggregate.stressReductionPct);
@@ -530,7 +530,7 @@ export class CombatManager {
                 multiStrikeFirstDamage = firstHit;
                 if (firstHit > 0) {
                     this.log.addMessage(
-                this.loc.t('cm_018', { name: this.enemy.name, firstHit }),
+                this.loc.t('combatEnemyLunge', { name: this.enemy.name, firstHit }),
                         '#ff6666'
                     );
                 }
@@ -538,7 +538,7 @@ export class CombatManager {
                     this.logDeath();
                     return;
                 }
-            extraMessage = this.loc.t('cm_019');
+            extraMessage = this.loc.t('combatEnemyDoubleStrike');
                 // After first hit, guard is partially used; refresh flatBlock for consistency.
                 flatBlock = flatBlockBase + wardenBlock;
             }
@@ -548,7 +548,7 @@ export class CombatManager {
                 this.lastActionResult.enemyCharged = true;
                 attackPower = Math.round(attackPower * 1.6);
                 this.log.addMessage(
-                this.loc.t('cm_020', { name: this.enemy.name }),
+                this.loc.t('combatEnemyChannelDark', { name: this.enemy.name }),
                     '#9966cc'
                 );
             } else {
@@ -562,7 +562,7 @@ export class CombatManager {
                     this.enemy.inflictBleed.turns
                 );
                 this.log.addMessage(
-                this.loc.t('cm_021', { name: this.enemy.name }),
+                this.loc.t('combatEnemyOpenWound', { name: this.enemy.name }),
                     '#d06060'
                 );
             }
@@ -571,7 +571,7 @@ export class CombatManager {
             if (this.enemy.turnsAlive % 2 === 1 && this.enemy.status.weaken.turns <= 0) {
                 applyWeaken(this.player.status, 1, 2);
                 this.log.addMessage(
-                    this.loc.t('cm_022', { name: this.enemy.name }),
+                    this.loc.t('combatEnemyWeakenAttack', { name: this.enemy.name }),
                     '#8b5fc7'
                 );
             }
@@ -586,7 +586,7 @@ export class CombatManager {
         const takenDamage = this.applyEnemyHitToPlayer(attackPower, flatBlock);
         if (takenDamage > 0) {
             this.log.addMessage(
-                this.loc.t('cm_023', { name: this.enemy.name, takenDamage, extraMessage }),
+                this.loc.t('combatEnemyHit', { name: this.enemy.name, takenDamage, extraMessage }),
                 '#ff6666'
             );
         } else if (multiStrikeFirstDamage === 0) {
@@ -635,7 +635,7 @@ export class CombatManager {
             if (thorns > 0) {
                 this.enemy.hp = Math.max(0, this.enemy.hp - thorns);
                 this.log.addMessage(
-                    this.loc.t('cm_024', { thorns }),
+                    this.loc.t('combatThornsRetaliate', { thorns }),
                     '#88cc88'
                 );
                 this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
