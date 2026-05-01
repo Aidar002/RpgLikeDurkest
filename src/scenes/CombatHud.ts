@@ -22,25 +22,25 @@ export class CombatHudController {
                   header: isFinalBoss ? (scene.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN') : scene.loc.t('boss'),
                   title: isFinalBoss
                       ? (scene.loc.language === 'ru' ? 'Хранитель Артефакта Желаний.' : 'The Guardian of the Wish Artifact.')
-                      : scene.tr('Хранитель этажа перекрывает лестницу.', 'A ruler of this floor rises.'),
+                      : scene.loc.t('ch_001'),
                   description: isFinalBoss
                       ? (scene.loc.language === 'ru' ? 'Последний страж. За ним лежит Артефакт Желаний.' : 'The final keeper. Beyond it lies the wish-granting artifact.')
-                      : scene.tr('Сейчас пригодится всё, чему тебя научил спуск.', 'Every system you earned is being tested at once.'),
+                      : scene.loc.t('ch_002'),
                   color: isFinalBoss ? 0xc8a030 : 0xa52f2f,
                   icon: isFinalBoss ? '\u2726' : 'B',
               }
             : kind === 'elite'
               ? {
                     header: scene.loc.t('elite'),
-                    title: scene.tr('Опытный враг держит коридор.', 'A hardened threat bars the corridor.'),
-                    description: scene.tr('Победа здесь будет дорогой. Добыча тоже.', 'Winning here should feel costly and worth it.'),
+                    title: scene.loc.t('ch_003'),
+                    description: scene.loc.t('ch_004'),
                     color: 0xa14a4a,
                     icon: 'E',
                 }
               : {
                     header: scene.loc.t('hostile'),
-                    title: scene.tr('Контакт', 'Threat detected'),
-                    description: scene.tr('Коридор сужается. Впереди заняли проход.', 'The corridor narrows. Something waits in the dark.'),
+                    title: scene.loc.t('ch_005'),
+                    description: scene.loc.t('ch_006'),
                     color: 0x6b3030,
                     icon: 'X',
                 };
@@ -163,33 +163,30 @@ export class CombatHudController {
     buildIntel(): string {
         const scene = this.scene;
         if (!scene.combat.enemy) {
-            return scene.tr('Выдохни и иди глубже.', 'Collect yourself and continue deeper.');
+            return scene.loc.t('ch_007');
         }
 
         const enemy = scene.combat.enemy;
         const profileHints: Record<string, string> = {
-            brute: scene.tr('Громила: ярится в ране.', 'Brute: enrages when wounded.'),
-            stalker: scene.tr('Охотник: бьёт сериями.', 'Stalker: may strike twice.'),
-            mage: scene.tr('Маг: копит силу для тяжёлого удара.', 'Mage: charges a heavy spell.'),
-            boss: scene.tr('Босс: держит путь вниз.', 'Boss: relentless power.'),
+            brute: scene.loc.t('ch_008'),
+            stalker: scene.loc.t('ch_009'),
+            mage: scene.loc.t('ch_010'),
+            boss: scene.loc.t('ch_011'),
         };
 
         const hints: string[] = [];
         hints.push(profileHints[enemy.profile] ?? '');
 
         if (enemy.enraged) {
-            hints.push(scene.tr('ЯРОСТЬ!', 'ENRAGED!'));
+            hints.push(scene.loc.t('ch_012'));
         }
         if (enemy.charging) {
-            hints.push(scene.tr('Копит силу...', 'Charging...'));
+            hints.push(scene.loc.t('ch_013'));
         }
 
         if (scene.meta.isUnlocked('action_skill')) {
             hints.push(
-                scene.tr(
-                    `Навык: ${COMBAT_CONFIG.skillCost} ${scene.loc.t('resolveShort').toLowerCase()}.`,
-                    `Skill: ${COMBAT_CONFIG.skillCost} resolve.`
-                )
+                scene.loc.t('ch_014', { skillCost: COMBAT_CONFIG.skillCost })
             );
         }
 

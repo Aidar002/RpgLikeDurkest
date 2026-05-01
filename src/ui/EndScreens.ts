@@ -36,8 +36,6 @@ export interface EndScreenContext {
     runState: RunEndState;
     /** Scene restart that also tears down timers/tweens/input. */
     safeRestart: () => void;
-    /** The localized-text picker from GameScene (two-string helper). */
-    tr: (ru: string, en: string) => string;
 }
 
 interface UpgradeCardVisual {
@@ -163,7 +161,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
 }
 
 export function showDeathScreen(ctx: EndScreenContext) {
-    const { scene, loc, meta, tracker, player, npcs, runState, tr } = ctx;
+    const { scene, loc, meta, tracker, player, npcs, runState } = ctx;
 
     hideLiveContainers(ctx);
     awardPrestigeOnce(ctx);
@@ -196,7 +194,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const allLines = [
         ...summaryLines,
         ...statLines,
-        ...(npcLines.length > 0 ? ['', tr('— Встреченные —', '— Acquaintances —'), ...npcLines] : []),
+        ...(npcLines.length > 0 ? ['', loc.t('es_001'), ...npcLines] : []),
     ];
     const summary = scene.add
         .text(400, 88, allLines.join('\n'), {
@@ -319,7 +317,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     restartButton.setStrokeStyle(1, 0x8a8a8a);
     restartButton.setInteractive({ useHandCursor: true });
     const restartText = scene.add
-        .text(400, 548, tr('Новый забег', 'Begin New Expedition'), {
+        .text(400, 548, loc.t('es_002'), {
             fontFamily: 'Courier New',
             fontSize: '17px',
             color: '#f0f0f0',
@@ -331,7 +329,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     resetButton.setStrokeStyle(1, 0xa35a5a);
     resetButton.setInteractive({ useHandCursor: true });
     const resetText = scene.add
-        .text(400, 592, tr('Стереть память', 'Reset soul progress'), {
+        .text(400, 592, loc.t('es_003'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#ffd0d0',
@@ -347,16 +345,13 @@ export function showDeathScreen(ctx: EndScreenContext) {
     resetButton.on('pointerout', () => resetButton.setStrokeStyle(1, 0xa35a5a));
 
     const refreshShop = () => {
-        pointsText.setText(`${tr('Запас престижа', 'Prestige bank')}: ${meta.availablePrestige}`);
+        pointsText.setText(`${loc.t('es_004')}: ${meta.availablePrestige}`);
 
         const nextUnlock = meta.getNextContentUnlock();
         unlockText.setText(
             nextUnlock
-                ? `${tr('Следующее открытие', 'Next permanent discovery')}: ${loc.pick(nextUnlock.requirement)} -> ${loc.pick(nextUnlock.label)}.`
-                : tr(
-                      'Все постоянные открытия уже закреплены.',
-                      'Every planned layer of permanent content has been unlocked.'
-                  )
+                ? `${loc.t('es_005')}: ${loc.pick(nextUnlock.requirement)} -> ${loc.pick(nextUnlock.label)}.`
+                : loc.t('es_006')
         );
 
         const upgradeCards = meta.getUpgradeCards(loc.language);
@@ -369,7 +364,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             card.level.setText(`Lv ${info.level}/${info.maxLevel}`);
             card.body.setText(info.description);
             card.cost.setText(
-                info.cost === null ? tr('МАКС', 'MAX') : `${tr('Цена', 'Cost')} ${info.cost}`
+                info.cost === null ? loc.t('es_007') : `${loc.t('es_008')} ${info.cost}`
             );
             card.background.setFillStyle(info.canPurchase ? 0x242424 : 0x1c1c1c);
             card.background.setStrokeStyle(1, info.canPurchase ? 0x8a8a8a : 0x4a4a4a);
@@ -414,7 +409,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     confirmResetButton.setStrokeStyle(1, 0xc57d7d);
     confirmResetButton.setInteractive({ useHandCursor: true });
     const confirmResetText = scene.add
-        .text(320, 358, tr('Да, удалить всё', 'Yes, delete everything'), {
+        .text(320, 358, loc.t('es_009'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#ffe8e8',
@@ -425,7 +420,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
     cancelResetButton.setInteractive({ useHandCursor: true });
     const cancelResetText = scene.add
-        .text(480, 358, tr('Отмена', 'Cancel'), {
+        .text(480, 358, loc.t('es_010'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#f0f0f0',

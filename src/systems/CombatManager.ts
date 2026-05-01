@@ -122,10 +122,6 @@ export class CombatManager {
         this.rng = rng;
     }
 
-    private tr(ru: string, en: string): string {
-        return this.loc.language === 'ru' ? ru : en;
-    }
-
     private skillName(id: SkillId): string {
         return this.loc.pick(SKILLS[id].name);
     }
@@ -175,10 +171,10 @@ export class CombatManager {
 
         const header =
             kind === 'boss'
-            ? this.tr('Босс держит проход.', 'Boss encounter.')
+            ? this.loc.t('cm_001')
             : kind === 'elite'
-              ? this.tr('Элитный враг.', 'Elite encounter.')
-                  : this.tr('Контакт с врагом.', 'Hostile contact.');
+              ? this.loc.t('cm_002')
+                  : this.loc.t('cm_003');
         this.log.addMessage(`${header} ${this.enemy.name} ${definition.icon}`, '#ff6666');
 
         if (kind === 'boss') {
@@ -260,10 +256,7 @@ export class CombatManager {
             if (enemyTick.bleedDamage > 0) {
                 this.enemy.hp = Math.max(0, this.enemy.hp - enemyTick.bleedDamage);
                 this.log.addMessage(
-                    this.tr(
-                        `${this.enemy.name} теряет от кровотечения ${enemyTick.bleedDamage}.`,
-                        `${this.enemy.name} bleeds for ${enemyTick.bleedDamage}.`
-                    ),
+                    this.loc.t('cm_004', { name: this.enemy.name, bleedDamage: enemyTick.bleedDamage }),
                     '#c15a5a'
                 );
                 this.onEnemyUpdate(
@@ -291,7 +284,7 @@ export class CombatManager {
             const healed = this.player.heal(playerTick.regenHeal);
             if (healed > 0) {
                 this.log.addMessage(
-                    this.tr(`Регенерация возвращает ${healed} ОЗ.`, `Regen restores ${healed} HP.`),
+                    this.loc.t('cm_005', { healed }),
                     '#8be0a7'
                 );
             }
@@ -329,10 +322,7 @@ export class CombatManager {
         const cost = Math.max(1, skill.resolveCost + stressMod);
         if (!this.player.spendResolve(cost)) {
             this.log.addMessage(
-                this.tr(
-                    `Нужно ${cost} воли для навыка "${this.skillName(skillId)}".`,
-                    `You need ${cost} resolve for ${this.skillName(skillId)}.`
-                ),
+                this.loc.t('cm_006', { cost, value: this.skillName(skillId) }),
                 '#8899aa'
             );
             return false;
@@ -345,7 +335,7 @@ export class CombatManager {
                     Math.ceil(this.player.getAttackPower() * 1.8) + 2 + this.effectiveDamageMod()
                 );
                 this.applyPlayerDamage(dmg, false);
-                this.log.addMessage(this.tr(`Рубящий удар: ${dmg}.`, `Cleave lands for ${dmg}.`), '#b893ff');
+                this.log.addMessage(this.loc.t('cm_007', { dmg }), '#b893ff');
                 this.applyOnAttackRelics();
                 break;
             }
@@ -358,7 +348,7 @@ export class CombatManager {
                 const agg = this.player.aggregate;
                 applyBleed(this.enemy.status, 2 + agg.bleedStackBonus, 3 + agg.bleedTurnBonus);
                 this.log.addMessage(
-                    this.tr(`Кровопускание: ${dmg}. Кровотечение наложено.`, `Bleed Strike for ${dmg}. Bleed applied.`),
+                    this.loc.t('cm_008', { dmg }),
                     '#d06060'
                 );
                 this.applyOnAttackRelics();
@@ -367,10 +357,10 @@ export class CombatManager {
             case 'parry_stance': {
                 applyGuard(this.player.status, 2, 4);
                 if (this.tryStun(1)) {
-                    this.log.addMessage(this.tr('Парирование сбивает ритм врага.', 'Parry Stance breaks their rhythm.'), '#7fa9ff');
+                    this.log.addMessage(this.loc.t('cm_009'), '#7fa9ff');
                     this.log.addMessage(narrate('stun_landed', this.loc.language), '#c4a35a');
                 } else {
-                    this.log.addMessage(this.tr('Парирование выравнивает твою стойку.', 'Parry Stance steadies you.'), '#7fa9ff');
+                    this.log.addMessage(this.loc.t('cm_010'), '#7fa9ff');
                 }
                 this.player.gainResolve(1);
                 break;
@@ -383,7 +373,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 applyMark(this.enemy.status, 2);
                 this.log.addMessage(
-                    this.tr(`Точный удар: ${dmg}. Метка поставлена.`, `Focused Strike for ${dmg}. Next hit marked.`),
+                    this.loc.t('cm_011', { dmg }),
                     '#d6c260'
                 );
                 this.applyOnAttackRelics();
@@ -393,7 +383,7 @@ export class CombatManager {
                 const pct = Math.ceil(this.enemy.maxHp * 0.22);
                 const dmg = Math.max(this.player.getAttackPower(), pct) + this.effectiveDamageMod();
                 this.applyPlayerDamage(dmg, false);
-                this.log.addMessage(this.tr(`Разрыв: ${dmg}.`, `Rupture tears for ${dmg}.`), '#c048a0');
+                this.log.addMessage(this.loc.t('cm_012', { dmg }), '#c048a0');
                 this.applyOnAttackRelics();
                 break;
             }
@@ -402,10 +392,7 @@ export class CombatManager {
                 this.player.gainResolve(1);
                 applyFocus(this.player.status, 1, 3);
                 this.log.addMessage(
-                    this.tr(
-                        `Адреналин возвращает ${healed} ОЗ и собирает фокус.`,
-                        `Rally restores ${healed} HP and sharpens focus.`
-                    ),
+                    this.loc.t('cm_013', { healed }),
                     '#66dd88'
                 );
                 break;
@@ -418,10 +405,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 this.player.takeDamage(3, 0, 'true');
                 this.log.addMessage(
-                    this.tr(
-                        `Сокрушающий удар: ${dmg}; отдача бьёт тебя на 3.`,
-                        `Crushing Blow for ${dmg} — the recoil bites you for 3.`
-                    ),
+                    this.loc.t('cm_014', { dmg }),
                     '#e06040'
                 );
                 this.applyOnAttackRelics();
@@ -515,7 +499,7 @@ export class CombatManager {
         // Stun check.
         if (consumeStunForTurn(this.enemy.status)) {
             this.log.addMessage(
-                this.tr(`${this.enemy.name} оглушён и пропускает ход.`, `${this.enemy.name} is stunned and skips its turn.`),
+                this.loc.t('cm_015', { name: this.enemy.name }),
                 '#7aaaff'
             );
             this.onEnemyStatusChange();
@@ -527,7 +511,7 @@ export class CombatManager {
             this.enemy.firstHitEvaded = false;
             this.lastActionResult.enemyEvaded = true;
             this.log.addMessage(
-                    this.tr(`Ты уходишь от первого удара ${this.enemy.name}.`, `You slip past ${this.enemy.name}'s first strike.`),
+                    this.loc.t('cm_016', { name: this.enemy.name }),
                 '#9fb4c4'
             );
             return;
@@ -554,7 +538,7 @@ export class CombatManager {
                 this.enemy.attack += 2;
                 attackPower += 2;
                 this.log.addMessage(
-                    this.tr(`${this.enemy.name} срывается в ярость!`, `${this.enemy.name} enters a frenzy!`),
+                    this.loc.t('cm_017', { name: this.enemy.name }),
                     '#ff9944'
                 );
                 this.stress?.add(STRESS_CONFIG.onEnemyEnrage, this.player.aggregate.stressReductionPct);
@@ -565,7 +549,7 @@ export class CombatManager {
                 multiStrikeFirstDamage = firstHit;
                 if (firstHit > 0) {
                     this.log.addMessage(
-                this.tr(`${this.enemy.name} бросается вперёд: ${firstHit}.`, `${this.enemy.name} lunges for ${firstHit}.`),
+                this.loc.t('cm_018', { name: this.enemy.name, firstHit }),
                         '#ff6666'
                     );
                 }
@@ -573,7 +557,7 @@ export class CombatManager {
                     this.logDeath();
                     return;
                 }
-            extraMessage = this.tr(' Второй удар!', ' Double strike!');
+            extraMessage = this.loc.t('cm_019');
                 // After first hit, guard is partially used; refresh flatBlock for consistency.
                 flatBlock = flatBlockBase + wardenBlock;
             }
@@ -583,7 +567,7 @@ export class CombatManager {
                 this.lastActionResult.enemyCharged = true;
                 attackPower = Math.round(attackPower * 1.6);
                 this.log.addMessage(
-                this.tr(`${this.enemy.name} копит силу...`, `${this.enemy.name} channels dark energy...`),
+                this.loc.t('cm_020', { name: this.enemy.name }),
                     '#9966cc'
                 );
             } else {
@@ -597,7 +581,7 @@ export class CombatManager {
                     this.enemy.inflictBleed.turns
                 );
                 this.log.addMessage(
-                this.tr(`${this.enemy.name} раскрывает рваную рану.`, `${this.enemy.name} opens a ragged wound.`),
+                this.loc.t('cm_021', { name: this.enemy.name }),
                     '#d06060'
                 );
             }
@@ -606,7 +590,7 @@ export class CombatManager {
             if (this.enemy.turnsAlive % 2 === 1 && this.enemy.status.weaken.turns <= 0) {
                 applyWeaken(this.player.status, 1, 2);
                 this.log.addMessage(
-                    this.tr(`${this.enemy.name} вытягивает силы. (-1 атака на 2 хода)`, `${this.enemy.name} saps your strength. (-1 atk 2t)`),
+                    this.loc.t('cm_022', { name: this.enemy.name }),
                     '#8b5fc7'
                 );
             }
@@ -621,7 +605,7 @@ export class CombatManager {
         const takenDamage = this.applyEnemyHitToPlayer(attackPower, flatBlock);
         if (takenDamage > 0) {
             this.log.addMessage(
-                this.tr(`${this.enemy.name} попадает по тебе: ${takenDamage}.${extraMessage}`, `${this.enemy.name} hits you for ${takenDamage}.${extraMessage}`),
+                this.loc.t('cm_023', { name: this.enemy.name, takenDamage, extraMessage }),
                 '#ff6666'
             );
         } else if (multiStrikeFirstDamage === 0) {
@@ -670,7 +654,7 @@ export class CombatManager {
             if (thorns > 0) {
                 this.enemy.hp = Math.max(0, this.enemy.hp - thorns);
                 this.log.addMessage(
-                    this.tr(`Шипы отвечают: ${thorns}.`, `Thorns retaliate for ${thorns}.`),
+                    this.loc.t('cm_024', { thorns }),
                     '#88cc88'
                 );
                 this.onEnemyUpdate(
