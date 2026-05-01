@@ -176,14 +176,11 @@ export class RoomFlowController {
 
         scene.showRoomCard(
             scene.loc.t('treasure'),
-            scene.tr('Старый тайник', 'Forgotten Cache'),
-            scene.tr(
-                `Треснувший сундук не любит спешки. ${rewardParts.join(', ')}.`,
-                `A cracked chest still rewards careful hands. ${rewardParts.join(', ')}.`
-            ),
+            scene.loc.t('rf_001'),
+            scene.loc.t('rf_002', { value: rewardParts.join(', ') }),
             0x8d6a21,
             '$',
-            scene.tr('Забери добычу и уходи.', 'Claim the spoils and move on.'),
+            scene.loc.t('rf_003'),
             'TREASURE'
         );
         scene.log.addMessage(scene.loc.t('treasureSecured', { parts: rewardParts.join(', ') }), '#f7d46b');
@@ -197,18 +194,18 @@ export class RoomFlowController {
         const scene = this.scene;
         const trapVariants = [
             {
-                title: scene.tr('Проволочная петля', 'Mechanical Snare'),
-                desc: scene.tr('Плита щёлкает под сапогом.', 'A pressure plate snaps awake under your boot.'),
+                title: scene.loc.t('rf_004'),
+                desc: scene.loc.t('rf_005'),
                 icon: '^',
             },
             {
-                title: scene.tr('Дротиковая стена', 'Poison Dart Wall'),
-                desc: scene.tr('В камне ряд мелких отверстий. Внутри шипит давление.', 'Tiny holes line the corridor. Something hisses inside.'),
+                title: scene.loc.t('rf_006'),
+                desc: scene.loc.t('rf_007'),
                 icon: '!',
             },
             {
-                title: scene.tr('Просевший пол', 'Collapsing Floor'),
-                desc: scene.tr('Камни ходят под ногами. Вес решит всё.', 'The stones shift. One wrong step and the ground gives way.'),
+                title: scene.loc.t('rf_008'),
+                desc: scene.loc.t('rf_009'),
                 icon: 'v',
             },
         ];
@@ -220,7 +217,7 @@ export class RoomFlowController {
             trap.desc,
             0x75458a,
             trap.icon,
-            scene.tr('Проскочить или разобрать механизм.', 'Rush through or try to disarm it.'),
+            scene.loc.t('rf_010'),
             'TRAP'
         );
 
@@ -236,7 +233,7 @@ export class RoomFlowController {
                     scene.log.addMessage(scene.loc.t('trapRush', { damage }), '#ff7777');
                     if (scene.player.stats.hp > 0) {
                         scene.showReturnButton();
-                        scene.enemyIntelText.setText(scene.tr('Механизм замолк.', 'The worst is behind you.'));
+                        scene.enemyIntelText.setText(scene.loc.t('rf_011'));
                     }
                 },
                 fill: 0x5a1d1d,
@@ -250,7 +247,7 @@ export class RoomFlowController {
                         );
                         scene.sfx.play('trapDisarm');
                         scene.log.addMessage(scene.loc.t('trapDisarm', { gold }), '#f7d46b');
-                        scene.enemyIntelText.setText(scene.tr('Пружина сдаётся у тебя в руках.', 'The mechanism falls apart in your hands.'));
+                        scene.enemyIntelText.setText(scene.loc.t('rf_012'));
                     } else {
                         const damage = scene.applyTrapDamage(
                             randomInt(defaultRng,
@@ -276,11 +273,11 @@ export class RoomFlowController {
         scene.sfx.play('rest');
         scene.showRoomCard(
             scene.loc.t('rest'),
-            scene.tr('Костёр', 'Campfire'),
-            scene.tr('Угли уже слабые, но тепла в них ещё хватает.', 'The coals are low, but still warm enough to matter.'),
+            scene.loc.t('rf_013'),
+            scene.loc.t('rf_014'),
             0x2f8b4b,
             '+',
-            scene.tr('Залатай тело, дыхание или нервы.', 'Recover body, mind, or spirit.'),
+            scene.loc.t('rf_015'),
             'REST'
         );
 
@@ -297,10 +294,10 @@ export class RoomFlowController {
                     const lightGained = scene.player.gainLight(ROOM_CONFIG.rest.recoverLight);
                     const summary = [`${healed} ${scene.loc.t('hp')}`];
                     if (lightGained > 0) {
-                        summary.push(`${lightGained} ${scene.tr('света', 'light')}`);
+                        summary.push(`${lightGained} ${scene.loc.t('rf_016')}`);
                     }
                     scene.log.addMessage(scene.loc.t('restRecover', { parts: summary.join(', ') }), '#79e28f');
-                    scene.enemyIntelText.setText(scene.tr('Комната на минуту отпускает.', 'The room feels less hostile for a moment.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_017'));
                     scene.showReturnButton();
                 },
                 fill: 0x1f5b2f,
@@ -310,23 +307,20 @@ export class RoomFlowController {
                 callback: () => {
                     const gained = scene.player.gainResolve(ROOM_CONFIG.rest.focusResolve);
                     scene.log.addMessage(scene.loc.t('focusResolve', { value: gained }), '#9bc8ff');
-                    scene.enemyIntelText.setText(scene.tr('Ты уходишь ровнее, чем вошёл.', 'You leave steadier than you arrived.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_018'));
                     scene.showReturnButton();
                 },
                 fill: 0x1b335b,
             },
             {
-                label: scene.tr('[3] Медитация', '[3] Meditate'),
+                label: scene.loc.t('rf_019'),
                 callback: () => {
                     scene.stress.relieve(ROOM_CONFIG.rest.meditateStressRelief);
                     scene.log.addMessage(
-                        scene.tr(
-                            `Ты выдыхаешь лишний вес. -${ROOM_CONFIG.rest.meditateStressRelief} стресса.`,
-                            `You breathe through the weight. -${ROOM_CONFIG.rest.meditateStressRelief} stress.`
-                        ),
+                        scene.loc.t('rf_020', { meditateStressRelief: ROOM_CONFIG.rest.meditateStressRelief }),
                         '#d6b8ff'
                     );
-                    scene.enemyIntelText.setText(scene.tr('Углы на миг теряют зубы.', 'The shadows lose an edge, if briefly.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_021'));
                     scene.showReturnButton();
                 },
                 fill: 0x3e2260,
@@ -492,13 +486,13 @@ export class RoomFlowController {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.player.gainPotions(1);
-                scene.log.addMessage(scene.tr('Мира без слов ставит эликсир ближе.', 'Mira slides a potion across without comment.'), '#9be0a7');
+                scene.log.addMessage(scene.loc.t('rf_022'), '#9be0a7');
                 break;
             case 'mira_lantern': {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 const gainedLight = scene.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
-                scene.log.addMessage(scene.tr(`Мира доливает масло в фонарь: +${gainedLight} света.`, `Mira refills your lantern: +${gainedLight} light.`), '#ffe08a');
+                scene.log.addMessage(scene.loc.t('rf_023', { gainedLight }), '#ffe08a');
                 affinityDelta = 2;
                 break;
             }
@@ -506,17 +500,14 @@ export class RoomFlowController {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
-                scene.log.addMessage(scene.tr(`Мира затягивает ремни брони: +${ROOM_CONFIG.merchant.armorDefenseGain} защиты.`, `Mira fastens armor straps: +${ROOM_CONFIG.merchant.armorDefenseGain} defense.`), '#b8d3ff');
+                scene.log.addMessage(scene.loc.t('rf_024', { armorDefenseGain: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
                 break;
             case 'mira_relic_oil':
                 if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
                 scene.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
                 scene.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
                 scene.log.addMessage(
-                    scene.tr(
-                        `Мира смазывает клинок реликтовым маслом. +${ROOM_CONFIG.merchant.premiumAttackBonus} атаки, +${ROOM_CONFIG.merchant.premiumPotionBonus} эликсир.`,
-                        `Mira anoints your blade. +${ROOM_CONFIG.merchant.premiumAttackBonus} attack, +${ROOM_CONFIG.merchant.premiumPotionBonus} potion.`
-                    ),
+                    scene.loc.t('rf_025', { premiumAttackBonus: ROOM_CONFIG.merchant.premiumAttackBonus, premiumPotionBonus: ROOM_CONFIG.merchant.premiumPotionBonus }),
                     '#ffd9f7'
                 );
                 affinityDelta = 2;
@@ -527,10 +518,7 @@ export class RoomFlowController {
                 if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
                     scene.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
                     scene.log.addMessage(
-                        scene.tr(
-                            `Казимир шепчет строку безымянной молитвы. +${ROOM_CONFIG.shrine.prayAttackBonus} атаки.`,
-                            `Casimir whispers a heretical line. +${ROOM_CONFIG.shrine.prayAttackBonus} attack.`
-                        ),
+                        scene.loc.t('rf_026', { prayAttackBonus: ROOM_CONFIG.shrine.prayAttackBonus }),
                         '#d7b6ff'
                     );
                     affinityDelta = 2;
@@ -538,10 +526,7 @@ export class RoomFlowController {
                     const damage = scene.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
                     const resolve = scene.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
                     scene.log.addMessage(
-                        scene.tr(
-                            `Алтарь берёт кровь и возвращает волю. -${damage} ОЗ, +${resolve} воли.`,
-                            `The altar pays him in your blood. -${damage} HP, +${resolve} resolve.`
-                        ),
+                        scene.loc.t('rf_027', { damage, resolve }),
                         '#c99cff'
                     );
                     affinityDelta = 1;
@@ -552,10 +537,7 @@ export class RoomFlowController {
                 scene.tracker.record('goldSpent', cost);
                 scene.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
                 scene.log.addMessage(
-                    scene.tr(
-                        `Казимир кладёт подношение на камень. +${ROOM_CONFIG.shrine.offerMaxHpBonus} к макс. ОЗ на этот забег.`,
-                        `Casimir feeds the altar. +${ROOM_CONFIG.shrine.offerMaxHpBonus} max HP this run.`
-                    ),
+                    scene.loc.t('rf_028', { offerMaxHpBonus: ROOM_CONFIG.shrine.offerMaxHpBonus }),
                     '#ffd36e'
                 );
                 affinityDelta = 2;
@@ -568,10 +550,7 @@ export class RoomFlowController {
                 );
                 scene.player.gainResolve(ROOM_CONFIG.shrine.premiumResolveBonus);
                 scene.log.addMessage(
-                    scene.tr(
-                        `Казимир проводит обряд слишком уверенно. +${ROOM_CONFIG.shrine.premiumMaxHpBonus} макс. ОЗ, +${ROOM_CONFIG.shrine.premiumResolveBonus} воли.`,
-                        `Casimir performs the wrong rite, perfectly. +${ROOM_CONFIG.shrine.premiumMaxHpBonus} max HP, +${ROOM_CONFIG.shrine.premiumResolveBonus} resolve.`
-                    ),
+                    scene.loc.t('rf_029', { premiumMaxHpBonus: ROOM_CONFIG.shrine.premiumMaxHpBonus, premiumResolveBonus: ROOM_CONFIG.shrine.premiumResolveBonus }),
                     '#ffd9f7'
                 );
                 affinityDelta = 2;
@@ -583,9 +562,9 @@ export class RoomFlowController {
                 const got = scene.maybeDropRelic('elite');
                 if (!got) {
                     scene.player.gainGold(8);
-                    scene.log.addMessage(scene.tr('Торговец платит монетой. Сделка закрыта.', 'The Trader pays in coin instead. The deal is honoured.'), '#a8a0c0');
+                    scene.log.addMessage(scene.loc.t('rf_030'), '#a8a0c0');
                 } else {
-                    scene.log.addMessage(scene.tr('Полый торговец ставит отметку в книге. Боль точна.', 'The Hollow Trader marks the ledger. The pain is precise.'), '#a8a0c0');
+                    scene.log.addMessage(scene.loc.t('rf_031'), '#a8a0c0');
                 }
                 affinityDelta = 2;
                 scene.npcs.addFlag('hollow', 'paid-in-blood');
@@ -594,14 +573,14 @@ export class RoomFlowController {
             case 'hollow_shards_for_relic':
                 if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
                 scene.maybeDropRelic('boss');
-                scene.log.addMessage(scene.tr('Торговец забирает часть тебя. Реликвия ложится в сумку.', 'The Trader trades absence for absence. A relic settles into your kit.'), '#f0a8ff');
+                scene.log.addMessage(scene.loc.t('rf_032'), '#f0a8ff');
                 affinityDelta = 2;
                 break;
             case 'hollow_potion_for_gold':
                 if (scene.player.resources.potions <= 0) { consumed = false; break; }
                 scene.player.resources.potions -= 1;
                 scene.player.gainGold(cost);
-                scene.log.addMessage(scene.tr(`Торговец забирает эликсир так, будто он уже был его. +${cost} золота.`, `The Trader takes the potion as if it were never there. +${cost} gold.`), '#ffd36e');
+                scene.log.addMessage(scene.loc.t('rf_033', { cost }), '#ffd36e');
                 break;
 
             // -- Veth ------------------------------------------------------------
@@ -610,9 +589,9 @@ export class RoomFlowController {
                 const got = scene.maybeDropRelic('elite');
                 if (!got) {
                     scene.player.gainGold(20);
-                    scene.log.addMessage(scene.tr('Вет прячет договор и платит монетой. "Шрам есть шрам."', 'Veth pockets her pact and pays you in coin. "A scar is a scar."'), '#ffb084');
+                    scene.log.addMessage(scene.loc.t('rf_034'), '#ffb084');
                 } else {
-                    scene.log.addMessage(scene.tr('Вет смотрит на свежую линию. "Неси её достойно."', 'Veth admires the line she drew. "Carry it well."'), '#ffb084');
+                    scene.log.addMessage(scene.loc.t('rf_035'), '#ffb084');
                 }
                 affinityDelta = 2;
                 scene.npcs.addFlag('veth', 'pacted');
@@ -621,7 +600,7 @@ export class RoomFlowController {
             case 'veth_lesson':
                 scene.stress.add(cost);
                 scene.player.addAttackBonus(2);
-                scene.log.addMessage(scene.tr('Вет показывает третий разрез: +2 атаки на этот забег. Цена остаётся с тобой.', 'Veth teaches the third cut. +2 attack this run; the lesson costs.'), '#ffb084');
+                scene.log.addMessage(scene.loc.t('rf_036'), '#ffb084');
                 affinityDelta = 2;
                 scene.npcs.addFlag('veth', 'taught');
                 break;
@@ -629,7 +608,7 @@ export class RoomFlowController {
                 if (scene.vethSharpenedThisRoom) { consumed = false; break; }
                 scene.vethSharpenedThisRoom = true;
                 scene.player.addAttackBonus(1);
-                scene.log.addMessage(scene.tr('Вет правит клинок о старую кожу. +1 атаки.', 'Veth strops your blade against the leather. +1 attack.'), '#ffb084');
+                scene.log.addMessage(scene.loc.t('rf_037'), '#ffb084');
                 affinityDelta = 1;
                 break;
 
@@ -638,25 +617,25 @@ export class RoomFlowController {
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.stress.relieve(20);
-                scene.log.addMessage(scene.tr('Хорист держит низкую ноту. -20 стресса.', 'The Chorister sings. -20 stress.'), '#d6b8ff');
+                scene.log.addMessage(scene.loc.t('rf_038'), '#d6b8ff');
                 affinityDelta = 2;
                 break;
             case 'chorister_resolve':
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.player.gainResolve(2);
-                scene.log.addMessage(scene.tr('Хорист выравнивает твои руки. +2 воли.', 'The Chorister steadies your hands. +2 resolve.'), '#9bc8ff');
+                scene.log.addMessage(scene.loc.t('rf_039'), '#9bc8ff');
                 break;
             case 'chorister_unbind':
                 if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
                 if (scene.stress.resolution && scene.stress.resolution.kind === 'affliction') {
                     scene.stress.resolution = null;
                     scene.updateStressUI();
-                    scene.log.addMessage(scene.tr('Хорист ослабляет срыв. Песня держит трещину закрытой.', 'The Chorister unbinds the affliction. The song carries it away.'), '#ffd9f7');
+                    scene.log.addMessage(scene.loc.t('rf_040'), '#ffd9f7');
                     affinityDelta = 3;
                 } else {
                     scene.player.gainResolve(3);
-                    scene.log.addMessage(scene.tr('Сегодня нечего чинить. Песня становится волей. +3 воли.', 'There is no crack to mend today. The song becomes resolve. +3 resolve.'), '#ffd9f7');
+                    scene.log.addMessage(scene.loc.t('rf_041'), '#ffd9f7');
                     affinityDelta = 1;
                 }
                 break;
@@ -665,16 +644,13 @@ export class RoomFlowController {
             case 'kessa_tea':
                 scene.player.heal(4);
                 scene.stress.relieve(10);
-                scene.log.addMessage(scene.tr('Кесса наливает вторую кружку. +4 ОЗ, -10 стресса.', 'Kessa pours the second cup. +4 HP, -10 stress.'), '#9be0a7');
+                scene.log.addMessage(scene.loc.t('rf_042'), '#9be0a7');
                 affinityDelta = 2;
                 break;
             case 'kessa_warning':
                 scene.player.gainResolve(1);
                 scene.log.addMessage(
-                    scene.tr(
-                    'Кесса: "Третья комната на любой глубине врёт. Держи второй эликсир, если можешь." (+1 воля)',
-                        'Kessa: "Third room of any depth lies. Bring two potions if you can." (+1 resolve)'
-                    ),
+                    scene.loc.t('rf_043'),
                     '#9bc8ff'
                 );
                 affinityDelta = 1;
@@ -683,10 +659,7 @@ export class RoomFlowController {
                 scene.player.addAttackBonus(1);
                 scene.player.addDefenseBonus(1);
                 scene.log.addMessage(
-                    scene.tr(
-                    'Кесса вкладывает в ладонь латунную серьгу Серы. +1 атаки и +1 защиты на этот забег.',
-                        'Kessa presses Sera\'s brass earring into your palm. +1 attack, +1 defense for this run.'
-                    ),
+                    scene.loc.t('rf_044'),
                     '#ffd36e'
                 );
                 scene.npcs.addFlag('kessa', 'gave-token');
@@ -735,7 +708,7 @@ export class RoomFlowController {
                         scene.log.addMessage(scene.loc.t('shrineWound', { damage, resolve }), '#c99cff');
                     }
                     if (scene.player.stats.hp > 0) {
-                        scene.enemyIntelText.setText(scene.tr('Алтарь запомнил твою кровь.', 'The shrine remembers your name.'));
+                        scene.enemyIntelText.setText(scene.loc.t('rf_045'));
                         scene.showReturnButton();
                     }
                 },
@@ -750,11 +723,11 @@ export class RoomFlowController {
 
         scene.showRoomCard(
             scene.loc.t('shrine'),
-            scene.tr('Старый алтарь', 'Forgotten Altar'),
-            scene.tr('Под камнем что-то слушает сквозь пыль.', 'Something old still listens from beneath the stone.'),
+            scene.loc.t('rf_046'),
+            scene.loc.t('rf_047'),
             0x5f4e8a,
             'S',
-            scene.tr('Молитва, подношение или тихий уход.', 'A prayer, an offering, or a careful retreat.'),
+            scene.loc.t('rf_048'),
             'SHRINE'
         );
         scene.setRoomButtons(actions);
@@ -784,7 +757,7 @@ export class RoomFlowController {
                     scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.potionCost);
                     scene.player.gainPotions(1);
                     scene.log.addMessage(scene.loc.t('buyPotion'), '#9be0a7');
-                    scene.enemyIntelText.setText(scene.tr('Торговец считает монеты, не поднимая глаз.', 'The merchant counts the coins and looks away.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_049'));
                     scene.showReturnButton();
                 },
                 enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.potionCost,
@@ -802,7 +775,7 @@ export class RoomFlowController {
                     scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.lanternCost);
                     const gainedLight = scene.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
                     scene.log.addMessage(scene.loc.t('buyLantern', { value: gainedLight }), '#ffe08a');
-                    scene.enemyIntelText.setText(scene.tr('Масло пахнет чище здешнего воздуха.', 'The oil smells cleaner than the dungeon air.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_050'));
                     scene.showReturnButton();
                 },
                 enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.lanternCost,
@@ -819,7 +792,7 @@ export class RoomFlowController {
                 scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.armorCost);
                 scene.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
                 scene.log.addMessage(scene.loc.t('buyArmor', { value: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
-                scene.enemyIntelText.setText(scene.tr('Честная сделка. Насколько здесь бывает.', 'A fair trade, by dungeon standards.'));
+                scene.enemyIntelText.setText(scene.loc.t('rf_051'));
                 scene.showReturnButton();
             },
             enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.armorCost,
@@ -839,7 +812,7 @@ export class RoomFlowController {
                         attack: ROOM_CONFIG.merchant.premiumAttackBonus,
                         potions: ROOM_CONFIG.merchant.premiumPotionBonus,
                     }), '#ffd9f7');
-                    scene.enemyIntelText.setText(scene.tr('Торговец улыбается, когда реликвия меняет хозяина.', 'The merchant smiles only when relics change hands.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_052'));
                     scene.showReturnButton();
                 },
                 enabled: scene.player.resources.relicShards >= ROOM_CONFIG.merchant.premiumShardCost,
@@ -855,11 +828,11 @@ export class RoomFlowController {
 
         scene.showRoomCard(
             scene.loc.t('merchant'),
-            scene.tr('Торговец в капюшоне', 'Shadow Trader'),
-            scene.tr('Фигура в капюшоне уже оценила твой страх.', 'A hooded figure has already decided what your fear is worth.'),
+            scene.loc.t('rf_053'),
+            scene.loc.t('rf_054'),
             0x2e6c87,
             'M',
-            scene.tr('Выбирай осторожно. Здесь дают одну сделку.', 'Spend carefully. This room lasts one choice.'),
+            scene.loc.t('rf_055'),
             'MERCHANT'
         );
         scene.setRoomButtons(actions);
@@ -870,30 +843,30 @@ export class RoomFlowController {
         if (Math.random() < 0.35) {
             const npcId = scene.npcs.pickForRole('wanderer', scene.dungeon.currentDepth);
             if (npcId) {
-                this.presentNpcRoom(npcId, scene.tr('ВСТРЕЧА', 'ENCOUNTER'));
+                this.presentNpcRoom(npcId, scene.loc.t('rf_056'));
                 return;
             }
         }
 
         const subEvents = [
             {
-                title: scene.tr('Пыльная камера', 'Dusty Chamber'),
-                desc: scene.tr('В тишине слышно и тайник, и собственные руки.', 'Stillness can hide a cache or steady a shaking hand.'),
+                title: scene.loc.t('rf_057'),
+                desc: scene.loc.t('rf_058'),
                 icon: '.',
             },
             {
-                title: scene.tr('Заваленный проход', 'Collapsed Passage'),
-                desc: scene.tr('Завал держит проход, но в щелях видны боковые ниши.', 'Rubble blocks the way, but gaps reveal hidden corners.'),
+                title: scene.loc.t('rf_059'),
+                desc: scene.loc.t('rf_060'),
                 icon: '~',
             },
             {
-                title: scene.tr('Гулкий зал', 'Echoing Hall'),
-                desc: scene.tr('Шаги возвращаются позднее, чем должны.', 'Footsteps return from walls that should not be so far away.'),
+                title: scene.loc.t('rf_061'),
+                desc: scene.loc.t('rf_062'),
                 icon: '"',
             },
             {
-                title: scene.tr('Старая ниша', 'Forgotten Alcove'),
-                desc: scene.tr('Здесь уже прятались. Царапины на камне ещё светлые.', 'Someone sheltered here before. Their scratches mark the stone.'),
+                title: scene.loc.t('rf_063'),
+                desc: scene.loc.t('rf_064'),
                 icon: '\'',
             },
         ];
@@ -905,7 +878,7 @@ export class RoomFlowController {
             event.desc,
             0x444444,
             event.icon,
-            scene.tr('Обыскать комнату или выровнять дыхание.', 'Search the room or keep your footing.'),
+            scene.loc.t('rf_065'),
             'EMPTY'
         );
 
@@ -916,7 +889,7 @@ export class RoomFlowController {
                     const gains: string[] = [];
                     const lightGain = scene.player.gainLight(ROOM_CONFIG.empty.scoutLightGain);
                     if (lightGain > 0) {
-                        gains.push(`${lightGain} ${scene.tr('света', 'light')}`);
+                        gains.push(`${lightGain} ${scene.loc.t('rf_066')}`);
                     }
 
                     if (
@@ -927,7 +900,7 @@ export class RoomFlowController {
                             randomInt(defaultRng, ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
                         );
                         if (gold > 0) scene.tracker.record('goldEarned', gold);
-                        gains.push(`${gold} ${scene.tr('золота', 'gold')}`);
+                        gains.push(`${gold} ${scene.loc.t('rf_067')}`);
                     }
 
                     if (gains.length === 0) {
@@ -936,7 +909,7 @@ export class RoomFlowController {
                     }
 
                     scene.log.addMessage(scene.loc.t('emptyScout', { parts: gains.join(', ') }), '#bbbbbb');
-                    scene.enemyIntelText.setText(scene.tr('Ты уходишь с более ясной картой углов.', 'You leave with a slightly clearer picture of the dark.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_068'));
                     scene.showReturnButton();
                 },
                 fill: 0x3d3d3d,
@@ -951,7 +924,7 @@ export class RoomFlowController {
                         const gainedXp = scene.player.gainXp(1);
                         scene.log.addMessage(scene.loc.t('emptyStudy', { value: gainedXp }), '#bbbbbb');
                     }
-                    scene.enemyIntelText.setText(scene.tr('Комната ничего не требует. Этого достаточно.', 'The room gives nothing, and that helps.'));
+                    scene.enemyIntelText.setText(scene.loc.t('rf_069'));
                     scene.showReturnButton();
                 },
                 fill: 0x2b2b2b,

@@ -146,10 +146,6 @@ export class GameScene extends Phaser.Scene {
         super('GameScene');
     }
 
-    public tr(ru: string, en: string): string {
-        return this.loc.language === 'ru' ? ru : en;
-    }
-
     public skillShort(id: SkillId): string {
         return this.loc.pick(SKILLS[id].short);
     }
@@ -375,7 +371,7 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0, 0.5);
 
         // Stress bar (second row, below HP).
-        const stressLabel = this.add.text(12, 46, this.tr('СТРЕСС', 'STRESS'), {
+        const stressLabel = this.add.text(12, 46, this.loc.t('gs_001'), {
             fontFamily: 'Courier New',
             fontSize: '9px',
             color: '#8a7a99',
@@ -538,7 +534,7 @@ export class GameScene extends Phaser.Scene {
         this.hintText.setText(
             nextUnlock
                 ? compactText(
-                    `${this.tr('Дальше', 'Next')}: ${this.milestoneRequirement(nextUnlock)}`,
+                    `${this.loc.t('gs_002')}: ${this.milestoneRequirement(nextUnlock)}`,
                     30
                 )
                 : ''
@@ -588,8 +584,8 @@ export class GameScene extends Phaser.Scene {
         const info = this.resolutionInfo(r);
         this.log.addMessage(
             r.kind === 'virtue'
-                ? `${this.tr('ДОБЛЕСТЬ', 'VIRTUE')}: ${info.name}. ${info.description}`
-                : `${this.tr('СРЫВ', 'AFFLICTION')}: ${info.name}. ${info.description}`,
+                ? `${this.loc.t('gs_003')}: ${info.name}. ${info.description}`
+                : `${this.loc.t('gs_004')}: ${info.name}. ${info.description}`,
             r.kind === 'virtue' ? '#8bd8ff' : '#e07070'
         );
         this.log.addMessage(
@@ -598,8 +594,8 @@ export class GameScene extends Phaser.Scene {
         );
         showUnlockBanner(this, 
             r.kind === 'virtue'
-                ? `${this.tr('Доблесть', 'Virtue')}: ${info.name}`
-                : `${this.tr('Срыв', 'Affliction')}: ${info.name}`
+                ? `${this.loc.t('gs_005')}: ${info.name}`
+                : `${this.loc.t('gs_006')}: ${info.name}`
         );
     }
 
@@ -619,7 +615,7 @@ export class GameScene extends Phaser.Scene {
 
     public relicSummary(): string {
         if (this.player.relics.length === 0) return '';
-        return this.tr('Реликвии: ', 'Relics: ') + this.player.relics
+        return this.loc.t('gs_007') + this.player.relics
             .map((id) => this.loc.pick(RELICS[id].short))
             .join(', ');
     }
@@ -653,10 +649,7 @@ export class GameScene extends Phaser.Scene {
             this.tracker.record('relicsFound');
             this.sfx.play('relicDrop');
             this.log.addMessage(
-                this.tr(
-                    `Реликвия: ${this.loc.pick(RELICS[fallback].name)}. ${this.loc.pick(RELICS[fallback].description)}`,
-                    `Relic obtained: ${this.loc.pick(RELICS[fallback].name)}. ${this.loc.pick(RELICS[fallback].description)}`
-                ),
+                this.loc.t('gs_008', { value: this.loc.pick(RELICS[fallback].name), value2: this.loc.pick(RELICS[fallback].description) }),
                 '#ffcc99'
             );
             return true;
@@ -666,10 +659,7 @@ export class GameScene extends Phaser.Scene {
         this.tracker.record('relicsFound');
         this.sfx.play('relicDrop');
         this.log.addMessage(
-            this.tr(
-                `Реликвия: ${this.loc.pick(relic.name)}. ${this.loc.pick(relic.description)}`,
-                `Relic obtained: ${this.loc.pick(relic.name)}. ${this.loc.pick(relic.description)}`
-            ),
+            this.loc.t('gs_009', { value: this.loc.pick(relic.name), value2: this.loc.pick(relic.description) }),
             relic.rarity === 'unique' ? '#f0a8ff' : relic.rarity === 'rare' ? '#ffd36e' : '#ffcc99'
         );
         return true;
@@ -1405,7 +1395,6 @@ export class GameScene extends Phaser.Scene {
             roomContainer: this.roomContainer,
             uiContainer: this.uiContainer,
             safeRestart: () => this.safeRestart(),
-            tr: (ru, en) => this.tr(ru, en),
             runState: {
                 get runBestDepth() { return scene.runBestDepth; },
                 get runBossKills() { return scene.runBossKills; },
