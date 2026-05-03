@@ -384,7 +384,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const confirmPanel = scene.add.rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818).setDepth(Depths.ConfirmPanel);
     confirmPanel.setStrokeStyle(2, 0x8a4d4d);
     const confirmTitle = scene.add
-        .text(CENTER_X, CENTER_Y - 50, 'Стереть весь прогресс?', {
+        .text(CENTER_X, CENTER_Y - 50, loc.t('confirmResetTitle'), {
             fontFamily: 'Courier New',
             fontSize: '22px',
             color: '#ffd2d2',
@@ -395,7 +395,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .text(
             CENTER_X,
             CENTER_Y,
-            'Это сотрёт престиж, открытия и улучшения.\nСледующий забег начнётся с пустой памяти.',
+            loc.t('confirmResetBody'),
             {
                 fontFamily: 'Courier New',
                 fontSize: '14px',
