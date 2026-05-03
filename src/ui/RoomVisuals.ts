@@ -1,3 +1,4 @@
+import type * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
 import { RoomType, type MapNode, type RoomType as RoomTypeValue } from '../systems/MapGenerator';
 
@@ -71,4 +72,18 @@ export function roomSpriteKey(type: RoomTypeValue): string {
 
 export function roomTypeName(type: RoomTypeValue, loc: Localization): string {
     return loc.t(ROOM_NAME_KEY[type]);
+}
+
+/** Target box for room sprites on the map — slightly inset from the node rect. */
+export const ROOM_SPRITE_MAX_DIM = 34;
+
+/**
+ * Scale down high-resolution hand-authored room textures to fit the map node.
+ * Procedural sprites from {@link PixelSprite} are already tiny (~24px) and are
+ * left at their native size so nearest-neighbor rendering stays crisp.
+ */
+export function fitRoomSprite(sprite: Phaser.GameObjects.Image, maxDim = ROOM_SPRITE_MAX_DIM): void {
+    if (sprite.width > maxDim || sprite.height > maxDim) {
+        sprite.setDisplaySize(maxDim, maxDim);
+    }
 }
