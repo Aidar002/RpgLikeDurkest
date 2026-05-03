@@ -97,7 +97,7 @@ export class CombatHudController {
             const def = SKILLS[id];
             const cost = Math.max(1, def.resolveCost + (scene.stress?.resolveCostMod() ?? 0));
             actions.push({
-                label: `[${actions.length + 1}] ${scene.skillShort(id)} ${cost}${scene.loc.t('resolveShort').toLowerCase()}`,
+                label: `[${actions.length + 1}] ${scene.skillShort(id)} ${cost} ${scene.loc.t('resolveShort').toLowerCase()}`,
                 callback: () => this.performAction({ kind: 'skill', id }),
                 enabled: scene.player.resources.resolve >= cost,
                 fill: def.color,
