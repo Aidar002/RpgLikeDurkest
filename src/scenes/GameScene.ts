@@ -238,7 +238,7 @@ export class GameScene extends Phaser.Scene {
         this.edgeGfx = this.add.graphics();
         this.mapContainer.add(this.edgeGfx);
 
-        this.log = new EventLog(this, 18, 82, 530, 608);
+        this.log = new EventLog(this, 18, 94, 530, 580);
         this.roomContainer.add(this.log.view);
 
         this.setupGlobalUI();
