@@ -29,7 +29,7 @@ import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
-import { roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
+import { fitRoomSprite, roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
@@ -905,6 +905,7 @@ export class GameScene extends Phaser.Scene {
                 sprite = this.add.image(x, y, spriteKey)
                     .setOrigin(0.5)
                     .setAlpha(alpha);
+                fitRoomSprite(sprite);
                 if (node.cleared) sprite.setTint(0x555555);
             }
 
@@ -1184,6 +1185,7 @@ export class GameScene extends Phaser.Scene {
                 } else {
                     visual.sprite.setTexture(spriteKey);
                 }
+                fitRoomSprite(visual.sprite);
                 visual.sprite.setAlpha(1).clearTint().setVisible(true);
                 visual.icon.setVisible(false);
             } else {

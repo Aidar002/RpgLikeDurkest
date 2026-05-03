@@ -9,7 +9,13 @@ export class BootScene extends Phaser.Scene {
     }
 
     preload() {
-        // Assets can be loaded here when the prototype moves beyond Phaser primitives.
+        // Real room icons. When a key is registered here, `PixelSprite.registerAll`
+        // in GameScene skips it thanks to its `scene.textures.exists(key)` guard,
+        // so the hand-authored asset replaces the procedural fallback cleanly.
+        // Missing files are non-fatal: Phaser logs a warn, the procedural sprite
+        // takes over, and gameplay keeps working.
+        const base = import.meta.env.BASE_URL;
+        this.load.image('room_START', `${base}sprites/rooms/camp.webp`);
     }
 
     create() {
