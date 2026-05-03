@@ -376,43 +376,45 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5, 0);
 
         // ── Bottom bar: resources, progress, prestige, relics, hints ──
-        const bottomBar = this.add.rectangle(0, GAME_HEIGHT - 68, GAME_WIDTH, 68, 0x101010).setOrigin(0);
-        bottomBar.setStrokeStyle(1, 0x353535);
+        const BAR_H = 78;
+        const BAR_TOP = GAME_HEIGHT - BAR_H;
+        const bottomBar = this.add.rectangle(0, BAR_TOP, GAME_WIDTH, BAR_H, 0x1a1a1a).setOrigin(0);
+        bottomBar.setStrokeStyle(1, 0x555555);
 
-        this.resourceText = this.add.text(14, GAME_HEIGHT - 60, '', {
+        this.resourceText = this.add.text(14, BAR_TOP + 8, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#9fc7ff',
         });
 
-        this.relicText = this.add.text(14, GAME_HEIGHT - 42, '', {
+        this.relicText = this.add.text(14, BAR_TOP + 28, '', {
             fontFamily: 'Courier New',
             fontSize: '9px',
             color: '#b0a080',
             wordWrap: { width: GAME_WIDTH - 28 },
         });
 
-        this.mapDepthText = this.add.text(14, GAME_HEIGHT - 24, '', {
+        this.mapDepthText = this.add.text(14, BAR_TOP + 48, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#999999',
         });
 
-        this.progressText = this.add.text(GAME_WIDTH - 14, GAME_HEIGHT - 60, '', {
+        this.progressText = this.add.text(GAME_WIDTH - 14, BAR_TOP + 8, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#b8b8b8',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.prestigeText = this.add.text(GAME_WIDTH - 14, GAME_HEIGHT - 42, '', {
+        this.prestigeText = this.add.text(GAME_WIDTH - 14, BAR_TOP + 28, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#ffd36e',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.hintText = this.add.text(GAME_WIDTH - 14, GAME_HEIGHT - 24, '', {
+        this.hintText = this.add.text(GAME_WIDTH - 14, BAR_TOP + 48, '', {
             fontFamily: 'Courier New',
             fontSize: '10px',
             color: '#b0b0b0',

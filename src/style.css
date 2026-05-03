@@ -9,13 +9,15 @@ body {
   display: flex;
   justify-content: center;
   align-items: center;
-  min-height: 100vh;
+  height: 100vh;
   overflow: hidden;
 }
 
 #game-container {
   box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
   border: 2px solid #333;
+  box-sizing: border-box;
+  max-height: 100vh;
 }
 
 canvas {
