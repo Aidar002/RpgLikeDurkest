@@ -29,7 +29,7 @@ import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
-import { fitEnemySprite, fitRoomSprite, roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
+import { fitEnemySprite, fitRoomSprite, roomColor, roomFrameIndex, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
 import {
     BOTTOM_BAR_H,
@@ -46,12 +46,11 @@ import {
     HUD_STROKE,
     HudColors,
     HudHex,
-    createIconStat,
     drawBarSegments,
-    drawHudDivider,
-    drawHudPanel,
-    type IconStat,
 } from '../ui/HudTheme';
+import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../ui/HudFrame';
+import { createHudCell, createHudInlineSlot, type HudCellHandle, type HudInlineSlotHandle } from '../ui/HudCell';
+import { createHudIcon } from '../ui/HudIcons';
 import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
 import {
     showDeathScreen,
@@ -139,20 +138,19 @@ export class GameScene extends Phaser.Scene {
     private xpBarBg!: Phaser.GameObjects.Rectangle;
     private levelText!: Phaser.GameObjects.Text;
     private xpValueText!: Phaser.GameObjects.Text;
-    private levelStarIcon!: Phaser.GameObjects.Text;
-    private atkStat!: IconStat;
-    private defStat!: IconStat;
-    private revivesStat!: IconStat;
+    private atkStat!: HudInlineSlotHandle;
+    private defStat!: HudInlineSlotHandle;
+    private revivesStat!: HudInlineSlotHandle;
     private lightTorchIcon!: Phaser.GameObjects.Text;
-    private goldStat!: IconStat;
-    private potionStat!: IconStat;
-    private resolveStat!: IconStat;
-    private lightResStat!: IconStat;
-    private shardStat!: IconStat;
-    private depthStat!: IconStat;
-    private killsStat!: IconStat;
-    private bossStat!: IconStat;
-    private prestigeStat!: IconStat;
+    private goldStat!: HudCellHandle;
+    private potionStat!: HudCellHandle;
+    private resolveStat!: HudCellHandle;
+    private lightResStat!: HudCellHandle;
+    private shardStat!: HudCellHandle;
+    private depthStat!: HudCellHandle;
+    private killsStat!: HudCellHandle;
+    private bossStat!: HudCellHandle;
+    private prestigeStat!: HudCellHandle;
     private hintText!: Phaser.GameObjects.Text;
     private mapDepthText!: Phaser.GameObjects.Text;
     public tooltipText!: Phaser.GameObjects.Text;
@@ -277,7 +275,13 @@ export class GameScene extends Phaser.Scene {
         this.edgeGfx = this.add.graphics();
         this.mapContainer.add(this.edgeGfx);
 
-        this.log = new EventLog(this, 18, 94, 530, 580);
+        this.log = new EventLog(
+            this,
+            18,
+            TOP_BAR_H + 12,
+            530,
+            GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - 12,
+        );
         this.roomContainer.add(this.log.view);
 
         this.setupGlobalUI();
@@ -362,23 +366,19 @@ export class GameScene extends Phaser.Scene {
         const BOT_H = BOTTOM_BAR_H;
         const BOT_Y = GAME_HEIGHT - BOT_H;
 
-        // ── TOP BAR ─────────────────────────────────────────────
-        // Three groups separated by thin dividers: vitals (HP + stress),
-        // progression (level + XP), and combat stats (atk/def/lives/light).
-        const topPanel = drawHudPanel(this, 0, 0, GAME_WIDTH, TOP_H);
-        const topDiv1 = drawHudDivider(this, 372, 8, TOP_H - 16);
-        const topDiv2 = drawHudDivider(this, 600, 8, TOP_H - 16);
+        // ── PLAY-AREA BACKDROP ───────────────────────────────────
+        // Optional carved-stone wall texture between the two HUD bars.
+        // Drops out gracefully when the asset is missing.
+        const stoneWall = drawStoneBackdrop(this, TOP_H, GAME_WIDTH, GAME_HEIGHT - TOP_H - BOT_H);
 
-        // Group A — Vitals: HP bar + stress bar.
-        const hpIcon = this.add.text(PAD, 14, '\u2665\uFE0E', {
-            fontFamily: HUD_FONT,
-            fontSize: '16px',
-            color: HudHex.accentBlood,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
-        const hpBarX = PAD + 22;
-        const hpBarY = 24;
+        // ── TOP BAR ─────────────────────────────────────────────
+        // Carved-stone frame (PNG when available, layered fallback otherwise).
+        const topFrame = drawTopFrame(this, GAME_WIDTH, TOP_H);
+
+        // Group A — Vitals (HP bar + stress bar) on the left ~third.
+        const hpIcon = createHudIcon(this, PAD + 8, 22, 'heart', { pixelSize: 16 });
+        const hpBarX = PAD + 24;
+        const hpBarY = 22;
         const hpBarBg = this.add
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodTrack)
             .setOrigin(0, 0.5);
@@ -387,23 +387,24 @@ export class GameScene extends Phaser.Scene {
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodFill)
             .setOrigin(0, 0.5);
         const hpSegments = drawBarSegments(this, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, 5);
-        this.hpValueText = this.add.text(hpBarX + this.hpBarWidth + 8, hpBarY - 8, '', {
+        this.hpValueText = this.add.text(hpBarX + this.hpBarWidth + 10, hpBarY - 9, '', {
             fontFamily: HUD_FONT,
-            fontSize: '13px',
+            fontSize: '14px',
             color: HudHex.textPrimary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         });
 
-        const stressIcon = this.add.text(PAD, 46, '\u2727\uFE0E', {
+        const stressIcon = createHudIcon(this, PAD + 8, 54, 'skull', { pixelSize: 14 });
+        const stressLabel = this.add.text(PAD + 18, 47, this.loc.t('stressLabel').toUpperCase(), {
             fontFamily: HUD_FONT,
-            fontSize: '14px',
-            color: HudHex.accentStress,
+            fontSize: '11px',
+            color: HudHex.textSecondary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         });
-        const stressBarX = PAD + 22;
-        const stressBarY = 56;
+        const stressBarX = PAD + 22 + Math.max(64, stressLabel.width + 12);
+        const stressBarY = 54;
         this.stressBarBg = this.add
             .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressTrack)
             .setOrigin(0, 0.5);
@@ -411,74 +412,75 @@ export class GameScene extends Phaser.Scene {
         this.stressBar = this.add
             .rectangle(stressBarX, stressBarY, 0, this.stressBarHeight, HudColors.stressFill)
             .setOrigin(0, 0.5);
-        this.stressText = this.add.text(stressBarX + this.stressBarWidth + 8, stressBarY - 7, '0', {
+        this.stressText = this.add.text(stressBarX + this.stressBarWidth + 8, stressBarY - 8, '0', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
             color: HudHex.accentStress,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         });
-        this.resolutionText = this.add.text(stressBarX + this.stressBarWidth + 36, stressBarY - 7, '', {
+        this.resolutionText = this.add.text(stressBarX + this.stressBarWidth + 36, stressBarY - 8, '', {
             fontFamily: HUD_FONT,
-            fontSize: '12px',
+            fontSize: '11px',
             color: HudHex.accentVirtue,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         });
 
-        // Group B — Progression: level number + XP bar with caption.
-        const lvlX = 388;
-        this.levelStarIcon = this.add.text(lvlX, 16, '\u2605\uFE0E', {
+        // Group B — Level + XP centred in the panel.
+        const centreX = 488;
+        this.levelText = this.add.text(centreX, 18, '', {
             fontFamily: HUD_FONT,
-            fontSize: '16px',
-            color: HudHex.accentExp,
+            fontSize: '15px',
+            fontStyle: 'bold',
+            color: HudHex.textPrimary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
-        });
-        this.levelText = this.add.text(lvlX + 22, 10, '', {
+        }).setOrigin(0, 0);
+        this.xpValueText = this.add.text(centreX + 80, 18, '', {
             fontFamily: HUD_FONT,
-            fontSize: '22px',
-            color: HudHex.accentExp,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
-        const xpBarX = lvlX;
-        const xpBarY = 50;
-        this.xpBarBg = this.add
-            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, HudColors.expTrack)
-            .setOrigin(0, 0.5);
-        this.xpBarBg.setStrokeStyle(1, HudColors.panelOuter);
-        this.xpBar = this.add
-            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, HudColors.expFill)
-            .setOrigin(0, 0.5);
-        this.xpValueText = this.add.text(xpBarX + this.xpBarWidth / 2, xpBarY + 8, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '11px',
+            fontSize: '13px',
             color: HudHex.textSecondary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
-        }).setOrigin(0.5, 0);
+        }).setOrigin(0, 0);
+        const xpBarX = centreX;
+        const xpBarY = 48;
+        this.xpBarBg = this.add
+            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x14202c)
+            .setOrigin(0, 0.5);
+        this.xpBarBg.setStrokeStyle(1, HudColors.panelOuter);
+        this.xpBar = this.add
+            .rectangle(xpBarX, xpBarY, 0, this.xpBarHeight, 0x6a8fc2)
+            .setOrigin(0, 0.5);
 
-        // Group C — Combat stats: atk · def in row 1, lives · light in row 2.
-        const c1X = 620;
-        const c2X = 800;
-        const r1Y = 14;
-        const r2Y = 46;
-        this.atkStat = createIconStat(this, c1X, r1Y, '\u2694\uFE0E', HudHex.accentBlood, {
-            iconWidth: 22,
-            valueFontSize: '15px',
+        // Group C — Combat stats on the right (sword/shield + label + value).
+        // Positions chosen so the labels never collide with the carved skull
+        // decoration in the top-right corner of the PNG frame.
+        this.atkStat = createHudInlineSlot(this, 700, 32, {
+            icon: 'sword',
+            label: this.loc.t('attackShort').toUpperCase(),
+            valueColor: HudHex.textPrimary,
+            valueFontSize: '17px',
         });
-        this.defStat = createIconStat(this, c2X, r1Y, '\u26E8\uFE0E', HudHex.accentResolve, {
-            iconWidth: 22,
-            valueFontSize: '15px',
+        this.defStat = createHudInlineSlot(this, 860, 32, {
+            icon: 'shield',
+            label: this.loc.t('defenseShort').toUpperCase(),
+            valueColor: HudHex.textPrimary,
+            valueFontSize: '17px',
         });
-        this.revivesStat = createIconStat(this, c1X, r2Y, '\u2671\uFE0E', HudHex.accentRevive, {
-            iconWidth: 22,
-            valueFontSize: '15px',
+
+        // Optional secondary stats — squeezed into the second row when relevant.
+        this.revivesStat = createHudInlineSlot(this, 700, 58, {
+            icon: 'heart',
+            label: this.loc.t('reviveShort').toUpperCase(),
+            valueFontSize: '13px',
+            labelFontSize: '11px',
+            iconSize: 12,
         });
-        this.lightTorchIcon = this.add.text(c2X, r2Y, '', {
+        this.lightTorchIcon = this.add.text(860, 58, '', {
             fontFamily: HUD_FONT,
-            fontSize: '15px',
+            fontSize: '14px',
             color: HudHex.accentLight,
             stroke: HUD_STROKE,
             strokeThickness: 2,
@@ -493,79 +495,98 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5, 0);
 
         // ── BOTTOM BAR ──────────────────────────────────────────
-        // Three groups: resources, progress/prestige, hint scroll.
-        const botPanel = drawHudPanel(this, 0, BOT_Y, GAME_WIDTH, BOT_H);
-        const botDiv1 = drawHudDivider(this, 420, BOT_Y + 8, BOT_H - 16);
-        const botDiv2 = drawHudDivider(this, 660, BOT_Y + 8, BOT_H - 16);
+        // Carved frame + 9 cells: 5 resource cells, divider pillar,
+        // 4 progress cells (the last cell — PRESTIGE — gets a gold rim).
+        const botFrame = drawBottomFrame(this, BOT_Y, GAME_WIDTH, BOT_H);
 
-        // Group A — Resources row (gold · potion · resolve · light · shard).
-        const resY = BOT_Y + 12;
-        this.goldStat = createIconStat(this, PAD, resY, '\u00A4', HudHex.accentGold, {
-            iconWidth: 16,
-            valueFontSize: '14px',
+        const cellTop = BOT_Y + 4;
+        const cellH = 70;
+        const resW = 116;
+        const resStart = 18;
+        const progW = 92;
+        const progStart = 620;
+
+        this.goldStat = createHudCell(this, resStart + 0 * resW, cellTop, resW, cellH, {
+            icon: 'coin',
+            label: this.loc.t('goldShort').toUpperCase(),
+            valueColor: HudHex.accentGold,
         });
-        this.potionStat = createIconStat(this, PAD + 80, resY, '\u271A', HudHex.accentPotion, {
-            iconWidth: 16,
-            valueFontSize: '14px',
+        this.potionStat = createHudCell(this, resStart + 1 * resW, cellTop, resW, cellH, {
+            icon: 'potion',
+            label: this.loc.t('potionShort').toUpperCase(),
+            valueColor: HudHex.accentPotion,
         });
-        this.resolveStat = createIconStat(this, PAD + 160, resY, '\u2666\uFE0E', HudHex.accentResolve, {
-            iconWidth: 16,
-            valueFontSize: '14px',
+        this.resolveStat = createHudCell(this, resStart + 2 * resW, cellTop, resW, cellH, {
+            icon: 'quill',
+            label: this.loc.t('resolveShort').toUpperCase(),
+            valueColor: HudHex.accentResolve,
         });
-        this.lightResStat = createIconStat(this, PAD + 250, resY, '\u263C\uFE0E', HudHex.accentLight, {
-            iconWidth: 16,
-            valueFontSize: '14px',
+        this.lightResStat = createHudCell(this, resStart + 3 * resW, cellTop, resW, cellH, {
+            icon: 'lantern',
+            label: this.loc.t('lightShort').toUpperCase(),
+            valueColor: HudHex.accentLight,
         });
-        this.shardStat = createIconStat(this, PAD + 340, resY, '\u25C6\uFE0E', HudHex.accentShard, {
-            iconWidth: 16,
-            valueFontSize: '14px',
+        this.shardStat = createHudCell(this, resStart + 4 * resW, cellTop, resW, cellH, {
+            icon: 'shard',
+            label: this.loc.t('shardShort').toUpperCase(),
+            valueColor: HudHex.accentShard,
         });
 
-        this.relicText = this.add.text(PAD, BOT_Y + 38, '', {
+        // Pillar divider between the resource block and the progress block.
+        const pillarG = this.add.graphics();
+        pillarG.fillStyle(HudColors.panelOuter, 0.95);
+        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, cellH - 12);
+        pillarG.fillStyle(HudColors.panelHi, 0.7);
+        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, 1);
+        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + cellH - 7, 4, 1);
+
+        this.depthStat = createHudCell(this, progStart + 0 * progW, cellTop, progW, cellH, {
+            icon: 'depth',
+            label: this.loc.t('depthShort').toUpperCase(),
+            valueColor: HudHex.accentDepth,
+        });
+        this.killsStat = createHudCell(this, progStart + 1 * progW, cellTop, progW, cellH, {
+            icon: 'kills',
+            label: this.loc.t('killShort').toUpperCase(),
+            valueColor: HudHex.accentKills,
+        });
+        this.bossStat = createHudCell(this, progStart + 2 * progW, cellTop, progW, cellH, {
+            icon: 'boss',
+            label: this.loc.t('bossShort').toUpperCase(),
+            valueColor: HudHex.accentBoss,
+        });
+        this.prestigeStat = createHudCell(this, progStart + 3 * progW, cellTop, progW, cellH, {
+            icon: 'star',
+            label: this.loc.t('prestige').toUpperCase(),
+            valueColor: HudHex.accentExp,
+            highlight: true,
+        });
+
+        // Thin info strip at the very bottom: depth pill on the left,
+        // hint on the right (next to the ♫/RU chrome buttons).
+        const stripY = BOT_Y + BOT_H - 18;
+        this.relicText = this.add.text(PAD, stripY - 18, '', {
             fontFamily: HUD_FONT,
-            fontSize: '12px',
+            fontSize: '11px',
             color: HudHex.accentGold,
             stroke: HUD_STROKE,
             strokeThickness: 2,
-            wordWrap: { width: 380 },
+            wordWrap: { width: 540 },
         });
-        this.mapDepthText = this.add.text(PAD, BOT_Y + 70, '', {
+        this.mapDepthText = this.add.text(PAD, stripY, '', {
             fontFamily: HUD_FONT,
-            fontSize: '12px',
+            fontSize: '11px',
             color: HudHex.textMuted,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         });
-
-        // Group B — Progress (depth/kills/bosses) + prestige forecast.
-        const pgX = 432;
-        const pgY = BOT_Y + 12;
-        this.depthStat = createIconStat(this, pgX, pgY, '\u25BC\uFE0E', HudHex.accentDepth, {
-            iconWidth: 18,
-            valueFontSize: '14px',
-        });
-        this.killsStat = createIconStat(this, pgX, pgY + 22, '\u2020\uFE0E', HudHex.accentKills, {
-            iconWidth: 18,
-            valueFontSize: '14px',
-        });
-        this.bossStat = createIconStat(this, pgX, pgY + 44, '\u03A9', HudHex.accentBoss, {
-            iconWidth: 18,
-            valueFontSize: '14px',
-        });
-        this.prestigeStat = createIconStat(this, pgX + 110, pgY, '\u2726\uFE0E', HudHex.accentExp, {
-            iconWidth: 18,
-            valueFontSize: '15px',
-        });
-
-        // Group C — Hint scroll, right-aligned next to chrome buttons.
-        this.hintText = this.add.text(GAME_WIDTH - HUD_PAD - 80, BOT_Y + 16, '', {
+        this.hintText = this.add.text(GAME_WIDTH - HUD_PAD - 80, stripY, '', {
             fontFamily: HUD_FONT,
-            fontSize: '12px',
+            fontSize: '11px',
             color: HudHex.textSecondary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
             align: 'right',
-            wordWrap: { width: 280 },
         }).setOrigin(1, 0);
 
         this.enemyStatusText = this.add.text(780, 356, '', {
@@ -576,58 +597,52 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0.5, 0);
 
-        this.uiContainer.add([
-            topPanel,
-            topDiv1,
-            topDiv2,
+        const topWidgets: Phaser.GameObjects.GameObject[] = [
+            topFrame,
             hpIcon,
             hpBarBg,
             this.hpBar,
             hpSegments,
             this.hpValueText,
             stressIcon,
+            stressLabel,
             this.stressBarBg,
             this.stressBar,
             this.stressText,
             this.resolutionText,
-            this.levelStarIcon,
             this.levelText,
             this.xpBarBg,
             this.xpBar,
             this.xpValueText,
-            this.atkStat.icon,
-            this.atkStat.value,
-            this.defStat.icon,
-            this.defStat.value,
-            this.revivesStat.icon,
-            this.revivesStat.value,
+            this.atkStat.root,
+            this.defStat.root,
+            this.revivesStat.root,
             this.lightTorchIcon,
             this.playerStatusText,
-            botPanel,
-            botDiv1,
-            botDiv2,
-            this.goldStat.icon,
-            this.goldStat.value,
-            this.potionStat.icon,
-            this.potionStat.value,
-            this.resolveStat.icon,
-            this.resolveStat.value,
-            this.lightResStat.icon,
-            this.lightResStat.value,
-            this.shardStat.icon,
-            this.shardStat.value,
+        ];
+
+        const bottomWidgets: Phaser.GameObjects.GameObject[] = [
+            botFrame,
+            this.goldStat.root,
+            this.potionStat.root,
+            this.resolveStat.root,
+            this.lightResStat.root,
+            this.shardStat.root,
+            pillarG,
+            this.depthStat.root,
+            this.killsStat.root,
+            this.bossStat.root,
+            this.prestigeStat.root,
             this.relicText,
             this.mapDepthText,
-            this.depthStat.icon,
-            this.depthStat.value,
-            this.killsStat.icon,
-            this.killsStat.value,
-            this.bossStat.icon,
-            this.bossStat.value,
-            this.prestigeStat.icon,
-            this.prestigeStat.value,
             this.hintText,
-        ]);
+        ];
+
+        if (stoneWall) {
+            this.uiContainer.add(stoneWall);
+            stoneWall.setDepth(-1);
+        }
+        this.uiContainer.add([...topWidgets, ...bottomWidgets]);
 
         this.roomContainer.add(this.enemyStatusText);
 
@@ -688,7 +703,7 @@ export class GameScene extends Phaser.Scene {
         const xpRatio = Phaser.Math.Clamp(stats.xp / this.player.xpToNextLevel, 0, 1);
         this.xpBar.setDisplaySize(this.xpBarWidth * xpRatio, this.xpBarHeight);
         this.levelText.setText(`${this.loc.t('level')} ${stats.level}`);
-        this.xpValueText.setText(`${stats.xp} / ${this.player.xpToNextLevel}`);
+        this.xpValueText.setText(`${this.loc.t('xp')} ${stats.xp}/${this.player.xpToNextLevel}`);
 
         // Combat stats: each stat has its own icon/value pair so colours can
         // differentiate at a glance.
@@ -750,7 +765,6 @@ export class GameScene extends Phaser.Scene {
         this.xpBarBg.setVisible(unlocks.showLevelPanel);
         this.xpBar.setVisible(unlocks.showLevelPanel);
         this.levelText.setVisible(unlocks.showLevelPanel);
-        this.levelStarIcon.setVisible(unlocks.showLevelPanel);
         this.xpValueText.setVisible(unlocks.showLevelPanel);
         const hintVisible = !!nextUnlock && this.mapContainer.visible;
         this.hintText.setVisible(hintVisible);
@@ -875,10 +889,12 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupRoomUI() {
-        const panel = this.add.rectangle(570, 94, 434, 580, 0x111111).setOrigin(0);
+        const panelY = TOP_BAR_H + 12;
+        const panelH = GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - 12;
+        const panel = this.add.rectangle(570, panelY, 434, panelH, 0x111111).setOrigin(0);
         panel.setStrokeStyle(2, 0x353535);
 
-        this.roomHeaderText = this.add.text(590, 98, '', {
+        this.roomHeaderText = this.add.text(590, panelY + 4, '', {
             fontFamily: 'Courier New',
             fontSize: '13px',
             color: '#8b8b8b',
@@ -1105,11 +1121,26 @@ export class GameScene extends Phaser.Scene {
                 if (node.cleared) sprite.setTint(0x555555);
             }
 
+            // Decorative frame overlay (bronze for safe, iron-red for danger,
+            // grey for unknown). Only renders when the optional spritesheet is
+            // present — falls back silently to the base rect+icon otherwise.
+            let frame: Phaser.GameObjects.Image | undefined;
+            if (this.textures.exists('hud_room_frames')) {
+                const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
+                frame = this.add.image(x, y, 'hud_room_frames', frameIdx)
+                    .setOrigin(0.5)
+                    .setAlpha(alpha);
+                frame.setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
+                if (node.cleared) frame.setTint(0x555555);
+                rect.setStrokeStyle(0);
+            }
+
             if (fadeIn && !node.cleared) {
                 rect.setAlpha(0);
                 icon.setAlpha(0);
                 const targets: Phaser.GameObjects.GameObject[] = [rect, icon];
                 if (sprite) { sprite.setAlpha(0); targets.push(sprite); }
+                if (frame) { frame.setAlpha(0); targets.push(frame); }
                 this.tweens.add({
                     targets,
                     alpha: 1,
@@ -1122,6 +1153,7 @@ export class GameScene extends Phaser.Scene {
 
             const children: Phaser.GameObjects.GameObject[] = [rect, icon];
             if (sprite) children.push(sprite);
+            if (frame) children.push(frame);
             this.mapContainer.add(children);
             this.visuals.set(node.id, { rect, icon, sprite });
         });

@@ -54,6 +54,30 @@ export class BootScene extends Phaser.Scene {
         for (const [key, file] of enemies) {
             this.load.image(key, `${base}sprites/enemies/${file}`);
         }
+
+        // ── HUD frames + textures (Darkest Dungeon-style overlay) ──
+        // Each is optional; the HUD layer renders procedural fallbacks
+        // when a file is missing. See public/assets/ui/README.md for
+        // canonical sizes and the icons.png frame order.
+        this.load.image('hud_top_bar', `${base}assets/ui/top_bar.png`);
+        this.load.image('hud_bottom_bar', `${base}assets/ui/bottom_bar.png`);
+        this.load.image('hud_stone_wall', `${base}assets/ui/stone_wall.png`);
+        this.load.spritesheet('hud_icons', `${base}assets/ui/icons.png`, {
+            frameWidth: 16,
+            frameHeight: 16,
+        });
+        this.load.spritesheet('hud_room_frames', `${base}assets/ui/room_frames.png`, {
+            frameWidth: 64,
+            frameHeight: 64,
+        });
+
+        // Suppress noisy warnings if any of the optional UI assets are
+        // missing — the HUD already falls back gracefully.
+        this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
+            if (file.key.startsWith('hud_')) {
+                console.info(`[hud] optional asset missing: ${file.key} — using procedural fallback`);
+            }
+        });
     }
 
     create() {

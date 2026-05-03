@@ -11,7 +11,7 @@ export const CENTER_Y = GAME_HEIGHT / 2;
  *  `TOP_BAR_H` and `GAME_HEIGHT - BOTTOM_BAR_H`. */
 export const TOP_BAR_H = 82;
 export const BOTTOM_BAR_H = 94;
-export const HUD_PAD = 28;
+export const HUD_PAD = 24;
 
 /**
  * Named depth tiers for UI overlays. Keep gaps between groups so individual

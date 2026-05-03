@@ -31,6 +31,9 @@ export const HudColors = {
     accentShard: 0xb89cd8,
     accentVirtue: 0x7fc88a,
     accentAffliction: 0xc46868,
+
+    /** Bright gold rim used for the highlighted "PRESTIGE" cell. */
+    cellGoldEdge: 0xe2b04a,
 } as const;
 
 /** String colours for Phaser Text styles. */

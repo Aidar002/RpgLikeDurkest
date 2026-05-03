@@ -44,6 +44,31 @@ const ROOM_SPRITE_KEY: Record<RoomTypeValue, string> = {
     [RoomType.EMPTY]: 'EMPTY',
 };
 
+/**
+ * Decorative frame index for {@link hud_room_frames} (a 3-frame spritesheet).
+ *   0 → gold (safe / friendly: camp, rest, shrine, merchant, treasure)
+ *   1 → red  (combat threat: enemy, elite, boss, trap)
+ *   2 → grey (unknown / empty)
+ * Used for the bronze/iron border overlay around map-node thumbnails so that
+ * room danger reads at a glance, matching the reference UI.
+ */
+const ROOM_FRAME_INDEX: Record<RoomTypeValue, 0 | 1 | 2> = {
+    [RoomType.START]: 0,
+    [RoomType.REST]: 0,
+    [RoomType.SHRINE]: 0,
+    [RoomType.MERCHANT]: 0,
+    [RoomType.TREASURE]: 0,
+    [RoomType.ENEMY]: 1,
+    [RoomType.ELITE]: 1,
+    [RoomType.BOSS]: 1,
+    [RoomType.TRAP]: 1,
+    [RoomType.EMPTY]: 2,
+};
+
+export function roomFrameIndex(type: RoomTypeValue): 0 | 1 | 2 {
+    return ROOM_FRAME_INDEX[type] ?? 2;
+}
+
 /** Localization key per room type, used by `roomTypeName`. */
 const ROOM_NAME_KEY = {
     [RoomType.START]: 'roomCamp',
