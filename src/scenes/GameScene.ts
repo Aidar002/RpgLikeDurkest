@@ -383,43 +383,43 @@ export class GameScene extends Phaser.Scene {
 
         this.resourceText = this.add.text(14, BAR_TOP + 8, '', {
             fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#9fc7ff',
+            fontSize: '13px',
+            color: '#b8d8ff',
         });
 
         this.relicText = this.add.text(14, BAR_TOP + 28, '', {
             fontFamily: 'Courier New',
-            fontSize: '9px',
-            color: '#b0a080',
-            wordWrap: { width: GAME_WIDTH - 28 },
+            fontSize: '10px',
+            color: '#c8b890',
+            wordWrap: { width: GAME_WIDTH - 100 },
         });
 
         this.mapDepthText = this.add.text(14, BAR_TOP + 48, '', {
             fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#999999',
+            fontSize: '13px',
+            color: '#bbbbbb',
         });
 
-        this.progressText = this.add.text(GAME_WIDTH - 14, BAR_TOP + 8, '', {
+        this.progressText = this.add.text(GAME_WIDTH - 70, BAR_TOP + 8, '', {
             fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#b8b8b8',
+            fontSize: '13px',
+            color: '#d0d0d0',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.prestigeText = this.add.text(GAME_WIDTH - 14, BAR_TOP + 28, '', {
+        this.prestigeText = this.add.text(GAME_WIDTH - 70, BAR_TOP + 28, '', {
             fontFamily: 'Courier New',
-            fontSize: '12px',
+            fontSize: '13px',
             color: '#ffd36e',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.hintText = this.add.text(GAME_WIDTH - 14, BAR_TOP + 48, '', {
+        this.hintText = this.add.text(GAME_WIDTH - 70, BAR_TOP + 48, '', {
             fontFamily: 'Courier New',
-            fontSize: '10px',
-            color: '#b0b0b0',
+            fontSize: '11px',
+            color: '#c8c8c8',
             align: 'right',
-            wordWrap: { width: 280 },
+            wordWrap: { width: 340 },
         }).setOrigin(1, 0);
 
         this.enemyStatusText = this.add.text(780, 356, '', {
