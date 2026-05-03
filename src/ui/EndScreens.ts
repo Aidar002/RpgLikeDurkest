@@ -81,7 +81,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     panel.setStrokeStyle(2, 0x6a8fcc);
 
     const title = scene.add
-        .text(CENTER_X, 120, loc.t('victoryScreenTitle'), {
+        .text(CENTER_X, 150, loc.t('victoryScreenTitle'), {
             fontFamily: 'Courier New',
             fontSize: '32px',
             color: '#ffd36e',
