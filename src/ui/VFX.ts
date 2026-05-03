@@ -94,8 +94,8 @@ export class VFX {
     /** Looping background embers and dust. */
     static ambientEmbers(scene: Phaser.Scene, count = 18) {
         const spawn = () => {
-            const x = 80 + Math.random() * 640;
-            const y = 100 + Math.random() * 450;
+            const x = 80 + Math.random() * (GAME_WIDTH - 160);
+            const y = 100 + Math.random() * (GAME_HEIGHT - 200);
             const sz = Math.random() * 2 + 1;
             const col = Math.random() > 0.6 ? 0xffaa33 : 0xaaaaaa;
             const dot = scene.add.rectangle(x, y + 20, sz, sz, col, 0.4 + Math.random() * 0.2).setDepth(3);
