@@ -9,13 +9,51 @@ export class BootScene extends Phaser.Scene {
     }
 
     preload() {
-        // Real room icons. When a key is registered here, `PixelSprite.registerAll`
-        // in GameScene skips it thanks to its `scene.textures.exists(key)` guard,
-        // so the hand-authored asset replaces the procedural fallback cleanly.
-        // Missing files are non-fatal: Phaser logs a warn, the procedural sprite
-        // takes over, and gameplay keeps working.
+        // Hand-authored assets. When a key is registered here,
+        // `PixelSprite.registerAll` in GameScene skips it (via its
+        // `scene.textures.exists(key)` guard), so the authored art
+        // replaces the procedural fallback cleanly.
+        //
+        // Missing files are non-fatal: Phaser logs a console warn,
+        // the procedural sprite takes over, and gameplay keeps working.
+        // To add a new asset, drop a .webp file into the matching
+        // `public/sprites/` subfolder and register it below.
+        // See docs/ART_GUIDE.md for naming conventions and sizes.
         const base = import.meta.env.BASE_URL;
-        this.load.image('room_START', `${base}sprites/rooms/camp.webp`);
+
+        // ── Room icons (map nodes) ──────────────────────────────
+        // Texture key format: room_<ROOM_TYPE>
+        // Recommended size: 128×128 WebP
+        const rooms: [key: string, file: string][] = [
+            ['room_START', 'camp.webp'],
+            ['room_ENEMY', 'enemy.webp'],
+            ['room_TREASURE', 'treasure.webp'],
+            ['room_TRAP', 'trap.webp'],
+            ['room_REST', 'rest.webp'],
+            ['room_SHRINE', 'shrine.webp'],
+            ['room_MERCHANT', 'merchant.webp'],
+            ['room_ELITE', 'elite.webp'],
+            ['room_BOSS', 'boss.webp'],
+            ['room_EMPTY', 'empty.webp'],
+        ];
+        for (const [key, file] of rooms) {
+            this.load.image(key, `${base}sprites/rooms/${file}`);
+        }
+
+        // ── Enemy portraits (combat panel) ──────────────────────
+        // Texture key format: enemy_<profile>
+        // Recommended size: 128×128 WebP
+        const enemies: [key: string, file: string][] = [
+            ['enemy_brute', 'brute.webp'],
+            ['enemy_stalker', 'stalker.webp'],
+            ['enemy_mage', 'mage.webp'],
+            ['enemy_boss', 'boss.webp'],
+            ['enemy_bleeder', 'bleeder.webp'],
+            ['enemy_disruptor', 'disruptor.webp'],
+        ];
+        for (const [key, file] of enemies) {
+            this.load.image(key, `${base}sprites/enemies/${file}`);
+        }
     }
 
     create() {

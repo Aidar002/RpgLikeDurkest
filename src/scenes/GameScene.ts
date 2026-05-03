@@ -29,7 +29,7 @@ import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
-import { fitRoomSprite, roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
+import { fitEnemySprite, fitRoomSprite, roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
@@ -1323,6 +1323,7 @@ export class GameScene extends Phaser.Scene {
         const roomKey = PixelSprite.roomKey(spriteKey);
         if (this.textures.exists(roomKey)) {
             this.enemySpriteImage.setTexture(roomKey).setVisible(true);
+            fitEnemySprite(this.enemySpriteImage);
             this.enemyIconText.setVisible(false);
         } else {
             this.enemySpriteImage.setVisible(false);
