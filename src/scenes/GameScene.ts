@@ -460,8 +460,10 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0.5, 0);
 
         // Group C — Combat stats: atk · def in row 1, lives · light in row 2.
+        // Wider columns so localized labels ("Атака", "Защита", …) fit
+        // alongside the icon and value without bumping into the right edge.
         const c1X = 620;
-        const c2X = 800;
+        const c2X = 808;
         const r1Y = 14;
         const r2Y = 46;
         this.atkStat = createIconStat(this, c1X, r1Y, '\u2694\uFE0E', HudHex.accentBlood, {
@@ -498,30 +500,32 @@ export class GameScene extends Phaser.Scene {
         const botDiv1 = drawHudDivider(this, 420, BOT_Y + 8, BOT_H - 16);
         const botDiv2 = drawHudDivider(this, 660, BOT_Y + 8, BOT_H - 16);
 
-        // Group A — Resources row (gold · potion · resolve · light · shard).
-        const resY = BOT_Y + 12;
-        this.goldStat = createIconStat(this, PAD, resY, '\u00A4', HudHex.accentGold, {
+        // Group A — Resources arranged as 2 rows × 3 cols so localized labels
+        // ("Золото", "Воля", "Осколки", …) fit alongside icons/values.
+        const res1Y = BOT_Y + 12;
+        const res2Y = BOT_Y + 36;
+        this.goldStat = createIconStat(this, PAD, res1Y, '\u00A4', HudHex.accentGold, {
             iconWidth: 16,
             valueFontSize: '14px',
         });
-        this.potionStat = createIconStat(this, PAD + 80, resY, '\u271A', HudHex.accentPotion, {
+        this.potionStat = createIconStat(this, PAD + 132, res1Y, '\u271A', HudHex.accentPotion, {
             iconWidth: 16,
             valueFontSize: '14px',
         });
-        this.resolveStat = createIconStat(this, PAD + 160, resY, '\u2666\uFE0E', HudHex.accentResolve, {
+        this.resolveStat = createIconStat(this, PAD + 250, res1Y, '\u2666\uFE0E', HudHex.accentResolve, {
             iconWidth: 16,
             valueFontSize: '14px',
         });
-        this.lightResStat = createIconStat(this, PAD + 250, resY, '\u263C\uFE0E', HudHex.accentLight, {
+        this.lightResStat = createIconStat(this, PAD, res2Y, '\u263C\uFE0E', HudHex.accentLight, {
             iconWidth: 16,
             valueFontSize: '14px',
         });
-        this.shardStat = createIconStat(this, PAD + 340, resY, '\u25C6\uFE0E', HudHex.accentShard, {
+        this.shardStat = createIconStat(this, PAD + 132, res2Y, '\u25C6\uFE0E', HudHex.accentShard, {
             iconWidth: 16,
             valueFontSize: '14px',
         });
 
-        this.relicText = this.add.text(PAD, BOT_Y + 38, '', {
+        this.relicText = this.add.text(PAD, BOT_Y + 60, '', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
             color: HudHex.accentGold,
@@ -529,9 +533,9 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
             wordWrap: { width: 380 },
         });
-        this.mapDepthText = this.add.text(PAD, BOT_Y + 70, '', {
+        this.mapDepthText = this.add.text(PAD, BOT_Y + 78, '', {
             fontFamily: HUD_FONT,
-            fontSize: '12px',
+            fontSize: '11px',
             color: HudHex.textMuted,
             stroke: HUD_STROKE,
             strokeThickness: 2,
@@ -552,9 +556,9 @@ export class GameScene extends Phaser.Scene {
             iconWidth: 18,
             valueFontSize: '14px',
         });
-        this.prestigeStat = createIconStat(this, pgX + 110, pgY, '\u2726\uFE0E', HudHex.accentExp, {
+        this.prestigeStat = createIconStat(this, pgX, pgY + 66, '\u2726\uFE0E', HudHex.accentExp, {
             iconWidth: 18,
-            valueFontSize: '15px',
+            valueFontSize: '14px',
         });
 
         // Group C — Hint scroll, right-aligned next to chrome buttons.
@@ -691,14 +695,15 @@ export class GameScene extends Phaser.Scene {
         this.xpValueText.setText(`${stats.xp} / ${this.player.xpToNextLevel}`);
 
         // Combat stats: each stat has its own icon/value pair so colours can
-        // differentiate at a glance.
+        // differentiate at a glance. Localised label keeps the slot legible
+        // even when the icon glyph is small.
         const showStats = unlocks.showPlayerStats;
-        this.atkStat.setValue(`${this.player.getAttackPower()}`);
+        this.atkStat.setValue(`${this.loc.t('attackShort')} ${this.player.getAttackPower()}`);
         this.atkStat.setVisible(showStats);
-        this.defStat.setValue(`${stats.defense}`);
+        this.defStat.setValue(`${this.loc.t('defenseShort')} ${stats.defense}`);
         this.defStat.setVisible(showStats);
         const showRevives = showStats && this.player.remainingRevives > 0;
-        this.revivesStat.setValue(`${this.player.remainingRevives}`);
+        this.revivesStat.setValue(`${this.loc.t('reviveShort')} ${this.player.remainingRevives}`);
         this.revivesStat.setVisible(showRevives);
         if (showStats && this.player.hasHighLight) {
             this.lightTorchIcon.setText('\u2600\uFE0E').setColor(HudHex.accentLight).setVisible(true);
@@ -709,28 +714,32 @@ export class GameScene extends Phaser.Scene {
         }
 
         // Resources: per-stat slots, each with their own accent colour.
-        this.goldStat.setValue(`${resources.gold}`);
+        this.goldStat.setValue(`${this.loc.t('goldShort')} ${resources.gold}`);
         this.goldStat.setVisible(unlocks.showGold);
-        this.potionStat.setValue(`${resources.potions}`);
+        this.potionStat.setValue(`${this.loc.t('potionShort')} ${resources.potions}`);
         this.potionStat.setVisible(unlocks.showPotions);
-        this.resolveStat.setValue(`${resources.resolve}/${resources.maxResolve}`);
+        this.resolveStat.setValue(
+            `${this.loc.t('resolveShort')} ${resources.resolve}/${resources.maxResolve}`
+        );
         this.resolveStat.setVisible(unlocks.showResolve);
-        this.lightResStat.setValue(`${resources.light}/${EXPEDITION_CONFIG.maxLight}`);
+        this.lightResStat.setValue(
+            `${this.loc.t('lightShort')} ${resources.light}/${EXPEDITION_CONFIG.maxLight}`
+        );
         this.lightResStat.setVisible(unlocks.showLight);
-        this.shardStat.setValue(`${resources.relicShards}`);
+        this.shardStat.setValue(`${this.loc.t('shardShort')} ${resources.relicShards}`);
         this.shardStat.setVisible(unlocks.showRelicShards);
 
         // Progress + prestige forecast.
         const showProgress = unlocks.showRunMetrics || unlocks.showKillCounter;
-        this.depthStat.setValue(`${this.runBestDepth}`);
+        this.depthStat.setValue(`${this.loc.t('depthShort')} ${this.runBestDepth}`);
         this.depthStat.setVisible(showProgress);
-        this.killsStat.setValue(`${this.player.killCount}`);
+        this.killsStat.setValue(`${this.loc.t('killShort')} ${this.player.killCount}`);
         this.killsStat.setVisible(showProgress && unlocks.showKillCounter);
-        this.bossStat.setValue(`${this.runBossKills}`);
+        this.bossStat.setValue(`${this.loc.t('bossShort')} ${this.runBossKills}`);
         this.bossStat.setVisible(showProgress && unlocks.showRunMetrics);
 
         const prestigeForecast = this.runBestDepth + this.runBossKills * 2;
-        this.prestigeStat.setValue(`+${prestigeForecast}`);
+        this.prestigeStat.setValue(`${this.loc.t('prestige')} +${prestigeForecast}`);
         this.prestigeStat.setVisible(unlocks.showPrestigeForecast);
 
         this.mapDepthText.setText(`${this.loc.t('mapDepth')} ${this.dungeon.currentDepth}`);
