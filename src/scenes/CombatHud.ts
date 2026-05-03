@@ -5,6 +5,7 @@ import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { PixelSprite } from '../ui/PixelSprite';
+import { fitEnemySprite } from '../ui/RoomVisuals';
 import { VFX } from '../ui/VFX';
 import type { GameScene, RoomButtonAction } from './GameScene';
 
@@ -226,6 +227,7 @@ export class CombatHudController {
             const sprKey = PixelSprite.enemyKey(profile);
             if (scene.textures.exists(sprKey)) {
                 scene.enemySpriteImage.setTexture(sprKey).setVisible(true);
+                fitEnemySprite(scene.enemySpriteImage);
                 scene.enemyIconText.setVisible(false);
             } else {
                 scene.enemySpriteImage.setVisible(false);
