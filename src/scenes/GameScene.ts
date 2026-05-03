@@ -395,7 +395,7 @@ export class GameScene extends Phaser.Scene {
         this.mapDepthText = this.add.text(14, GAME_HEIGHT - 24, '', {
             fontFamily: 'Courier New',
             fontSize: '12px',
-            color: '#3d3d3d',
+            color: '#999999',
         });
 
         this.progressText = this.add.text(GAME_WIDTH - 14, GAME_HEIGHT - 60, '', {
@@ -415,7 +415,7 @@ export class GameScene extends Phaser.Scene {
         this.hintText = this.add.text(GAME_WIDTH - 14, GAME_HEIGHT - 24, '', {
             fontFamily: 'Courier New',
             fontSize: '10px',
-            color: '#7b7b7b',
+            color: '#b0b0b0',
             align: 'right',
             wordWrap: { width: 280 },
         }).setOrigin(1, 0);
@@ -899,7 +899,7 @@ export class GameScene extends Phaser.Scene {
                 .text(x, y, revealed && knowsType ? roomIcon(node.type) : '?', {
                     fontFamily: 'Courier New',
                     fontSize: '28px',
-                    color: node.cleared ? '#4d4d4d' : '#ffffff',
+                    color: node.cleared ? '#888888' : '#ffffff',
                 })
                 .setOrigin(0.5)
                 .setAlpha(alpha);
@@ -958,7 +958,7 @@ export class GameScene extends Phaser.Scene {
         const label = this.add.text(x, y, isBoss ? `D${depth} ★` : `D${depth}`, {
             fontFamily: 'Courier New',
             fontSize: '10px',
-            color: isBoss ? '#c93d3d' : '#3d3d3d',
+            color: isBoss ? '#c93d3d' : '#999999',
         }).setOrigin(0.5);
         this.mapContainer.add(label);
         this.depthLabels.set(depth, label);
@@ -1119,7 +1119,7 @@ export class GameScene extends Phaser.Scene {
             }
 
             visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333);
-            visual.icon.setColor('#474747');
+            visual.icon.setColor('#777777');
 
             const tweenTargets: Phaser.GameObjects.GameObject[] = [visual.rect, visual.icon];
             if (visual.sprite) { visual.sprite.setTint(0x555555); tweenTargets.push(visual.sprite); }
@@ -1168,7 +1168,7 @@ export class GameScene extends Phaser.Scene {
 
             if (node.cleared) {
                 visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333).setAlpha(0.35);
-                visual.icon.setColor('#474747').setAlpha(0.35);
+                visual.icon.setColor('#777777').setAlpha(0.5);
                 if (visual.sprite) visual.sprite.setAlpha(0.35).setTint(0x555555);
                 return;
             }
