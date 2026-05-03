@@ -133,12 +133,12 @@ export class CombatHudController {
         }
         if (actionKind === 'defend') {
             scene.tracker.record('defendsUsed');
-            VFX.shieldFlash(scene, 126, 82);
+            VFX.shieldFlash(scene, 160, 82);
             scene.sfx.play('defend');
         }
         if (actionKind === 'potion') {
             scene.tracker.record('potionsUsed');
-            VFX.healGlow(scene, 126, 82);
+            VFX.healGlow(scene, 160, 82);
             scene.sfx.play('potion');
         }
 
@@ -239,7 +239,7 @@ export class CombatHudController {
         }
 
         const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-        scene.enemyHpBar.setDisplaySize(ratio * 220, 12);
+        scene.enemyHpBar.setDisplaySize(ratio * 280, 14);
         scene.enemyHpBar.setFillStyle(ratio > 0.5 ? 0xc65a2e : ratio > 0.25 ? 0xcf9e16 : 0xc63d2d);
         scene.enemyHpText.setText(`${scene.loc.t('hp')} ${Math.max(0, hp)}/${maxHp}`);
         scene.enemyHpBarBg.setVisible(unlocks.showEnemyHp);
@@ -254,7 +254,7 @@ export class CombatHudController {
 
         if (scene.lastEnemyHp > 0 && hp < scene.lastEnemyHp) {
             const damage = scene.lastEnemyHp - hp;
-            VFX.floatText(scene, 616, 138, `-${damage}`, '#ff7373');
+            VFX.floatText(scene, 787, 150, `-${damage}`, '#ff7373');
             VFX.shake(scene, scene.enemyPortrait);
             VFX.flash(scene, scene.enemyPortrait, 0xff3232, 120);
         }
@@ -339,7 +339,7 @@ export class CombatHudController {
             duration: 300,
             onComplete: () => flash.destroy(),
         });
-        VFX.floatText(scene, 126, 82, `-${damage}`, '#ff5555');
+        VFX.floatText(scene, 160, 82, `-${damage}`, '#ff5555');
 
         if (
             scene.player.stats.maxHp > 0 &&

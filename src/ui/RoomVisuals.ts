@@ -75,10 +75,10 @@ export function roomTypeName(type: RoomTypeValue, loc: Localization): string {
 }
 
 /** Target box for room sprites on the map — slightly inset from the node rect. */
-export const ROOM_SPRITE_MAX_DIM = 34;
+export const ROOM_SPRITE_MAX_DIM = 64;
 
 /** Target box for enemy portraits in the combat/room panel. */
-export const ENEMY_SPRITE_MAX_DIM = 88;
+export const ENEMY_SPRITE_MAX_DIM = 120;
 
 /**
  * Scale down high-resolution hand-authored room textures to fit the map node.

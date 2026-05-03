@@ -77,11 +77,11 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     tracker.trackMax('levelReached', player.stats.level);
 
     const overlay = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.92).setDepth(Depths.EndScreenOverlay);
-    const panel = scene.add.rectangle(400, 300, 620, 420, 0x0a0a18).setDepth(Depths.EndScreenPanel);
+    const panel = scene.add.rectangle(CENTER_X, CENTER_Y, 700, 500, 0x0a0a18).setDepth(Depths.EndScreenPanel);
     panel.setStrokeStyle(2, 0x6a8fcc);
 
     const title = scene.add
-        .text(400, 100, loc.t('victoryScreenTitle'), {
+        .text(CENTER_X, 120, loc.t('victoryScreenTitle'), {
             fontFamily: 'Courier New',
             fontSize: '32px',
             color: '#ffd36e',
@@ -89,9 +89,9 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
 
-    const artifactGlow = scene.add.rectangle(400, 230, 64, 64, 0xffd36e, 0.25).setDepth(Depths.EndScreenContent);
+    const artifactGlow = scene.add.rectangle(CENTER_X, 280, 64, 64, 0xffd36e, 0.25).setDepth(Depths.EndScreenContent);
     const artifactIcon = scene.add
-        .text(400, 230, '\u2726', {
+        .text(CENTER_X, 280, '\u2726', {
             fontFamily: 'Courier New',
             fontSize: '40px',
             color: '#ffd36e',
@@ -115,7 +115,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         bosses: runState.runBossKills,
     });
     const summaryText = scene.add
-        .text(400, 300, summaryBody, {
+        .text(CENTER_X, 370, summaryBody, {
             fontFamily: 'Courier New',
             fontSize: '13px',
             color: '#c8cdd2',
@@ -128,7 +128,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
 
     const statLines = tracker.getSummaryLines(loc.language);
     const statsText = scene.add
-        .text(400, 380, statLines.join('\n'), {
+        .text(CENTER_X, 460, statLines.join('\n'), {
             fontFamily: 'Courier New',
             fontSize: '11px',
             color: '#9a9a9a',
@@ -138,11 +138,11 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         .setOrigin(0.5, 0)
         .setDepth(Depths.EndScreenContent);
 
-    const restartButton = scene.add.rectangle(400, 510, 260, 42, 0x1c2a3a).setDepth(Depths.EndScreenContent);
+    const restartButton = scene.add.rectangle(CENTER_X, 590, 280, 44, 0x1c2a3a).setDepth(Depths.EndScreenContent);
     restartButton.setStrokeStyle(1, 0x6a8fcc);
     restartButton.setInteractive({ useHandCursor: true });
     const restartLabel = scene.add
-        .text(400, 510, loc.t('victoryNewRun'), {
+        .text(CENTER_X, 590, loc.t('victoryNewRun'), {
             fontFamily: 'Courier New',
             fontSize: '17px',
             color: '#f0f0f0',
@@ -172,11 +172,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
     tracker.trackMax('levelReached', player.stats.level);
 
     const overlay = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.92).setDepth(Depths.EndScreenOverlay);
-    const panel = scene.add.rectangle(400, 300, 736, 530, 0x121212).setDepth(Depths.EndScreenPanel);
+    const panel = scene.add.rectangle(CENTER_X, CENTER_Y, 820, 640, 0x121212).setDepth(Depths.EndScreenPanel);
     panel.setStrokeStyle(2, 0x5a2f2f);
 
     const title = scene.add
-        .text(400, 56, tracker.getRunTitle(loc.language), {
+        .text(CENTER_X, 66, tracker.getRunTitle(loc.language), {
             fontFamily: 'Courier New',
             fontSize: '28px',
             color: '#d65a5a',
@@ -199,7 +199,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         ...(npcLines.length > 0 ? ['', loc.t('shopAcquaintances'), ...npcLines] : []),
     ];
     const summary = scene.add
-        .text(400, 88, allLines.join('\n'), {
+        .text(CENTER_X, 100, allLines.join('\n'), {
             fontFamily: 'Courier New',
             fontSize: '11px',
             color: '#9a9a9a',
@@ -210,7 +210,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenContent);
 
     const pointsText = scene.add
-        .text(400, 228, '', {
+        .text(CENTER_X, 260, '', {
             fontFamily: 'Courier New',
             fontSize: '16px',
             color: '#ffd36e',
@@ -219,7 +219,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenContent);
 
     const unlockText = scene.add
-        .text(400, 250, '', {
+        .text(CENTER_X, 286, '', {
             fontFamily: 'Courier New',
             fontSize: '11px',
             color: '#8fb8ff',
@@ -231,12 +231,12 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     const cards: UpgradeCardVisual[] = [];
     const cardPositions = [
-        { x: 230, y: 304 },
-        { x: 570, y: 304 },
-        { x: 230, y: 382 },
-        { x: 570, y: 382 },
-        { x: 230, y: 460 },
-        { x: 570, y: 460 },
+        { x: CENTER_X - 180, y: 340 },
+        { x: CENTER_X + 180, y: 340 },
+        { x: CENTER_X - 180, y: 420 },
+        { x: CENTER_X + 180, y: 420 },
+        { x: CENTER_X - 180, y: 500 },
+        { x: CENTER_X + 180, y: 500 },
     ];
 
     meta.getUpgradeCards(loc.language).forEach((card, index) => {
@@ -315,11 +315,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
         cards.push(visual);
     });
 
-    const restartButton = scene.add.rectangle(400, 548, 260, 42, 0x2b2b2b).setDepth(Depths.EndScreenContent);
+    const restartButton = scene.add.rectangle(CENTER_X, 590, 280, 44, 0x2b2b2b).setDepth(Depths.EndScreenContent);
     restartButton.setStrokeStyle(1, 0x8a8a8a);
     restartButton.setInteractive({ useHandCursor: true });
     const restartText = scene.add
-        .text(400, 548, loc.t('shopBeginRun'), {
+        .text(CENTER_X, 590, loc.t('shopBeginRun'), {
             fontFamily: 'Courier New',
             fontSize: '17px',
             color: '#f0f0f0',
@@ -327,11 +327,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenForeground);
 
-    const resetButton = scene.add.rectangle(400, 592, 260, 34, 0x3a1818).setDepth(Depths.EndScreenContent);
+    const resetButton = scene.add.rectangle(CENTER_X, 640, 280, 36, 0x3a1818).setDepth(Depths.EndScreenContent);
     resetButton.setStrokeStyle(1, 0xa35a5a);
     resetButton.setInteractive({ useHandCursor: true });
     const resetText = scene.add
-        .text(400, 592, loc.t('shopResetSouls'), {
+        .text(CENTER_X, 640, loc.t('shopResetSouls'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#ffd0d0',
@@ -381,10 +381,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
         .setDepth(Depths.ConfirmOverlay)
         .setInteractive();
-    const confirmPanel = scene.add.rectangle(400, 300, 430, 190, 0x181818).setDepth(Depths.ConfirmPanel);
+    const confirmPanel = scene.add.rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818).setDepth(Depths.ConfirmPanel);
     confirmPanel.setStrokeStyle(2, 0x8a4d4d);
     const confirmTitle = scene.add
-        .text(400, 244, 'Стереть весь прогресс?', {
+        .text(CENTER_X, CENTER_Y - 50, 'Стереть весь прогресс?', {
             fontFamily: 'Courier New',
             fontSize: '22px',
             color: '#ffd2d2',
@@ -393,8 +393,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.ConfirmContent);
     const confirmBody = scene.add
         .text(
-            400,
-            290,
+            CENTER_X,
+            CENTER_Y,
             'Это сотрёт престиж, открытия и улучшения.\nСледующий забег начнётся с пустой памяти.',
             {
                 fontFamily: 'Courier New',
@@ -407,22 +407,22 @@ export function showDeathScreen(ctx: EndScreenContext) {
         )
         .setOrigin(0.5)
         .setDepth(Depths.ConfirmContent);
-    const confirmResetButton = scene.add.rectangle(320, 358, 170, 38, 0x5a1d1d).setDepth(Depths.ConfirmContent);
+    const confirmResetButton = scene.add.rectangle(CENTER_X - 90, CENTER_Y + 66, 170, 38, 0x5a1d1d).setDepth(Depths.ConfirmContent);
     confirmResetButton.setStrokeStyle(1, 0xc57d7d);
     confirmResetButton.setInteractive({ useHandCursor: true });
     const confirmResetText = scene.add
-        .text(320, 358, loc.t('shopResetConfirm'), {
+        .text(CENTER_X - 90, CENTER_Y + 66, loc.t('shopResetConfirm'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#ffe8e8',
         })
         .setOrigin(0.5)
         .setDepth(Depths.ConfirmForeground);
-    const cancelResetButton = scene.add.rectangle(480, 358, 170, 38, 0x252525).setDepth(Depths.ConfirmContent);
+    const cancelResetButton = scene.add.rectangle(CENTER_X + 90, CENTER_Y + 66, 170, 38, 0x252525).setDepth(Depths.ConfirmContent);
     cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
     cancelResetButton.setInteractive({ useHandCursor: true });
     const cancelResetText = scene.add
-        .text(480, 358, loc.t('shopResetCancel'), {
+        .text(CENTER_X + 90, CENTER_Y + 66, loc.t('shopResetCancel'), {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#f0f0f0',
