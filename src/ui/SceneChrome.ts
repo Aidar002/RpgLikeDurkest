@@ -53,9 +53,9 @@ export function setupSceneChrome(
 ): Phaser.GameObjects.Text {
     const muteIcon = sfx.muted ? '\u266A' : '\u266B';
     const muteButton = scene.add
-        .text(GAME_WIDTH - 56, GAME_HEIGHT - 18, muteIcon, {
+        .text(GAME_WIDTH - 66, GAME_HEIGHT - 24, muteIcon, {
             fontFamily: 'Courier New',
-            fontSize: '14px',
+            fontSize: '16px',
             color: sfx.muted ? '#555555' : '#aaaaaa',
         })
         .setDepth(215)
@@ -70,9 +70,9 @@ export function setupSceneChrome(
     muteButton.on('pointerout', () => muteButton.setColor(sfx.muted ? '#555555' : '#aaaaaa'));
 
     const langBtn = scene.add
-        .text(GAME_WIDTH - 30, GAME_HEIGHT - 18, loc.language === 'ru' ? 'RU' : 'EN', {
+        .text(GAME_WIDTH - 34, GAME_HEIGHT - 24, loc.language === 'ru' ? 'RU' : 'EN', {
             fontFamily: 'Courier New',
-            fontSize: '11px',
+            fontSize: '14px',
             color: '#aaaaaa',
         })
         .setDepth(215)

@@ -318,108 +318,110 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupGlobalUI() {
+        const PAD = 28;
+
         // ── Top bar: HP, stress, level/XP, stats ────────────────
-        const topBar = this.add.rectangle(0, 0, GAME_WIDTH, 70, 0x101010).setOrigin(0);
+        const topBar = this.add.rectangle(0, 0, GAME_WIDTH, 82, 0x101010).setOrigin(0);
         topBar.setStrokeStyle(1, 0x353535);
 
-        const hpLabel = this.add.text(14, 10, this.loc.t('uiVital'), {
+        const hpLabel = this.add.text(PAD, 8, this.loc.t('uiVital'), {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '16px',
             color: '#888888',
         });
 
-        const hpBarBg = this.add.rectangle(14, 36, 200, 14, 0x3c1111).setOrigin(0, 0.5);
-        this.hpBar = this.add.rectangle(14, 36, 200, 14, 0xd93c3c).setOrigin(0, 0.5);
-        this.hpValueText = this.add.text(224, 27, '', {
+        const hpBarBg = this.add.rectangle(PAD, 40, 200, 14, 0x3c1111).setOrigin(0, 0.5);
+        this.hpBar = this.add.rectangle(PAD, 40, 200, 14, 0xd93c3c).setOrigin(0, 0.5);
+        this.hpValueText = this.add.text(PAD + 210, 30, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '16px',
             color: '#ff8d8d',
         });
 
-        this.xpBarBg = this.add.rectangle(370, 36, 160, 8, 0x1d2430).setOrigin(0, 0.5);
-        this.xpBar = this.add.rectangle(370, 36, 160, 8, 0x5b9cff).setOrigin(0, 0.5);
-        this.levelText = this.add.text(370, 10, '', {
+        this.xpBarBg = this.add.rectangle(390, 40, 160, 8, 0x1d2430).setOrigin(0, 0.5);
+        this.xpBar = this.add.rectangle(390, 40, 160, 8, 0x5b9cff).setOrigin(0, 0.5);
+        this.levelText = this.add.text(390, 8, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '16px',
             color: '#f5e28d',
         });
 
-        this.statsText = this.add.text(560, 12, '', {
+        this.statsText = this.add.text(590, 10, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '16px',
             color: '#cccccc',
         });
 
         // Stress bar (second row, below HP).
-        const stressLabel = this.add.text(14, 52, this.loc.t('stressBarLabel'), {
+        const stressLabel = this.add.text(PAD, 58, this.loc.t('stressBarLabel'), {
             fontFamily: 'Courier New',
-            fontSize: '9px',
+            fontSize: '12px',
             color: '#8a7a99',
         });
-        this.stressBarBg = this.add.rectangle(80, 58, 140, 6, 0x1a0c26).setOrigin(0, 0.5);
-        this.stressBar = this.add.rectangle(80, 58, 0, 6, 0x7b4db8).setOrigin(0, 0.5);
-        this.stressText = this.add.text(230, 53, '0', {
+        this.stressBarBg = this.add.rectangle(100, 65, 140, 6, 0x1a0c26).setOrigin(0, 0.5);
+        this.stressBar = this.add.rectangle(100, 65, 0, 6, 0x7b4db8).setOrigin(0, 0.5);
+        this.stressText = this.add.text(250, 58, '0', {
             fontFamily: 'Courier New',
-            fontSize: '10px',
+            fontSize: '12px',
             color: '#a887c4',
         });
-        this.resolutionText = this.add.text(260, 53, '', {
+        this.resolutionText = this.add.text(286, 58, '', {
             fontFamily: 'Courier New',
-            fontSize: '10px',
+            fontSize: '12px',
             color: '#c49fff',
         });
 
-        this.playerStatusText = this.add.text(CENTER_X, 88, '', {
+        this.playerStatusText = this.add.text(CENTER_X, 96, '', {
             fontFamily: 'Courier New',
-            fontSize: '10px',
+            fontSize: '12px',
             color: '#8be0a7',
         }).setOrigin(0.5, 0);
 
         // ── Bottom bar: resources, progress, prestige, relics, hints ──
-        const BAR_H = 78;
+        const BAR_H = 94;
         const BAR_TOP = GAME_HEIGHT - BAR_H;
         const bottomBar = this.add.rectangle(0, BAR_TOP, GAME_WIDTH, BAR_H, 0x1a1a1a).setOrigin(0);
         bottomBar.setStrokeStyle(1, 0x555555);
 
-        this.resourceText = this.add.text(14, BAR_TOP + 8, '', {
+        this.resourceText = this.add.text(PAD, BAR_TOP + 8, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '16px',
             color: '#b8d8ff',
         });
 
-        this.relicText = this.add.text(14, BAR_TOP + 28, '', {
-            fontFamily: 'Courier New',
-            fontSize: '10px',
-            color: '#c8b890',
-            wordWrap: { width: GAME_WIDTH - 100 },
-        });
-
-        this.mapDepthText = this.add.text(14, BAR_TOP + 48, '', {
+        this.relicText = this.add.text(PAD, BAR_TOP + 32, '', {
             fontFamily: 'Courier New',
             fontSize: '13px',
+            color: '#c8b890',
+            wordWrap: { width: GAME_WIDTH - 120 },
+        });
+
+        this.mapDepthText = this.add.text(PAD, BAR_TOP + 54, '', {
+            fontFamily: 'Courier New',
+            fontSize: '16px',
             color: '#bbbbbb',
         });
 
-        this.progressText = this.add.text(GAME_WIDTH - 70, BAR_TOP + 8, '', {
+        this.progressText = this.add.text(GAME_WIDTH - 90, BAR_TOP + 8, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '16px',
             color: '#d0d0d0',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.prestigeText = this.add.text(GAME_WIDTH - 70, BAR_TOP + 28, '', {
+        this.prestigeText = this.add.text(GAME_WIDTH - 90, BAR_TOP + 32, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '16px',
             color: '#ffd36e',
             align: 'right',
         }).setOrigin(1, 0);
 
-        this.hintText = this.add.text(GAME_WIDTH - 70, BAR_TOP + 48, '', {
+        this.hintText = this.add.text(GAME_WIDTH - 90, BAR_TOP + 54, '', {
             fontFamily: 'Courier New',
-            fontSize: '11px',
+            fontSize: '13px',
             color: '#c8c8c8',
             align: 'right',
-            wordWrap: { width: 340 },
+            wordWrap: { width: 380 },
         }).setOrigin(1, 0);
 
         this.enemyStatusText = this.add.text(780, 356, '', {
@@ -687,7 +689,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupRoomUI() {
-        const panel = this.add.rectangle(570, 82, 434, 608, 0x111111).setOrigin(0);
+        const panel = this.add.rectangle(570, 94, 434, 580, 0x111111).setOrigin(0);
         panel.setStrokeStyle(2, 0x353535);
 
         this.roomHeaderText = this.add.text(590, 98, '', {
