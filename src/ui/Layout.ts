@@ -7,6 +7,12 @@ export const GAME_HEIGHT = 768;
 export const CENTER_X = GAME_WIDTH / 2;
 export const CENTER_Y = GAME_HEIGHT / 2;
 
+/** HUD panel heights and shared padding. The middle play area sits between
+ *  `TOP_BAR_H` and `GAME_HEIGHT - BOTTOM_BAR_H`. */
+export const TOP_BAR_H = 82;
+export const BOTTOM_BAR_H = 94;
+export const HUD_PAD = 28;
+
 /**
  * Named depth tiers for UI overlays. Keep gaps between groups so individual
  * widgets can sit at +1/+2 without colliding with the next group.

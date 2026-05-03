@@ -1,7 +1,7 @@
 :root {
   font-family: 'Lucida Console', Consolas, monospace;
-  background-color: #0d0d0d;
-  color: #e0e0e0;
+  background-color: #07060a;
+  color: #e8dfc9;
 }
 
 body {
@@ -14,8 +14,8 @@ body {
 }
 
 #game-container {
-  box-shadow: 0 0 20px rgba(0, 0, 0, 0.8);
-  border: 2px solid #333;
+  box-shadow: 0 0 24px rgba(0, 0, 0, 0.85);
+  border: 2px solid #1d1923;
   box-sizing: border-box;
   max-height: 100vh;
 }
