@@ -31,7 +31,27 @@ import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
 import { fitEnemySprite, fitRoomSprite, roomColor, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
-import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
+import {
+    BOTTOM_BAR_H,
+    CENTER_X,
+    CENTER_Y,
+    Depths,
+    GAME_HEIGHT,
+    GAME_WIDTH,
+    HUD_PAD,
+    TOP_BAR_H,
+} from '../ui/Layout';
+import {
+    HUD_FONT,
+    HUD_STROKE,
+    HudColors,
+    HudHex,
+    createIconStat,
+    drawBarSegments,
+    drawHudDivider,
+    drawHudPanel,
+    type IconStat,
+} from '../ui/HudTheme';
 import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
 import {
     showDeathScreen,
@@ -105,15 +125,34 @@ export class GameScene extends Phaser.Scene {
     public skipLightSpendThisRoom = false;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
+    // HUD bar widths cached so refreshUI can rescale fills without re-measuring.
+    private readonly hpBarWidth = 220;
+    private readonly hpBarHeight = 14;
+    private readonly stressBarWidth = 200;
+    private readonly stressBarHeight = 8;
+    private readonly xpBarWidth = 184;
+    private readonly xpBarHeight = 8;
+
     private hpBar!: Phaser.GameObjects.Rectangle;
     private hpValueText!: Phaser.GameObjects.Text;
     private xpBar!: Phaser.GameObjects.Rectangle;
     private xpBarBg!: Phaser.GameObjects.Rectangle;
     private levelText!: Phaser.GameObjects.Text;
-    private statsText!: Phaser.GameObjects.Text;
-    private resourceText!: Phaser.GameObjects.Text;
-    private progressText!: Phaser.GameObjects.Text;
-    private prestigeText!: Phaser.GameObjects.Text;
+    private xpValueText!: Phaser.GameObjects.Text;
+    private levelStarIcon!: Phaser.GameObjects.Text;
+    private atkStat!: IconStat;
+    private defStat!: IconStat;
+    private revivesStat!: IconStat;
+    private lightTorchIcon!: Phaser.GameObjects.Text;
+    private goldStat!: IconStat;
+    private potionStat!: IconStat;
+    private resolveStat!: IconStat;
+    private lightResStat!: IconStat;
+    private shardStat!: IconStat;
+    private depthStat!: IconStat;
+    private killsStat!: IconStat;
+    private bossStat!: IconStat;
+    private prestigeStat!: IconStat;
     private hintText!: Phaser.GameObjects.Text;
     private mapDepthText!: Phaser.GameObjects.Text;
     public tooltipText!: Phaser.GameObjects.Text;
@@ -318,140 +357,275 @@ export class GameScene extends Phaser.Scene {
     }
 
     private setupGlobalUI() {
-        const PAD = 28;
+        const PAD = HUD_PAD;
+        const TOP_H = TOP_BAR_H;
+        const BOT_H = BOTTOM_BAR_H;
+        const BOT_Y = GAME_HEIGHT - BOT_H;
 
-        // ── Top bar: HP, stress, level/XP, stats ────────────────
-        const topBar = this.add.rectangle(0, 0, GAME_WIDTH, 82, 0x101010).setOrigin(0);
-        topBar.setStrokeStyle(1, 0x353535);
+        // ── TOP BAR ─────────────────────────────────────────────
+        // Three groups separated by thin dividers: vitals (HP + stress),
+        // progression (level + XP), and combat stats (atk/def/lives/light).
+        const topPanel = drawHudPanel(this, 0, 0, GAME_WIDTH, TOP_H);
+        const topDiv1 = drawHudDivider(this, 372, 8, TOP_H - 16);
+        const topDiv2 = drawHudDivider(this, 600, 8, TOP_H - 16);
 
-        const hpLabel = this.add.text(PAD, 8, this.loc.t('uiVital'), {
-            fontFamily: 'Courier New',
+        // Group A — Vitals: HP bar + stress bar.
+        const hpIcon = this.add.text(PAD, 14, '\u2665\uFE0E', {
+            fontFamily: HUD_FONT,
             fontSize: '16px',
-            color: '#888888',
+            color: HudHex.accentBlood,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+        const hpBarX = PAD + 22;
+        const hpBarY = 24;
+        const hpBarBg = this.add
+            .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodTrack)
+            .setOrigin(0, 0.5);
+        hpBarBg.setStrokeStyle(1, HudColors.panelOuter);
+        this.hpBar = this.add
+            .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodFill)
+            .setOrigin(0, 0.5);
+        const hpSegments = drawBarSegments(this, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, 5);
+        this.hpValueText = this.add.text(hpBarX + this.hpBarWidth + 8, hpBarY - 8, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '13px',
+            color: HudHex.textPrimary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
         });
 
-        const hpBarBg = this.add.rectangle(PAD, 40, 200, 14, 0x3c1111).setOrigin(0, 0.5);
-        this.hpBar = this.add.rectangle(PAD, 40, 200, 14, 0xd93c3c).setOrigin(0, 0.5);
-        this.hpValueText = this.add.text(PAD + 210, 30, '', {
-            fontFamily: 'Courier New',
+        const stressIcon = this.add.text(PAD, 46, '\u2727\uFE0E', {
+            fontFamily: HUD_FONT,
+            fontSize: '14px',
+            color: HudHex.accentStress,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+        const stressBarX = PAD + 22;
+        const stressBarY = 56;
+        this.stressBarBg = this.add
+            .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressTrack)
+            .setOrigin(0, 0.5);
+        this.stressBarBg.setStrokeStyle(1, HudColors.panelOuter);
+        this.stressBar = this.add
+            .rectangle(stressBarX, stressBarY, 0, this.stressBarHeight, HudColors.stressFill)
+            .setOrigin(0, 0.5);
+        this.stressText = this.add.text(stressBarX + this.stressBarWidth + 8, stressBarY - 7, '0', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.accentStress,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+        this.resolutionText = this.add.text(stressBarX + this.stressBarWidth + 36, stressBarY - 7, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.accentVirtue,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+
+        // Group B — Progression: level number + XP bar with caption.
+        const lvlX = 388;
+        this.levelStarIcon = this.add.text(lvlX, 16, '\u2605\uFE0E', {
+            fontFamily: HUD_FONT,
             fontSize: '16px',
-            color: '#ff8d8d',
+            color: HudHex.accentExp,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
         });
-
-        this.xpBarBg = this.add.rectangle(390, 40, 160, 8, 0x1d2430).setOrigin(0, 0.5);
-        this.xpBar = this.add.rectangle(390, 40, 160, 8, 0x5b9cff).setOrigin(0, 0.5);
-        this.levelText = this.add.text(390, 8, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: '#f5e28d',
+        this.levelText = this.add.text(lvlX + 22, 10, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '22px',
+            color: HudHex.accentExp,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
         });
-
-        this.statsText = this.add.text(590, 10, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: '#cccccc',
-        });
-
-        // Stress bar (second row, below HP).
-        const stressLabel = this.add.text(PAD, 58, this.loc.t('stressBarLabel'), {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#8a7a99',
-        });
-        this.stressBarBg = this.add.rectangle(100, 65, 140, 6, 0x1a0c26).setOrigin(0, 0.5);
-        this.stressBar = this.add.rectangle(100, 65, 0, 6, 0x7b4db8).setOrigin(0, 0.5);
-        this.stressText = this.add.text(250, 58, '0', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#a887c4',
-        });
-        this.resolutionText = this.add.text(286, 58, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#c49fff',
-        });
-
-        this.playerStatusText = this.add.text(CENTER_X, 96, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#8be0a7',
+        const xpBarX = lvlX;
+        const xpBarY = 50;
+        this.xpBarBg = this.add
+            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, HudColors.expTrack)
+            .setOrigin(0, 0.5);
+        this.xpBarBg.setStrokeStyle(1, HudColors.panelOuter);
+        this.xpBar = this.add
+            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, HudColors.expFill)
+            .setOrigin(0, 0.5);
+        this.xpValueText = this.add.text(xpBarX + this.xpBarWidth / 2, xpBarY + 8, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '11px',
+            color: HudHex.textSecondary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
         }).setOrigin(0.5, 0);
 
-        // ── Bottom bar: resources, progress, prestige, relics, hints ──
-        const BAR_H = 94;
-        const BAR_TOP = GAME_HEIGHT - BAR_H;
-        const bottomBar = this.add.rectangle(0, BAR_TOP, GAME_WIDTH, BAR_H, 0x1a1a1a).setOrigin(0);
-        bottomBar.setStrokeStyle(1, 0x555555);
-
-        this.resourceText = this.add.text(PAD, BAR_TOP + 8, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: '#b8d8ff',
+        // Group C — Combat stats: atk · def in row 1, lives · light in row 2.
+        const c1X = 620;
+        const c2X = 800;
+        const r1Y = 14;
+        const r2Y = 46;
+        this.atkStat = createIconStat(this, c1X, r1Y, '\u2694\uFE0E', HudHex.accentBlood, {
+            iconWidth: 22,
+            valueFontSize: '15px',
+        });
+        this.defStat = createIconStat(this, c2X, r1Y, '\u26E8\uFE0E', HudHex.accentResolve, {
+            iconWidth: 22,
+            valueFontSize: '15px',
+        });
+        this.revivesStat = createIconStat(this, c1X, r2Y, '\u2671\uFE0E', HudHex.accentRevive, {
+            iconWidth: 22,
+            valueFontSize: '15px',
+        });
+        this.lightTorchIcon = this.add.text(c2X, r2Y, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '15px',
+            color: HudHex.accentLight,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
         });
 
-        this.relicText = this.add.text(PAD, BAR_TOP + 32, '', {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#c8b890',
-            wordWrap: { width: GAME_WIDTH - 120 },
+        this.playerStatusText = this.add.text(CENTER_X, TOP_H + 14, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.accentVirtue,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        }).setOrigin(0.5, 0);
+
+        // ── BOTTOM BAR ──────────────────────────────────────────
+        // Three groups: resources, progress/prestige, hint scroll.
+        const botPanel = drawHudPanel(this, 0, BOT_Y, GAME_WIDTH, BOT_H);
+        const botDiv1 = drawHudDivider(this, 420, BOT_Y + 8, BOT_H - 16);
+        const botDiv2 = drawHudDivider(this, 660, BOT_Y + 8, BOT_H - 16);
+
+        // Group A — Resources row (gold · potion · resolve · light · shard).
+        const resY = BOT_Y + 12;
+        this.goldStat = createIconStat(this, PAD, resY, '\u00A4', HudHex.accentGold, {
+            iconWidth: 16,
+            valueFontSize: '14px',
+        });
+        this.potionStat = createIconStat(this, PAD + 80, resY, '\u271A', HudHex.accentPotion, {
+            iconWidth: 16,
+            valueFontSize: '14px',
+        });
+        this.resolveStat = createIconStat(this, PAD + 160, resY, '\u2666\uFE0E', HudHex.accentResolve, {
+            iconWidth: 16,
+            valueFontSize: '14px',
+        });
+        this.lightResStat = createIconStat(this, PAD + 250, resY, '\u263C\uFE0E', HudHex.accentLight, {
+            iconWidth: 16,
+            valueFontSize: '14px',
+        });
+        this.shardStat = createIconStat(this, PAD + 340, resY, '\u25C6\uFE0E', HudHex.accentShard, {
+            iconWidth: 16,
+            valueFontSize: '14px',
         });
 
-        this.mapDepthText = this.add.text(PAD, BAR_TOP + 54, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: '#bbbbbb',
-        });
-
-        this.progressText = this.add.text(GAME_WIDTH - 90, BAR_TOP + 8, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: '#d0d0d0',
-            align: 'right',
-        }).setOrigin(1, 0);
-
-        this.prestigeText = this.add.text(GAME_WIDTH - 90, BAR_TOP + 32, '', {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: '#ffd36e',
-            align: 'right',
-        }).setOrigin(1, 0);
-
-        this.hintText = this.add.text(GAME_WIDTH - 90, BAR_TOP + 54, '', {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#c8c8c8',
-            align: 'right',
+        this.relicText = this.add.text(PAD, BOT_Y + 38, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.accentGold,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
             wordWrap: { width: 380 },
+        });
+        this.mapDepthText = this.add.text(PAD, BOT_Y + 70, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.textMuted,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+
+        // Group B — Progress (depth/kills/bosses) + prestige forecast.
+        const pgX = 432;
+        const pgY = BOT_Y + 12;
+        this.depthStat = createIconStat(this, pgX, pgY, '\u25BC\uFE0E', HudHex.accentDepth, {
+            iconWidth: 18,
+            valueFontSize: '14px',
+        });
+        this.killsStat = createIconStat(this, pgX, pgY + 22, '\u2020\uFE0E', HudHex.accentKills, {
+            iconWidth: 18,
+            valueFontSize: '14px',
+        });
+        this.bossStat = createIconStat(this, pgX, pgY + 44, '\u03A9', HudHex.accentBoss, {
+            iconWidth: 18,
+            valueFontSize: '14px',
+        });
+        this.prestigeStat = createIconStat(this, pgX + 110, pgY, '\u2726\uFE0E', HudHex.accentExp, {
+            iconWidth: 18,
+            valueFontSize: '15px',
+        });
+
+        // Group C — Hint scroll, right-aligned next to chrome buttons.
+        this.hintText = this.add.text(GAME_WIDTH - HUD_PAD - 80, BOT_Y + 16, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.textSecondary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+            align: 'right',
+            wordWrap: { width: 280 },
         }).setOrigin(1, 0);
 
         this.enemyStatusText = this.add.text(780, 356, '', {
-            fontFamily: 'Courier New',
-            fontSize: '10px',
-            color: '#e09f9f',
+            fontFamily: HUD_FONT,
+            fontSize: '11px',
+            color: HudHex.accentBloodLow,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
         }).setOrigin(0.5, 0);
 
         this.uiContainer.add([
-            topBar,
-            hpLabel,
+            topPanel,
+            topDiv1,
+            topDiv2,
+            hpIcon,
             hpBarBg,
             this.hpBar,
+            hpSegments,
             this.hpValueText,
-            this.xpBarBg,
-            this.xpBar,
-            this.levelText,
-            this.statsText,
-            stressLabel,
+            stressIcon,
             this.stressBarBg,
             this.stressBar,
             this.stressText,
             this.resolutionText,
+            this.levelStarIcon,
+            this.levelText,
+            this.xpBarBg,
+            this.xpBar,
+            this.xpValueText,
+            this.atkStat.icon,
+            this.atkStat.value,
+            this.defStat.icon,
+            this.defStat.value,
+            this.revivesStat.icon,
+            this.revivesStat.value,
+            this.lightTorchIcon,
             this.playerStatusText,
-            bottomBar,
-            this.resourceText,
+            botPanel,
+            botDiv1,
+            botDiv2,
+            this.goldStat.icon,
+            this.goldStat.value,
+            this.potionStat.icon,
+            this.potionStat.value,
+            this.resolveStat.icon,
+            this.resolveStat.value,
+            this.lightResStat.icon,
+            this.lightResStat.value,
+            this.shardStat.icon,
+            this.shardStat.value,
             this.relicText,
             this.mapDepthText,
-            this.progressText,
-            this.prestigeText,
+            this.depthStat.icon,
+            this.depthStat.value,
+            this.killsStat.icon,
+            this.killsStat.value,
+            this.bossStat.icon,
+            this.bossStat.value,
+            this.prestigeStat.icon,
+            this.prestigeStat.value,
             this.hintText,
         ]);
 
@@ -497,60 +671,68 @@ export class GameScene extends Phaser.Scene {
         const stats = this.player.stats;
         const resources = this.player.resources;
 
+        // Vitals: HP bar fill colour shifts as HP drops; numeric overlay tracks
+        // exact values for the player.
         const hpRatio = Phaser.Math.Clamp(stats.hp / stats.maxHp, 0, 1);
-        this.hpBar.setDisplaySize(200 * hpRatio, 14);
-        this.hpBar.setFillStyle(hpRatio > 0.5 ? 0xd93c3c : hpRatio > 0.25 ? 0xdb7a1c : 0xff4747);
-        this.hpValueText.setText(`${this.loc.t('hp')} ${stats.hp}/${stats.maxHp}`);
-
-        const xpRatio = Phaser.Math.Clamp(stats.xp / this.player.xpToNextLevel, 0, 1);
-        this.xpBar.setDisplaySize(160 * xpRatio, 8);
-        this.levelText.setText(
-            `${this.loc.t('level')} ${stats.level}  ${this.loc.t('xp')} ${stats.xp}/${this.player.xpToNextLevel}`
+        this.hpBar.setDisplaySize(this.hpBarWidth * hpRatio, this.hpBarHeight);
+        this.hpBar.setFillStyle(
+            hpRatio > 0.5
+                ? HudColors.bloodFill
+                : hpRatio > 0.25
+                  ? HudColors.bloodFillMid
+                  : HudColors.bloodFillLow
         );
+        this.hpValueText.setText(`${stats.hp} / ${stats.maxHp}`);
 
-        const statParts = [
-            `${this.loc.t('attackShort')} ${this.player.getAttackPower()}`,
-            `${this.loc.t('defenseShort')} ${stats.defense}`,
-        ];
-        if (this.player.remainingRevives > 0) {
-            statParts.push(`${this.loc.t('reviveShort')} ${this.player.remainingRevives}`);
-        }
-        if (this.player.hasHighLight) {
-            statParts.push('\u2600');
-        } else if (this.player.hasLowLight) {
-            statParts.push('\u263D');
-        }
-        this.statsText.setText(statParts.join(' '));
+        // Progression: XP bar + featured level number + caption.
+        const xpRatio = Phaser.Math.Clamp(stats.xp / this.player.xpToNextLevel, 0, 1);
+        this.xpBar.setDisplaySize(this.xpBarWidth * xpRatio, this.xpBarHeight);
+        this.levelText.setText(`${this.loc.t('level')} ${stats.level}`);
+        this.xpValueText.setText(`${stats.xp} / ${this.player.xpToNextLevel}`);
 
-        const resourceParts: string[] = [];
-        if (unlocks.showGold) {
-            resourceParts.push(`${this.loc.t('goldShort')} ${resources.gold}`);
+        // Combat stats: each stat has its own icon/value pair so colours can
+        // differentiate at a glance.
+        const showStats = unlocks.showPlayerStats;
+        this.atkStat.setValue(`${this.player.getAttackPower()}`);
+        this.atkStat.setVisible(showStats);
+        this.defStat.setValue(`${stats.defense}`);
+        this.defStat.setVisible(showStats);
+        const showRevives = showStats && this.player.remainingRevives > 0;
+        this.revivesStat.setValue(`${this.player.remainingRevives}`);
+        this.revivesStat.setVisible(showRevives);
+        if (showStats && this.player.hasHighLight) {
+            this.lightTorchIcon.setText('\u2600\uFE0E').setColor(HudHex.accentLight).setVisible(true);
+        } else if (showStats && this.player.hasLowLight) {
+            this.lightTorchIcon.setText('\u263D\uFE0E').setColor(HudHex.accentMoon).setVisible(true);
+        } else {
+            this.lightTorchIcon.setVisible(false);
         }
-        if (unlocks.showPotions) {
-            resourceParts.push(`${this.loc.t('potionShort')} ${resources.potions}`);
-        }
-        if (unlocks.showResolve) {
-            resourceParts.push(`${this.loc.t('resolveShort')} ${resources.resolve}/${resources.maxResolve}`);
-        }
-        if (unlocks.showLight) {
-            resourceParts.push(`${this.loc.t('lightShort')} ${resources.light}/${EXPEDITION_CONFIG.maxLight}`);
-        }
-        if (unlocks.showRelicShards) {
-            resourceParts.push(`${this.loc.t('shardShort')} ${resources.relicShards}`);
-        }
-        this.resourceText.setText(resourceParts.join('  '));
 
-        const progressParts = [`${this.loc.t('depthShort')} ${this.runBestDepth}`];
-        if (unlocks.showKillCounter) {
-            progressParts.push(`${this.loc.t('killShort')} ${this.player.killCount}`);
-        }
-        if (unlocks.showRunMetrics) {
-            progressParts.push(`${this.loc.t('bossShort')} ${this.runBossKills}`);
-        }
-        this.progressText.setText(progressParts.join('  '));
+        // Resources: per-stat slots, each with their own accent colour.
+        this.goldStat.setValue(`${resources.gold}`);
+        this.goldStat.setVisible(unlocks.showGold);
+        this.potionStat.setValue(`${resources.potions}`);
+        this.potionStat.setVisible(unlocks.showPotions);
+        this.resolveStat.setValue(`${resources.resolve}/${resources.maxResolve}`);
+        this.resolveStat.setVisible(unlocks.showResolve);
+        this.lightResStat.setValue(`${resources.light}/${EXPEDITION_CONFIG.maxLight}`);
+        this.lightResStat.setVisible(unlocks.showLight);
+        this.shardStat.setValue(`${resources.relicShards}`);
+        this.shardStat.setVisible(unlocks.showRelicShards);
+
+        // Progress + prestige forecast.
+        const showProgress = unlocks.showRunMetrics || unlocks.showKillCounter;
+        this.depthStat.setValue(`${this.runBestDepth}`);
+        this.depthStat.setVisible(showProgress);
+        this.killsStat.setValue(`${this.player.killCount}`);
+        this.killsStat.setVisible(showProgress && unlocks.showKillCounter);
+        this.bossStat.setValue(`${this.runBossKills}`);
+        this.bossStat.setVisible(showProgress && unlocks.showRunMetrics);
 
         const prestigeForecast = this.runBestDepth + this.runBossKills * 2;
-        this.prestigeText.setText(unlocks.showPrestigeForecast ? `${this.loc.t('prestige')} +${prestigeForecast}` : '');
+        this.prestigeStat.setValue(`+${prestigeForecast}`);
+        this.prestigeStat.setVisible(unlocks.showPrestigeForecast);
+
         this.mapDepthText.setText(`${this.loc.t('mapDepth')} ${this.dungeon.currentDepth}`);
 
         const nextUnlock = this.meta.getNextContentUnlock();
@@ -568,10 +750,8 @@ export class GameScene extends Phaser.Scene {
         this.xpBarBg.setVisible(unlocks.showLevelPanel);
         this.xpBar.setVisible(unlocks.showLevelPanel);
         this.levelText.setVisible(unlocks.showLevelPanel);
-        this.statsText.setVisible(unlocks.showPlayerStats);
-        this.resourceText.setVisible(resourceParts.length > 0);
-        this.progressText.setVisible(unlocks.showRunMetrics || unlocks.showKillCounter);
-        this.prestigeText.setVisible(unlocks.showPrestigeForecast);
+        this.levelStarIcon.setVisible(unlocks.showLevelPanel);
+        this.xpValueText.setVisible(unlocks.showLevelPanel);
         const hintVisible = !!nextUnlock && this.mapContainer.visible;
         this.hintText.setVisible(hintVisible);
 
@@ -583,18 +763,24 @@ export class GameScene extends Phaser.Scene {
     public updateStressUI() {
         const v = this.stress.value;
         const ratio = Phaser.Math.Clamp(v / 100, 0, 1);
-        this.stressBar.setDisplaySize(140 * ratio, 6);
-        this.stressBar.setFillStyle(v >= 75 ? 0xcb5ae8 : v >= 50 ? 0xa27bc4 : 0x7b4db8);
+        this.stressBar.setDisplaySize(this.stressBarWidth * ratio, this.stressBarHeight);
+        this.stressBar.setFillStyle(
+            v >= 75
+                ? HudColors.stressFillHigh
+                : v >= 50
+                  ? HudColors.stressFillMid
+                  : HudColors.stressFill
+        );
         this.stressText.setText(`${v}`);
         if (this.stress.resolution) {
             const info = this.resolutionInfo(this.stress.resolution);
             this.resolutionText.setText(
                 this.stress.resolution.kind === 'virtue'
-                    ? `\u2605 ${info.name}`
-                    : `\u2620 ${info.name}`
+                    ? `\u2605\uFE0E ${info.name}`
+                    : `\u2620\uFE0E ${info.name}`
             );
             this.resolutionText.setColor(
-                this.stress.resolution.kind === 'virtue' ? '#a0e08a' : '#e87878'
+                this.stress.resolution.kind === 'virtue' ? HudHex.accentVirtue : HudHex.accentAffliction
             );
         } else {
             this.resolutionText.setText('');

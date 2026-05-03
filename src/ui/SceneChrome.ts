@@ -3,24 +3,27 @@ import type { Localization } from '../systems/Localization';
 import type { SoundManager } from '../systems/SoundManager';
 import { compactText } from './TextHelpers';
 import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from './Layout';
+import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 
 // Small persistent scene-level UI helpers: the unlock banner that slides in
-// when the player crosses a content milestone, and the bottom-left
+// when the player crosses a content milestone, and the bottom-right
 // sound/language toggles. Extracted from GameScene so the scene file doesn't
 // own trivial widget wiring.
 
 /** Slides a highlight banner in and out to announce a new unlock. */
 export function showUnlockBanner(scene: Phaser.Scene, label: string) {
     const bannerBg = scene.add
-        .rectangle(CENTER_X, GAME_HEIGHT - 100, GAME_WIDTH - 80, 36, 0x0a1a33, 0.92)
-        .setStrokeStyle(1, 0x4488cc)
+        .rectangle(CENTER_X, GAME_HEIGHT - 100, GAME_WIDTH - 80, 36, HudColors.panelBg, 0.94)
+        .setStrokeStyle(1, HudColors.panelHi)
         .setDepth(200)
         .setAlpha(0);
     const bannerText = scene.add
-        .text(CENTER_X, GAME_HEIGHT - 100, `\u2726  ${compactText(label, 60)}`, {
-            fontFamily: 'Courier New',
+        .text(CENTER_X, GAME_HEIGHT - 100, `\u2726\uFE0E  ${compactText(label, 60)}`, {
+            fontFamily: HUD_FONT,
             fontSize: '14px',
-            color: '#88ccff',
+            color: HudHex.accentExp,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
         })
         .setOrigin(0.5)
         .setDepth(201)
@@ -40,10 +43,76 @@ export function showUnlockBanner(scene: Phaser.Scene, label: string) {
     });
 }
 
+interface IconButtonOptions {
+    activeColor: string;
+    mutedColor: string;
+}
+
 /**
- * Adds the bottom-left sound-mute button and the language (RU/EN) toggle.
- * Returns the mute button so the scene can keep a handle (e.g. for later
- * updates on mute state from other UI paths).
+ * Builds a small framed icon-button that lives at the bottom-right of the
+ * bottom HUD bar. Returns a handle so the caller can update label/state.
+ */
+function createIconButton(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    initialLabel: string,
+    fontSize: string,
+    options: IconButtonOptions,
+    initiallyMuted: boolean
+): {
+    label: Phaser.GameObjects.Text;
+    setMuted(muted: boolean, nextLabel?: string): void;
+    onClick(handler: () => void): void;
+} {
+    const w = 26;
+    const h = 22;
+    const frame = scene.add
+        .rectangle(x, y, w, h, HudColors.panelBg, 1)
+        .setStrokeStyle(1, HudColors.panelHi)
+        .setOrigin(0.5)
+        .setDepth(214)
+        .setInteractive({ useHandCursor: true });
+
+    let muted = initiallyMuted;
+    const label = scene.add
+        .text(x, y - 1, initialLabel, {
+            fontFamily: HUD_FONT,
+            fontSize,
+            color: muted ? options.mutedColor : options.activeColor,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        })
+        .setOrigin(0.5)
+        .setDepth(215);
+
+    frame.on('pointerover', () => {
+        frame.setStrokeStyle(1, HudColors.accentExp);
+        label.setColor(HudHex.textPrimary);
+    });
+    frame.on('pointerout', () => {
+        frame.setStrokeStyle(1, HudColors.panelHi);
+        label.setColor(muted ? options.mutedColor : options.activeColor);
+    });
+
+    return {
+        label,
+        setMuted(next: boolean, nextLabel?: string) {
+            muted = next;
+            if (nextLabel !== undefined) {
+                label.setText(nextLabel);
+            }
+            label.setColor(muted ? options.mutedColor : options.activeColor);
+        },
+        onClick(handler: () => void) {
+            frame.on('pointerdown', handler);
+        },
+    };
+}
+
+/**
+ * Adds the bottom-right sound-mute and language toggle buttons styled as
+ * carved-stone icon plates that match the HUD panels.
  */
 export function setupSceneChrome(
     scene: Phaser.Scene,
@@ -52,39 +121,35 @@ export function setupSceneChrome(
     onLanguageToggle: () => void
 ): Phaser.GameObjects.Text {
     const muteIcon = sfx.muted ? '\u266A' : '\u266B';
-    const muteButton = scene.add
-        .text(GAME_WIDTH - 66, GAME_HEIGHT - 24, muteIcon, {
-            fontFamily: 'Courier New',
-            fontSize: '16px',
-            color: sfx.muted ? '#555555' : '#aaaaaa',
-        })
-        .setDepth(215)
-        .setInteractive({ useHandCursor: true });
+    const muteButton = createIconButton(
+        scene,
+        GAME_WIDTH - 64,
+        GAME_HEIGHT - 18,
+        muteIcon,
+        '15px',
+        { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },
+        sfx.muted
+    );
 
-    muteButton.on('pointerdown', () => {
+    muteButton.onClick(() => {
         const muted = sfx.toggleMute();
-        muteButton.setText(muted ? '\u266A' : '\u266B');
-        muteButton.setColor(muted ? '#555555' : '#aaaaaa');
+        muteButton.setMuted(muted, muted ? '\u266A' : '\u266B');
     });
-    muteButton.on('pointerover', () => muteButton.setColor('#ffffff'));
-    muteButton.on('pointerout', () => muteButton.setColor(sfx.muted ? '#555555' : '#aaaaaa'));
 
-    const langBtn = scene.add
-        .text(GAME_WIDTH - 34, GAME_HEIGHT - 24, loc.language === 'ru' ? 'RU' : 'EN', {
-            fontFamily: 'Courier New',
-            fontSize: '14px',
-            color: '#aaaaaa',
-        })
-        .setDepth(215)
-        .setInteractive({ useHandCursor: true });
-
-    langBtn.on('pointerdown', () => {
+    const langButton = createIconButton(
+        scene,
+        GAME_WIDTH - 32,
+        GAME_HEIGHT - 18,
+        loc.language === 'ru' ? 'RU' : 'EN',
+        '12px',
+        { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },
+        false
+    );
+    langButton.onClick(() => {
         const next = loc.toggle();
-        langBtn.setText(next === 'ru' ? 'RU' : 'EN');
+        langButton.setMuted(false, next === 'ru' ? 'RU' : 'EN');
         onLanguageToggle();
     });
-    langBtn.on('pointerover', () => langBtn.setColor('#ffffff'));
-    langBtn.on('pointerout', () => langBtn.setColor('#aaaaaa'));
 
-    return muteButton;
+    return muteButton.label;
 }
