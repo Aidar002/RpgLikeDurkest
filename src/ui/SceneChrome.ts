@@ -12,12 +12,12 @@ import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 /** Slides a highlight banner in and out to announce a new unlock. */
 export function showUnlockBanner(scene: Phaser.Scene, label: string) {
     const bannerBg = scene.add
-        .rectangle(CENTER_X, GAME_HEIGHT - 80, GAME_WIDTH - 80, 36, 0x0a1a33, 0.92)
+        .rectangle(CENTER_X, GAME_HEIGHT - 100, GAME_WIDTH - 80, 36, 0x0a1a33, 0.92)
         .setStrokeStyle(1, 0x4488cc)
         .setDepth(200)
         .setAlpha(0);
     const bannerText = scene.add
-        .text(CENTER_X, GAME_HEIGHT - 80, `\u2726  ${compactText(label, 60)}`, {
+        .text(CENTER_X, GAME_HEIGHT - 100, `\u2726  ${compactText(label, 60)}`, {
             fontFamily: 'Courier New',
             fontSize: '14px',
             color: '#88ccff',
@@ -53,7 +53,7 @@ export function setupSceneChrome(
 ): Phaser.GameObjects.Text {
     const muteIcon = sfx.muted ? '\u266A' : '\u266B';
     const muteButton = scene.add
-        .text(GAME_WIDTH - 60, GAME_HEIGHT - 80, muteIcon, {
+        .text(GAME_WIDTH - 60, GAME_HEIGHT - 66, muteIcon, {
             fontFamily: 'Courier New',
             fontSize: '16px',
             color: sfx.muted ? '#555555' : '#aaaaaa',
@@ -70,7 +70,7 @@ export function setupSceneChrome(
     muteButton.on('pointerout', () => muteButton.setColor(sfx.muted ? '#555555' : '#aaaaaa'));
 
     const langBtn = scene.add
-        .text(GAME_WIDTH - 34, GAME_HEIGHT - 80, loc.language === 'ru' ? 'RU' : 'EN', {
+        .text(GAME_WIDTH - 34, GAME_HEIGHT - 66, loc.language === 'ru' ? 'RU' : 'EN', {
             fontFamily: 'Courier New',
             fontSize: '12px',
             color: '#aaaaaa',
