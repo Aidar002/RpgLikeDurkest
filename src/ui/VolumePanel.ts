@@ -2,13 +2,14 @@ import * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
 import type { SoundManager } from '../systems/SoundManager';
 import type { MusicManager } from '../systems/MusicManager';
-import { GAME_HEIGHT, GAME_WIDTH } from './Layout';
+import { GAME_HEIGHT, GAME_WIDTH, TOP_BAR_H } from './Layout';
 import { drawHudPanel, HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 
-// Floating "Sound Options" panel: anchored to the bottom-right HUD chrome,
-// shown/hidden by the gear icon next to the existing mute/language toggles.
-// Two sliders (music + SFX) read/write the corresponding manager state and
-// persist via the manager's own setters. Click outside closes the panel.
+// Floating "Sound Options" panel: anchored just below the top-right HUD
+// chrome, shown/hidden by the gear icon next to the existing
+// mute/language toggles. Two sliders (music + SFX) read/write the
+// corresponding manager state and persist via the manager's own
+// setters. Click outside closes the panel.
 
 const PANEL_W = 240;
 const PANEL_H = 132;
@@ -37,7 +38,7 @@ export function createVolumePanel(
     loc: Localization
 ): VolumePanelHandle {
     const x = GAME_WIDTH - PANEL_W - 12;
-    const y = GAME_HEIGHT - PANEL_H - 56;
+    const y = TOP_BAR_H + 8;
 
     const root = scene.add.container(0, 0).setDepth(PANEL_DEPTH).setVisible(false);
 

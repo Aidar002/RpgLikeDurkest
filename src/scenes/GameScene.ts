@@ -463,31 +463,35 @@ export class GameScene extends Phaser.Scene {
             .rectangle(xpBarX, xpBarY, 0, this.xpBarHeight, 0x6a8fc2)
             .setOrigin(0, 0.5);
 
-        // Group C — Combat stats on the right (sword/shield + label + value).
-        // Positions chosen so the labels never collide with the carved skull
-        // decoration in the top-right corner of the PNG frame.
-        this.atkStat = createHudInlineSlot(this, 700, 36, {
+        // Group C — Combat stats on the right, stacked vertically:
+        // sword "АТАКА N" on top, shield "ЗАЩИТА N" below it. The block
+        // is left-anchored at x=720 so it stays clear of the top-right
+        // icon row (mute / options / language) and the optional
+        // secondary slots tucked in next to it.
+        const statsX = 720;
+        this.atkStat = createHudInlineSlot(this, statsX, 36, {
             icon: 'sword',
             label: this.loc.t('attackShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
         });
-        this.defStat = createHudInlineSlot(this, 860, 36, {
+        this.defStat = createHudInlineSlot(this, statsX, 64, {
             icon: 'shield',
             label: this.loc.t('defenseShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
         });
 
-        // Optional secondary stats — squeezed into the second row when relevant.
-        this.revivesStat = createHudInlineSlot(this, 700, 64, {
+        // Optional secondary stats — stacked just to the right of the
+        // primary atk/def block when they're actually relevant.
+        this.revivesStat = createHudInlineSlot(this, statsX + 130, 38, {
             icon: 'heart',
             label: this.loc.t('reviveShort').toUpperCase(),
             valueFontSize: '13px',
             labelFontSize: '11px',
             iconSize: 12,
         });
-        this.lightTorchIcon = this.add.text(860, 64, '', {
+        this.lightTorchIcon = this.add.text(statsX + 130, 66, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
             color: HudHex.accentLight,

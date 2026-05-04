@@ -110,9 +110,18 @@ export class VFX {
 
     /**
      * Looping fire embers anchored on a single map node (campfire, altar).
-     * Adds tiny rising sparks to the supplied container so the effect
-     * follows the map's parallax/scroll. Returns a handle whose `destroy`
-     * stops further spawns and removes any in-flight particles.
+     *
+     * Three layered effects, all parented to the supplied container so
+     * they follow the map's parallax/scroll:
+     *
+     *   1. A pulsing radial halo (warm orange) sits behind the sprite —
+     *      this is the "glow" that makes the room read as actually lit.
+     *   2. A thicker bed of rising embers (8 concurrent spawns) with a
+     *      mix of yellow-white core sparks and bigger orange embers.
+     *   3. Occasional bright flashes that fade out fast for a flicker
+     *      sensation.
+     *
+     * `destroy` stops further spawns and removes everything in flight.
      */
     static nodeFire(
         scene: Phaser.Scene,
@@ -121,40 +130,107 @@ export class VFX {
         y: number,
     ): { destroy: () => void } {
         let alive = true;
-        const particles = new Set<Phaser.GameObjects.Rectangle>();
-        const spawn = () => {
+        const particles = new Set<Phaser.GameObjects.GameObject>();
+
+        // ── Glow halo ───────────────────────────────────────────
+        // Two concentric translucent circles tweened in opposite
+        // phases so the light feels like it's breathing.
+        const haloOuter = scene.add.circle(x, y + 4, 28, 0xff8833, 0.18).setDepth(8);
+        const haloInner = scene.add.circle(x, y + 4, 16, 0xffd066, 0.32).setDepth(9);
+        parent.add(haloOuter);
+        parent.add(haloInner);
+        particles.add(haloOuter);
+        particles.add(haloInner);
+        const haloOuterTween = scene.tweens.add({
+            targets: haloOuter,
+            scale: { from: 0.85, to: 1.15 },
+            alpha: { from: 0.12, to: 0.26 },
+            duration: 1100,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.inOut',
+        });
+        const haloInnerTween = scene.tweens.add({
+            targets: haloInner,
+            scale: { from: 1.05, to: 0.85 },
+            alpha: { from: 0.4, to: 0.22 },
+            duration: 700,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.inOut',
+        });
+
+        // ── Rising embers ───────────────────────────────────────
+        const spawnEmber = () => {
             if (!alive) return;
-            const sz = 1.5 + Math.random() * 1.5;
-            const col = Math.random() > 0.55 ? 0xff8833 : 0xffd066;
-            const startX = x + (Math.random() - 0.5) * 10;
-            const startY = y + 8;
+            // Mix of three sizes so the column doesn't read as uniform.
+            const big = Math.random() > 0.7;
+            const sz = big ? 3 + Math.random() * 2 : 1.5 + Math.random() * 2;
+            // Three-way colour roll: hot core (white-yellow), mid orange,
+            // deep red ember.
+            const roll = Math.random();
+            const col = roll > 0.7 ? 0xfff2c8 : roll > 0.3 ? 0xff8833 : 0xd23a1a;
+            const startX = x + (Math.random() - 0.5) * 14;
+            const startY = y + 10;
             const dot = scene.add
-                .rectangle(startX, startY, sz, sz, col, 0.85)
+                .rectangle(startX, startY, sz, sz, col, 0.95)
                 .setDepth(12);
             parent.add(dot);
             particles.add(dot);
             scene.tweens.add({
                 targets: dot,
-                y: startY - 22 - Math.random() * 14,
-                x: startX + (Math.random() - 0.5) * 8,
+                y: startY - 32 - Math.random() * 18,
+                x: startX + (Math.random() - 0.5) * 14,
                 alpha: 0,
-                duration: 700 + Math.random() * 400,
+                scale: big ? 0.5 : 0.8,
+                duration: 600 + Math.random() * 500,
                 ease: 'Quad.out',
                 onComplete: () => {
                     particles.delete(dot);
                     dot.destroy();
                     if (alive) {
-                        scene.time.delayedCall(80 + Math.random() * 140, spawn);
+                        scene.time.delayedCall(40 + Math.random() * 80, spawnEmber);
                     }
                 },
             });
         };
-        for (let i = 0; i < 3; i++) {
-            scene.time.delayedCall(i * 110, spawn);
+        // 8 overlapping spawn chains keep the column dense.
+        for (let i = 0; i < 8; i++) {
+            scene.time.delayedCall(i * 60, spawnEmber);
         }
+
+        // ── Flicker flash ───────────────────────────────────────
+        // Periodic short brightening of the inner halo plus a tiny
+        // bright dot at the source. Reads as a popping coal.
+        const spawnFlicker = () => {
+            if (!alive) return;
+            const flash = scene.add
+                .circle(x, y + 6, 8, 0xfff0c0, 0.85)
+                .setDepth(11);
+            parent.add(flash);
+            particles.add(flash);
+            scene.tweens.add({
+                targets: flash,
+                scale: 1.6,
+                alpha: 0,
+                duration: 240,
+                ease: 'Quad.out',
+                onComplete: () => {
+                    particles.delete(flash);
+                    flash.destroy();
+                    if (alive) {
+                        scene.time.delayedCall(450 + Math.random() * 800, spawnFlicker);
+                    }
+                },
+            });
+        };
+        scene.time.delayedCall(300, spawnFlicker);
+
         return {
             destroy: () => {
                 alive = false;
+                haloOuterTween.stop();
+                haloInnerTween.stop();
                 particles.forEach((p) => p.destroy());
                 particles.clear();
             },

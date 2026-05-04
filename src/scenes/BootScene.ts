@@ -106,7 +106,6 @@ export class BootScene extends Phaser.Scene {
         const music = new MusicManager();
         const audioBase = `${import.meta.env.BASE_URL}audio`;
         music.setPlaylist([
-            { url: `${audioBase}/bg_1.mp3` },
             { url: `${audioBase}/bg_2.mp3` },
             { url: `${audioBase}/bg_3.mp3` },
         ]);

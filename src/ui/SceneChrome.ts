@@ -51,8 +51,11 @@ interface IconButtonOptions {
 }
 
 /**
- * Builds a small framed icon-button that lives at the bottom-right of the
- * bottom HUD bar. Returns a handle so the caller can update label/state.
+ * Builds a small framed icon-button. Originally lived at the
+ * bottom-right of the bottom HUD bar; now sits in the top-right
+ * corner of the top bar so the bottom panel is reserved purely
+ * for resource cells. Returns a handle so the caller can update
+ * label/state.
  */
 function createIconButton(
     scene: Phaser.Scene,
@@ -113,8 +116,9 @@ function createIconButton(
 }
 
 /**
- * Adds the bottom-right sound-mute, volume-options, and language toggle
- * buttons styled as carved-stone icon plates that match the HUD panels.
+ * Adds the top-right sound-mute, volume-options, and language toggle
+ * buttons. They sit just inside the top HUD bar so they don't compete
+ * with the carved bottom bar's resource cells.
  */
 export function setupSceneChrome(
     scene: Phaser.Scene,
@@ -127,14 +131,19 @@ export function setupSceneChrome(
         ? createVolumePanel(scene, sfx, music, loc)
         : null;
 
+    // Top-right icon row: roughly centred vertically inside the 96-px
+    // top bar, hugging the right edge with 8 px of breathing room.
+    const ICON_Y = 16;
+    const ICON_RIGHT = GAME_WIDTH - 24;
+
     // The mute icon controls SFX. When music is wired in, its mute state is
     // kept in sync so a single click silences the whole game.
     if (music) music.setMuted(sfx.muted);
     const muteIcon = sfx.muted ? '\u266A' : '\u266B';
     const muteButton = createIconButton(
         scene,
-        GAME_WIDTH - 96,
-        GAME_HEIGHT - 28,
+        ICON_RIGHT - 64,
+        ICON_Y,
         muteIcon,
         '15px',
         { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },
@@ -149,8 +158,8 @@ export function setupSceneChrome(
 
     const cogButton = createIconButton(
         scene,
-        GAME_WIDTH - 64,
-        GAME_HEIGHT - 28,
+        ICON_RIGHT - 32,
+        ICON_Y,
         '\u2699',
         '15px',
         { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },
@@ -165,8 +174,8 @@ export function setupSceneChrome(
 
     const langButton = createIconButton(
         scene,
-        GAME_WIDTH - 32,
-        GAME_HEIGHT - 28,
+        ICON_RIGHT,
+        ICON_Y,
         loc.language === 'ru' ? 'RU' : 'EN',
         '12px',
         { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },
