@@ -108,6 +108,59 @@ export class VFX {
         });
     }
 
+    /**
+     * Looping fire embers anchored on a single map node (campfire, altar).
+     * Adds tiny rising sparks to the supplied container so the effect
+     * follows the map's parallax/scroll. Returns a handle whose `destroy`
+     * stops further spawns and removes any in-flight particles.
+     */
+    static nodeFire(
+        scene: Phaser.Scene,
+        parent: Phaser.GameObjects.Container,
+        x: number,
+        y: number,
+    ): { destroy: () => void } {
+        let alive = true;
+        const particles = new Set<Phaser.GameObjects.Rectangle>();
+        const spawn = () => {
+            if (!alive) return;
+            const sz = 1.5 + Math.random() * 1.5;
+            const col = Math.random() > 0.55 ? 0xff8833 : 0xffd066;
+            const startX = x + (Math.random() - 0.5) * 10;
+            const startY = y + 8;
+            const dot = scene.add
+                .rectangle(startX, startY, sz, sz, col, 0.85)
+                .setDepth(12);
+            parent.add(dot);
+            particles.add(dot);
+            scene.tweens.add({
+                targets: dot,
+                y: startY - 22 - Math.random() * 14,
+                x: startX + (Math.random() - 0.5) * 8,
+                alpha: 0,
+                duration: 700 + Math.random() * 400,
+                ease: 'Quad.out',
+                onComplete: () => {
+                    particles.delete(dot);
+                    dot.destroy();
+                    if (alive) {
+                        scene.time.delayedCall(80 + Math.random() * 140, spawn);
+                    }
+                },
+            });
+        };
+        for (let i = 0; i < 3; i++) {
+            scene.time.delayedCall(i * 110, spawn);
+        }
+        return {
+            destroy: () => {
+                alive = false;
+                particles.forEach((p) => p.destroy());
+                particles.clear();
+            },
+        };
+    }
+
     /** Looping background embers and dust. */
     static ambientEmbers(scene: Phaser.Scene, count = 18) {
         const spawn = () => {

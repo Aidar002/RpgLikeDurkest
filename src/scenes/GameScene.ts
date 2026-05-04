@@ -29,7 +29,7 @@ import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
-import { fitEnemySprite, fitRoomSprite, roomColor, roomFrameIndex, roomIcon, roomIconFrame, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
+import { fitEnemySprite, fitRoomSprite, hasFireEffect, roomFrameIndex, roomIcon, roomIconFrame, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
 import {
     BOTTOM_BAR_H,
@@ -114,6 +114,7 @@ export class GameScene extends Phaser.Scene {
     private edgeGfx!: Phaser.GameObjects.Graphics;
     private visuals: Map<string, NodeVisual> = new Map();
     private glowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
+    private fireMap: Map<string, { destroy: () => void }> = new Map();
 
     private animating = false;
     private dead = false;
@@ -249,6 +250,7 @@ export class GameScene extends Phaser.Scene {
         this.actionButtons = [];
         this.visuals = new Map();
         this.glowMap = new Map();
+        this.fireMap = new Map();
         this.roomTintOverlay = null;
         this.animating = false;
         this.dead = false;
@@ -1403,6 +1405,8 @@ export class GameScene extends Phaser.Scene {
 
         this.glowMap.forEach((glow) => glow.destroy());
         this.glowMap.clear();
+        this.fireMap.forEach((fire) => fire.destroy());
+        this.fireMap.clear();
 
         const currentId = this.dungeon.currentNode.id;
         const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
@@ -1509,10 +1513,24 @@ export class GameScene extends Phaser.Scene {
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
+            // Highlight glow around reachable nodes — uniform neutral grey so
+            // gold/red/green tints don't clash with the carved frame palette.
             if (isForward) {
-                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), roomColor(node), NODE_SZ);
+                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), 0x9a9a9a, NODE_SZ);
                 this.mapContainer.add(glow);
                 this.glowMap.set(id, glow);
+            }
+
+            // Tiny fire embers above campfire/altar nodes (REST/START/SHRINE).
+            // Skipped on cleared rooms because their fire is "out".
+            if (!node.cleared && hasFireEffect(node.type)) {
+                const fire = VFX.nodeFire(
+                    this,
+                    this.mapContainer,
+                    this.nodeX(node),
+                    this.nodeY(node),
+                );
+                this.fireMap.set(id, fire);
             }
         });
 
