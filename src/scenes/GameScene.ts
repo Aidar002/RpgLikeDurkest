@@ -38,6 +38,7 @@ import {
     Depths,
     GAME_HEIGHT,
     GAME_WIDTH,
+    HUD_BOTTOM_OFFSET,
     HUD_PAD,
     TOP_BAR_H,
 } from '../ui/Layout';
@@ -281,7 +282,7 @@ export class GameScene extends Phaser.Scene {
             18,
             TOP_BAR_H + 12,
             530,
-            GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - 12,
+            GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12,
         );
         this.roomContainer.add(this.log.view);
 
@@ -365,7 +366,7 @@ export class GameScene extends Phaser.Scene {
         const PAD = HUD_PAD;
         const TOP_H = TOP_BAR_H;
         const BOT_H = BOTTOM_BAR_H;
-        const BOT_Y = GAME_HEIGHT - BOT_H;
+        const BOT_Y = GAME_HEIGHT - BOT_H - HUD_BOTTOM_OFFSET;
 
         // ── PLAY-AREA BACKDROP ───────────────────────────────────
         // Optional carved-stone wall texture between the two HUD bars.
@@ -377,12 +378,12 @@ export class GameScene extends Phaser.Scene {
         const topFrame = drawTopFrame(this, GAME_WIDTH, TOP_H);
 
         // Group A — Vitals (HP bar + stress bar) on the left ~third.
-        // Bars sit in the panel's interior (y=22..60 after the carved
-        // gold rim) — placing the heart at y=30 keeps it clear of the
-        // corner ornament.
-        const hpIcon = createHudIcon(this, PAD + 8, 30, 'heart', { pixelSize: 16 });
+        // The 96px panel has a 52px interior (y=22..74 after the carved
+        // gold rim). Two rows are spread across that band — HP at y=36,
+        // stress at y=64 — so neither bar fights the corner ornament.
+        const hpIcon = createHudIcon(this, PAD + 8, 36, 'heart', { pixelSize: 16 });
         const hpBarX = PAD + 24;
-        const hpBarY = 30;
+        const hpBarY = 36;
         const hpBarBg = this.add
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodTrack)
             .setOrigin(0, 0.5);
@@ -399,8 +400,8 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        const stressIcon = createHudIcon(this, PAD + 8, 56, 'skull', { pixelSize: 14 });
-        const stressLabel = this.add.text(PAD + 18, 49, this.loc.t('stressLabel').toUpperCase(), {
+        const stressIcon = createHudIcon(this, PAD + 8, 64, 'skull', { pixelSize: 14 });
+        const stressLabel = this.add.text(PAD + 18, 57, this.loc.t('stressLabel').toUpperCase(), {
             fontFamily: HUD_FONT,
             fontSize: '11px',
             color: HudHex.textSecondary,
@@ -408,7 +409,7 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
         const stressBarX = PAD + 22 + Math.max(64, stressLabel.width + 12);
-        const stressBarY = 56;
+        const stressBarY = 64;
         this.stressBarBg = this.add
             .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressTrack)
             .setOrigin(0, 0.5);
@@ -433,7 +434,7 @@ export class GameScene extends Phaser.Scene {
 
         // Group B — Level + XP centred in the panel.
         const centreX = 488;
-        this.levelText = this.add.text(centreX, 24, '', {
+        this.levelText = this.add.text(centreX, 30, '', {
             fontFamily: HUD_FONT,
             fontSize: '15px',
             fontStyle: 'bold',
@@ -441,7 +442,7 @@ export class GameScene extends Phaser.Scene {
             stroke: HUD_STROKE,
             strokeThickness: 2,
         }).setOrigin(0, 0);
-        this.xpValueText = this.add.text(centreX + 80, 24, '', {
+        this.xpValueText = this.add.text(centreX + 80, 30, '', {
             fontFamily: HUD_FONT,
             fontSize: '13px',
             color: HudHex.textSecondary,
@@ -449,7 +450,7 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0, 0);
         const xpBarX = centreX;
-        const xpBarY = 52;
+        const xpBarY = 60;
         this.xpBarBg = this.add
             .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x14202c)
             .setOrigin(0, 0.5);
@@ -461,13 +462,13 @@ export class GameScene extends Phaser.Scene {
         // Group C — Combat stats on the right (sword/shield + label + value).
         // Positions chosen so the labels never collide with the carved skull
         // decoration in the top-right corner of the PNG frame.
-        this.atkStat = createHudInlineSlot(this, 700, 30, {
+        this.atkStat = createHudInlineSlot(this, 700, 36, {
             icon: 'sword',
             label: this.loc.t('attackShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
         });
-        this.defStat = createHudInlineSlot(this, 860, 30, {
+        this.defStat = createHudInlineSlot(this, 860, 36, {
             icon: 'shield',
             label: this.loc.t('defenseShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
@@ -475,14 +476,14 @@ export class GameScene extends Phaser.Scene {
         });
 
         // Optional secondary stats — squeezed into the second row when relevant.
-        this.revivesStat = createHudInlineSlot(this, 700, 56, {
+        this.revivesStat = createHudInlineSlot(this, 700, 64, {
             icon: 'heart',
             label: this.loc.t('reviveShort').toUpperCase(),
             valueFontSize: '13px',
             labelFontSize: '11px',
             iconSize: 12,
         });
-        this.lightTorchIcon = this.add.text(860, 56, '', {
+        this.lightTorchIcon = this.add.text(860, 64, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
             color: HudHex.accentLight,
@@ -894,7 +895,7 @@ export class GameScene extends Phaser.Scene {
 
     private setupRoomUI() {
         const panelY = TOP_BAR_H + 12;
-        const panelH = GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - 12;
+        const panelH = GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12;
         const panel = this.add.rectangle(570, panelY, 434, panelH, 0x111111).setOrigin(0);
         panel.setStrokeStyle(2, 0x353535);
 

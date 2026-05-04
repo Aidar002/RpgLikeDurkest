@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { BOTTOM_BAR_H, CENTER_X, CENTER_Y, GAME_HEIGHT, GAME_WIDTH, TOP_BAR_H } from './Layout';
+import { BOTTOM_BAR_H, CENTER_X, CENTER_Y, GAME_HEIGHT, GAME_WIDTH, HUD_BOTTOM_OFFSET, TOP_BAR_H } from './Layout';
 
 export class VFX {
 
@@ -16,7 +16,7 @@ export class VFX {
         w = GAME_WIDTH,
         _h = GAME_HEIGHT,
         playTop = TOP_BAR_H,
-        playBottom = GAME_HEIGHT - BOTTOM_BAR_H,
+        playBottom = GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET,
     ) {
         const playH = Math.max(1, playBottom - playTop);
         const g = scene.add.graphics().setDepth(210).setScrollFactor(0);
