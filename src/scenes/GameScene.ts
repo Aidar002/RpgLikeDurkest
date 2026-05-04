@@ -1650,6 +1650,11 @@ export class GameScene extends Phaser.Scene {
                 return;
             }
 
+            // Kill any in-flight pulse (fallback render path) so it
+            // doesn't fight the alpha→0.35 fade that follows.
+            this.tweens.killTweensOf(visual.rect);
+            if (visual.frame) this.tweens.killTweensOf(visual.frame);
+
             visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333);
             visual.icon.setColor('#777777');
 
@@ -1707,6 +1712,13 @@ export class GameScene extends Phaser.Scene {
             }
 
             const hasFrame = this.textures.exists('hud_room_frames');
+
+            // Kill any in-flight pulse on the rect (fallback render
+            // path) before re-deriving its alpha/stroke. Without this
+            // a node that loses its forward status — or gets cleared
+            // — would keep yoyo-ing alpha from `startNodePulse` and
+            // override the setAlpha calls below.
+            this.tweens.killTweensOf(visual.rect);
 
             if (node.cleared) {
                 visual.rect.setFillStyle(0x000000).setAlpha(0.35);
