@@ -69,6 +69,36 @@ export function roomFrameIndex(type: RoomTypeValue): 0 | 1 | 2 {
     return ROOM_FRAME_INDEX[type] ?? 2;
 }
 
+/**
+ * Frame index in {@link hud_room_icons} (an 8-frame spritesheet) for each
+ * room type. Frame layout (left → right):
+ *   0 → campfire           (START, REST)
+ *   1 → red skull crossbones (basic ENEMY)
+ *   2 → stone "?"          (EMPTY / unknown)
+ *   3 → red skull crossbones, darker (ELITE)
+ *   4 → demon skull with crown (BOSS)
+ *   5 → treasure chest     (TREASURE, MERCHANT — merchants are gold-rimmed
+ *                           and distinguished by frame color, not the icon)
+ *   6 → occult sigil       (TRAP)
+ *   7 → tombstone altar    (SHRINE)
+ */
+const ROOM_ICON_FRAME: Record<RoomTypeValue, number> = {
+    [RoomType.START]: 0,
+    [RoomType.REST]: 0,
+    [RoomType.ENEMY]: 1,
+    [RoomType.EMPTY]: 2,
+    [RoomType.ELITE]: 3,
+    [RoomType.BOSS]: 4,
+    [RoomType.TREASURE]: 5,
+    [RoomType.MERCHANT]: 5,
+    [RoomType.TRAP]: 6,
+    [RoomType.SHRINE]: 7,
+};
+
+export function roomIconFrame(type: RoomTypeValue): number {
+    return ROOM_ICON_FRAME[type] ?? 2;
+}
+
 /** Localization key per room type, used by `roomTypeName`. */
 const ROOM_NAME_KEY = {
     [RoomType.START]: 'roomCamp',

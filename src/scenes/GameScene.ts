@@ -29,7 +29,7 @@ import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
-import { fitEnemySprite, fitRoomSprite, roomColor, roomFrameIndex, roomIcon, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
+import { fitEnemySprite, fitRoomSprite, roomColor, roomFrameIndex, roomIcon, roomIconFrame, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
 import {
     BOTTOM_BAR_H,
@@ -1110,15 +1110,27 @@ export class GameScene extends Phaser.Scene {
                 .setOrigin(0.5)
                 .setAlpha(alpha);
 
-            const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
+            // Sprite priority: hand-authored room_icons spritesheet →
+            // procedural PixelSprite (per-type 24×24 sprite) → text glyph.
             let sprite: Phaser.GameObjects.Image | undefined;
-            if (revealed && knowsType && this.textures.exists(spriteKey)) {
+            if (revealed && knowsType && this.textures.exists('hud_room_icons')) {
                 icon.setVisible(false);
-                sprite = this.add.image(x, y, spriteKey)
+                sprite = this.add
+                    .image(x, y, 'hud_room_icons', roomIconFrame(node.type))
                     .setOrigin(0.5)
                     .setAlpha(alpha);
                 fitRoomSprite(sprite);
                 if (node.cleared) sprite.setTint(0x555555);
+            } else {
+                const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
+                if (revealed && knowsType && this.textures.exists(spriteKey)) {
+                    icon.setVisible(false);
+                    sprite = this.add.image(x, y, spriteKey)
+                        .setOrigin(0.5)
+                        .setAlpha(alpha);
+                    fitRoomSprite(sprite);
+                    if (node.cleared) sprite.setTint(0x555555);
+                }
             }
 
             // Decorative frame overlay (bronze for safe, iron-red for danger,
@@ -1404,14 +1416,41 @@ export class GameScene extends Phaser.Scene {
             visual.rect.setFillStyle(revealed ? roomColor(node) : 0x1a1a1a).setAlpha(1);
             visual.rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
 
-            const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
-            if (revealed && knowsType && this.textures.exists(spriteKey)) {
+            // Sprite priority: hand-authored room_icons spritesheet →
+            // procedural PixelSprite → text glyph (matches buildAllVisuals).
+            const useSheet =
+                revealed && knowsType && this.textures.exists('hud_room_icons');
+            const proceduralKey = PixelSprite.roomKey(roomSpriteKey(node.type));
+            const useProcedural =
+                !useSheet &&
+                revealed &&
+                knowsType &&
+                this.textures.exists(proceduralKey);
+            if (useSheet) {
                 if (!visual.sprite) {
-                    visual.sprite = this.add.image(this.nodeX(node), this.nodeY(node), spriteKey)
+                    visual.sprite = this.add
+                        .image(
+                            this.nodeX(node),
+                            this.nodeY(node),
+                            'hud_room_icons',
+                            roomIconFrame(node.type),
+                        )
                         .setOrigin(0.5);
                     this.mapContainer.add(visual.sprite);
                 } else {
-                    visual.sprite.setTexture(spriteKey);
+                    visual.sprite.setTexture('hud_room_icons', roomIconFrame(node.type));
+                }
+                fitRoomSprite(visual.sprite);
+                visual.sprite.setAlpha(1).clearTint().setVisible(true);
+                visual.icon.setVisible(false);
+            } else if (useProcedural) {
+                if (!visual.sprite) {
+                    visual.sprite = this.add
+                        .image(this.nodeX(node), this.nodeY(node), proceduralKey)
+                        .setOrigin(0.5);
+                    this.mapContainer.add(visual.sprite);
+                } else {
+                    visual.sprite.setTexture(proceduralKey);
                 }
                 fitRoomSprite(visual.sprite);
                 visual.sprite.setAlpha(1).clearTint().setVisible(true);
