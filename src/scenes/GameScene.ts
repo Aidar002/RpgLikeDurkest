@@ -317,7 +317,6 @@ export class GameScene extends Phaser.Scene {
             padding: { x: 6, y: 3 },
         }).setDepth(Depths.Tooltip).setVisible(false);
 
-        VFX.vignette(this, GAME_WIDTH, GAME_HEIGHT);
         VFX.scanlines(this, GAME_WIDTH, GAME_HEIGHT);
         VFX.ambientEmbers(this, 22);
 
