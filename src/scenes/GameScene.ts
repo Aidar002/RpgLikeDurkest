@@ -614,40 +614,63 @@ export class GameScene extends Phaser.Scene {
         // Bottom-bar PNG carved corners eat ~32 px on each side; cells
         // are sized so the row sits comfortably inside that safe area
         // (left margin 36, right margin ~36 to the carved frame).
-        // Cells are vertically centred inside the (now taller) bar so
-        // they don't crowd the top gold rim and leave a dead strip at
-        // the bottom.
-        const cellH = 70;
+        // Cells are vertically centred inside the bar so they don't
+        // crowd the top gold rim and leave a dead strip at the bottom.
+        //
+        // cellH grew 70 → 110 so the resource icons can render at
+        // ~2× their old pixel size (18 → 36) without crowding the
+        // label/value rows. Stat label / value font sizes are bumped
+        // a tier to keep visual hierarchy consistent with the chunkier
+        // icons.
+        const cellH = 110;
         const cellTop = BOT_Y + Math.round((BOT_H - cellH) / 2);
         const resW = 112;
         const resStart = 36;
         const progW = 88;
         const progStart = 624;
+        const STAT_ICON_SIZE = 36;
+        const STAT_LABEL_FONT = '12px';
+        const STAT_VALUE_FONT = '17px';
 
         this.goldStat = createHudCell(this, resStart + 0 * resW, cellTop, resW, cellH, {
             icon: 'coin',
             label: this.loc.t('goldShort').toUpperCase(),
             valueColor: HudHex.accentGold,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
         this.potionStat = createHudCell(this, resStart + 1 * resW, cellTop, resW, cellH, {
             icon: 'potion',
             label: this.loc.t('potionShort').toUpperCase(),
             valueColor: HudHex.accentPotion,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
         this.resolveStat = createHudCell(this, resStart + 2 * resW, cellTop, resW, cellH, {
             icon: 'quill',
             label: this.loc.t('resolveShort').toUpperCase(),
             valueColor: HudHex.accentResolve,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
         this.lightResStat = createHudCell(this, resStart + 3 * resW, cellTop, resW, cellH, {
             icon: 'lantern',
             label: this.loc.t('lightShort').toUpperCase(),
             valueColor: HudHex.accentLight,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
         this.shardStat = createHudCell(this, resStart + 4 * resW, cellTop, resW, cellH, {
             icon: 'shard',
             label: this.loc.t('shardShort').toUpperCase(),
             valueColor: HudHex.accentShard,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
 
         // Pillar divider between the resource block and the progress block.
@@ -662,42 +685,67 @@ export class GameScene extends Phaser.Scene {
             icon: 'depth',
             label: this.loc.t('depthShort').toUpperCase(),
             valueColor: HudHex.accentDepth,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
         this.killsStat = createHudCell(this, progStart + 1 * progW, cellTop, progW, cellH, {
             icon: 'kills',
             label: this.loc.t('killShort').toUpperCase(),
             valueColor: HudHex.accentKills,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
         this.bossStat = createHudCell(this, progStart + 2 * progW, cellTop, progW, cellH, {
             icon: 'boss',
             label: this.loc.t('bossShort').toUpperCase(),
             valueColor: HudHex.accentBoss,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
         this.prestigeStat = createHudCell(this, progStart + 3 * progW, cellTop, progW, cellH, {
             icon: 'star',
             label: this.loc.t('prestige').toUpperCase(),
             valueColor: HudHex.accentExp,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
         });
 
-        // Thin info strip at the very bottom: depth pill on the left,
-        // hint on the right (next to the ♫/RU chrome buttons).
-        const stripY = BOT_Y + BOT_H - 18;
-        this.relicText = this.add.text(PAD, stripY - 18, '', {
+        // Hint text ("дальше: достигни глубины N") and relic summary
+        // both float in the play area immediately above the carved
+        // bottom bar instead of inside it. Anchoring them to BOT_Y −
+        // small offset means a future change to BOTTOM_BAR_H carries
+        // them along, and the carved bar interior is left entirely to
+        // the resource cells (so the milestone hint no longer sits on
+        // top of the bottom rim where it gets visually clipped).
+        //
+        // The two are stacked vertically — hint sits on the bottom
+        // line just above the bar (centred so it reads as a deliberate
+        // goal reminder), relic summary sits one line up on the left
+        // — because their horizontal extents (centred + 540 px word
+        // wrap) would otherwise collide whenever the player has both
+        // relics and an outstanding milestone simultaneously.
+        const HINT_LINE_Y = BOT_Y - 8;
+        const RELIC_LINE_Y = BOT_Y - 24;
+        this.relicText = this.add.text(PAD, RELIC_LINE_Y, '', {
             fontFamily: HUD_FONT,
-            fontSize: '11px',
+            fontSize: '12px',
             color: HudHex.accentGold,
             stroke: HUD_STROKE,
             strokeThickness: 2,
             wordWrap: { width: 540 },
-        });
-        this.hintText = this.add.text(GAME_WIDTH - HUD_PAD - 80, stripY, '', {
+        }).setOrigin(0, 1);
+        this.hintText = this.add.text(CENTER_X, HINT_LINE_Y, '', {
             fontFamily: HUD_FONT,
-            fontSize: '11px',
+            fontSize: '12px',
             color: HudHex.textSecondary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
-            align: 'right',
-        }).setOrigin(1, 0);
+            align: 'center',
+        }).setOrigin(0.5, 1);
 
         this.enemyStatusText = this.add.text(780, 356, '', {
             fontFamily: HUD_FONT,
@@ -863,11 +911,14 @@ export class GameScene extends Phaser.Scene {
         this.prestigeStat.setVisible(unlocks.showPrestigeForecast);
 
         const nextUnlock = this.meta.getNextContentUnlock();
+        // The hint now floats centred above the bar with no chrome
+        // buttons crowding it, so we can afford a longer label
+        // (≈ 60 chars fits comfortably at fontSize 12 in the play area).
         this.hintText.setText(
             nextUnlock
                 ? compactText(
                     `${this.loc.t('stressNextLabel')}: ${this.milestoneRequirement(nextUnlock)}`,
-                    30
+                    60
                 )
                 : ''
         );

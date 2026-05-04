@@ -28,6 +28,23 @@ export interface HudCellOptions {
     labelColor?: string;
     /** Set true to draw a brighter gold border around the cell. */
     highlight?: boolean;
+    /**
+     * Square pixel size for the icon (icon is rendered with origin
+     * 0.5/0.5). Default 18 keeps the historical compact cell look;
+     * pass a larger value (e.g. 36) for the resource/progress cells
+     * that want a more prominent icon.
+     */
+    iconPixelSize?: number;
+    /**
+     * Pixel size override for the all-caps label. Default 11 matches
+     * the legacy compact cell.
+     */
+    labelFontSize?: string;
+    /**
+     * Pixel size override for the value text. Default 15 matches the
+     * legacy compact cell.
+     */
+    valueFontSize?: string;
 }
 
 export interface HudCellHandle {
@@ -80,15 +97,24 @@ export function createHudCell(
     // The bottom-bar PNG reserves ~22 px at the top for the carved gold
     // rim. Pushing the icon below it keeps the artwork legible instead
     // of fighting the ornament for the same row of pixels. Label and
-    // value are then stacked tightly below so a 70px cell holds three
-    // lines without overlap.
-    const innerTop = y + 20;
+    // value are stacked toward the bottom of the cell, so a taller cell
+    // gives the icon more breathing room above the label without
+    // disturbing the value/label baseline.
+    const iconPixelSize = options.iconPixelSize ?? 18;
+    const labelFontSize = options.labelFontSize ?? '11px';
+    const valueFontSize = options.valueFontSize ?? '15px';
     const labelY = y + h - 24;
     const valueY = y + h - 8;
+    // Icon center sits at least 22 px below the cell top (carved rim
+    // safe area) plus half the icon. For the legacy 18 px icon this
+    // resolves to y + 31 (≈ the original y + 29 spec); for a 36 px
+    // icon it resolves to y + 40 so the larger frame still clears the
+    // rim instead of slamming into it.
+    const iconCenterY = y + 22 + Math.ceil(iconPixelSize / 2);
 
     if (options.icon) {
-        const icon = createHudIcon(scene, cellCenterX, innerTop + 9, options.icon, {
-            pixelSize: 18,
+        const icon = createHudIcon(scene, cellCenterX, iconCenterY, options.icon, {
+            pixelSize: iconPixelSize,
         });
         widgets.push(icon);
     }
@@ -96,7 +122,7 @@ export function createHudCell(
     const labelText = scene.add
         .text(cellCenterX, labelY, options.label, {
             fontFamily: HUD_FONT,
-            fontSize: '11px',
+            fontSize: labelFontSize,
             color: labelColor,
             stroke: HUD_STROKE,
             strokeThickness: 2,
@@ -107,7 +133,7 @@ export function createHudCell(
     const valueText = scene.add
         .text(cellCenterX, valueY, options.value ?? '', {
             fontFamily: HUD_FONT,
-            fontSize: '15px',
+            fontSize: valueFontSize,
             fontStyle: options.highlight ? 'bold' : 'normal',
             color: valueColor,
             stroke: HUD_STROKE,
