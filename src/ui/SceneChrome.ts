@@ -124,7 +124,7 @@ export function setupSceneChrome(
     const muteButton = createIconButton(
         scene,
         GAME_WIDTH - 64,
-        GAME_HEIGHT - 18,
+        GAME_HEIGHT - 28,
         muteIcon,
         '15px',
         { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },
@@ -139,7 +139,7 @@ export function setupSceneChrome(
     const langButton = createIconButton(
         scene,
         GAME_WIDTH - 32,
-        GAME_HEIGHT - 18,
+        GAME_HEIGHT - 28,
         loc.language === 'ru' ? 'RU' : 'EN',
         '12px',
         { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },

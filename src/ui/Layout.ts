@@ -8,10 +8,13 @@ export const CENTER_X = GAME_WIDTH / 2;
 export const CENTER_Y = GAME_HEIGHT / 2;
 
 /** HUD panel heights and shared padding. The middle play area sits between
- *  `TOP_BAR_H` and `GAME_HEIGHT - BOTTOM_BAR_H`. */
-export const TOP_BAR_H = 82;
-export const BOTTOM_BAR_H = 94;
+ *  `TOP_BAR_H` and `GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET`. The
+ *  bottom offset lifts the lower frame off the screen edge so the carved
+ *  artwork breathes instead of slamming against the canvas. */
+export const TOP_BAR_H = 96;
+export const BOTTOM_BAR_H = 108;
 export const HUD_PAD = 24;
+export const HUD_BOTTOM_OFFSET = 10;
 
 /**
  * Named depth tiers for UI overlays. Keep gaps between groups so individual
