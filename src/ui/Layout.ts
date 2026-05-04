@@ -12,7 +12,12 @@ export const CENTER_Y = GAME_HEIGHT / 2;
  *  bottom offset lifts the lower frame off the screen edge so the carved
  *  artwork breathes instead of slamming against the canvas. */
 export const TOP_BAR_H = 96;
-export const BOTTOM_BAR_H = 108;
+// 140 ≈ 90 % of the bottom-bar PNG's native 155 px so the carved
+// stone rim renders at roughly its authored thickness. The bottom
+// of the bar is anchored at GAME_HEIGHT − HUD_BOTTOM_OFFSET, so
+// growing this just lifts the bar's TOP edge upward (the play area
+// below the top bar shrinks accordingly).
+export const BOTTOM_BAR_H = 140;
 export const HUD_PAD = 24;
 export const HUD_BOTTOM_OFFSET = 10;
 
