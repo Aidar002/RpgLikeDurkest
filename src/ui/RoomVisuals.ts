@@ -99,6 +99,15 @@ export function roomIconFrame(type: RoomTypeValue): number {
     return ROOM_ICON_FRAME[type] ?? 2;
 }
 
+/**
+ * Whether a map-node should emit ambient fire embers. Currently the
+ * campfire-flavoured rooms (START / REST) and the altar (SHRINE) — the
+ * pixel art for both contains a visible flame in the centre.
+ */
+export function hasFireEffect(type: RoomTypeValue): boolean {
+    return type === RoomType.START || type === RoomType.REST || type === RoomType.SHRINE;
+}
+
 /** Localization key per room type, used by `roomTypeName`. */
 const ROOM_NAME_KEY = {
     [RoomType.START]: 'roomCamp',
