@@ -96,15 +96,18 @@ export function createHudCell(
 
     // The bottom-bar PNG reserves ~22 px at the top for the carved gold
     // rim. Pushing the icon below it keeps the artwork legible instead
-    // of fighting the ornament for the same row of pixels. Label and
-    // value are stacked toward the bottom of the cell, so a taller cell
-    // gives the icon more breathing room above the label without
-    // disturbing the value/label baseline.
+    // of fighting the ornament for the same row of pixels.
+    //
+    // Label and value sit a fixed offset above the cell bottom — the
+    // text block was lifted 10 px closer to the icon (vs the original
+    // y+h-24 / y+h-8 spec) so a tall cell with a 36 px icon doesn't
+    // leave a wide dead band between the icon and its label. The
+    // label/value spacing relative to each other is unchanged.
     const iconPixelSize = options.iconPixelSize ?? 18;
     const labelFontSize = options.labelFontSize ?? '11px';
     const valueFontSize = options.valueFontSize ?? '15px';
-    const labelY = y + h - 24;
-    const valueY = y + h - 8;
+    const labelY = y + h - 34;
+    const valueY = y + h - 18;
     // Icon center sits at least 22 px below the cell top (carved rim
     // safe area) plus half the icon. For the legacy 18 px icon this
     // resolves to y + 31 (≈ the original y + 29 spec); for a 36 px
