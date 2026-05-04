@@ -202,11 +202,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
 
-    // Subtitle one-liner: depth | bosses | prestige. Decorative
-    // sections (subtitle, dividers, column headers, prestige banner)
-    // are rendered purely for side effect — they're configured
-    // inline and never referenced again, so we don't store them.
-    scene.add
+    // Subtitle one-liner: depth | bosses | prestige.
+    const subtitle = scene.add
         .text(
             CENTER_X,
             panelTop + 78,
@@ -224,7 +221,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
 
-    scene.add
+    const divider1 = scene.add
         .rectangle(CENTER_X, panelTop + 100, PANEL_W - 96, 1, 0x6a4f38, 0.6)
         .setDepth(Depths.EndScreenContent);
 
@@ -236,7 +233,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const COL_RIGHT_X = panelLeft + PANEL_W / 2 + 16;
     const COL_W = PANEL_W / 2 - 80;
 
-    scene.add
+    const leftHeader = scene.add
         .text(COL_LEFT_X, COL_HEADER_Y, isRu ? 'ПРОГРЕСС ЗАБЕГА' : 'RUN PROGRESS', {
             fontFamily: 'Courier New',
             fontSize: '12px',
@@ -244,7 +241,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         })
         .setDepth(Depths.EndScreenContent);
 
-    scene.add
+    const rightHeader = scene.add
         .text(COL_RIGHT_X, COL_HEADER_Y, loc.t('shopAcquaintances').toUpperCase(), {
             fontFamily: 'Courier New',
             fontSize: '12px',
@@ -290,11 +287,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     // ── Prestige banner ──────────────────────────────────────
     const divider2Y = bodyEndY + 20;
-    scene.add
+    const divider2 = scene.add
         .rectangle(CENTER_X, divider2Y, PANEL_W - 96, 1, 0x6a4f38, 0.6)
         .setDepth(Depths.EndScreenContent);
     const bannerY = divider2Y + 24;
-    scene.add
+    const prestigeBanner = scene.add
         .rectangle(CENTER_X, bannerY, 380, 34, 0x261c10, 0.95)
         .setStrokeStyle(1, 0xc9a050)
         .setDepth(Depths.EndScreenContent);
@@ -561,8 +558,14 @@ export function showDeathScreen(ctx: EndScreenContext) {
             overlay,
             panel,
             title,
+            subtitle,
+            divider1,
+            leftHeader,
+            rightHeader,
             leftBody,
             rightBody,
+            divider2,
+            prestigeBanner,
             pointsText,
             unlockText,
             restartButton,
