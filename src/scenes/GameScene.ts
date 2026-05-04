@@ -131,12 +131,13 @@ export class GameScene extends Phaser.Scene {
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
     // HUD bar widths cached so refreshUI can rescale fills without re-measuring.
-    private readonly hpBarWidth = 220;
+    // HP and stress share width / start-X so the two rows align as a clean grid.
+    private readonly hpBarWidth = 200;
     private readonly hpBarHeight = 14;
     private readonly stressBarWidth = 200;
     private readonly stressBarHeight = 8;
-    private readonly xpBarWidth = 184;
-    private readonly xpBarHeight = 8;
+    private readonly xpBarWidth = 200;
+    private readonly xpBarHeight = 10;
 
     private xpBarFrame!: Phaser.GameObjects.Graphics;
     private hpBar!: Phaser.GameObjects.Rectangle;
@@ -387,8 +388,20 @@ export class GameScene extends Phaser.Scene {
         // The 96px panel has a 52px interior (y=22..74 after the carved
         // gold rim). Two rows are spread across that band — HP at y=36,
         // stress at y=64 — so neither bar fights the corner ornament.
+        // Vitals share a single bar-start X so HP and stress line up cleanly.
+        // 64 is the floor for the label column so the carved-frame corner
+        // ornament never crowds the leftmost label glyph.
+        const VITALS_LABEL_X = PAD + 22;
+        const VITALS_BAR_X = PAD + 22 + 64 + 12;
         const hpIcon = createHudIcon(this, PAD + 8, 36, 'heart', { pixelSize: 16 });
-        const hpBarX = PAD + 24;
+        const hpLabel = this.add.text(VITALS_LABEL_X, 29, this.loc.t('hp').toUpperCase(), {
+            fontFamily: HUD_FONT,
+            fontSize: '11px',
+            color: HudHex.textSecondary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+        const hpBarX = VITALS_BAR_X;
         const hpBarY = 36;
         const hpBarFrame = drawBarFrame(this, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight);
         const hpBarBg = this.add
@@ -407,14 +420,14 @@ export class GameScene extends Phaser.Scene {
         });
 
         const stressIcon = createHudIcon(this, PAD + 8, 64, 'skull', { pixelSize: 14 });
-        const stressLabel = this.add.text(PAD + 18, 57, this.loc.t('stressLabel').toUpperCase(), {
+        const stressLabel = this.add.text(VITALS_LABEL_X, 57, this.loc.t('stressLabel').toUpperCase(), {
             fontFamily: HUD_FONT,
             fontSize: '11px',
             color: HudHex.textSecondary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         });
-        const stressBarX = PAD + 22 + Math.max(64, stressLabel.width + 12);
+        const stressBarX = VITALS_BAR_X;
         const stressBarY = 64;
         const stressBarFrame = drawBarFrame(
             this,
@@ -447,25 +460,31 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        // Group B — Level + XP centred in the panel.
-        const centreX = 488;
-        this.levelText = this.add.text(centreX, 30, '', {
+        // Group B — Level + XP, centred about the canvas midline. Top
+        // bar reads as a 2-row × 3-column grid: vitals (HP/stress) on
+        // the left, level+XP in the middle, combat (atk/def) on the
+        // right. Both rows of group B share y with vitals/combat so
+        // values line up across the entire bar.
+        const centreX = GAME_WIDTH / 2;
+        // "УР N" right-anchored, "ОП X/Y" left-anchored, with an 8 px gap
+        // around centre — the row stays centred regardless of value width.
+        this.levelText = this.add.text(centreX - 8, 36, '', {
             fontFamily: HUD_FONT,
             fontSize: '15px',
             fontStyle: 'bold',
             color: HudHex.textPrimary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
-        }).setOrigin(0, 0);
-        this.xpValueText = this.add.text(centreX + 80, 30, '', {
+        }).setOrigin(1, 0.5);
+        this.xpValueText = this.add.text(centreX + 8, 36, '', {
             fontFamily: HUD_FONT,
             fontSize: '13px',
             color: HudHex.textSecondary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
-        }).setOrigin(0, 0);
-        const xpBarX = centreX;
-        const xpBarY = 60;
+        }).setOrigin(0, 0.5);
+        const xpBarX = centreX - this.xpBarWidth / 2;
+        const xpBarY = 64;
         this.xpBarFrame = drawBarFrame(
             this,
             xpBarX,
@@ -531,12 +550,15 @@ export class GameScene extends Phaser.Scene {
         // 4 progress cells (the last cell — PRESTIGE — gets a gold rim).
         const botFrame = drawBottomFrame(this, BOT_Y, GAME_WIDTH, BOT_H);
 
+        // Bottom-bar PNG carved corners eat ~32 px on each side; cells
+        // are sized so the row sits comfortably inside that safe area
+        // (left margin 36, right margin ~36 to the carved frame).
         const cellTop = BOT_Y + 4;
         const cellH = 70;
-        const resW = 116;
-        const resStart = 18;
-        const progW = 92;
-        const progStart = 620;
+        const resW = 112;
+        const resStart = 36;
+        const progW = 88;
+        const progStart = 624;
 
         this.goldStat = createHudCell(this, resStart + 0 * resW, cellTop, resW, cellH, {
             icon: 'coin',
@@ -591,7 +613,6 @@ export class GameScene extends Phaser.Scene {
             icon: 'star',
             label: this.loc.t('prestige').toUpperCase(),
             valueColor: HudHex.accentExp,
-            highlight: true,
         });
 
         // Thin info strip at the very bottom: depth pill on the left,
@@ -625,6 +646,7 @@ export class GameScene extends Phaser.Scene {
         const topWidgets: Phaser.GameObjects.GameObject[] = [
             topFrame,
             hpIcon,
+            hpLabel,
             // bar frame must sit beneath the track so its rim hugs the bar
             hpBarFrame,
             hpBarBg,
