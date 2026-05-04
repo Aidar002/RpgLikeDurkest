@@ -48,6 +48,7 @@ import {
     HUD_STROKE,
     HudColors,
     HudHex,
+    drawBarFrame,
     drawBarSegments,
 } from '../ui/HudTheme';
 import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../ui/HudFrame';
@@ -137,6 +138,7 @@ export class GameScene extends Phaser.Scene {
     private readonly xpBarWidth = 184;
     private readonly xpBarHeight = 8;
 
+    private xpBarFrame!: Phaser.GameObjects.Graphics;
     private hpBar!: Phaser.GameObjects.Rectangle;
     private hpValueText!: Phaser.GameObjects.Text;
     private xpBar!: Phaser.GameObjects.Rectangle;
@@ -388,10 +390,10 @@ export class GameScene extends Phaser.Scene {
         const hpIcon = createHudIcon(this, PAD + 8, 36, 'heart', { pixelSize: 16 });
         const hpBarX = PAD + 24;
         const hpBarY = 36;
+        const hpBarFrame = drawBarFrame(this, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight);
         const hpBarBg = this.add
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodTrack)
             .setOrigin(0, 0.5);
-        hpBarBg.setStrokeStyle(1, HudColors.panelOuter);
         this.hpBar = this.add
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodFill)
             .setOrigin(0, 0.5);
@@ -414,13 +416,22 @@ export class GameScene extends Phaser.Scene {
         });
         const stressBarX = PAD + 22 + Math.max(64, stressLabel.width + 12);
         const stressBarY = 64;
+        const stressBarFrame = drawBarFrame(
+            this,
+            stressBarX,
+            stressBarY,
+            this.stressBarWidth,
+            this.stressBarHeight,
+        );
         this.stressBarBg = this.add
             .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressTrack)
             .setOrigin(0, 0.5);
-        this.stressBarBg.setStrokeStyle(1, HudColors.panelOuter);
+        // Fill is built at full width so refreshUI's setDisplaySize
+        // can scale it linearly. Initial scale 0 keeps it empty.
         this.stressBar = this.add
-            .rectangle(stressBarX, stressBarY, 0, this.stressBarHeight, HudColors.stressFill)
+            .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressFill)
             .setOrigin(0, 0.5);
+        this.stressBar.setDisplaySize(0, this.stressBarHeight);
         this.stressText = this.add.text(stressBarX + this.stressBarWidth + 8, stressBarY - 8, '0', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
@@ -455,13 +466,21 @@ export class GameScene extends Phaser.Scene {
         }).setOrigin(0, 0);
         const xpBarX = centreX;
         const xpBarY = 60;
+        this.xpBarFrame = drawBarFrame(
+            this,
+            xpBarX,
+            xpBarY,
+            this.xpBarWidth,
+            this.xpBarHeight,
+        );
         this.xpBarBg = this.add
             .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x14202c)
             .setOrigin(0, 0.5);
-        this.xpBarBg.setStrokeStyle(1, HudColors.panelOuter);
+        // Fill at full width then scaled by ratio in refreshUI.
         this.xpBar = this.add
-            .rectangle(xpBarX, xpBarY, 0, this.xpBarHeight, 0x6a8fc2)
+            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x6a8fc2)
             .setOrigin(0, 0.5);
+        this.xpBar.setDisplaySize(0, this.xpBarHeight);
 
         // Group C — Combat stats on the right, stacked vertically:
         // sword "АТАКА N" on top, shield "ЗАЩИТА N" below it. The block
@@ -606,17 +625,21 @@ export class GameScene extends Phaser.Scene {
         const topWidgets: Phaser.GameObjects.GameObject[] = [
             topFrame,
             hpIcon,
+            // bar frame must sit beneath the track so its rim hugs the bar
+            hpBarFrame,
             hpBarBg,
             this.hpBar,
             hpSegments,
             this.hpValueText,
             stressIcon,
             stressLabel,
+            stressBarFrame,
             this.stressBarBg,
             this.stressBar,
             this.stressText,
             this.resolutionText,
             this.levelText,
+            this.xpBarFrame,
             this.xpBarBg,
             this.xpBar,
             this.xpValueText,
@@ -764,6 +787,7 @@ export class GameScene extends Phaser.Scene {
         );
 
         this.hpValueText.setVisible(unlocks.showHpNumbers);
+        this.xpBarFrame.setVisible(unlocks.showLevelPanel);
         this.xpBarBg.setVisible(unlocks.showLevelPanel);
         this.xpBar.setVisible(unlocks.showLevelPanel);
         this.levelText.setVisible(unlocks.showLevelPanel);
