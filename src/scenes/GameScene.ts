@@ -158,7 +158,6 @@ export class GameScene extends Phaser.Scene {
     // removed because the dedicated ГЛУБИНА cell in the bottom HUD now
     // shows the same value with much better legibility.
     public tooltipText!: Phaser.GameObjects.Text;
-    private depthLabels: Map<number, Phaser.GameObjects.Text> = new Map();
 
     private stressBarBg!: Phaser.GameObjects.Rectangle;
     private stressBar!: Phaser.GameObjects.Rectangle;
@@ -250,7 +249,6 @@ export class GameScene extends Phaser.Scene {
         this.actionButtons = [];
         this.visuals = new Map();
         this.glowMap = new Map();
-        this.depthLabels = new Map();
         this.roomTintOverlay = null;
         this.animating = false;
         this.dead = false;
@@ -331,7 +329,6 @@ export class GameScene extends Phaser.Scene {
                 : 'The hunt for the Wish Artifact begins.',
             '#999999'
         );
-        this.buildDepthLabels();
     }
 
     private setupKeyboardShortcuts() {
@@ -1178,33 +1175,6 @@ export class GameScene extends Phaser.Scene {
         });
     }
 
-    private buildDepthLabels() {
-        this.depthLabels.forEach((label) => label.destroy());
-        this.depthLabels.clear();
-
-        const depths = new Set<number>();
-        this.dungeon.getAllNodes().forEach((node) => depths.add(node.depth));
-
-        depths.forEach((depth) => {
-            if (depth === 0) return;
-            this.addDepthLabel(depth);
-        });
-    }
-
-    private addDepthLabel(depth: number) {
-        if (this.depthLabels.has(depth)) return;
-        const x = MAP_X + (depth - 1) * COL_W;
-        const y = MAP_Y - ROW_H * 1.1;
-        const isBoss = depth > 0 && depth % 8 === 0;
-        const label = this.add.text(x, y, isBoss ? `D${depth} ★` : `D${depth}`, {
-            fontFamily: 'Courier New',
-            fontSize: '10px',
-            color: isBoss ? '#c93d3d' : '#999999',
-        }).setOrigin(0.5);
-        this.mapContainer.add(label);
-        this.depthLabels.set(depth, label);
-    }
-
     private makeClickable(rect: Phaser.GameObjects.Rectangle, node: MapNode) {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', () => {
@@ -1552,7 +1522,6 @@ export class GameScene extends Phaser.Scene {
         this.refreshAvailableRoomPool(this.dungeon.currentDepth);
         const newNodes = this.mapGen.generateNextLayer(this.dungeon.getAllNodes(), fromDepth);
         this.dungeon.addNodes(newNodes);
-        newNodes.forEach((node) => this.addDepthLabel(node.depth));
     }
 
     private refreshAvailableRoomPool(depth: number) {
