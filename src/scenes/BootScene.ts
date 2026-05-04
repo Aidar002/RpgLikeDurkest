@@ -60,7 +60,7 @@ export class BootScene extends Phaser.Scene {
         // Each is optional; the HUD layer renders procedural fallbacks
         // when a file is missing. See public/assets/ui/README.md for
         // canonical sizes and the hud_icons.png frame order.
-        this.load.image('hud_top_bar', `${base}assets/ui/top_bar.png`);
+        // The top bar is rendered procedurally so we don't load a PNG.
         this.load.image('hud_bottom_bar', `${base}assets/ui/bottom_bar.png`);
         this.load.image('hud_stone_wall', `${base}assets/ui/stone_wall.png`);
         this.load.spritesheet('hud_icons', `${base}assets/ui/hud_icons.png`, {
@@ -106,7 +106,6 @@ export class BootScene extends Phaser.Scene {
         const music = new MusicManager();
         const audioBase = `${import.meta.env.BASE_URL}audio`;
         music.setPlaylist([
-            { url: `${audioBase}/bg_1.mp3` },
             { url: `${audioBase}/bg_2.mp3` },
             { url: `${audioBase}/bg_3.mp3` },
         ]);

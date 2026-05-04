@@ -1,17 +1,11 @@
 /**
- * Carved-stone HUD frame renderer.
+ * HUD frame renderer.
  *
- * Tries to use the hand-authored PNG (`hud_top_bar` / `hud_bottom_bar`)
- * loaded by {@link import('../scenes/BootScene').BootScene}. When the
- * texture is missing we fall back to drawing a thin layered rectangle
- * with subtle highlight/shadow so the HUD still has structure.
- *
- * The PNG path uses Phaser's {@link Phaser.GameObjects.NineSlice}: the
- * 32×32 corner ornaments are rendered at native pixel size, the four
- * edges stretch only along their long axis, and the center stone tile
- * stretches to fill the remainder. This preserves the carved Greek-key
- * corners (and the right-side skull on the top bar) regardless of how
- * tall or wide the panel is, instead of squeezing the entire image.
+ * The bottom bar still uses the hand-authored carved-stone PNG via
+ * Phaser's nine-slice. The top bar is rendered procedurally — the
+ * carved-stone PNG used to live there too but its corner ornaments and
+ * right-side skull crowded the area we now reserve for the
+ * mute/options/language icon row, so the visual was retired.
  *
  * Both rendering modes return a single `GameObject` so callers can add
  * it to a `Container` and depth-sort uniformly.
@@ -22,11 +16,11 @@ import { HudColors } from './HudTheme';
 
 /**
  * Slice metrics, in source-texture pixels. The L-shaped Greek-key
- * ornaments end at roughly x=24-28 / y=22-26 in both top_bar.png
- * (134px tall) and bottom_bar.png (155px tall). Vertical slices are
- * deliberately tighter than horizontal ones so the visible top/bottom
- * gold rim does not eat half of the panel's interior — the L-corner
- * still stays sharp because its main mass sits above y=22.
+ * ornaments end at roughly x=24-28 / y=22-26 in bottom_bar.png
+ * (155px tall). Vertical slices are deliberately tighter than
+ * horizontal ones so the visible top/bottom gold rim does not eat
+ * half of the panel's interior — the L-corner still stays sharp
+ * because its main mass sits above y=22.
  */
 const PANEL_SLICE = {
     left: 32,
@@ -38,6 +32,11 @@ const PANEL_SLICE = {
 /**
  * Draw the top HUD frame.
  *
+ * Always procedural now (no PNG): two stacked dark bands with a thin
+ * gold rim on top and a soft inner shadow on the bottom. The intent is
+ * to read as a clean "command bar" so the icon row in the upper-right
+ * has room to breathe.
+ *
  * @returns the visual game object representing the frame.
  */
 export function drawTopFrame(
@@ -45,23 +44,7 @@ export function drawTopFrame(
     width: number,
     height: number,
 ): Phaser.GameObjects.GameObject {
-    if (scene.textures.exists('hud_top_bar')) {
-        return scene.add
-            .nineslice(
-                0,
-                0,
-                'hud_top_bar',
-                undefined,
-                width,
-                height,
-                PANEL_SLICE.left,
-                PANEL_SLICE.right,
-                PANEL_SLICE.top,
-                PANEL_SLICE.bottom,
-            )
-            .setOrigin(0, 0);
-    }
-    return drawFallbackPanel(scene, 0, 0, width, height);
+    return drawProceduralTopBar(scene, 0, 0, width, height);
 }
 
 /** Draw the bottom HUD frame. */
@@ -108,6 +91,54 @@ export function drawStoneBackdrop(
         .image(0, y, 'hud_stone_wall')
         .setOrigin(0, 0)
         .setDisplaySize(width, height);
+}
+
+/**
+ * Layered procedural top bar:
+ *   1. solid outer rim
+ *   2. dark fill
+ *   3. 1-px gradient band along the top edge (warm gold, 50%→0% alpha)
+ *   4. 2-px inner shadow on the bottom so the play area visually drops
+ *      away from the bar
+ *   5. faint divider line below the rim
+ */
+function drawProceduralTopBar(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+): Phaser.GameObjects.Container {
+    const g = scene.add.graphics();
+    // Outer rim — same colour as the panel border tokens.
+    g.fillStyle(HudColors.panelOuter, 1);
+    g.fillRect(x, y, w, h);
+    // Main fill, slightly lighter than `panelBg` so the bar reads as
+    // raised relative to the play area below.
+    g.fillStyle(0x12101a, 1);
+    g.fillRect(x + 1, y + 1, w - 2, h - 2);
+    // Subtle top-to-bottom darkening — the upper band is a hint
+    // brighter so the rim catches the eye.
+    g.fillGradientStyle(0x1a1622, 0x1a1622, 0x0a0810, 0x0a0810, 1, 1, 1, 1);
+    g.fillRect(x + 1, y + 1, w - 2, h - 2);
+    // Top gold rim — 1 px solid + 1 px softer.
+    g.fillStyle(HudColors.cellGoldEdge, 0.7);
+    g.fillRect(x + 1, y + 1, w - 2, 1);
+    g.fillStyle(HudColors.cellGoldEdge, 0.18);
+    g.fillRect(x + 1, y + 2, w - 2, 1);
+    // Faint divider 4 px below the rim — frames the icon row.
+    g.fillStyle(HudColors.panelHi, 0.45);
+    g.fillRect(x + 8, y + 6, w - 16, 1);
+    // Bottom inner shadow — fades the bar into the play area.
+    g.fillStyle(HudColors.panelLo, 0.9);
+    g.fillRect(x + 1, y + h - 3, w - 2, 1);
+    g.fillStyle(0x000000, 0.55);
+    g.fillRect(x + 1, y + h - 2, w - 2, 1);
+    // Side gold accents — short vertical strokes flanking the bar.
+    g.fillStyle(HudColors.cellGoldEdge, 0.55);
+    g.fillRect(x + 1, y + 1, 1, h - 2);
+    g.fillRect(x + w - 2, y + 1, 1, h - 2);
+    return scene.add.container(0, 0, [g]);
 }
 
 function drawFallbackPanel(
