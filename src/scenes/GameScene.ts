@@ -1181,18 +1181,48 @@ export class GameScene extends Phaser.Scene {
 
             background.on('pointerover', () => {
                 if (actionButton.enabled) {
-                    // Subtle warm-tint highlight on top of the variant's
-                    // own colours so hover reads regardless of frame.
-                    background.setTint(0xfff2c2);
+                    // Hover: lighter tint + a subtle scale-up so the
+                    // active option visibly "pops" relative to the
+                    // other buttons. Tint went 0xfff2c2 → 0xfff8df
+                    // (closer to white) for a brighter highlight.
+                    background.setTint(0xfff8df);
+                    this.tweens.killTweensOf([background, label]);
+                    this.tweens.add({
+                        targets: [background, label],
+                        scaleX: 1.04,
+                        scaleY: 1.04,
+                        duration: 90,
+                        ease: 'Sine.out',
+                    });
                     this.sfx.play('buttonHover');
                 }
             });
             background.on('pointerout', () => {
                 background.clearTint();
+                this.tweens.killTweensOf([background, label]);
+                this.tweens.add({
+                    targets: [background, label],
+                    scaleX: 1,
+                    scaleY: 1,
+                    duration: 90,
+                    ease: 'Sine.out',
+                });
             });
             background.on('pointerdown', () => {
                 if (actionButton.enabled && actionButton.callback) {
                     this.sfx.play('buttonClick');
+                    // Press feedback: yoyo a quick shrink so the
+                    // button reads as "depressed" before the callback
+                    // either swaps the room or rebuilds the panel.
+                    this.tweens.killTweensOf([background, label]);
+                    this.tweens.add({
+                        targets: [background, label],
+                        scaleX: 0.94,
+                        scaleY: 0.9,
+                        duration: 60,
+                        ease: 'Quad.out',
+                        yoyo: true,
+                    });
                     actionButton.callback();
                 }
             });
@@ -1206,6 +1236,11 @@ export class GameScene extends Phaser.Scene {
 
     public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false) {
         this.actionButtons.forEach((button) => {
+            // Kill any in-flight hover/press tween so re-configured
+            // buttons don't inherit a stale scale or partial yoyo.
+            this.tweens.killTweensOf([button.background, button.label]);
+            button.background.setScale(1, 1);
+            button.label.setScale(1, 1);
             button.background.setPosition(button.defaultX, button.defaultY);
             button.background.setSize(button.defaultWidth, 40);
             button.label.setPosition(button.defaultX, button.defaultY);
@@ -1410,15 +1445,18 @@ export class GameScene extends Phaser.Scene {
      * present we scale the frame ~10% and tint it lighter; without the
      * overlay we fall back to a thicker neutral-gold rect stroke. No white
      * outline anywhere — that was the "current room" highlight the player
-     * asked us to retire.
+     * asked us to retire. After hover-out the frame restarts its idle
+     * pulsate if the node is still a reachable forward option, so the
+     * "breathing" affordance never gets eaten by a hover.
      */
     private applyNodeHover(node: MapNode, hovered: boolean) {
         const visual = this.visuals.get(node.id);
         if (!visual) {
             return;
         }
-        const targetSize = hovered ? NODE_SZ + 16 : NODE_SZ + 8;
+        const targetSize = hovered ? NODE_SZ + 18 : NODE_SZ + 8;
         const tint = hovered ? 0xfff5cc : 0xffffff;
+        const isReachable = !node.cleared && this.dungeon.canMoveTo(node.id);
         if (visual.frame) {
             this.tweens.killTweensOf(visual.frame);
             this.tweens.add({
@@ -1427,6 +1465,11 @@ export class GameScene extends Phaser.Scene {
                 displayHeight: targetSize,
                 duration: 120,
                 ease: 'Sine.out',
+                onComplete: () => {
+                    if (!hovered && isReachable) {
+                        this.startNodePulse(visual);
+                    }
+                },
             });
             if (node.cleared) {
                 visual.frame.setTint(0x555555);
@@ -1439,9 +1482,49 @@ export class GameScene extends Phaser.Scene {
         }
         // Fallback path (PNG missing) — a thin stroke change with the same
         // semantic palette as updateMapUI(), no white.
-        const isForward = this.dungeon.canMoveTo(node.id) && !node.cleared;
-        const colour = node.cleared ? 0x333333 : isForward ? 0x6d6d6d : 0x343434;
+        const colour = node.cleared ? 0x333333 : isReachable ? 0x6d6d6d : 0x343434;
         visual.rect.setStrokeStyle(hovered ? 3 : 2, hovered ? 0x9a8a4a : colour);
+    }
+
+    /**
+     * Idle "breathing" pulse on a reachable map node — the carved
+     * frame yoyos between its base size (NODE_SZ + 8) and a slightly
+     * larger peak (NODE_SZ + 14). This replaced the grey
+     * VFX.nodeGlow rectangle that players asked us to retire.
+     *
+     * Hover takes priority via `applyNodeHover` (which kills tweens
+     * on the frame and animates to NODE_SZ + 18); on hover-out the
+     * pulse is restarted from there so the affordance is continuous
+     * across the player's pointer movement.
+     */
+    private startNodePulse(visual: NodeVisual) {
+        if (visual.frame) {
+            const baseSize = NODE_SZ + 8;
+            const peakSize = NODE_SZ + 14;
+            this.tweens.killTweensOf(visual.frame);
+            visual.frame.setDisplaySize(baseSize, baseSize);
+            this.tweens.add({
+                targets: visual.frame,
+                displayWidth: peakSize,
+                displayHeight: peakSize,
+                duration: 760,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.inOut',
+            });
+            return;
+        }
+        // PNG missing — pulse the rect's stroke alpha instead so the
+        // affordance is still visible on the fallback render path.
+        this.tweens.killTweensOf(visual.rect);
+        this.tweens.add({
+            targets: visual.rect,
+            alpha: { from: 0.7, to: 1 },
+            duration: 760,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.inOut',
+        });
     }
 
     private canUseMapNode(node: MapNode): boolean {
@@ -1567,6 +1650,11 @@ export class GameScene extends Phaser.Scene {
                 return;
             }
 
+            // Kill any in-flight pulse (fallback render path) so it
+            // doesn't fight the alpha→0.35 fade that follows.
+            this.tweens.killTweensOf(visual.rect);
+            if (visual.frame) this.tweens.killTweensOf(visual.frame);
+
             visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333);
             visual.icon.setColor('#777777');
 
@@ -1602,6 +1690,12 @@ export class GameScene extends Phaser.Scene {
     public refreshInteractivity() {
         const unlocks = this.meta.getUiUnlockState();
 
+        // The reachable-node affordance used to be a separate grey
+        // VFX.nodeGlow rectangle; we now pulsate the carved frame
+        // itself instead, so this map only holds left-over glows from
+        // older runs and is always cleared here. The active "pulse"
+        // tween on each frame is killed below as part of the
+        // per-node refresh so it doesn't compound.
         this.glowMap.forEach((glow) => glow.destroy());
         this.glowMap.clear();
         this.fireMap.forEach((fire) => fire.destroy());
@@ -1618,6 +1712,13 @@ export class GameScene extends Phaser.Scene {
             }
 
             const hasFrame = this.textures.exists('hud_room_frames');
+
+            // Kill any in-flight pulse on the rect (fallback render
+            // path) before re-deriving its alpha/stroke. Without this
+            // a node that loses its forward status — or gets cleared
+            // — would keep yoyo-ing alpha from `startNodePulse` and
+            // override the setAlpha calls below.
+            this.tweens.killTweensOf(visual.rect);
 
             if (node.cleared) {
                 visual.rect.setFillStyle(0x000000).setAlpha(0.35);
@@ -1712,12 +1813,15 @@ export class GameScene extends Phaser.Scene {
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
-            // Highlight glow around reachable nodes — uniform neutral grey so
-            // gold/red/green tints don't clash with the carved frame palette.
-            if (isForward) {
-                const glow = VFX.nodeGlow(this, this.nodeX(node), this.nodeY(node), 0x9a9a9a, NODE_SZ);
-                this.mapContainer.add(glow);
-                this.glowMap.set(id, glow);
+            // Reachable-node affordance: pulsate the carved frame
+            // (or, when the PNG is missing, the rect stroke) so the
+            // forward options breathe in and out. The grey
+            // VFX.nodeGlow rectangle was retired — players asked us
+            // to remove the dull grey halo; the pulse sits inside
+            // the existing frame palette so it never clashes with
+            // the room-type tint.
+            if (isForward && !node.cleared) {
+                this.startNodePulse(visual);
             }
 
             // Tiny fire embers above campfire/altar nodes (REST/START/SHRINE).
