@@ -1073,15 +1073,26 @@ export class GameScene extends Phaser.Scene {
         // Buttons live inside the right info panel (x=570..1004, centred at
         // 787). The left column was previously at x=650 which spilled past
         // the panel border and overlapped the EVENT LOG seam — shift the
-        // pair so each column sits ~22 px inside the panel walls. Rows are
-        // also lifted so the wide [5] button no longer collides with the
-        // 108 px bottom HUD bar (which now starts at y=650).
+        // pair so each column sits ~22 px inside the panel walls.
+        //
+        // Button Y values are derived from the layout constants so they
+        // automatically follow the panel's bottom edge whenever
+        // BOTTOM_BAR_H changes (otherwise the wide [5] button slips under
+        // the HUD bar — see the 108→140 BOTTOM_BAR_H bump that left the
+        // old hard-coded y=625 spec poking past the new bar top at y=618).
+        const BTN_H = 40;
+        const BTN_ROW_GAP = 10;
+        const BTN_PANEL_PAD = 4;
+        const panelBottom = GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET;
+        const wideButtonY = panelBottom - BTN_PANEL_PAD - BTN_H / 2;
+        const middleRowY = wideButtonY - (BTN_H + BTN_ROW_GAP);
+        const topRowY = middleRowY - (BTN_H + BTN_ROW_GAP);
         const buttonSpecs = [
-            { x: 682, y: 525, width: 180 },
-            { x: 892, y: 525, width: 180 },
-            { x: 682, y: 575, width: 180 },
-            { x: 892, y: 575, width: 180 },
-            { x: 787, y: 625, width: 390 },
+            { x: 682, y: topRowY, width: 180 },
+            { x: 892, y: topRowY, width: 180 },
+            { x: 682, y: middleRowY, width: 180 },
+            { x: 892, y: middleRowY, width: 180 },
+            { x: 787, y: wideButtonY, width: 390 },
         ];
 
         buttonSpecs.forEach((spec) => {
