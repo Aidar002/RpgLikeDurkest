@@ -189,6 +189,9 @@ export class BootScene extends Phaser.Scene {
         startBtn.on('pointerout', () => startBtn.setStrokeStyle(1, 0x5a5a5a));
         startBtn.on('pointerdown', () => {
             sfx.play('buttonClick');
+            // The first reliable user gesture — kick music off here so audio
+            // playback starts even on browsers with strict autoplay policy.
+            music.kick();
             this.cameras.main.fadeOut(400, 0, 0, 0);
             this.time.delayedCall(400, () => this.scene.start('GameScene', { loc, sfx, music }));
         });
