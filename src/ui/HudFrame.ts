@@ -80,6 +80,45 @@ export function drawBottomFrame(
 }
 
 /**
+ * Draw a free-floating carved-stone panel anywhere on the screen.
+ *
+ * Reuses the same `hud_bottom_bar` PNG via Phaser nine-slice when the
+ * texture is available, so the L-shaped corner ornaments stay sharp at
+ * any width/height. Falls back to the procedural fallback panel (a
+ * darker fill with rune-dot corners) when the texture is missing — used
+ * by tests and for the brief loading window before BootScene completes.
+ *
+ * Both branches return objects that implement the Depth component, so
+ * the union return type lets callers chain `.setDepth(...)` without a
+ * cast.
+ */
+export function drawCarvedPanel(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+): Phaser.GameObjects.NineSlice | Phaser.GameObjects.Container {
+    if (scene.textures.exists('hud_bottom_bar')) {
+        return scene.add
+            .nineslice(
+                x,
+                y,
+                'hud_bottom_bar',
+                undefined,
+                width,
+                height,
+                PANEL_SLICE.left,
+                PANEL_SLICE.right,
+                PANEL_SLICE.top,
+                PANEL_SLICE.bottom,
+            )
+            .setOrigin(0, 0);
+    }
+    return drawFallbackPanel(scene, x, y, width, height);
+}
+
+/**
  * Render the optional stone-wall background between the two HUD bars.
  * Returns `null` if the texture is unavailable so callers know not to
  * insert anything into the scene graph.
