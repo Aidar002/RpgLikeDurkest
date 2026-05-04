@@ -22,15 +22,17 @@ import { HudColors } from './HudTheme';
 
 /**
  * Slice metrics, in source-texture pixels. The L-shaped Greek-key
- * ornaments end at roughly x=24-28 / y=24-28 in both top_bar.png
- * (134px tall) and bottom_bar.png (155px tall) — using 32 gives a
- * little buffer so the corner motif stays unmolested.
+ * ornaments end at roughly x=24-28 / y=22-26 in both top_bar.png
+ * (134px tall) and bottom_bar.png (155px tall). Vertical slices are
+ * deliberately tighter than horizontal ones so the visible top/bottom
+ * gold rim does not eat half of the panel's interior — the L-corner
+ * still stays sharp because its main mass sits above y=22.
  */
 const PANEL_SLICE = {
     left: 32,
     right: 32,
-    top: 32,
-    bottom: 32,
+    top: 22,
+    bottom: 22,
 } as const;
 
 /**

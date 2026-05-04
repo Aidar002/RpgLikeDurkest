@@ -72,6 +72,7 @@ interface NodeVisual {
     rect: Phaser.GameObjects.Rectangle;
     icon: Phaser.GameObjects.Text;
     sprite?: Phaser.GameObjects.Image;
+    frame?: Phaser.GameObjects.Image;
 }
 
 interface ActionButton {
@@ -376,9 +377,12 @@ export class GameScene extends Phaser.Scene {
         const topFrame = drawTopFrame(this, GAME_WIDTH, TOP_H);
 
         // Group A — Vitals (HP bar + stress bar) on the left ~third.
-        const hpIcon = createHudIcon(this, PAD + 8, 22, 'heart', { pixelSize: 16 });
+        // Bars sit in the panel's interior (y=22..60 after the carved
+        // gold rim) — placing the heart at y=30 keeps it clear of the
+        // corner ornament.
+        const hpIcon = createHudIcon(this, PAD + 8, 30, 'heart', { pixelSize: 16 });
         const hpBarX = PAD + 24;
-        const hpBarY = 22;
+        const hpBarY = 30;
         const hpBarBg = this.add
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodTrack)
             .setOrigin(0, 0.5);
@@ -395,8 +399,8 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        const stressIcon = createHudIcon(this, PAD + 8, 54, 'skull', { pixelSize: 14 });
-        const stressLabel = this.add.text(PAD + 18, 47, this.loc.t('stressLabel').toUpperCase(), {
+        const stressIcon = createHudIcon(this, PAD + 8, 56, 'skull', { pixelSize: 14 });
+        const stressLabel = this.add.text(PAD + 18, 49, this.loc.t('stressLabel').toUpperCase(), {
             fontFamily: HUD_FONT,
             fontSize: '11px',
             color: HudHex.textSecondary,
@@ -404,7 +408,7 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
         const stressBarX = PAD + 22 + Math.max(64, stressLabel.width + 12);
-        const stressBarY = 54;
+        const stressBarY = 56;
         this.stressBarBg = this.add
             .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressTrack)
             .setOrigin(0, 0.5);
@@ -429,7 +433,7 @@ export class GameScene extends Phaser.Scene {
 
         // Group B — Level + XP centred in the panel.
         const centreX = 488;
-        this.levelText = this.add.text(centreX, 18, '', {
+        this.levelText = this.add.text(centreX, 24, '', {
             fontFamily: HUD_FONT,
             fontSize: '15px',
             fontStyle: 'bold',
@@ -437,7 +441,7 @@ export class GameScene extends Phaser.Scene {
             stroke: HUD_STROKE,
             strokeThickness: 2,
         }).setOrigin(0, 0);
-        this.xpValueText = this.add.text(centreX + 80, 18, '', {
+        this.xpValueText = this.add.text(centreX + 80, 24, '', {
             fontFamily: HUD_FONT,
             fontSize: '13px',
             color: HudHex.textSecondary,
@@ -445,7 +449,7 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0, 0);
         const xpBarX = centreX;
-        const xpBarY = 48;
+        const xpBarY = 52;
         this.xpBarBg = this.add
             .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x14202c)
             .setOrigin(0, 0.5);
@@ -457,13 +461,13 @@ export class GameScene extends Phaser.Scene {
         // Group C — Combat stats on the right (sword/shield + label + value).
         // Positions chosen so the labels never collide with the carved skull
         // decoration in the top-right corner of the PNG frame.
-        this.atkStat = createHudInlineSlot(this, 700, 32, {
+        this.atkStat = createHudInlineSlot(this, 700, 30, {
             icon: 'sword',
             label: this.loc.t('attackShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
         });
-        this.defStat = createHudInlineSlot(this, 860, 32, {
+        this.defStat = createHudInlineSlot(this, 860, 30, {
             icon: 'shield',
             label: this.loc.t('defenseShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
@@ -471,14 +475,14 @@ export class GameScene extends Phaser.Scene {
         });
 
         // Optional secondary stats — squeezed into the second row when relevant.
-        this.revivesStat = createHudInlineSlot(this, 700, 58, {
+        this.revivesStat = createHudInlineSlot(this, 700, 56, {
             icon: 'heart',
             label: this.loc.t('reviveShort').toUpperCase(),
             valueFontSize: '13px',
             labelFontSize: '11px',
             iconSize: 12,
         });
-        this.lightTorchIcon = this.add.text(860, 58, '', {
+        this.lightTorchIcon = this.add.text(860, 56, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
             color: HudHex.accentLight,
@@ -1086,7 +1090,13 @@ export class GameScene extends Phaser.Scene {
             const y = this.nodeY(node);
             const revealed = node.visited || forwardIds.has(node.id) || node.id === currentId;
             const knowsType = node.cleared || node.visited || node.id === currentId || unlocks.showRoomIcons;
-            const color = node.cleared ? 0x242424 : revealed ? roomColor(node) : 0x1a1a1a;
+            // Every room sits on a black backdrop; the carved frame
+            // overlay (room_frames.png) is what carries the state colour
+            // (gold safe / red danger / grey unknown). The procedural
+            // fallback below adds a thin stroke when the frame texture
+            // is missing.
+            const alpha = node.cleared ? 0.35 : 1;
+            const hasFrame = this.textures.exists('hud_room_frames');
             const stroke = node.cleared
                 ? 0x333333
                 : node.id === currentId
@@ -1094,12 +1104,13 @@ export class GameScene extends Phaser.Scene {
                   : forwardIds.has(node.id)
                     ? 0x6d6d6d
                     : 0x343434;
-            const alpha = node.cleared ? 0.35 : 1;
 
             const rect = this.add
-                .rectangle(x, y, NODE_SZ, NODE_SZ, color)
-                .setStrokeStyle(2, stroke)
+                .rectangle(x, y, NODE_SZ, NODE_SZ, 0x000000)
                 .setAlpha(alpha);
+            if (!hasFrame) {
+                rect.setStrokeStyle(2, stroke);
+            }
 
             const icon = this.add
                 .text(x, y, revealed && knowsType ? roomIcon(node.type) : '?', {
@@ -1137,14 +1148,13 @@ export class GameScene extends Phaser.Scene {
             // grey for unknown). Only renders when the optional spritesheet is
             // present — falls back silently to the base rect+icon otherwise.
             let frame: Phaser.GameObjects.Image | undefined;
-            if (this.textures.exists('hud_room_frames')) {
+            if (hasFrame) {
                 const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
                 frame = this.add.image(x, y, 'hud_room_frames', frameIdx)
                     .setOrigin(0.5)
                     .setAlpha(alpha);
                 frame.setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
                 if (node.cleared) frame.setTint(0x555555);
-                rect.setStrokeStyle(0);
             }
 
             if (fadeIn && !node.cleared) {
@@ -1167,7 +1177,7 @@ export class GameScene extends Phaser.Scene {
             if (sprite) children.push(sprite);
             if (frame) children.push(frame);
             this.mapContainer.add(children);
-            this.visuals.set(node.id, { rect, icon, sprite });
+            this.visuals.set(node.id, { rect, icon, sprite, frame });
         });
     }
 
@@ -1400,10 +1410,20 @@ export class GameScene extends Phaser.Scene {
                 return;
             }
 
+            const hasFrame = this.textures.exists('hud_room_frames');
+
             if (node.cleared) {
-                visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333).setAlpha(0.35);
+                visual.rect.setFillStyle(0x000000).setAlpha(0.35);
+                if (hasFrame) {
+                    visual.rect.setStrokeStyle(0);
+                } else {
+                    visual.rect.setStrokeStyle(1, 0x333333);
+                }
                 visual.icon.setColor('#777777').setAlpha(0.5);
                 if (visual.sprite) visual.sprite.setAlpha(0.35).setTint(0x555555);
+                if (visual.frame) {
+                    visual.frame.setAlpha(0.35).setTint(0x555555);
+                }
                 return;
             }
 
@@ -1413,8 +1433,21 @@ export class GameScene extends Phaser.Scene {
             const knowsType = node.visited || isCurrent || unlocks.showRoomIcons;
             const iconText = revealed && knowsType ? roomIcon(node.type) : '?';
 
-            visual.rect.setFillStyle(revealed ? roomColor(node) : 0x1a1a1a).setAlpha(1);
-            visual.rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
+            // Black backdrop for every room — the carved frame overlay
+            // (when present) carries the state colour, so the rect's
+            // own stroke is only used as a fallback indicator when the
+            // frame texture is missing.
+            visual.rect.setFillStyle(0x000000).setAlpha(1);
+            if (hasFrame) {
+                visual.rect.setStrokeStyle(0);
+            } else {
+                visual.rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
+            }
+
+            if (visual.frame) {
+                const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
+                visual.frame.setFrame(frameIdx).setAlpha(1).clearTint();
+            }
 
             // Sprite priority: hand-authored room_icons spritesheet →
             // procedural PixelSprite → text glyph (matches buildAllVisuals).
