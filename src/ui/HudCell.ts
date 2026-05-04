@@ -77,13 +77,18 @@ export function createHudCell(
         widgets.push(border);
     }
 
-    const innerTop = y + 6;
-    const labelY = y + h - 28;
-    const valueY = y + h - 14;
+    // The bottom-bar PNG reserves ~22 px at the top for the carved gold
+    // rim. Pushing the icon below it keeps the artwork legible instead
+    // of fighting the ornament for the same row of pixels. Label and
+    // value are then stacked tightly below so a 70px cell holds three
+    // lines without overlap.
+    const innerTop = y + 20;
+    const labelY = y + h - 24;
+    const valueY = y + h - 8;
 
     if (options.icon) {
-        const icon = createHudIcon(scene, cellCenterX, innerTop + 11, options.icon, {
-            pixelSize: 22,
+        const icon = createHudIcon(scene, cellCenterX, innerTop + 9, options.icon, {
+            pixelSize: 18,
         });
         widgets.push(icon);
     }
