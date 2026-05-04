@@ -135,10 +135,10 @@ export function setupSceneChrome(
     // the icon frames sit fully inside the bar interior instead of
     // clipping the rim, and inset from the right edge so the last
     // icon's frame clears the corner ornament. 26-px wide frame +
-    // 13-px half-width = rightmost icon ends at GAME_WIDTH − 36,
-    // matching the bottom bar's safe inset.
-    const ICON_Y = 24;
-    const ICON_RIGHT = GAME_WIDTH - 49;
+    // 13-px half-width keeps the rightmost icon clear of the corner
+    // ornament while sitting comfortably below the carved rim.
+    const ICON_Y = 32;
+    const ICON_RIGHT = GAME_WIDTH - 57;
 
     // The mute icon controls SFX. When music is wired in, its mute state is
     // kept in sync so a single click silences the whole game.
