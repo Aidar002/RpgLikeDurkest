@@ -721,7 +721,16 @@ export class GameScene extends Phaser.Scene {
         // them along, and the carved bar interior is left entirely to
         // the resource cells (so the milestone hint no longer sits on
         // top of the bottom rim where it gets visually clipped).
-        this.relicText = this.add.text(PAD, BOT_Y - 8, '', {
+        //
+        // The two are stacked vertically — hint sits on the bottom
+        // line just above the bar (centred so it reads as a deliberate
+        // goal reminder), relic summary sits one line up on the left
+        // — because their horizontal extents (centred + 540 px word
+        // wrap) would otherwise collide whenever the player has both
+        // relics and an outstanding milestone simultaneously.
+        const HINT_LINE_Y = BOT_Y - 8;
+        const RELIC_LINE_Y = BOT_Y - 24;
+        this.relicText = this.add.text(PAD, RELIC_LINE_Y, '', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
             color: HudHex.accentGold,
@@ -729,7 +738,7 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
             wordWrap: { width: 540 },
         }).setOrigin(0, 1);
-        this.hintText = this.add.text(CENTER_X, BOT_Y - 8, '', {
+        this.hintText = this.add.text(CENTER_X, HINT_LINE_Y, '', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
             color: HudHex.textSecondary,
