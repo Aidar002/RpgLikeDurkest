@@ -2,20 +2,30 @@
  * HUD icon helpers.
  *
  * Each stat slot in the HUD shows an icon next to a label/value. We prefer
- * the hand-authored {@link iconKey `hud_icons`} spritesheet (16×16 frames)
- * registered in {@link import('../scenes/BootScene').BootScene}. When that
- * texture has not loaded — for example, the PNG is not yet in the repo —
- * we fall back to a small unicode glyph rendered with the HUD font so the
- * UI keeps working.
+ * the hand-authored {@link iconKey `hud_icons`} spritesheet (8x2 grid of
+ * 64×64 frames) registered in {@link import('../scenes/BootScene').BootScene}.
+ * When that texture has not loaded — for example, the PNG is not yet in the
+ * repo — we fall back to a small unicode glyph rendered with the HUD font
+ * so the UI keeps working.
  *
- * The frame order is locked in {@link IconFrame}; if `icons.png` ships
+ * The frame order is locked in {@link IconFrame}; if `hud_icons.png` ships
  * with a different order, update only this map.
+ *
+ * Frame layout (matches `public/assets/ui/hud_icons.png`):
+ *   row 0:  heart  skull  star   xpArrow  sword   shield  coin    potion
+ *   row 1:  resolve lantern shard depth   kills   boss    music   globe
  */
 import * as Phaser from 'phaser';
 
 import { HUD_FONT, HUD_STROKE, HudHex } from './HudTheme';
 
-/** Numeric frame index for each named icon inside `hud_icons`. */
+/**
+ * Numeric frame index for each named icon inside `hud_icons`.
+ *
+ * Legacy keys (`torch`, `moon`, `quill`) are kept as aliases pointing at
+ * the closest visual match in the current sheet so existing call sites
+ * continue to work.
+ */
 export const IconFrame = {
     heart: 0,
     skull: 1,
@@ -23,16 +33,20 @@ export const IconFrame = {
     xpArrow: 3,
     sword: 4,
     shield: 5,
-    torch: 6,
-    moon: 7,
-    coin: 8,
-    potion: 9,
-    quill: 10,
-    lantern: 11,
-    shard: 12,
-    depth: 13,
-    kills: 14,
-    boss: 15,
+    coin: 6,
+    potion: 7,
+    resolve: 8,
+    lantern: 9,
+    shard: 10,
+    depth: 11,
+    kills: 12,
+    boss: 13,
+    music: 14,
+    globe: 15,
+    // Legacy aliases.
+    torch: 9,
+    moon: 10,
+    quill: 8,
 } as const;
 
 export type IconKey = keyof typeof IconFrame;
@@ -45,16 +59,19 @@ const ICON_FALLBACK: Record<IconKey, { glyph: string; color: string }> = {
     xpArrow: { glyph: '\u2191', color: HudHex.accentExp },
     sword: { glyph: '\u2694\uFE0E', color: HudHex.accentBlood },
     shield: { glyph: '\u26E8\uFE0E', color: HudHex.accentResolve },
-    torch: { glyph: '\u2600\uFE0E', color: HudHex.accentLight },
-    moon: { glyph: '\u263D\uFE0E', color: HudHex.accentMoon },
     coin: { glyph: '\u00A4', color: HudHex.accentGold },
     potion: { glyph: '\u271A', color: HudHex.accentPotion },
-    quill: { glyph: '\u2666\uFE0E', color: HudHex.accentResolve },
+    resolve: { glyph: '\u2666\uFE0E', color: HudHex.accentResolve },
     lantern: { glyph: '\u263C\uFE0E', color: HudHex.accentLight },
     shard: { glyph: '\u25C6\uFE0E', color: HudHex.accentShard },
     depth: { glyph: '\u25BC\uFE0E', color: HudHex.accentDepth },
     kills: { glyph: '\u2020\uFE0E', color: HudHex.accentKills },
     boss: { glyph: '\u03A9', color: HudHex.accentBoss },
+    music: { glyph: '\u266B', color: HudHex.textPrimary },
+    globe: { glyph: '\u29C9', color: HudHex.textPrimary },
+    torch: { glyph: '\u2600\uFE0E', color: HudHex.accentLight },
+    moon: { glyph: '\u263D\uFE0E', color: HudHex.accentMoon },
+    quill: { glyph: '\u2666\uFE0E', color: HudHex.accentResolve },
 };
 
 const ICON_SHEET_KEY = 'hud_icons';
@@ -76,7 +93,7 @@ export function createHudIcon(
     key: IconKey,
     options: { pixelSize?: number; tint?: number; fontSize?: string } = {},
 ): Phaser.GameObjects.GameObject {
-    const pixelSize = options.pixelSize ?? 16;
+    const pixelSize = options.pixelSize ?? 18;
 
     if (scene.textures.exists(ICON_SHEET_KEY)) {
         const img = scene.add

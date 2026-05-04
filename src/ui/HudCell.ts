@@ -82,8 +82,8 @@ export function createHudCell(
     const valueY = y + h - 14;
 
     if (options.icon) {
-        const icon = createHudIcon(scene, cellCenterX, innerTop + 6, options.icon, {
-            pixelSize: 14,
+        const icon = createHudIcon(scene, cellCenterX, innerTop + 11, options.icon, {
+            pixelSize: 22,
         });
         widgets.push(icon);
     }
@@ -162,7 +162,7 @@ export function createHudInlineSlot(
     const valueColor = options.valueColor ?? HudHex.textPrimary;
     const valueFontSize = options.valueFontSize ?? '16px';
     const labelFontSize = options.labelFontSize ?? '13px';
-    const iconSize = options.iconSize ?? 16;
+    const iconSize = options.iconSize ?? 18;
 
     let cursorX = x;
     const widgets: Phaser.GameObjects.GameObject[] = [];
