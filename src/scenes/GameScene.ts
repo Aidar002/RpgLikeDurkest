@@ -1215,7 +1215,7 @@ export class GameScene extends Phaser.Scene {
         });
         rect.on('pointerover', () => {
             if (this.canUseMapNode(node)) {
-                rect.setStrokeStyle(3, 0xffffff);
+                this.applyNodeHover(node, true);
             }
             const unlocks = this.meta.getUiUnlockState();
             const revealed = node.visited || node.id === this.dungeon.currentNode.id ||
@@ -1229,11 +1229,48 @@ export class GameScene extends Phaser.Scene {
             }
         });
         rect.on('pointerout', () => {
-            const isCurrent = node.id === this.dungeon.currentNode.id;
-            const isForward = this.dungeon.canMoveTo(node.id) && !node.cleared;
-            rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
+            this.applyNodeHover(node, false);
             this.tooltipText.setVisible(false);
         });
+    }
+
+    /**
+     * Map-node hover affordance. With the carved `room_frames.png` overlay
+     * present we scale the frame ~10% and tint it lighter; without the
+     * overlay we fall back to a thicker neutral-gold rect stroke. No white
+     * outline anywhere — that was the "current room" highlight the player
+     * asked us to retire.
+     */
+    private applyNodeHover(node: MapNode, hovered: boolean) {
+        const visual = this.visuals.get(node.id);
+        if (!visual) {
+            return;
+        }
+        const targetSize = hovered ? NODE_SZ + 16 : NODE_SZ + 8;
+        const tint = hovered ? 0xfff5cc : 0xffffff;
+        if (visual.frame) {
+            this.tweens.killTweensOf(visual.frame);
+            this.tweens.add({
+                targets: visual.frame,
+                displayWidth: targetSize,
+                displayHeight: targetSize,
+                duration: 120,
+                ease: 'Sine.out',
+            });
+            if (node.cleared) {
+                visual.frame.setTint(0x555555);
+            } else if (hovered) {
+                visual.frame.setTint(tint);
+            } else {
+                visual.frame.clearTint();
+            }
+            return;
+        }
+        // Fallback path (PNG missing) — a thin stroke change with the same
+        // semantic palette as updateMapUI(), no white.
+        const isForward = this.dungeon.canMoveTo(node.id) && !node.cleared;
+        const colour = node.cleared ? 0x333333 : isForward ? 0x6d6d6d : 0x343434;
+        visual.rect.setStrokeStyle(hovered ? 3 : 2, hovered ? 0x9a8a4a : colour);
     }
 
     private canUseMapNode(node: MapNode): boolean {
@@ -1419,7 +1456,11 @@ export class GameScene extends Phaser.Scene {
                 visual.icon.setColor('#777777').setAlpha(0.5);
                 if (visual.sprite) visual.sprite.setAlpha(0.35).setTint(0x555555);
                 if (visual.frame) {
-                    visual.frame.setAlpha(0.35).setTint(0x555555);
+                    this.tweens.killTweensOf(visual.frame);
+                    visual.frame
+                        .setAlpha(0.35)
+                        .setTint(0x555555)
+                        .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
                 }
                 return;
             }
@@ -1433,17 +1474,25 @@ export class GameScene extends Phaser.Scene {
             // Black backdrop for every room — the carved frame overlay
             // (when present) carries the state colour, so the rect's
             // own stroke is only used as a fallback indicator when the
-            // frame texture is missing.
+            // frame texture is missing. The "current room" no longer gets
+            // a separate white outline; the player figures out where they
+            // stand from the play-area state and the upcoming hover scale
+            // affordance on reachable nodes.
             visual.rect.setFillStyle(0x000000).setAlpha(1);
             if (hasFrame) {
                 visual.rect.setStrokeStyle(0);
             } else {
-                visual.rect.setStrokeStyle(2, isCurrent ? 0xffffff : isForward ? 0x6d6d6d : 0x333333);
+                visual.rect.setStrokeStyle(2, isForward ? 0x6d6d6d : 0x343434);
             }
 
             if (visual.frame) {
                 const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
-                visual.frame.setFrame(frameIdx).setAlpha(1).clearTint();
+                this.tweens.killTweensOf(visual.frame);
+                visual.frame
+                    .setFrame(frameIdx)
+                    .setAlpha(1)
+                    .clearTint()
+                    .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
             }
 
             // Sprite priority: hand-authored room_icons spritesheet →
