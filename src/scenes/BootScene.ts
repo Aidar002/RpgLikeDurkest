@@ -76,6 +76,16 @@ export class BootScene extends Phaser.Scene {
             frameHeight: 64,
         });
 
+        // Room-choice button skins (one per visual variant). Used by
+        // ActionButton via Phaser nineslice; ornate corners stay sharp
+        // while the middle stretches to the button's render size.
+        this.load.image('btn_default', `${base}assets/ui/buttons/btn_default.png`);
+        this.load.image('btn_gold', `${base}assets/ui/buttons/btn_gold.png`);
+        this.load.image('btn_dark', `${base}assets/ui/buttons/btn_dark.png`);
+        this.load.image('btn_silver', `${base}assets/ui/buttons/btn_silver.png`);
+        this.load.image('btn_positive', `${base}assets/ui/buttons/btn_positive.png`);
+        this.load.image('btn_danger', `${base}assets/ui/buttons/btn_danger.png`);
+
         // Suppress noisy warnings if any of the optional UI assets are
         // missing — the HUD already falls back gracefully.
         this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {

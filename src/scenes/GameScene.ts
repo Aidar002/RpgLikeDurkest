@@ -78,11 +78,64 @@ interface NodeVisual {
     frame?: Phaser.GameObjects.Image;
 }
 
+/**
+ * Visual variants for room-choice buttons. Each maps to a sliced sprite
+ * preloaded in BootScene (btn_default / btn_gold / btn_dark / btn_silver /
+ * btn_positive / btn_danger). Callers that don't supply a variant get
+ * 'default' unless their legacy `fill` value can be heuristically mapped
+ * (see variantFromFill).
+ */
+export type RoomButtonVariant =
+    | 'default'
+    | 'gold'
+    | 'dark'
+    | 'silver'
+    | 'positive'
+    | 'danger';
+
+const BUTTON_TEXTURES: Record<RoomButtonVariant, string> = {
+    default: 'btn_default',
+    gold: 'btn_gold',
+    dark: 'btn_dark',
+    silver: 'btn_silver',
+    positive: 'btn_positive',
+    danger: 'btn_danger',
+};
+
+/**
+ * Nineslice insets for the button frames (native 183-184 × 67-68 px). The
+ * ornate corners occupy ~16 × 14 px so the middle 152 × 40 px stretches.
+ */
+const BUTTON_SLICE = { left: 16, right: 16, top: 14, bottom: 14 };
+
+/**
+ * Map a legacy fill colour to the closest variant the new spritesheet
+ * provides. Used as a backward-compat shim so call sites that still
+ * pass `fill` get a sensible button skin without every site needing
+ * to migrate to explicit `variant` simultaneously.
+ */
+function variantFromFill(fill: number | undefined): RoomButtonVariant {
+    if (fill === undefined) return 'default';
+    const r = (fill >> 16) & 0xff;
+    const g = (fill >> 8) & 0xff;
+    const b = fill & 0xff;
+    const max = Math.max(r, g, b);
+    const min = Math.min(r, g, b);
+    if (max - min < 20) return max < 80 ? 'dark' : 'silver';
+    if (g === max && g > r + 16 && g > b + 16) return 'positive';
+    if (b === max && r > g + 8) return 'danger';
+    if (r === max && b > g + 16) return 'danger';
+    if (r === max && g > b + 16) return 'gold';
+    if (b === max) return 'silver';
+    return 'default';
+}
+
 interface ActionButton {
-    background: Phaser.GameObjects.Rectangle;
+    background: Phaser.GameObjects.NineSlice;
     label: Phaser.GameObjects.Text;
     callback: (() => void) | null;
     enabled: boolean;
+    variant: RoomButtonVariant;
     defaultX: number;
     defaultY: number;
     defaultWidth: number;
@@ -92,7 +145,9 @@ export interface RoomButtonAction {
     label: string;
     callback: () => void;
     enabled?: boolean;
+    /** @deprecated kept for backward compat; prefer `variant`. */
     fill?: number;
+    variant?: RoomButtonVariant;
 }
 
 export class GameScene extends Phaser.Scene {
@@ -1031,8 +1086,18 @@ export class GameScene extends Phaser.Scene {
 
         buttonSpecs.forEach((spec) => {
             const background = this.add
-                .rectangle(spec.x, spec.y, spec.width, 40, 0x1b1b1b)
-                .setStrokeStyle(1, 0x575757)
+                .nineslice(
+                    spec.x,
+                    spec.y,
+                    BUTTON_TEXTURES.default,
+                    undefined,
+                    spec.width,
+                    40,
+                    BUTTON_SLICE.left,
+                    BUTTON_SLICE.right,
+                    BUTTON_SLICE.top,
+                    BUTTON_SLICE.bottom,
+                )
                 .setInteractive({ useHandCursor: true });
 
             const label = this.add.text(spec.x, spec.y, '', {
@@ -1046,6 +1111,7 @@ export class GameScene extends Phaser.Scene {
                 label,
                 callback: null,
                 enabled: false,
+                variant: 'default',
                 defaultX: spec.x,
                 defaultY: spec.y,
                 defaultWidth: spec.width,
@@ -1053,12 +1119,14 @@ export class GameScene extends Phaser.Scene {
 
             background.on('pointerover', () => {
                 if (actionButton.enabled) {
-                    background.setStrokeStyle(2, 0xffffff);
+                    // Subtle warm-tint highlight on top of the variant's
+                    // own colours so hover reads regardless of frame.
+                    background.setTint(0xfff2c2);
                     this.sfx.play('buttonHover');
                 }
             });
             background.on('pointerout', () => {
-                background.setStrokeStyle(1, actionButton.enabled ? 0x8a8a8a : 0x3e3e3e);
+                background.clearTint();
             });
             background.on('pointerdown', () => {
                 if (actionButton.enabled && actionButton.callback) {
@@ -1082,6 +1150,7 @@ export class GameScene extends Phaser.Scene {
             button.background.setVisible(false);
             button.label.setVisible(false);
             button.background.disableInteractive();
+            button.background.clearTint();
             button.callback = null;
             button.enabled = false;
         });
@@ -1103,13 +1172,18 @@ export class GameScene extends Phaser.Scene {
 
     private applyButtonAction(button: ActionButton, action: RoomButtonAction) {
         const enabled = action.enabled ?? true;
+        const variant = action.variant ?? variantFromFill(action.fill);
         button.callback = action.callback;
         button.enabled = enabled;
+        button.variant = variant;
         button.background.setVisible(true);
         button.label.setVisible(true);
         button.background.setInteractive({ useHandCursor: true });
-        button.background.setFillStyle(action.fill ?? 0x1b1b1b);
-        button.background.setStrokeStyle(1, enabled ? 0x8a8a8a : 0x3e3e3e);
+        button.background.setTexture(BUTTON_TEXTURES[variant]);
+        button.background.clearTint();
+        // Disabled buttons render at half alpha so the carved frame
+        // still reads but the variant colour is visibly muted.
+        button.background.setAlpha(enabled ? 1 : 0.5);
         button.label.setText(compactText(action.label, button.defaultWidth > 200 ? 42 : 24));
         button.label.setColor(enabled ? '#f0f0f0' : '#686868');
     }
