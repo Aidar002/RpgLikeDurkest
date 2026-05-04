@@ -1,14 +1,14 @@
 /**
  * HUD frame renderer.
  *
- * The bottom bar still uses the hand-authored carved-stone PNG via
- * Phaser's nine-slice. The top bar is rendered procedurally — the
- * carved-stone PNG used to live there too but its corner ornaments and
- * right-side skull crowded the area we now reserve for the
- * mute/options/language icon row, so the visual was retired.
+ * Both bars use hand-authored carved-stone PNGs. The bottom bar uses
+ * Phaser nine-slice because it must remain crisp if `GAME_WIDTH`
+ * changes; the top bar PNG is authored at exactly the render size
+ * (1024×96) so a plain image is sufficient. A procedural fallback
+ * exists for both in case the PNG fails to load (e.g. in tests).
  *
- * Both rendering modes return a single `GameObject` so callers can add
- * it to a `Container` and depth-sort uniformly.
+ * Both modes return a single `GameObject` so callers can add it to a
+ * `Container` and depth-sort uniformly.
  */
 import * as Phaser from 'phaser';
 
@@ -32,10 +32,10 @@ const PANEL_SLICE = {
 /**
  * Draw the top HUD frame.
  *
- * Always procedural now (no PNG): two stacked dark bands with a thin
- * gold rim on top and a soft inner shadow on the bottom. The intent is
- * to read as a clean "command bar" so the icon row in the upper-right
- * has room to breathe.
+ * Uses the carved-stone `hud_top_bar` PNG when available — the asset
+ * is authored at exactly the rendered size so a plain `Image` works
+ * (no need for nine-slice). Falls back to a procedural panel when the
+ * texture is missing.
  *
  * @returns the visual game object representing the frame.
  */
@@ -44,6 +44,12 @@ export function drawTopFrame(
     width: number,
     height: number,
 ): Phaser.GameObjects.GameObject {
+    if (scene.textures.exists('hud_top_bar')) {
+        return scene.add
+            .image(0, 0, 'hud_top_bar')
+            .setOrigin(0, 0)
+            .setDisplaySize(width, height);
+    }
     return drawProceduralTopBar(scene, 0, 0, width, height);
 }
 

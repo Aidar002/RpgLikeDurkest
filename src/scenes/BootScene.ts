@@ -60,7 +60,7 @@ export class BootScene extends Phaser.Scene {
         // Each is optional; the HUD layer renders procedural fallbacks
         // when a file is missing. See public/assets/ui/README.md for
         // canonical sizes and the hud_icons.png frame order.
-        // The top bar is rendered procedurally so we don't load a PNG.
+        this.load.image('hud_top_bar', `${base}assets/ui/top_bar.png`);
         this.load.image('hud_bottom_bar', `${base}assets/ui/bottom_bar.png`);
         this.load.image('hud_stone_wall', `${base}assets/ui/stone_wall.png`);
         this.load.spritesheet('hud_icons', `${base}assets/ui/hud_icons.png`, {
