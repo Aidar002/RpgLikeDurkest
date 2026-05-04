@@ -142,6 +142,13 @@ export interface HudInlineSlotHandle {
 export interface HudInlineSlotOptions {
     icon?: IconKey;
     iconSize?: number;
+    /**
+     * If set, the value text is placed at exactly `x + valueOffsetX`
+     * instead of immediately after the label. Use this when you want
+     * a column of slots (e.g. ATTACK / DEFENSE) to have their values
+     * line up vertically regardless of label length.
+     */
+    valueOffsetX?: number;
     label: string;
     value?: string;
     labelColor?: string;
@@ -191,7 +198,9 @@ export function createHudInlineSlot(
         })
         .setOrigin(0, 0);
     widgets.push(labelText);
-    cursorX += labelText.width + 10;
+    cursorX = options.valueOffsetX !== undefined
+        ? x + options.valueOffsetX
+        : cursorX + labelText.width + 10;
 
     const valueText = scene.add
         .text(cursorX, y - 1, options.value ?? '', {

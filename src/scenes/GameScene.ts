@@ -503,21 +503,27 @@ export class GameScene extends Phaser.Scene {
 
         // Group C — Combat stats on the right, stacked vertically:
         // sword "АТАКА N" on top, shield "ЗАЩИТА N" below it. The block
-        // is left-anchored at x=720 so it stays clear of the top-right
-        // icon row (mute / options / language) and the optional
-        // secondary slots tucked in next to it.
-        const statsX = 720;
+        // sits in the right third of the top bar with breathing room
+        // on either side: ~120 px gap to the centred XP block on the
+        // left, ~90 px gap to the chrome icon row on the right.
+        // valueOffsetX forces both rows to share a single value column
+        // so the numbers line up vertically even though "АТАКА" is
+        // shorter than "ЗАЩИТА".
+        const statsX = 700;
+        const STATS_VALUE_OFFSET = 96;
         this.atkStat = createHudInlineSlot(this, statsX, 36, {
             icon: 'sword',
             label: this.loc.t('attackShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
+            valueOffsetX: STATS_VALUE_OFFSET,
         });
         this.defStat = createHudInlineSlot(this, statsX, 64, {
             icon: 'shield',
             label: this.loc.t('defenseShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
+            valueOffsetX: STATS_VALUE_OFFSET,
         });
 
         // Optional secondary stats — stacked just to the right of the
@@ -553,8 +559,11 @@ export class GameScene extends Phaser.Scene {
         // Bottom-bar PNG carved corners eat ~32 px on each side; cells
         // are sized so the row sits comfortably inside that safe area
         // (left margin 36, right margin ~36 to the carved frame).
-        const cellTop = BOT_Y + 4;
+        // Cells are vertically centred inside the (now taller) bar so
+        // they don't crowd the top gold rim and leave a dead strip at
+        // the bottom.
         const cellH = 70;
+        const cellTop = BOT_Y + Math.round((BOT_H - cellH) / 2);
         const resW = 112;
         const resStart = 36;
         const progW = 88;
