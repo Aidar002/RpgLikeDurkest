@@ -154,7 +154,9 @@ export class GameScene extends Phaser.Scene {
     private bossStat!: HudCellHandle;
     private prestigeStat!: HudCellHandle;
     private hintText!: Phaser.GameObjects.Text;
-    private mapDepthText!: Phaser.GameObjects.Text;
+    // mapDepthText was the small "ГЛУБИНА N" pill below the bottom bar —
+    // removed because the dedicated ГЛУБИНА cell in the bottom HUD now
+    // shows the same value with much better legibility.
     public tooltipText!: Phaser.GameObjects.Text;
     private depthLabels: Map<number, Phaser.GameObjects.Text> = new Map();
 
@@ -577,13 +579,6 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
             wordWrap: { width: 540 },
         });
-        this.mapDepthText = this.add.text(PAD, stripY, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '11px',
-            color: HudHex.textMuted,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
         this.hintText = this.add.text(GAME_WIDTH - HUD_PAD - 80, stripY, '', {
             fontFamily: HUD_FONT,
             fontSize: '11px',
@@ -638,7 +633,6 @@ export class GameScene extends Phaser.Scene {
             this.bossStat.root,
             this.prestigeStat.root,
             this.relicText,
-            this.mapDepthText,
             this.hintText,
         ];
 
@@ -752,8 +746,6 @@ export class GameScene extends Phaser.Scene {
         this.prestigeStat.setValue(`+${prestigeForecast}`);
         this.prestigeStat.setVisible(unlocks.showPrestigeForecast);
 
-        this.mapDepthText.setText(`${this.loc.t('mapDepth')} ${this.dungeon.currentDepth}`);
-
         const nextUnlock = this.meta.getNextContentUnlock();
         this.hintText.setText(
             nextUnlock
@@ -765,7 +757,6 @@ export class GameScene extends Phaser.Scene {
         );
 
         this.hpValueText.setVisible(unlocks.showHpNumbers);
-        this.mapDepthText.setVisible(unlocks.showDepthReadout);
         this.xpBarBg.setVisible(unlocks.showLevelPanel);
         this.xpBar.setVisible(unlocks.showLevelPanel);
         this.levelText.setVisible(unlocks.showLevelPanel);
@@ -962,12 +953,18 @@ export class GameScene extends Phaser.Scene {
 
         this.roomContainer.add(this.roomPanelGroup);
 
+        // Buttons live inside the right info panel (x=570..1004, centred at
+        // 787). The left column was previously at x=650 which spilled past
+        // the panel border and overlapped the EVENT LOG seam — shift the
+        // pair so each column sits ~22 px inside the panel walls. Rows are
+        // also lifted so the wide [5] button no longer collides with the
+        // 108 px bottom HUD bar (which now starts at y=650).
         const buttonSpecs = [
-            { x: 650, y: 540, width: 180 },
-            { x: 860, y: 540, width: 180 },
-            { x: 650, y: 590, width: 180 },
-            { x: 860, y: 590, width: 180 },
-            { x: 755, y: 646, width: 390 },
+            { x: 682, y: 525, width: 180 },
+            { x: 892, y: 525, width: 180 },
+            { x: 682, y: 575, width: 180 },
+            { x: 892, y: 575, width: 180 },
+            { x: 787, y: 625, width: 390 },
         ];
 
         buttonSpecs.forEach((spec) => {
