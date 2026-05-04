@@ -115,6 +115,46 @@ export function drawHudDivider(
 }
 
 /**
+ * Draws a carved frame around a horizontal bar so it reads as a
+ * recessed gauge consistent with the rest of the HUD.
+ *
+ * Layered output (back-to-front):
+ *   1. 2-px black drop shadow below the bar
+ *   2. dark outer rim around the whole bar
+ *   3. inner inset (1 px gold on the top edge, fainter gold on the
+ *      bottom) — gives a metallic carved-frame feel
+ *
+ * The returned Graphics should be inserted into the scene/container
+ * BEFORE the track + fill rectangles so they sit on top of the frame.
+ */
+export function drawBarFrame(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    width: number,
+    height: number
+): Phaser.GameObjects.Graphics {
+    const g = scene.add.graphics();
+    const top = y - height / 2;
+    // 1) drop shadow
+    g.fillStyle(0x000000, 0.55);
+    g.fillRect(x - 1, top + 2, width + 2, height + 1);
+    // 2) outer rim
+    g.fillStyle(HudColors.panelOuter, 1);
+    g.fillRect(x - 2, top - 2, width + 4, height + 4);
+    // panel surface (fills hole between rim and track so any AA
+    // gap reads as dark stone instead of game canvas)
+    g.fillStyle(HudColors.panelBg, 1);
+    g.fillRect(x - 1, top - 1, width + 2, height + 2);
+    // 3) gold highlight along top + dimmer bottom
+    g.fillStyle(HudColors.cellGoldEdge, 0.65);
+    g.fillRect(x - 1, top - 1, width + 2, 1);
+    g.fillStyle(HudColors.cellGoldEdge, 0.28);
+    g.fillRect(x - 1, top + height, width + 2, 1);
+    return g;
+}
+
+/**
  * Draws segmented divisions on top of a bar so it reads as a notched gauge.
  * The divisions are rendered as `count - 1` 1-px vertical lines.
  */
