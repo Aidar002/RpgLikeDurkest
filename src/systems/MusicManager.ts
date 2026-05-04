@@ -4,9 +4,8 @@
  * Streams ordinary HTMLAudioElements (no Web Audio decoding cost, no
  * Phaser preload pass) so the build stays small — the `mp3` files in
  * `public/audio/` are served as-is and pulled in only when playback
- * starts. Three tracks are rotated sequentially with a short
- * crossfade; volume is persisted across sessions and clamped to a
- * gentle ambient range.
+ * starts. Tracks rotate sequentially with a short crossfade; volume is
+ * persisted across sessions and gain-capped to a gentle ambient level.
  */
 
 const VOLUME_KEY = 'dd_music_volume';
@@ -34,10 +33,12 @@ export class MusicManager {
     private next: HTMLAudioElement | null = null;
     private fadeRaf: number | null = null;
     private autoStartBound = false;
-    private started = false;
+    private playRequested = false;
+    private playing = false;
     private destroyed = false;
     private _volume: number;
     private _muted: boolean;
+    private autoStartHandler: (() => void) | null = null;
 
     constructor() {
         this._volume = readVolume();
@@ -50,81 +51,121 @@ export class MusicManager {
     }
 
     /**
-     * Try to start playback. Browsers block `audio.play()` until a user
-     * gesture, so we listen once on `pointerdown` / `keydown` and start the
-     * first track from there. Calling this more than once is a no-op.
+     * Mark playback as requested. The actual `audio.play()` call needs a
+     * user gesture, so we lazy-attach `pointerdown` / `keydown` listeners
+     * on the window and retry from there. `kick()` may be called directly
+     * from a known gesture handler to start immediately.
      */
     start(): void {
-        if (this.started || this.destroyed || this.playlist.length === 0) return;
-        const tryPlay = () => {
-            if (this.started || this.destroyed) {
-                this.detachAutoStart();
-                return;
-            }
-            this.playCurrent(true);
+        if (this.destroyed || this.playlist.length === 0) return;
+        this.playRequested = true;
+        this.bindAutoStart();
+        // Try once eagerly — sometimes the page already has gesture activation
+        // (e.g. after a scene restart).
+        this.attemptPlay();
+    }
+
+    /** Force a play attempt. Call this from a fresh user-gesture handler. */
+    kick(): void {
+        if (!this.playRequested) this.start();
+        else this.attemptPlay();
+    }
+
+    private bindAutoStart(): void {
+        if (this.autoStartBound || typeof window === 'undefined') return;
+        this.autoStartBound = true;
+        const handler = () => {
+            if (this.destroyed) return;
+            if (this.playing) return;
+            this.attemptPlay();
         };
-        if (!this.autoStartBound && typeof window !== 'undefined') {
-            this.autoStartBound = true;
-            window.addEventListener('pointerdown', tryPlay, { once: false });
-            window.addEventListener('keydown', tryPlay, { once: false });
-        }
-        // First attempt — may be allowed if a gesture already fired in this scene.
-        tryPlay();
+        this.autoStartHandler = handler;
+        window.addEventListener('pointerdown', handler, true);
+        window.addEventListener('keydown', handler, true);
+        window.addEventListener('touchstart', handler, true);
     }
 
-    private detachAutoStart() {
-        // The listeners are anonymous; we just rely on `started` to short-circuit.
-        // We could remove them, but keeping the early-out keeps the code simple
-        // and they get GC'd when the page navigates away.
+    private detachAutoStart(): void {
+        if (!this.autoStartBound || !this.autoStartHandler || typeof window === 'undefined') return;
+        window.removeEventListener('pointerdown', this.autoStartHandler, true);
+        window.removeEventListener('keydown', this.autoStartHandler, true);
+        window.removeEventListener('touchstart', this.autoStartHandler, true);
+        this.autoStartBound = false;
+        this.autoStartHandler = null;
     }
 
-    private playCurrent(initialFade: boolean): void {
-        if (this.playlist.length === 0) return;
-        const track = this.playlist[this.index];
-        const audio = this.current ?? new Audio();
-        audio.src = track.url;
+    private ensureCurrent(): HTMLAudioElement {
+        if (this.current) return this.current;
+        const audio = new Audio();
         audio.preload = 'auto';
         audio.loop = false;
-        audio.crossOrigin = 'anonymous';
-        audio.volume = initialFade ? 0 : this.effectiveGain();
-        const playPromise = audio.play();
-        if (typeof playPromise?.then === 'function') {
-            playPromise.then(() => {
-                this.started = true;
-                this.current = audio;
-                if (initialFade) this.fadeIn(audio, INITIAL_FADE_S);
-                this.scheduleAdvance();
-            }).catch(() => {
-                // Most likely autoplay was blocked. Stay un-started; another
-                // user gesture (the auto-start listeners) will retry.
+        audio.src = this.playlist[this.index].url;
+        audio.volume = 0;
+        audio.addEventListener('error', () => {
+            const err = audio.error;
+            console.warn('[music] audio element error:', err?.code, err?.message, audio.src);
+        });
+        audio.addEventListener('ended', () => this.handleEnded(audio));
+        audio.addEventListener('timeupdate', () => this.handleTimeUpdate(audio));
+        this.current = audio;
+        return audio;
+    }
+
+    private attemptPlay(): void {
+        if (!this.playRequested || this.destroyed || this.playing) return;
+        const audio = this.ensureCurrent();
+        const promise = audio.play();
+        if (typeof promise?.then === 'function') {
+            promise.then(() => {
+                this.playing = true;
+                this.fadeIn(audio, INITIAL_FADE_S);
+                this.detachAutoStart();
+            }).catch((err: DOMException) => {
+                // NotAllowedError = autoplay policy; an upcoming user
+                // gesture will retry. Other errors are unexpected.
+                if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                    console.warn('[music] play() rejected:', err.name, err.message);
+                }
             });
         } else {
-            this.started = true;
-            this.current = audio;
-            this.scheduleAdvance();
+            this.playing = true;
         }
     }
 
-    private scheduleAdvance(): void {
-        if (!this.current) return;
-        const audio = this.current;
-        const onTimeUpdate = () => {
-            if (!this.current || this.current !== audio) return;
-            const dur = audio.duration;
-            if (!isFinite(dur) || dur === 0) return;
-            const remaining = dur - audio.currentTime;
-            if (remaining <= CROSSFADE_S && !this.next) {
-                this.beginCrossfade();
+    private handleTimeUpdate(audio: HTMLAudioElement): void {
+        if (audio !== this.current || !this.playing) return;
+        const dur = audio.duration;
+        if (!isFinite(dur) || dur === 0) return;
+        const remaining = dur - audio.currentTime;
+        if (remaining <= CROSSFADE_S && !this.next) {
+            this.beginCrossfade();
+        }
+    }
+
+    private handleEnded(audio: HTMLAudioElement): void {
+        if (audio !== this.current) return;
+        // Fallback path when `timeupdate` didn't fire close enough to the end
+        // (e.g. very short tracks, browsers that throttle background tabs).
+        if (this.next) return;
+        this.advanceIndex();
+        const replacement = new Audio();
+        replacement.preload = 'auto';
+        replacement.loop = false;
+        replacement.src = this.playlist[this.index].url;
+        replacement.volume = this.effectiveGain();
+        replacement.addEventListener('error', () => {
+            const err = replacement.error;
+            console.warn('[music] audio element error:', err?.code, err?.message, replacement.src);
+        });
+        replacement.addEventListener('ended', () => this.handleEnded(replacement));
+        replacement.addEventListener('timeupdate', () => this.handleTimeUpdate(replacement));
+        this.current = replacement;
+        replacement.play().catch((err: DOMException) => {
+            if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                console.warn('[music] follow-up play() rejected:', err.name, err.message);
             }
-        };
-        const onEnded = () => {
-            if (this.current !== audio) return;
-            // If crossfade didn't fire (e.g. duration unknown, very short
-            // tracks), advance immediately.
-            if (!this.next) this.advance(false);
-        };
-        audio.addEventListener('timeupdate', onTimeUpdate);
-        audio.addEventListener('ended', onEnded);
+            this.playing = false;
+        });
     }
 
     private beginCrossfade(): void {
@@ -134,35 +175,35 @@ export class MusicManager {
         const upcoming = new Audio(this.playlist[upcomingIndex].url);
         upcoming.preload = 'auto';
         upcoming.loop = false;
-        upcoming.crossOrigin = 'anonymous';
         upcoming.volume = 0;
+        upcoming.addEventListener('error', () => {
+            const err = upcoming.error;
+            console.warn('[music] crossfade audio error:', err?.code, err?.message, upcoming.src);
+        });
         this.next = upcoming;
         const playPromise = upcoming.play();
-        const start = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+        const start = nowSeconds();
         const tick = () => {
             if (this.destroyed) return;
-            const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
-            const t = Math.min(1, (now - start) / CROSSFADE_S);
+            const t = Math.min(1, (nowSeconds() - start) / CROSSFADE_S);
             const target = this.effectiveGain();
             fromAudio.volume = Math.max(0, target * (1 - t));
             upcoming.volume = Math.max(0, target * t);
             if (t < 1 && !this.destroyed) {
-                this.fadeRaf = (typeof requestAnimationFrame !== 'undefined')
-                    ? requestAnimationFrame(tick)
-                    : (setTimeout(tick, 16) as unknown as number);
+                this.fadeRaf = scheduleFrame(tick);
             } else {
                 try { fromAudio.pause(); } catch { /* ignored */ }
                 fromAudio.src = '';
+                upcoming.addEventListener('ended', () => this.handleEnded(upcoming));
+                upcoming.addEventListener('timeupdate', () => this.handleTimeUpdate(upcoming));
                 this.current = upcoming;
                 this.next = null;
                 this.index = upcomingIndex;
-                this.scheduleAdvance();
             }
         };
         if (typeof playPromise?.then === 'function') {
-            playPromise.then(tick).catch(() => {
-                // Couldn't start the next track — drop the crossfade and try
-                // again from the simple `ended` path.
+            playPromise.then(tick).catch((err: DOMException) => {
+                console.warn('[music] crossfade play() rejected:', err.name, err.message);
                 this.next = null;
             });
         } else {
@@ -170,29 +211,17 @@ export class MusicManager {
         }
     }
 
-    private advance(initialFade: boolean): void {
-        const oldAudio = this.current;
-        if (oldAudio) {
-            try { oldAudio.pause(); } catch { /* ignored */ }
-            oldAudio.src = '';
-        }
-        this.current = null;
+    private advanceIndex(): void {
         this.index = (this.index + 1) % this.playlist.length;
-        this.playCurrent(initialFade);
     }
 
     private fadeIn(audio: HTMLAudioElement, durationS: number): void {
-        const start = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+        const start = nowSeconds();
         const tick = () => {
             if (this.destroyed || this.current !== audio) return;
-            const now = (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
-            const t = Math.min(1, (now - start) / durationS);
+            const t = Math.min(1, (nowSeconds() - start) / durationS);
             audio.volume = Math.max(0, this.effectiveGain() * t);
-            if (t < 1) {
-                this.fadeRaf = (typeof requestAnimationFrame !== 'undefined')
-                    ? requestAnimationFrame(tick)
-                    : (setTimeout(tick, 16) as unknown as number);
-            }
+            if (t < 1) this.fadeRaf = scheduleFrame(tick);
         };
         tick();
     }
@@ -252,6 +281,7 @@ export class MusicManager {
             this.next.src = '';
             this.next = null;
         }
+        this.detachAutoStart();
     }
 }
 
@@ -273,4 +303,13 @@ function readMuted(): boolean {
     } catch {
         return false;
     }
+}
+
+function nowSeconds(): number {
+    return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+}
+
+function scheduleFrame(cb: () => void): number {
+    if (typeof requestAnimationFrame !== 'undefined') return requestAnimationFrame(cb);
+    return setTimeout(cb, 16) as unknown as number;
 }
