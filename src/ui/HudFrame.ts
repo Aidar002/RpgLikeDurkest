@@ -6,12 +6,32 @@
  * texture is missing we fall back to drawing a thin layered rectangle
  * with subtle highlight/shadow so the HUD still has structure.
  *
+ * The PNG path uses Phaser's {@link Phaser.GameObjects.NineSlice}: the
+ * 32×32 corner ornaments are rendered at native pixel size, the four
+ * edges stretch only along their long axis, and the center stone tile
+ * stretches to fill the remainder. This preserves the carved Greek-key
+ * corners (and the right-side skull on the top bar) regardless of how
+ * tall or wide the panel is, instead of squeezing the entire image.
+ *
  * Both rendering modes return a single `GameObject` so callers can add
  * it to a `Container` and depth-sort uniformly.
  */
 import * as Phaser from 'phaser';
 
 import { HudColors } from './HudTheme';
+
+/**
+ * Slice metrics, in source-texture pixels. The L-shaped Greek-key
+ * ornaments end at roughly x=24-28 / y=24-28 in both top_bar.png
+ * (134px tall) and bottom_bar.png (155px tall) — using 32 gives a
+ * little buffer so the corner motif stays unmolested.
+ */
+const PANEL_SLICE = {
+    left: 32,
+    right: 32,
+    top: 32,
+    bottom: 32,
+} as const;
 
 /**
  * Draw the top HUD frame.
@@ -25,9 +45,19 @@ export function drawTopFrame(
 ): Phaser.GameObjects.GameObject {
     if (scene.textures.exists('hud_top_bar')) {
         return scene.add
-            .image(0, 0, 'hud_top_bar')
-            .setOrigin(0, 0)
-            .setDisplaySize(width, height);
+            .nineslice(
+                0,
+                0,
+                'hud_top_bar',
+                undefined,
+                width,
+                height,
+                PANEL_SLICE.left,
+                PANEL_SLICE.right,
+                PANEL_SLICE.top,
+                PANEL_SLICE.bottom,
+            )
+            .setOrigin(0, 0);
     }
     return drawFallbackPanel(scene, 0, 0, width, height);
 }
@@ -41,9 +71,19 @@ export function drawBottomFrame(
 ): Phaser.GameObjects.GameObject {
     if (scene.textures.exists('hud_bottom_bar')) {
         return scene.add
-            .image(0, y, 'hud_bottom_bar')
-            .setOrigin(0, 0)
-            .setDisplaySize(width, height);
+            .nineslice(
+                0,
+                y,
+                'hud_bottom_bar',
+                undefined,
+                width,
+                height,
+                PANEL_SLICE.left,
+                PANEL_SLICE.right,
+                PANEL_SLICE.top,
+                PANEL_SLICE.bottom,
+            )
+            .setOrigin(0, 0);
     }
     return drawFallbackPanel(scene, 0, y, width, height);
 }
