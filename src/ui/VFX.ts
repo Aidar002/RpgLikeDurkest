@@ -1,19 +1,36 @@
 import * as Phaser from 'phaser';
-import { CENTER_X, CENTER_Y, GAME_HEIGHT, GAME_WIDTH } from './Layout';
+import { BOTTOM_BAR_H, CENTER_X, CENTER_Y, GAME_HEIGHT, GAME_WIDTH, TOP_BAR_H } from './Layout';
 
 export class VFX {
 
-    /** Dark vignette around the screen edges. */
-    static vignette(scene: Phaser.Scene, w = GAME_WIDTH, h = GAME_HEIGHT) {
+    /**
+     * Dark vignette around the play-area edges only.
+     *
+     * The HUD bars (top/bottom) are intentionally excluded so labels and
+     * values near the canvas edge stay legible — the vignette is a
+     * stylistic atmosphere effect for the dungeon view, not a frame
+     * around the whole screen.
+     */
+    static vignette(
+        scene: Phaser.Scene,
+        w = GAME_WIDTH,
+        _h = GAME_HEIGHT,
+        playTop = TOP_BAR_H,
+        playBottom = GAME_HEIGHT - BOTTOM_BAR_H,
+    ) {
+        const playH = Math.max(1, playBottom - playTop);
         const g = scene.add.graphics().setDepth(210).setScrollFactor(0);
-        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.8, 0.8, 0, 0);
-        g.fillRect(0, 0, w, h * 0.18);
-        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.8, 0.8);
-        g.fillRect(0, h * 0.82, w, h * 0.18);
-        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.55, 0, 0.55, 0);
-        g.fillRect(0, 0, w * 0.12, h);
-        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.55, 0, 0.55);
-        g.fillRect(w * 0.88, 0, w * 0.12, h);
+        // Top fade — fades down inside the play area only.
+        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.7, 0.7, 0, 0);
+        g.fillRect(0, playTop, w, playH * 0.22);
+        // Bottom fade — sits just above the bottom HUD bar.
+        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0, 0.7, 0.7);
+        g.fillRect(0, playBottom - playH * 0.22, w, playH * 0.22);
+        // Side fades — clipped to the play area's vertical band.
+        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0.5, 0, 0.5, 0);
+        g.fillRect(0, playTop, w * 0.1, playH);
+        g.fillGradientStyle(0x000000, 0x000000, 0x000000, 0x000000, 0, 0.5, 0, 0.5);
+        g.fillRect(w * 0.9, playTop, w * 0.1, playH);
     }
 
     /** CRT scanlines. */
