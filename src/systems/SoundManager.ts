@@ -31,17 +31,31 @@ type SoundId =
     | 'footstep';
 
 const STORAGE_KEY = 'dd_sound_muted';
+const VOLUME_KEY = 'dd_sound_volume';
+
+function readSavedVolume(fallback: number): number {
+    try {
+        const raw = localStorage.getItem(VOLUME_KEY);
+        if (raw == null) return fallback;
+        const parsed = Number.parseFloat(raw);
+        if (!Number.isFinite(parsed)) return fallback;
+        return Math.max(0, Math.min(1, parsed));
+    } catch {
+        return fallback;
+    }
+}
 
 export class SoundManager {
     private ctx: AudioContext | null = null;
     private master: GainNode | null = null;
     private _muted: boolean;
-    private _volume = 0.45;
+    private _volume: number;
     private ambientNodes: { osc: OscillatorNode; gain: GainNode }[] = [];
     private ambientRunning = false;
 
     constructor() {
         this._muted = localStorage.getItem(STORAGE_KEY) === '1';
+        this._volume = readSavedVolume(0.45);
     }
 
     /** Lazily create AudioContext on first user interaction. */
@@ -71,8 +85,13 @@ export class SoundManager {
         return this._muted;
     }
 
+    get volume(): number {
+        return this._volume;
+    }
+
     setVolume(v: number) {
         this._volume = Math.max(0, Math.min(1, v));
+        try { localStorage.setItem(VOLUME_KEY, String(this._volume)); } catch { /* ignored */ }
         if (this.master && !this._muted) {
             this.master.gain.value = this._volume;
         }

@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { Localization } from '../systems/Localization';
+import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
 import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 
@@ -102,6 +103,14 @@ export class BootScene extends Phaser.Scene {
     create() {
         const loc = new Localization();
         const sfx = new SoundManager();
+        const music = new MusicManager();
+        const audioBase = `${import.meta.env.BASE_URL}audio`;
+        music.setPlaylist([
+            { url: `${audioBase}/bg_1.mp3` },
+            { url: `${audioBase}/bg_2.mp3` },
+            { url: `${audioBase}/bg_3.mp3` },
+        ]);
+        music.start();
         this.cameras.main.setBackgroundColor('#050505');
         const titleText = () => (loc.language === 'ru' ? 'НИЖНИЙ\nСПУСК' : 'DARKEST\nDESCENT');
 
@@ -181,7 +190,7 @@ export class BootScene extends Phaser.Scene {
         startBtn.on('pointerdown', () => {
             sfx.play('buttonClick');
             this.cameras.main.fadeOut(400, 0, 0, 0);
-            this.time.delayedCall(400, () => this.scene.start('GameScene', { loc, sfx }));
+            this.time.delayedCall(400, () => this.scene.start('GameScene', { loc, sfx, music }));
         });
 
         this.add.text(GAME_WIDTH - 20, GAME_HEIGHT - 20, 'v0.3', {

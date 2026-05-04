@@ -1,9 +1,11 @@
 import * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
+import type { MusicManager } from '../systems/MusicManager';
 import type { SoundManager } from '../systems/SoundManager';
 import { compactText } from './TextHelpers';
 import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
+import { createVolumePanel, type VolumePanelHandle } from './VolumePanel';
 
 // Small persistent scene-level UI helpers: the unlock banner that slides in
 // when the player crosses a content milestone, and the bottom-right
@@ -111,19 +113,27 @@ function createIconButton(
 }
 
 /**
- * Adds the bottom-right sound-mute and language toggle buttons styled as
- * carved-stone icon plates that match the HUD panels.
+ * Adds the bottom-right sound-mute, volume-options, and language toggle
+ * buttons styled as carved-stone icon plates that match the HUD panels.
  */
 export function setupSceneChrome(
     scene: Phaser.Scene,
     sfx: SoundManager,
     loc: Localization,
-    onLanguageToggle: () => void
+    onLanguageToggle: () => void,
+    music?: MusicManager
 ): Phaser.GameObjects.Text {
+    const volumePanel: VolumePanelHandle | null = music
+        ? createVolumePanel(scene, sfx, music, loc)
+        : null;
+
+    // The mute icon controls SFX. When music is wired in, its mute state is
+    // kept in sync so a single click silences the whole game.
+    if (music) music.setMuted(sfx.muted);
     const muteIcon = sfx.muted ? '\u266A' : '\u266B';
     const muteButton = createIconButton(
         scene,
-        GAME_WIDTH - 64,
+        GAME_WIDTH - 96,
         GAME_HEIGHT - 28,
         muteIcon,
         '15px',
@@ -133,8 +143,25 @@ export function setupSceneChrome(
 
     muteButton.onClick(() => {
         const muted = sfx.toggleMute();
+        if (music) music.setMuted(muted);
         muteButton.setMuted(muted, muted ? '\u266A' : '\u266B');
     });
+
+    const cogButton = createIconButton(
+        scene,
+        GAME_WIDTH - 64,
+        GAME_HEIGHT - 28,
+        '\u2699',
+        '15px',
+        { activeColor: HudHex.textSecondary, mutedColor: HudHex.textMuted },
+        false
+    );
+    cogButton.onClick(() => {
+        volumePanel?.toggle();
+    });
+    if (!volumePanel) {
+        cogButton.label.setVisible(false);
+    }
 
     const langButton = createIconButton(
         scene,
@@ -148,6 +175,7 @@ export function setupSceneChrome(
     langButton.onClick(() => {
         const next = loc.toggle();
         langButton.setMuted(false, next === 'ru' ? 'RU' : 'EN');
+        volumePanel?.refreshLocalization();
         onLanguageToggle();
     });
 

@@ -27,6 +27,7 @@ import type { NpcManager } from '../systems/NpcManager';
 import type { NpcOfferTemplate } from '../systems/Npcs';
 import { EventLog } from '../ui/EventLog';
 import { VFX } from '../ui/VFX';
+import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
 import { fitEnemySprite, fitRoomSprite, hasFireEffect, roomFrameIndex, roomIcon, roomIconFrame, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
@@ -105,6 +106,7 @@ export class GameScene extends Phaser.Scene {
     public skillLoadout: SkillId[] = [...STARTER_LOADOUT];
     public loc!: Localization;
     public sfx!: SoundManager;
+    public music!: MusicManager;
     public npcs!: NpcManager;
     public vethSharpenedThisRoom = false;
 
@@ -195,9 +197,10 @@ export class GameScene extends Phaser.Scene {
      * `scene.restart()`, so the same `loc` / `sfx` references survive a run
      * restart from the death screen.
      */
-    init(data?: { loc?: Localization; sfx?: SoundManager }) {
+    init(data?: { loc?: Localization; sfx?: SoundManager; music?: MusicManager }) {
         this.loc = data?.loc ?? new Localization();
         this.sfx = data?.sfx ?? new SoundManager();
+        this.music = data?.music ?? new MusicManager();
     }
 
     public skillShort(id: SkillId): string {
@@ -322,8 +325,9 @@ export class GameScene extends Phaser.Scene {
         VFX.scanlines(this, GAME_WIDTH, GAME_HEIGHT);
         VFX.ambientEmbers(this, 22);
 
-        setupSceneChrome(this, this.sfx, this.loc, () => this.safeRestart());
+        setupSceneChrome(this, this.sfx, this.loc, () => this.safeRestart(), this.music);
         this.sfx.startAmbient(0);
+        this.music.start();
 
         this.log.addMessage(
             this.loc.language === 'ru'
