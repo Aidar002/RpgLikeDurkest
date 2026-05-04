@@ -58,15 +58,19 @@ export class BootScene extends Phaser.Scene {
         // ── HUD frames + textures (Darkest Dungeon-style overlay) ──
         // Each is optional; the HUD layer renders procedural fallbacks
         // when a file is missing. See public/assets/ui/README.md for
-        // canonical sizes and the icons.png frame order.
+        // canonical sizes and the hud_icons.png frame order.
         this.load.image('hud_top_bar', `${base}assets/ui/top_bar.png`);
         this.load.image('hud_bottom_bar', `${base}assets/ui/bottom_bar.png`);
         this.load.image('hud_stone_wall', `${base}assets/ui/stone_wall.png`);
-        this.load.spritesheet('hud_icons', `${base}assets/ui/icons.png`, {
-            frameWidth: 16,
-            frameHeight: 16,
+        this.load.spritesheet('hud_icons', `${base}assets/ui/hud_icons.png`, {
+            frameWidth: 64,
+            frameHeight: 64,
         });
         this.load.spritesheet('hud_room_frames', `${base}assets/ui/room_frames.png`, {
+            frameWidth: 64,
+            frameHeight: 64,
+        });
+        this.load.spritesheet('hud_room_icons', `${base}assets/ui/room_icons.png`, {
             frameWidth: 64,
             frameHeight: 64,
         });
@@ -76,6 +80,21 @@ export class BootScene extends Phaser.Scene {
         this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
             if (file.key.startsWith('hud_')) {
                 console.info(`[hud] optional asset missing: ${file.key} — using procedural fallback`);
+            }
+        });
+
+        // Once the optional sheets are decoded, switch them to NEAREST so
+        // pixel art stays crisp at any display size. Panel frames keep the
+        // default LINEAR — they're carved-stone bitmaps that look better
+        // anti-aliased.
+        this.load.on(Phaser.Loader.Events.FILE_COMPLETE, (key: string) => {
+            if (
+                key === 'hud_icons' ||
+                key === 'hud_room_frames' ||
+                key === 'hud_room_icons'
+            ) {
+                const tex = this.textures.get(key);
+                tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
             }
         });
     }
