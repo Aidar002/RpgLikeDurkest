@@ -5,19 +5,25 @@
  * Phaser preload pass) so the build stays small — the `mp3` files in
  * `public/audio/` are served as-is and pulled in only when playback
  * starts. Tracks rotate sequentially with a short crossfade; volume is
- * persisted across sessions and gain-capped to a gentle ambient level.
+ * persisted across sessions.
+ *
+ * Each audio element is routed through a Web Audio `MediaElementAudioSourceNode`
+ * → master `GainNode` → `destination`, so the master gain is allowed to exceed
+ * the HTMLAudioElement.volume hard cap of 1.0. If Web Audio is unavailable for
+ * any reason, the manager falls back to driving `audio.volume` directly
+ * (limited to 1.0).
  */
 
 const VOLUME_KEY = 'dd_music_volume';
 const MUTED_KEY = 'dd_music_muted';
 
 /** Upper bound applied to the slider value when it actually drives the
- * audio gain. HTMLAudioElement.volume is hard-capped at 1.0, so this is
- * the absolute ceiling. The original 0.55 cap was reported as "too quiet"
- * by players, so the slider now goes all the way to native max — which is
- * roughly 1.8× louder than the prior peak.
+ * audio gain. The previous cap was 1.0 — i.e. native HTMLAudioElement max
+ * — and players still reported the music as too quiet (or sometimes
+ * inaudible). Routing through Web Audio lifts the cap, so we now double
+ * the peak to 2.0 (≈ 2× louder than the previous peak).
  */
-const MUSIC_GAIN_CAP = 1.0;
+const MUSIC_GAIN_CAP = 2.0;
 
 /** Crossfade window (seconds) before a track ends. */
 const CROSSFADE_S = 1.6;
@@ -43,6 +49,10 @@ export class MusicManager {
     private _volume: number;
     private _muted: boolean;
     private autoStartHandler: (() => void) | null = null;
+    private audioContext: AudioContext | null = null;
+    private masterGain: GainNode | null = null;
+    private webAudioFailed = false;
+    private wiredAudios = new WeakSet<HTMLAudioElement>();
 
     constructor() {
         this._volume = readVolume();
@@ -105,6 +115,7 @@ export class MusicManager {
         audio.loop = false;
         audio.src = this.playlist[this.index].url;
         audio.volume = 0;
+        this.wireToMaster(audio);
         audio.addEventListener('error', () => {
             const err = audio.error;
             console.warn('[music] audio element error:', err?.code, err?.message, audio.src);
@@ -118,6 +129,7 @@ export class MusicManager {
     private attemptPlay(): void {
         if (!this.playRequested || this.destroyed || this.playing) return;
         const audio = this.ensureCurrent();
+        this.resumeAudioContext();
         const promise = audio.play();
         if (typeof promise?.then === 'function') {
             promise.then(() => {
@@ -156,7 +168,8 @@ export class MusicManager {
         replacement.preload = 'auto';
         replacement.loop = false;
         replacement.src = this.playlist[this.index].url;
-        replacement.volume = this.effectiveGain();
+        this.wireToMaster(replacement);
+        replacement.volume = this.targetElementVolume();
         replacement.addEventListener('error', () => {
             const err = replacement.error;
             console.warn('[music] audio element error:', err?.code, err?.message, replacement.src);
@@ -180,6 +193,7 @@ export class MusicManager {
         upcoming.preload = 'auto';
         upcoming.loop = false;
         upcoming.volume = 0;
+        this.wireToMaster(upcoming);
         upcoming.addEventListener('error', () => {
             const err = upcoming.error;
             console.warn('[music] crossfade audio error:', err?.code, err?.message, upcoming.src);
@@ -190,7 +204,7 @@ export class MusicManager {
         const tick = () => {
             if (this.destroyed) return;
             const t = Math.min(1, (nowSeconds() - start) / CROSSFADE_S);
-            const target = this.effectiveGain();
+            const target = this.targetElementVolume();
             fromAudio.volume = Math.max(0, target * (1 - t));
             upcoming.volume = Math.max(0, target * t);
             if (t < 1 && !this.destroyed) {
@@ -224,23 +238,92 @@ export class MusicManager {
         const tick = () => {
             if (this.destroyed || this.current !== audio) return;
             const t = Math.min(1, (nowSeconds() - start) / durationS);
-            audio.volume = Math.max(0, this.effectiveGain() * t);
+            audio.volume = Math.max(0, this.targetElementVolume() * t);
             if (t < 1) this.fadeRaf = scheduleFrame(tick);
         };
         tick();
     }
 
-    /** Effective gain applied to the underlying HTMLAudioElement. */
-    private effectiveGain(): number {
+    /**
+     * Effective master gain applied via Web Audio (range 0..MUSIC_GAIN_CAP).
+     * Combines the persisted slider value, the muted flag, and the cap.
+     */
+    private effectiveMasterGain(): number {
         if (this._muted) return 0;
         return Math.max(0, Math.min(1, this._volume)) * MUSIC_GAIN_CAP;
     }
 
+    /**
+     * Per-element fade target applied to `HTMLAudioElement.volume`.
+     * When Web Audio is wired up, the master gain handles slider/mute, so the
+     * element itself runs at full pre-gain (1.0) and fade-in/crossfade tween
+     * 0..1. Without Web Audio we fall back to driving the element directly,
+     * capped at 1.0.
+     */
+    private targetElementVolume(): number {
+        if (this.masterGain) return 1;
+        if (this._muted) return 0;
+        return Math.max(0, Math.min(1, this._volume));
+    }
+
     private applyVolume(): void {
-        const target = this.effectiveGain();
+        if (this.masterGain) {
+            this.masterGain.gain.value = this.effectiveMasterGain();
+            return;
+        }
+        const target = this.targetElementVolume();
         if (this.current) this.current.volume = target;
         // The `next` track is part of an in-flight crossfade and the
         // crossfade tick re-applies volumes itself, so leave it alone.
+    }
+
+    private ensureAudioContext(): AudioContext | null {
+        if (this.audioContext) return this.audioContext;
+        if (this.webAudioFailed) return null;
+        if (typeof window === 'undefined') return null;
+        const Ctor: typeof AudioContext | undefined =
+            (typeof AudioContext !== 'undefined'
+                ? AudioContext
+                : (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+        if (!Ctor) {
+            this.webAudioFailed = true;
+            return null;
+        }
+        try {
+            const ctx = new Ctor();
+            const master = ctx.createGain();
+            master.gain.value = this.effectiveMasterGain();
+            master.connect(ctx.destination);
+            this.audioContext = ctx;
+            this.masterGain = master;
+            return ctx;
+        } catch (err) {
+            console.warn('[music] Web Audio init failed; falling back to element volume:', err);
+            this.webAudioFailed = true;
+            return null;
+        }
+    }
+
+    private wireToMaster(audio: HTMLAudioElement): void {
+        if (this.wiredAudios.has(audio)) return;
+        const ctx = this.ensureAudioContext();
+        if (!ctx || !this.masterGain) return;
+        try {
+            const source = ctx.createMediaElementSource(audio);
+            source.connect(this.masterGain);
+            this.wiredAudios.add(audio);
+        } catch (err) {
+            console.warn('[music] could not route audio through Web Audio:', err);
+        }
+    }
+
+    private resumeAudioContext(): void {
+        const ctx = this.audioContext;
+        if (ctx && ctx.state === 'suspended') {
+            ctx.resume().catch((err: DOMException) => {
+                console.warn('[music] AudioContext resume rejected:', err.name, err.message);
+            });
+        }
     }
 
     get volume(): number {
@@ -286,6 +369,11 @@ export class MusicManager {
             this.next = null;
         }
         this.detachAutoStart();
+        if (this.audioContext) {
+            try { this.audioContext.close(); } catch { /* ignored */ }
+            this.audioContext = null;
+            this.masterGain = null;
+        }
     }
 }
 
