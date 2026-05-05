@@ -117,9 +117,7 @@ export class BootScene extends Phaser.Scene {
         const music = new MusicManager();
         const audioBase = `${import.meta.env.BASE_URL}audio`;
         music.setPlaylist([
-            { url: `${audioBase}/dungeon_sound_1.mp3` },
             { url: `${audioBase}/dungeon_sound_2.mp3` },
-            { url: `${audioBase}/dungeon_sound_3.mp3` },
         ]);
         music.start();
         this.cameras.main.setBackgroundColor('#050505');
