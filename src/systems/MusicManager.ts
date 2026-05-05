@@ -11,9 +11,13 @@
 const VOLUME_KEY = 'dd_music_volume';
 const MUTED_KEY = 'dd_music_muted';
 
-/** Upper bound applied to the slider value when it actually drives the audio
- * gain — keeps tracks in the "background ambience" range even at max. */
-const MUSIC_GAIN_CAP = 0.55;
+/** Upper bound applied to the slider value when it actually drives the
+ * audio gain. HTMLAudioElement.volume is hard-capped at 1.0, so this is
+ * the absolute ceiling. The original 0.55 cap was reported as "too quiet"
+ * by players, so the slider now goes all the way to native max — which is
+ * roughly 1.8× louder than the prior peak.
+ */
+const MUSIC_GAIN_CAP = 1.0;
 
 /** Crossfade window (seconds) before a track ends. */
 const CROSSFADE_S = 1.6;
@@ -286,14 +290,19 @@ export class MusicManager {
 }
 
 function readVolume(): number {
+    // Fresh installs default to max slider — combined with the cap
+    // bump above this lands roughly 2× louder than the previous
+    // default of 0.55 × 0.55 ≈ 0.30 effective gain. Players asked
+    // for the music to be louder out of the box; existing users
+    // with a stored slider keep their last-chosen position.
     try {
         const raw = localStorage.getItem(VOLUME_KEY);
-        if (raw == null) return 0.55;
+        if (raw == null) return 1.0;
         const parsed = Number.parseFloat(raw);
-        if (!Number.isFinite(parsed)) return 0.55;
+        if (!Number.isFinite(parsed)) return 1.0;
         return Math.max(0, Math.min(1, parsed));
     } catch {
-        return 0.55;
+        return 1.0;
     }
 }
 

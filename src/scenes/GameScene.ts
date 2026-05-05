@@ -563,17 +563,19 @@ export class GameScene extends Phaser.Scene {
         // left, ~90 px gap to the chrome icon row on the right.
         // valueOffsetX forces both rows to share a single value column
         // so the numbers line up vertically even though "АТАКА" is
-        // shorter than "ЗАЩИТА".
+        // shorter than "ЗАЩИТА". The block was lifted 10 px from its
+        // original 36/64 spec on player request — keeps it tucked
+        // closer to the carved top rim instead of sitting low.
         const statsX = 700;
         const STATS_VALUE_OFFSET = 96;
-        this.atkStat = createHudInlineSlot(this, statsX, 36, {
+        this.atkStat = createHudInlineSlot(this, statsX, 26, {
             icon: 'sword',
             label: this.loc.t('attackShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
             valueOffsetX: STATS_VALUE_OFFSET,
         });
-        this.defStat = createHudInlineSlot(this, statsX, 64, {
+        this.defStat = createHudInlineSlot(this, statsX, 54, {
             icon: 'shield',
             label: this.loc.t('defenseShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
@@ -582,15 +584,17 @@ export class GameScene extends Phaser.Scene {
         });
 
         // Optional secondary stats — stacked just to the right of the
-        // primary atk/def block when they're actually relevant.
-        this.revivesStat = createHudInlineSlot(this, statsX + 130, 38, {
+        // primary atk/def block when they're actually relevant. Y
+        // values mirror the atk/def shift above so the rows stay
+        // visually aligned across both columns.
+        this.revivesStat = createHudInlineSlot(this, statsX + 130, 28, {
             icon: 'heart',
             label: this.loc.t('reviveShort').toUpperCase(),
             valueFontSize: '13px',
             labelFontSize: '11px',
             iconSize: 12,
         });
-        this.lightTorchIcon = this.add.text(statsX + 130, 66, '', {
+        this.lightTorchIcon = this.add.text(statsX + 130, 56, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
             color: HudHex.accentLight,
