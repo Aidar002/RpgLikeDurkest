@@ -734,10 +734,8 @@ export class GameScene extends Phaser.Scene {
             this.hintText,
         ];
 
-        if (stoneWall) {
-            this.uiContainer.add(stoneWall);
-            stoneWall.setDepth(-1);
-        }
+        this.uiContainer.add(stoneWall);
+        stoneWall.setDepth(-1);
         this.uiContainer.add([...topWidgets, ...bottomWidgets]);
 
         this.roomContainer.add(this.enemyStatusText);

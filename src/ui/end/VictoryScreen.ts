@@ -6,6 +6,7 @@
  * scene resets.
  */
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
+import { createStoneBackdrop } from '../StoneBackdrop';
 import { awardPrestigeOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
@@ -20,7 +21,17 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     tracker.trackMax('bestDepth', runState.runBestDepth);
     tracker.trackMax('levelReached', player.stats.level);
 
-    const overlay = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.92).setDepth(Depths.EndScreenOverlay);
+    // Stone backdrop sits below the dimming overlay so the dungeon
+    // wall reads through the dark wash. Different seed than the death
+    // screen so the two don't repeat the same brick layout.
+    createStoneBackdrop(scene, 0, 0, GAME_WIDTH, GAME_HEIGHT, {
+        keySuffix: 'victory_screen',
+        seed: 0x1c8d,
+        brightness: 0.7,
+    }).setDepth(Depths.EndScreenOverlay - 1);
+    const overlay = scene.add
+        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55)
+        .setDepth(Depths.EndScreenOverlay);
     const panel = scene.add.rectangle(CENTER_X, CENTER_Y, 700, 500, 0x0a0a18).setDepth(Depths.EndScreenPanel);
     panel.setStrokeStyle(2, 0x6a8fcc);
 
