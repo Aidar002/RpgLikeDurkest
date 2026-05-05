@@ -371,7 +371,7 @@ export class GameScene extends Phaser.Scene {
         // wall toward black so the dungeon feels lit by a single lamp.
         const torchlight = createTorchlightOverlay(this, GAME_WIDTH, playAreaH, {
             innerRadius: 250,
-            outerRadius: 600,
+            outerRadius: 400,
             centerAlpha: 0.45,
             edgeAlpha: 0.94,
         });
