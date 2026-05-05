@@ -122,7 +122,7 @@ export class CombatHudController {
             return;
         }
 
-        scene.actionButtons.forEach((b) => { b.enabled = false; });
+        scene.roomButtons.disableAll();
 
         const hpBefore = scene.combat.enemy.hp;
         scene.tracker.record('turnsInCombat');

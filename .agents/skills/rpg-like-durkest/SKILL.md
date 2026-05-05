@@ -91,10 +91,25 @@ node without a Phaser context — keep system files headless-friendly
 
 ## Localization
 
-`src/systems/Localization.ts` wires the player-selectable RU / EN
-language. The string tables live alongside it (or in `src/systems/locale/`
-once they've been split out). `loc.t('key')` returns the active-language
-string; passing `loc` into UI helpers keeps them language-agnostic.
+`src/systems/Localization.ts` is the loader/runtime; the per-language
+tables live in `src/systems/locale/en.ts` (canonical) and
+`src/systems/locale/ru.ts` (`Record<LocaleKey, string>` so missing
+translations fail the build). `loc.t('key')` returns the
+active-language string; passing `loc` into UI helpers keeps them
+language-agnostic. To add a new string: add it to `en.ts`, then add
+the matching translation in `ru.ts` — TypeScript will block the build
+if you forget the second.
+
+## End screens
+
+`src/ui/EndScreens.ts` is a re-export barrel; the actual overlays live
+under `src/ui/end/`:
+- `end/DeathScreen.ts` — multi-section death modal with two-column
+  body, prestige banner, upgrade grid, reset-confirm sub-modal.
+- `end/VictoryScreen.ts` — single-screen artifact-collected modal.
+- `end/shared.ts` — `awardPrestigeOnce` (idempotent),
+  `hideLiveContainers`.
+- `end/types.ts` — `EndScreenContext`, `RunEndState`.
 
 ## Common pitfalls
 

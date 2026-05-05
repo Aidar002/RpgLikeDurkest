@@ -1,0 +1,750 @@
+/**
+ * Map renderer for the dungeon node graph.
+ *
+ * Owns:
+ * - the `mapContainer` children that represent each node (background
+ *   rect, icon glyph, optional spritesheet image, optional carved
+ *   frame overlay),
+ * - per-node "fire" particle effects and the legacy "glow" overlay
+ *   map (kept for cleanup compatibility — actual reachable-node
+ *   pulse is now rendered as a yoyo on the carved frame inside
+ *   {@link MapView.startNodePulse}),
+ * - the edge `Graphics` strip that draws connections between nodes.
+ *
+ * Doesn't own:
+ * - run-progress / level-up / unlock plumbing — those stay in
+ *   `GameScene.afterMove` / `updateRunProgress` and call back into
+ *   {@link MapView.refresh} after mutating dungeon state.
+ *
+ * The class also exposes pure-geometry helpers (`nodeX`, `nodeY`,
+ * `getMapOffset`, `centerOnNode`) so callers don't have to know about
+ * the column/row spacing constants.
+ */
+import * as Phaser from 'phaser';
+
+import type { DungeonManager } from '../systems/DungeonManager';
+import type { Localization } from '../systems/Localization';
+import type { MapNode } from '../systems/MapGenerator';
+import type {
+    MetaProgressionManager,
+    UiUnlockState,
+} from '../systems/MetaProgressionManager';
+import { hasTexture } from './AssetGuard';
+import { PixelSprite } from './PixelSprite';
+import {
+    fitRoomSprite,
+    hasFireEffect,
+    roomFrameIndex,
+    roomIcon,
+    roomIconFrame,
+    roomSpriteKey,
+    roomTypeName,
+} from './RoomVisuals';
+import { VFX } from './VFX';
+
+/** Horizontal distance between node columns (one column per depth). */
+export const COL_W = 180;
+/** Vertical distance between node rows (one row per slot). */
+export const ROW_H = 140;
+/** Square side length for the node background rectangle. */
+export const NODE_SZ = 80;
+/** Origin X of the depth-0 node column on canvas. */
+export const MAP_X = 360;
+/** Origin Y of the slot-0 node row on canvas (centred on this Y). */
+export const MAP_Y = 380;
+/** X position the camera/container centres the current node onto. */
+export const VIEW_X = 512;
+/** Y position the camera/container centres the current node onto. */
+export const VIEW_Y = 380;
+
+/**
+ * Set of Phaser objects that together render one map node. Created in
+ * {@link MapView.build} per node, kept in `visuals` for later refresh
+ * passes. `sprite` and `frame` are optional because the optional
+ * spritesheet textures may not be present (tests, loading phase).
+ */
+export interface NodeVisual {
+    rect: Phaser.GameObjects.Rectangle;
+    icon: Phaser.GameObjects.Text;
+    sprite?: Phaser.GameObjects.Image;
+    frame?: Phaser.GameObjects.Image;
+}
+
+/**
+ * Things {@link MapView} cannot decide on its own and must defer to
+ * the host scene for. `canMove` returns whether a click on the given
+ * node should advance the player there (depends on global animation
+ * state, current room visibility, dead state — none of which live in
+ * `MapView`).
+ */
+export interface MapViewDeps {
+    scene: Phaser.Scene;
+    container: Phaser.GameObjects.Container;
+    dungeon: DungeonManager;
+    meta: MetaProgressionManager;
+    loc: Localization;
+    tooltipText: Phaser.GameObjects.Text;
+    /** Whether a click on `node` should currently produce movement. */
+    canMove(node: MapNode): boolean;
+    /** Called when a clickable node was successfully clicked. */
+    onNodeClick(node: MapNode): void;
+}
+
+export class MapView {
+    private scene: Phaser.Scene;
+    public readonly container: Phaser.GameObjects.Container;
+    private dungeon: DungeonManager;
+    private meta: MetaProgressionManager;
+    private loc: Localization;
+    private tooltipText: Phaser.GameObjects.Text;
+    private canMoveDelegate: (node: MapNode) => boolean;
+    private onNodeClickDelegate: (node: MapNode) => void;
+
+    public readonly visuals: Map<string, NodeVisual> = new Map();
+    public readonly glowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
+    public readonly fireMap: Map<string, { destroy: () => void }> = new Map();
+    private edgeGfx!: Phaser.GameObjects.Graphics;
+
+    constructor(deps: MapViewDeps) {
+        this.scene = deps.scene;
+        this.container = deps.container;
+        this.dungeon = deps.dungeon;
+        this.meta = deps.meta;
+        this.loc = deps.loc;
+        this.tooltipText = deps.tooltipText;
+        this.canMoveDelegate = deps.canMove;
+        this.onNodeClickDelegate = deps.onNodeClick;
+
+        this.edgeGfx = this.scene.add.graphics();
+        this.container.add(this.edgeGfx);
+    }
+
+    /** Canvas X for the centre of `node`'s background rect. */
+    nodeX(node: MapNode): number {
+        return MAP_X + node.depth * COL_W;
+    }
+
+    /** Canvas Y for the centre of `node`'s background rect. */
+    nodeY(node: MapNode): number {
+        const siblings = this.dungeon
+            .getAllNodes()
+            .filter((candidate) => candidate.depth === node.depth);
+        return MAP_Y + (node.slot - (siblings.length - 1) / 2) * ROW_H;
+    }
+
+    /**
+     * Container offset that would centre `node` under the viewport
+     * focal point. Used by {@link animateShift} to glide the map
+     * sideways after the player picks a node.
+     */
+    getMapOffset(node: MapNode): { x: number; y: number } {
+        return {
+            x: VIEW_X - this.nodeX(node),
+            y: VIEW_Y - this.nodeY(node),
+        };
+    }
+
+    /** Snap (no animation) the container so `node` is centred. */
+    centerOnNode(node: MapNode): void {
+        const { x, y } = this.getMapOffset(node);
+        this.container.setPosition(x, y);
+    }
+
+    /**
+     * Whether a click on `node` should currently advance the player
+     * to it. Combines the host-supplied {@link canMoveDelegate}
+     * (which captures animating / dead / room-visible state) with the
+     * intrinsic "is the node a valid forward move" check.
+     */
+    canUseNode(node: MapNode): boolean {
+        return (
+            this.canMoveDelegate(node) &&
+            !node.cleared &&
+            this.dungeon.canMoveTo(node.id)
+        );
+    }
+
+    /**
+     * Build per-node visuals for any node that doesn't already have
+     * an entry in `visuals`. Idempotent: re-running after
+     * `dungeon.addNodes(...)` only creates the freshly-added nodes
+     * and leaves existing ones untouched.
+     */
+    build(fadeIn: boolean): void {
+        const unlocks = this.meta.getUiUnlockState();
+        const currentId = this.dungeon.currentNode.id;
+        const forwardIds = new Set(
+            this.dungeon.getForwardNodes().map((node) => node.id),
+        );
+
+        this.dungeon.getAllNodes().forEach((node) => {
+            if (this.visuals.has(node.id)) {
+                return;
+            }
+
+            const x = this.nodeX(node);
+            const y = this.nodeY(node);
+            const revealed =
+                node.visited || forwardIds.has(node.id) || node.id === currentId;
+            const knowsType =
+                node.cleared ||
+                node.visited ||
+                node.id === currentId ||
+                unlocks.showRoomIcons;
+            // Every room sits on a black backdrop; the carved frame
+            // overlay (room_frames.png) is what carries the state colour
+            // (gold safe / red danger / grey unknown). The procedural
+            // fallback below adds a thin stroke when the frame texture
+            // is missing.
+            const alpha = node.cleared ? 0.35 : 1;
+            const hasFrame = hasTexture(this.scene, 'hud_room_frames');
+            const stroke = node.cleared
+                ? 0x333333
+                : node.id === currentId
+                  ? 0xffffff
+                  : forwardIds.has(node.id)
+                    ? 0x6d6d6d
+                    : 0x343434;
+
+            const rect = this.scene.add
+                .rectangle(x, y, NODE_SZ, NODE_SZ, 0x000000)
+                .setAlpha(alpha);
+            if (!hasFrame) {
+                rect.setStrokeStyle(2, stroke);
+            }
+
+            const icon = this.scene.add
+                .text(x, y, revealed && knowsType ? roomIcon(node.type) : '?', {
+                    fontFamily: 'Courier New',
+                    fontSize: '28px',
+                    color: node.cleared ? '#888888' : '#ffffff',
+                })
+                .setOrigin(0.5)
+                .setAlpha(alpha);
+
+            // Sprite priority: hand-authored room_icons spritesheet →
+            // procedural PixelSprite (per-type 24×24 sprite) → text glyph.
+            let sprite: Phaser.GameObjects.Image | undefined;
+            if (
+                revealed &&
+                knowsType &&
+                hasTexture(this.scene, 'hud_room_icons')
+            ) {
+                icon.setVisible(false);
+                sprite = this.scene.add
+                    .image(x, y, 'hud_room_icons', roomIconFrame(node.type))
+                    .setOrigin(0.5)
+                    .setAlpha(alpha);
+                fitRoomSprite(sprite);
+                if (node.cleared) sprite.setTint(0x555555);
+            } else {
+                const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
+                if (
+                    revealed &&
+                    knowsType &&
+                    hasTexture(this.scene, spriteKey)
+                ) {
+                    icon.setVisible(false);
+                    sprite = this.scene.add
+                        .image(x, y, spriteKey)
+                        .setOrigin(0.5)
+                        .setAlpha(alpha);
+                    fitRoomSprite(sprite);
+                    if (node.cleared) sprite.setTint(0x555555);
+                }
+            }
+
+            // Decorative frame overlay (bronze for safe, iron-red for danger,
+            // grey for unknown). Only renders when the optional spritesheet is
+            // present — falls back silently to the base rect+icon otherwise.
+            let frame: Phaser.GameObjects.Image | undefined;
+            if (hasFrame) {
+                const frameIdx =
+                    revealed && knowsType ? roomFrameIndex(node.type) : 2;
+                frame = this.scene.add
+                    .image(x, y, 'hud_room_frames', frameIdx)
+                    .setOrigin(0.5)
+                    .setAlpha(alpha);
+                frame.setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
+                if (node.cleared) frame.setTint(0x555555);
+            }
+
+            if (fadeIn && !node.cleared) {
+                rect.setAlpha(0);
+                icon.setAlpha(0);
+                const targets: Phaser.GameObjects.GameObject[] = [rect, icon];
+                if (sprite) {
+                    sprite.setAlpha(0);
+                    targets.push(sprite);
+                }
+                if (frame) {
+                    frame.setAlpha(0);
+                    targets.push(frame);
+                }
+                this.scene.tweens.add({
+                    targets,
+                    alpha: 1,
+                    duration: 420,
+                    ease: 'Quad.out',
+                });
+            }
+
+            this.makeClickable(rect, node);
+
+            const children: Phaser.GameObjects.GameObject[] = [rect, icon];
+            if (sprite) children.push(sprite);
+            if (frame) children.push(frame);
+            this.container.add(children);
+            this.visuals.set(node.id, { rect, icon, sprite, frame });
+        });
+    }
+
+    private makeClickable(
+        rect: Phaser.GameObjects.Rectangle,
+        node: MapNode,
+    ): void {
+        rect.setInteractive({ useHandCursor: true });
+        rect.on('pointerdown', () => {
+            if (this.canUseNode(node)) {
+                this.onNodeClickDelegate(node);
+            }
+        });
+        rect.on('pointerover', () => {
+            if (this.canUseNode(node)) {
+                this.applyHover(node, true);
+            }
+            const unlocks = this.meta.getUiUnlockState();
+            const revealed =
+                node.visited ||
+                node.id === this.dungeon.currentNode.id ||
+                this.dungeon.getForwardNodes().some((n) => n.id === node.id);
+            const knowsType =
+                node.visited ||
+                node.id === this.dungeon.currentNode.id ||
+                unlocks.showRoomIcons;
+            if (revealed && knowsType && !node.cleared) {
+                this.tooltipText.setText(roomTypeName(node.type, this.loc));
+                const screenX = this.nodeX(node) + this.container.x;
+                const screenY =
+                    this.nodeY(node) + this.container.y - NODE_SZ / 2 - 18;
+                this.tooltipText
+                    .setPosition(screenX, screenY)
+                    .setOrigin(0.5, 1)
+                    .setVisible(true);
+            }
+        });
+        rect.on('pointerout', () => {
+            this.applyHover(node, false);
+            this.tooltipText.setVisible(false);
+        });
+    }
+
+    /**
+     * Map-node hover affordance. With the carved `room_frames.png`
+     * overlay present we scale the frame ~10% and tint it lighter;
+     * without the overlay we fall back to a thicker neutral-gold
+     * rect stroke. No white outline anywhere — that was the "current
+     * room" highlight the player asked us to retire. After hover-out
+     * the frame restarts its idle pulsate if the node is still a
+     * reachable forward option, so the "breathing" affordance never
+     * gets eaten by a hover.
+     */
+    private applyHover(node: MapNode, hovered: boolean): void {
+        const visual = this.visuals.get(node.id);
+        if (!visual) {
+            return;
+        }
+        const targetSize = hovered ? NODE_SZ + 18 : NODE_SZ + 8;
+        const tint = hovered ? 0xfff5cc : 0xffffff;
+        const isReachable = !node.cleared && this.dungeon.canMoveTo(node.id);
+        if (visual.frame) {
+            this.scene.tweens.killTweensOf(visual.frame);
+            this.scene.tweens.add({
+                targets: visual.frame,
+                displayWidth: targetSize,
+                displayHeight: targetSize,
+                duration: 120,
+                ease: 'Sine.out',
+                onComplete: () => {
+                    if (!hovered && isReachable) {
+                        this.startNodePulse(visual);
+                    }
+                },
+            });
+            if (node.cleared) {
+                visual.frame.setTint(0x555555);
+            } else if (hovered) {
+                visual.frame.setTint(tint);
+            } else {
+                visual.frame.clearTint();
+            }
+            return;
+        }
+        // Fallback path (PNG missing) — a thin stroke change with the
+        // same semantic palette as refresh(), no white.
+        const colour = node.cleared
+            ? 0x333333
+            : isReachable
+              ? 0x6d6d6d
+              : 0x343434;
+        visual.rect.setStrokeStyle(
+            hovered ? 3 : 2,
+            hovered ? 0x9a8a4a : colour,
+        );
+    }
+
+    /**
+     * Idle "breathing" pulse on a reachable map node — the carved
+     * frame yoyos between its base size (NODE_SZ + 8) and a slightly
+     * larger peak (NODE_SZ + 14). This replaced the grey
+     * VFX.nodeGlow rectangle that players asked us to retire.
+     *
+     * Hover takes priority via {@link applyHover} (which kills tweens
+     * on the frame and animates to NODE_SZ + 18); on hover-out the
+     * pulse is restarted from there so the affordance is continuous
+     * across the player's pointer movement.
+     */
+    private startNodePulse(visual: NodeVisual): void {
+        if (visual.frame) {
+            const baseSize = NODE_SZ + 8;
+            const peakSize = NODE_SZ + 14;
+            this.scene.tweens.killTweensOf(visual.frame);
+            visual.frame.setDisplaySize(baseSize, baseSize);
+            this.scene.tweens.add({
+                targets: visual.frame,
+                displayWidth: peakSize,
+                displayHeight: peakSize,
+                duration: 760,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.inOut',
+            });
+            return;
+        }
+        // PNG missing — pulse the rect's stroke alpha instead so the
+        // affordance is still visible on the fallback render path.
+        this.scene.tweens.killTweensOf(visual.rect);
+        this.scene.tweens.add({
+            targets: visual.rect,
+            alpha: { from: 0.7, to: 1 },
+            duration: 760,
+            yoyo: true,
+            repeat: -1,
+            ease: 'Sine.inOut',
+        });
+    }
+
+    /**
+     * Clear and re-stroke the edge `Graphics`. Lines from the current
+     * node to forward options render bright; backward / non-current
+     * sources fade. Per-source-node grouping spreads outgoing lanes
+     * so lines from the same source don't overlap.
+     */
+    redrawEdges(): void {
+        this.edgeGfx.clear();
+        const currentDepth = this.dungeon.currentDepth;
+        const forwardIds = new Set(
+            this.dungeon.getForwardNodes().map((node) => node.id),
+        );
+        const currentId = this.dungeon.currentNode.id;
+        const allNodes = this.dungeon.getAllNodes();
+
+        // Per-source-node grouping: each source spreads its outgoing
+        // lanes so lines never overlap with siblings from the same node.
+        allNodes.forEach((node) => {
+            if (node.depth < currentDepth) return;
+            if (node.edges.length === 0) return;
+
+            const targets = node.edges
+                .map((id) =>
+                    allNodes.find((candidate) => candidate.id === id),
+                )
+                .filter((target): target is MapNode => !!target)
+                .sort((a, b) => a.slot - b.slot);
+
+            const x1 = this.nodeX(node);
+            const y1 = this.nodeY(node);
+
+            targets.forEach((target, index) => {
+                const active =
+                    !node.cleared &&
+                    forwardIds.has(target.id) &&
+                    node.id === currentId;
+                const lineColor = node.cleared
+                    ? 0x2a2a2a
+                    : active
+                      ? 0x9b9b9b
+                      : 0x3b3b3b;
+                const lineAlpha = node.cleared ? 0.18 : active ? 1 : 0.35;
+                const lineWidth = active ? 3 : 2;
+
+                const x2 = this.nodeX(target);
+                const y2 = this.nodeY(target);
+
+                // Fan out: bias lane from source based on this target's
+                // relative rank, not the target's slot (which was the
+                // bug that made lines cross). Spread range is 25%-75%
+                // of the corridor between the two columns.
+                const rank = (index + 1) / (targets.length + 1);
+                const laneX = x1 + (x2 - x1) * (0.35 + rank * 0.3);
+
+                this.edgeGfx.lineStyle(lineWidth, lineColor, lineAlpha);
+                this.edgeGfx.beginPath();
+                this.edgeGfx.moveTo(x1, y1);
+                this.edgeGfx.lineTo(laneX, y1);
+                this.edgeGfx.lineTo(laneX, y2);
+                this.edgeGfx.lineTo(x2, y2);
+                this.edgeGfx.strokePath();
+            });
+        });
+    }
+
+    /**
+     * Re-derive every existing node visual's appearance from the
+     * current dungeon state (cleared / current / forward / revealed).
+     * Cheap idempotent pass; safe to call after every move or unlock.
+     *
+     * Also re-attaches the per-frame fire effect to camp/altar nodes
+     * (REST/START/SHRINE) and clears the legacy `glowMap` overlay.
+     */
+    refresh(_unlocks?: UiUnlockState): void {
+        const unlocks = _unlocks ?? this.meta.getUiUnlockState();
+
+        // The reachable-node affordance used to be a separate grey
+        // VFX.nodeGlow rectangle; we now pulsate the carved frame
+        // itself instead, so this map only holds left-over glows from
+        // older runs and is always cleared here. The active "pulse"
+        // tween on each frame is killed below as part of the per-node
+        // refresh so it doesn't compound.
+        this.glowMap.forEach((glow) => glow.destroy());
+        this.glowMap.clear();
+        this.fireMap.forEach((fire) => fire.destroy());
+        this.fireMap.clear();
+
+        const currentId = this.dungeon.currentNode.id;
+        const forwardIds = new Set(
+            this.dungeon.getForwardNodes().map((node) => node.id),
+        );
+        const allNodes = this.dungeon.getAllNodes();
+
+        this.visuals.forEach((visual, id) => {
+            const node = allNodes.find((candidate) => candidate.id === id);
+            if (!node) {
+                return;
+            }
+
+            const hasFrame = hasTexture(this.scene, 'hud_room_frames');
+
+            // Kill any in-flight pulse on the rect (fallback render
+            // path) before re-deriving its alpha/stroke. Without this
+            // a node that loses its forward status — or gets cleared
+            // — would keep yoyo-ing alpha from `startNodePulse` and
+            // override the setAlpha calls below.
+            this.scene.tweens.killTweensOf(visual.rect);
+
+            if (node.cleared) {
+                visual.rect.setFillStyle(0x000000).setAlpha(0.35);
+                if (hasFrame) {
+                    visual.rect.setStrokeStyle(0);
+                } else {
+                    visual.rect.setStrokeStyle(1, 0x333333);
+                }
+                visual.icon.setColor('#777777').setAlpha(0.5);
+                if (visual.sprite)
+                    visual.sprite.setAlpha(0.35).setTint(0x555555);
+                if (visual.frame) {
+                    this.scene.tweens.killTweensOf(visual.frame);
+                    visual.frame
+                        .setAlpha(0.35)
+                        .setTint(0x555555)
+                        .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
+                }
+                return;
+            }
+
+            const isCurrent = id === currentId;
+            const isForward = forwardIds.has(id);
+            const revealed = isCurrent || isForward || node.visited;
+            const knowsType =
+                node.visited || isCurrent || unlocks.showRoomIcons;
+            const iconText = revealed && knowsType ? roomIcon(node.type) : '?';
+
+            // Black backdrop for every room — the carved frame overlay
+            // (when present) carries the state colour, so the rect's
+            // own stroke is only used as a fallback indicator when the
+            // frame texture is missing. The "current room" no longer gets
+            // a separate white outline; the player figures out where they
+            // stand from the play-area state and the upcoming hover scale
+            // affordance on reachable nodes.
+            visual.rect.setFillStyle(0x000000).setAlpha(1);
+            if (hasFrame) {
+                visual.rect.setStrokeStyle(0);
+            } else {
+                visual.rect.setStrokeStyle(
+                    2,
+                    isForward ? 0x6d6d6d : 0x343434,
+                );
+            }
+
+            if (visual.frame) {
+                const frameIdx =
+                    revealed && knowsType ? roomFrameIndex(node.type) : 2;
+                this.scene.tweens.killTweensOf(visual.frame);
+                visual.frame
+                    .setFrame(frameIdx)
+                    .setAlpha(1)
+                    .clearTint()
+                    .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
+            }
+
+            // Sprite priority: hand-authored room_icons spritesheet →
+            // procedural PixelSprite → text glyph (matches build()).
+            const useSheet =
+                revealed &&
+                knowsType &&
+                hasTexture(this.scene, 'hud_room_icons');
+            const proceduralKey = PixelSprite.roomKey(roomSpriteKey(node.type));
+            const useProcedural =
+                !useSheet &&
+                revealed &&
+                knowsType &&
+                hasTexture(this.scene, proceduralKey);
+            if (useSheet) {
+                if (!visual.sprite) {
+                    visual.sprite = this.scene.add
+                        .image(
+                            this.nodeX(node),
+                            this.nodeY(node),
+                            'hud_room_icons',
+                            roomIconFrame(node.type),
+                        )
+                        .setOrigin(0.5);
+                    this.container.add(visual.sprite);
+                } else {
+                    visual.sprite.setTexture(
+                        'hud_room_icons',
+                        roomIconFrame(node.type),
+                    );
+                }
+                fitRoomSprite(visual.sprite);
+                visual.sprite.setAlpha(1).clearTint().setVisible(true);
+                visual.icon.setVisible(false);
+            } else if (useProcedural) {
+                if (!visual.sprite) {
+                    visual.sprite = this.scene.add
+                        .image(this.nodeX(node), this.nodeY(node), proceduralKey)
+                        .setOrigin(0.5);
+                    this.container.add(visual.sprite);
+                } else {
+                    visual.sprite.setTexture(proceduralKey);
+                }
+                fitRoomSprite(visual.sprite);
+                visual.sprite.setAlpha(1).clearTint().setVisible(true);
+                visual.icon.setVisible(false);
+            } else {
+                visual.icon
+                    .setText(iconText)
+                    .setColor('#ffffff')
+                    .setAlpha(1)
+                    .setVisible(true);
+                if (visual.sprite) visual.sprite.setVisible(false);
+            }
+
+            // Reachable-node affordance: pulsate the carved frame
+            // (or, when the PNG is missing, the rect stroke) so the
+            // forward options breathe in and out. The grey
+            // VFX.nodeGlow rectangle was retired — players asked us
+            // to remove the dull grey halo; the pulse sits inside
+            // the existing frame palette so it never clashes with
+            // the room-type tint.
+            if (isForward && !node.cleared) {
+                this.startNodePulse(visual);
+            }
+
+            // Tiny fire embers above campfire/altar nodes
+            // (REST/START/SHRINE). Skipped on cleared rooms because
+            // their fire is "out".
+            if (!node.cleared && hasFireEffect(node.type)) {
+                const fire = VFX.nodeFire(
+                    this.scene,
+                    this.container,
+                    this.nodeX(node),
+                    this.nodeY(node),
+                );
+                this.fireMap.set(id, fire);
+            }
+        });
+    }
+
+    /**
+     * Fade-out the cleared-room visuals to alpha 0.35 in parallel.
+     * Fires `done()` once every tween settles. If there are no
+     * cleared visuals to animate, calls `done()` synchronously.
+     */
+    animateClearedOut(done: () => void): void {
+        const ids = this.dungeon
+            .getAllNodes()
+            .filter((node) => node.cleared)
+            .map((node) => node.id)
+            .filter((id) => this.visuals.has(id));
+
+        if (!ids.length) {
+            done();
+            return;
+        }
+
+        let remaining = ids.length;
+        ids.forEach((id) => {
+            const visual = this.visuals.get(id);
+            if (!visual) {
+                remaining--;
+                if (remaining === 0) {
+                    done();
+                }
+                return;
+            }
+
+            // Kill any in-flight pulse (fallback render path) so it
+            // doesn't fight the alpha→0.35 fade that follows.
+            this.scene.tweens.killTweensOf(visual.rect);
+            if (visual.frame) this.scene.tweens.killTweensOf(visual.frame);
+
+            visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333);
+            visual.icon.setColor('#777777');
+
+            const tweenTargets: Phaser.GameObjects.GameObject[] = [
+                visual.rect,
+                visual.icon,
+            ];
+            if (visual.sprite) {
+                visual.sprite.setTint(0x555555);
+                tweenTargets.push(visual.sprite);
+            }
+            this.scene.tweens.add({
+                targets: tweenTargets,
+                alpha: 0.35,
+                duration: 280,
+                ease: 'Quad.in',
+                onComplete: () => {
+                    remaining--;
+                    if (remaining === 0) {
+                        done();
+                    }
+                },
+            });
+        });
+    }
+
+    /** Glide the container so `node` is centred on the viewport. */
+    animateShift(node: MapNode, done: () => void): void {
+        const { x, y } = this.getMapOffset(node);
+        this.scene.tweens.add({
+            targets: this.container,
+            x,
+            y,
+            duration: 360,
+            ease: 'Quad.inOut',
+            onComplete: done,
+        });
+    }
+}
