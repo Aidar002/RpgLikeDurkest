@@ -7,6 +7,46 @@ export const GAME_HEIGHT = 768;
 export const CENTER_X = GAME_WIDTH / 2;
 export const CENTER_Y = GAME_HEIGHT / 2;
 
+/**
+ * Per-section HUD coordinates. Centralised so a "move icon up 7 px"
+ * tweak is a one-line edit here, not a hunt for `y=36` scattered across
+ * `GameScene.ts`/`SceneChrome.ts`. Section groups:
+ *
+ * - `topHud.*`: stat slots in the carved top bar (АТАКА/ЗАЩИТА column,
+ *   возрождения/факел column).
+ * - `chrome.*`: bottom-left audio/language toggle row anchored to the
+ *   top-right corner of the canvas.
+ *
+ * Add new groups here as you split rendering out of `GameScene`.
+ */
+export const HudLayout = {
+    topHud: {
+        /** X anchor for the АТАКА/ЗАЩИТА stat column. */
+        statsX: 700,
+        /** Horizontal offset between an inline slot's icon and value. */
+        statsValueOffset: 96,
+        /** Y of the АТАКА row in the carved top bar. */
+        atkY: 26,
+        /** Y of the ЗАЩИТА row, sits one row below `atkY`. */
+        defY: 54,
+        /** Y of the ВОЗР. row in the second top-bar column. */
+        revivesY: 28,
+        /** Y of the high/low-light icon (sun/moon glyph). */
+        torchIconY: 56,
+        /** X offset (from `statsX`) of the second column. */
+        secondColumnDx: 130,
+    },
+    chrome: {
+        /** Y of the music/settings/language icon row. */
+        iconY: 32,
+        /** X of the rightmost icon (language toggle). Other icons sit
+         *  to the left at -32 / -64 px from this anchor. */
+        iconRightX: GAME_WIDTH - 57,
+        /** Horizontal step between adjacent chrome icons. */
+        iconStepX: 32,
+    },
+} as const;
+
 /** HUD panel heights and shared padding. The middle play area sits between
  *  `TOP_BAR_H` and `GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET`. The
  *  bottom offset lifts the lower frame off the screen edge so the carved

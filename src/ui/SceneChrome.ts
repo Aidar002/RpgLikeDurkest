@@ -3,7 +3,7 @@ import type { Localization } from '../systems/Localization';
 import type { MusicManager } from '../systems/MusicManager';
 import type { SoundManager } from '../systems/SoundManager';
 import { compactText } from './TextHelpers';
-import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from './Layout';
+import { CENTER_X, GAME_HEIGHT, GAME_WIDTH, HudLayout } from './Layout';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 import { createVolumePanel, type VolumePanelHandle } from './VolumePanel';
 
@@ -137,8 +137,11 @@ export function setupSceneChrome(
     // icon's frame clears the corner ornament. 26-px wide frame +
     // 13-px half-width keeps the rightmost icon clear of the corner
     // ornament while sitting comfortably below the carved rim.
-    const ICON_Y = 32;
-    const ICON_RIGHT = GAME_WIDTH - 57;
+    // Coordinates live in `HudLayout.chrome` so a single edit shifts
+    // the whole row — see PR-A audit response.
+    const ICON_Y = HudLayout.chrome.iconY;
+    const ICON_RIGHT = HudLayout.chrome.iconRightX;
+    const ICON_STEP = HudLayout.chrome.iconStepX;
 
     // The mute icon controls SFX. When music is wired in, its mute state is
     // kept in sync so a single click silences the whole game.
@@ -146,7 +149,7 @@ export function setupSceneChrome(
     const muteIcon = sfx.muted ? '\u266A' : '\u266B';
     const muteButton = createIconButton(
         scene,
-        ICON_RIGHT - 64,
+        ICON_RIGHT - ICON_STEP * 2,
         ICON_Y,
         muteIcon,
         '15px',
@@ -162,7 +165,7 @@ export function setupSceneChrome(
 
     const cogButton = createIconButton(
         scene,
-        ICON_RIGHT - 32,
+        ICON_RIGHT - ICON_STEP,
         ICON_Y,
         '\u2699',
         '15px',

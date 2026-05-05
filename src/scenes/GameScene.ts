@@ -41,6 +41,7 @@ import {
     GAME_WIDTH,
     HUD_BOTTOM_OFFSET,
     HUD_PAD,
+    HudLayout,
     TOP_BAR_H,
 } from '../ui/Layout';
 import {
@@ -51,6 +52,7 @@ import {
     drawBarFrame,
     drawBarSegments,
 } from '../ui/HudTheme';
+import { hasTexture } from '../ui/AssetGuard';
 import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../ui/HudFrame';
 import { createHudCell, createHudInlineSlot, type HudCellHandle, type HudInlineSlotHandle } from '../ui/HudCell';
 import { createHudIcon } from '../ui/HudIcons';
@@ -566,35 +568,35 @@ export class GameScene extends Phaser.Scene {
         // shorter than "ЗАЩИТА". The block was lifted 10 px from its
         // original 36/64 spec on player request — keeps it tucked
         // closer to the carved top rim instead of sitting low.
-        const statsX = 700;
-        const STATS_VALUE_OFFSET = 96;
-        this.atkStat = createHudInlineSlot(this, statsX, 26, {
+        const { topHud } = HudLayout;
+        const secondColX = topHud.statsX + topHud.secondColumnDx;
+        this.atkStat = createHudInlineSlot(this, topHud.statsX, topHud.atkY, {
             icon: 'sword',
             label: this.loc.t('attackShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
-            valueOffsetX: STATS_VALUE_OFFSET,
+            valueOffsetX: topHud.statsValueOffset,
         });
-        this.defStat = createHudInlineSlot(this, statsX, 54, {
+        this.defStat = createHudInlineSlot(this, topHud.statsX, topHud.defY, {
             icon: 'shield',
             label: this.loc.t('defenseShort').toUpperCase(),
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
-            valueOffsetX: STATS_VALUE_OFFSET,
+            valueOffsetX: topHud.statsValueOffset,
         });
 
         // Optional secondary stats — stacked just to the right of the
         // primary atk/def block when they're actually relevant. Y
         // values mirror the atk/def shift above so the rows stay
         // visually aligned across both columns.
-        this.revivesStat = createHudInlineSlot(this, statsX + 130, 28, {
+        this.revivesStat = createHudInlineSlot(this, secondColX, topHud.revivesY, {
             icon: 'heart',
             label: this.loc.t('reviveShort').toUpperCase(),
             valueFontSize: '13px',
             labelFontSize: '11px',
             iconSize: 12,
         });
-        this.lightTorchIcon = this.add.text(statsX + 130, 56, '', {
+        this.lightTorchIcon = this.add.text(secondColX, topHud.torchIconY, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
             color: HudHex.accentLight,
@@ -1330,7 +1332,7 @@ export class GameScene extends Phaser.Scene {
             // fallback below adds a thin stroke when the frame texture
             // is missing.
             const alpha = node.cleared ? 0.35 : 1;
-            const hasFrame = this.textures.exists('hud_room_frames');
+            const hasFrame = hasTexture(this, 'hud_room_frames');
             const stroke = node.cleared
                 ? 0x333333
                 : node.id === currentId
@@ -1358,7 +1360,7 @@ export class GameScene extends Phaser.Scene {
             // Sprite priority: hand-authored room_icons spritesheet →
             // procedural PixelSprite (per-type 24×24 sprite) → text glyph.
             let sprite: Phaser.GameObjects.Image | undefined;
-            if (revealed && knowsType && this.textures.exists('hud_room_icons')) {
+            if (revealed && knowsType && hasTexture(this, 'hud_room_icons')) {
                 icon.setVisible(false);
                 sprite = this.add
                     .image(x, y, 'hud_room_icons', roomIconFrame(node.type))
@@ -1368,7 +1370,7 @@ export class GameScene extends Phaser.Scene {
                 if (node.cleared) sprite.setTint(0x555555);
             } else {
                 const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
-                if (revealed && knowsType && this.textures.exists(spriteKey)) {
+                if (revealed && knowsType && hasTexture(this, spriteKey)) {
                     icon.setVisible(false);
                     sprite = this.add.image(x, y, spriteKey)
                         .setOrigin(0.5)
@@ -1715,7 +1717,7 @@ export class GameScene extends Phaser.Scene {
                 return;
             }
 
-            const hasFrame = this.textures.exists('hud_room_frames');
+            const hasFrame = hasTexture(this, 'hud_room_frames');
 
             // Kill any in-flight pulse on the rect (fallback render
             // path) before re-deriving its alpha/stroke. Without this
@@ -1776,13 +1778,13 @@ export class GameScene extends Phaser.Scene {
             // Sprite priority: hand-authored room_icons spritesheet →
             // procedural PixelSprite → text glyph (matches buildAllVisuals).
             const useSheet =
-                revealed && knowsType && this.textures.exists('hud_room_icons');
+                revealed && knowsType && hasTexture(this, 'hud_room_icons');
             const proceduralKey = PixelSprite.roomKey(roomSpriteKey(node.type));
             const useProcedural =
                 !useSheet &&
                 revealed &&
                 knowsType &&
-                this.textures.exists(proceduralKey);
+                hasTexture(this, proceduralKey);
             if (useSheet) {
                 if (!visual.sprite) {
                     visual.sprite = this.add
@@ -1961,7 +1963,7 @@ export class GameScene extends Phaser.Scene {
         this.roomPanelGroup.setVisible(true);
 
         const roomKey = PixelSprite.roomKey(spriteKey);
-        if (this.textures.exists(roomKey)) {
+        if (hasTexture(this, roomKey)) {
             this.enemySpriteImage.setTexture(roomKey).setVisible(true);
             fitEnemySprite(this.enemySpriteImage);
             this.enemyIconText.setVisible(false);
