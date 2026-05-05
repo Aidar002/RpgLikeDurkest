@@ -130,6 +130,42 @@ export function drawCarvedPanel(
 }
 
 /**
+ * Draw a sub-panel using the `hud_top_bar` PNG via nine-slice.
+ *
+ * Used for inner sections on the death/victory screen (e.g. summary
+ * panel, prestige upgrade panel). Falls back to the same procedural
+ * panel used by `drawCarvedPanel` when the texture is missing.
+ */
+export function drawTopBarPanel(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    width: number,
+    height: number,
+): Phaser.GameObjects.NineSlice | Phaser.GameObjects.Container {
+    return withTexture(
+        scene,
+        'hud_top_bar',
+        () =>
+            scene.add
+                .nineslice(
+                    x,
+                    y,
+                    'hud_top_bar',
+                    undefined,
+                    width,
+                    height,
+                    PANEL_SLICE.left,
+                    PANEL_SLICE.right,
+                    PANEL_SLICE.top,
+                    PANEL_SLICE.bottom,
+                )
+                .setOrigin(0, 0),
+        () => drawFallbackPanel(scene, x, y, width, height),
+    );
+}
+
+/**
  * Render the carved stone-wall background between the two HUD bars.
  *
  * Prefers the authored `hud_stone_wall` PNG when it is loaded, and

@@ -14,7 +14,7 @@
 import * as Phaser from 'phaser';
 
 import type { UpgradeId } from '../../systems/MetaProgressionManager';
-import { drawCarvedPanel } from '../HudFrame';
+import { drawCarvedPanel, drawTopBarPanel } from '../HudFrame';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
 import { awardPrestigeOnce, hideLiveContainers } from './shared';
@@ -160,6 +160,19 @@ export function showDeathScreen(ctx: EndScreenContext) {
         rightBody.y + rightBody.height,
     );
 
+    // ── General summary sub-panel (top_bar.png) ──────────────
+    const summaryPanelPad = 16;
+    const summaryPanelTop = COL_HEADER_Y - summaryPanelPad;
+    const summaryPanelH = bodyEndY - summaryPanelTop + summaryPanelPad;
+    const summaryPanel = drawTopBarPanel(
+        scene,
+        panelLeft + 28,
+        summaryPanelTop,
+        PANEL_W - 56,
+        summaryPanelH,
+    );
+    summaryPanel.setDepth(Depths.EndScreenPanel);
+
     // ── Prestige banner ──────────────────────────────────────
     const divider2Y = bodyEndY + 20;
     const divider2 = scene.add
@@ -189,6 +202,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
         })
         .setOrigin(0.5, 0)
         .setDepth(Depths.EndScreenContent);
+
+    // ── Prestige sub-panel (top_bar.png) ─────────────────────
+    const prestigePanelPad = 14;
+    const prestigePanelTop = bannerY - 24 - prestigePanelPad;
 
     // ── Upgrade card grid (3 rows × 2 cols) ─────────────────
     const cardsStartY = bannerY + 64;
@@ -280,6 +297,19 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
         cards.push(visual);
     });
+
+    // Size the prestige panel to span the banner through the last
+    // card row, now that card positions have been laid out.
+    const lastCardY = cardsStartY + 2 * (CARD_H + CARD_GAP_Y) + CARD_H / 2;
+    const prestigePanelH = lastCardY - prestigePanelTop + prestigePanelPad;
+    const prestigePanel = drawTopBarPanel(
+        scene,
+        panelLeft + 28,
+        prestigePanelTop,
+        PANEL_W - 56,
+        prestigePanelH,
+    );
+    prestigePanel.setDepth(Depths.EndScreenPanel);
 
     // ── Action buttons (side-by-side at panel bottom) ───────
     const buttonsY = panelBottom - 40;
@@ -433,6 +463,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
             stoneBackdrop,
             overlay,
             panel,
+            summaryPanel,
+            prestigePanel,
             title,
             subtitle,
             divider1,
