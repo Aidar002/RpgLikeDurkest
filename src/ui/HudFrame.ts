@@ -14,6 +14,7 @@ import * as Phaser from 'phaser';
 
 import { hasTexture, withTexture } from './AssetGuard';
 import { HudColors } from './HudTheme';
+import { createStoneBackdrop } from './StoneBackdrop';
 
 /**
  * Slice metrics, in source-texture pixels. The L-shaped Greek-key
@@ -129,23 +130,26 @@ export function drawCarvedPanel(
 }
 
 /**
- * Render the optional stone-wall background between the two HUD bars.
- * Returns `null` if the texture is unavailable so callers know not to
- * insert anything into the scene graph.
+ * Render the carved stone-wall background between the two HUD bars.
+ *
+ * Prefers the authored `hud_stone_wall` PNG when it is loaded, and
+ * falls back to the procedural `StoneBackdrop` renderer otherwise so
+ * the play area always reads as a dungeon wall instead of the bare
+ * canvas colour.
  */
 export function drawStoneBackdrop(
     scene: Phaser.Scene,
     y: number,
     width: number,
     height: number,
-): Phaser.GameObjects.Image | null {
-    if (!hasTexture(scene, 'hud_stone_wall')) {
-        return null;
+): Phaser.GameObjects.Image {
+    if (hasTexture(scene, 'hud_stone_wall')) {
+        return scene.add
+            .image(0, y, 'hud_stone_wall')
+            .setOrigin(0, 0)
+            .setDisplaySize(width, height);
     }
-    return scene.add
-        .image(0, y, 'hud_stone_wall')
-        .setOrigin(0, 0)
-        .setDisplaySize(width, height);
+    return createStoneBackdrop(scene, 0, y, width, height);
 }
 
 /**

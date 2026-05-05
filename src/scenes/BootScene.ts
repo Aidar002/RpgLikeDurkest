@@ -3,6 +3,7 @@ import { Localization } from '../systems/Localization';
 import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
 import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
+import { createStoneBackdrop } from '../ui/StoneBackdrop';
 
 export class BootScene extends Phaser.Scene {
     constructor() {
@@ -124,9 +125,18 @@ export class BootScene extends Phaser.Scene {
         this.cameras.main.setBackgroundColor('#050505');
         const titleText = () => (loc.language === 'ru' ? 'НИЖНИЙ\nСПУСК' : 'DARKEST\nDESCENT');
 
+        // Procedural carved-stone backdrop sets the dungeon mood; the
+        // faint blue/violet wash on top keeps the existing colour-graded
+        // feel without losing the wall texture underneath.
+        createStoneBackdrop(this, 0, 0, GAME_WIDTH, GAME_HEIGHT, {
+            keySuffix: 'menu',
+            seed: 0x4d2a,
+            brightness: 0.85,
+        }).setDepth(0);
         const bg = this.add.graphics();
-        bg.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x151520, 0x151520, 1, 1, 1, 1);
+        bg.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x151520, 0x151520, 0.55, 0.55, 0.7, 0.7);
         bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
+        bg.setDepth(1);
 
         // Ambient embers on title
         for (let i = 0; i < 12; i++) {

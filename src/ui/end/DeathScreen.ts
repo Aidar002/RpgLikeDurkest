@@ -16,6 +16,7 @@ import * as Phaser from 'phaser';
 import type { UpgradeId } from '../../systems/MetaProgressionManager';
 import { drawCarvedPanel } from '../HudFrame';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
+import { createStoneBackdrop } from '../StoneBackdrop';
 import { awardPrestigeOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
@@ -52,8 +53,16 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const panelTop = CENTER_Y - PANEL_H / 2;
     const panelBottom = panelTop + PANEL_H;
 
+    // Stone backdrop sits below the dimming overlay so the dungeon
+    // wall still reads through the dark wash. Brightness is dialled
+    // down so the foreground panel stays the focal point.
+    const stoneBackdrop = createStoneBackdrop(scene, 0, 0, GAME_WIDTH, GAME_HEIGHT, {
+        keySuffix: 'death_screen',
+        seed: 0x7a1f,
+        brightness: 0.7,
+    }).setDepth(Depths.EndScreenOverlay - 1);
     const overlay = scene.add
-        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.94)
+        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55)
         .setDepth(Depths.EndScreenOverlay);
     const panel = drawCarvedPanel(scene, panelLeft, panelTop, PANEL_W, PANEL_H);
     panel.setDepth(Depths.EndScreenPanel);
@@ -421,6 +430,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     scene.tweens.add({
         targets: [
+            stoneBackdrop,
             overlay,
             panel,
             title,
