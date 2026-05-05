@@ -1,340 +1,36 @@
 import type { LocalizedText } from './LocalizedText';
 import { RU_ENEMY_TEXT } from '../data/EnemyTextConfig';
 import { pickLocalized } from './LocalizedText';
+import { EN_STRINGS, type LocaleKey } from './locale/en';
+import { RU_STRINGS } from './locale/ru';
 
+/**
+ * Player-facing language. The active language is read from
+ * `localStorage` on first construct and persisted on every toggle.
+ */
 export type Language = 'ru' | 'en';
 
 type Vars = Record<string, string | number>;
 
 const STORAGE_KEY = 'rpglikedurkest-language';
 
-const TEXT = {
-    en: {
-        bootTagline: 'They say a wish-granting artifact lies at the bottom. Go find it.',
-        bootStart: 'Begin Expedition',
-        uiVital: 'LIFE',
-        eventLog: 'JOURNAL',
-        hp: 'HP',
-        stressLabel: 'STRESS',
-        level: 'LVL',
-        xp: 'XP',
-        attackShort: 'Attack',
-        defenseShort: 'Defense',
-        reviveShort: 'Revive',
-        bright: 'LIT',
-        dark: 'DIM',
-        goldShort: 'Gold',
-        potionShort: 'Potion',
-        resolveShort: 'Resolve',
-        lightShort: 'Light',
-        shardShort: 'Shard',
-        depthShort: 'Depth',
-        killShort: 'Kills',
-        bossShort: 'Boss',
-        prestige: 'PRESTIGE',
-        depth: 'Depth',
-        mapDepth: 'DEPTH',
-        returnToMap: '[Space] Back to map',
-        beginSilence: 'The gate closes behind you.',
-        dungeonListens: 'Each room teaches the next one how to hurt you.',
-        levelUp: 'Level {level} reached.',
-        revive: 'Last Stand saves you. Revives left: {count}.',
-        lightLower: 'The lantern loses {count} light.',
-        unlocked: 'Permanent unlock: {label}.',
-        chooseMove: 'Choose a move.',
-        actionAttack: '[1] Strike',
-        actionDefend: '[2] Guard',
-        actionStagger: '[3] Break',
-        actionPotion: '[{num}] Potion',
-        actionCareful: '[1] Careful',
-        actionForce: '[2] Force',
-        actionLeave: '[3] Leave',
-        actionRush: '[1] Rush',
-        actionDisarm: '[2] Disarm',
-        actionProbe: '[3] Study',
-        actionRecover: '[1] Rest',
-        actionFocus: '[2] Focus',
-        actionScout: '[1] Search',
-        actionSteady: '[2] Steady',
-        actionPray: '[1] Pray',
-        actionOffer: '[2] Offer {cost}g',
-        actionRite: '[3] Rite {cost}s',
-        actionDynamicLeave: '[{num}] Leave',
-        actionBuyPotion: '[1] Potion {cost}g',
-        actionLantern: '[{num}] Oil {cost}g',
-        actionArmor: '[{num}] Armor {cost}g',
-        actionRelic: '[{num}] Relic oil {cost}s',
-        collectSelf: 'Catch your breath and move on.',
-        intentLine: '{detail}',
-        guardLine: 'Block: {guard}.',
-        treasureLeaveGain: 'You leave the cache closed and recover {parts}.',
-        treasureLeaveNoGain: 'You leave the cache and keep moving.',
-        treasureSecured: 'You take: {parts}.',
-        lockBites: 'The lock cuts your hand: {damage} damage.',
-        plusXp: '+{value} XP',
-        plusGold: '+{value} gold',
-        plusPotion: '+1 potion',
-        plusAttack: '+{value} attack',
-        plusShard: '+{value} shard',
-        trapRush: 'You rush through and take {damage} damage.',
-        trapDisarm: 'You disarm the trap and find {gold} gold.',
-        trapSnap: 'The trap snaps shut: {damage} damage.',
-        trapSnapIntel: 'The trap fires before you can pull back.',
-        trapProbe: 'You spend resolve and take the trap apart: {parts}.',
-        restRecover: 'You rest and recover {parts}.',
-        focusResolve: 'You slow your breathing and gain {value} resolve.',
-        focusXp: 'You study the room and gain {value} XP.',
-        shrineAttack: 'The altar marks your weapon: +1 attack this run.',
-        shrineWound: 'The altar takes {damage} HP and gives {resolve} resolve.',
-        shrineOffer: 'Your offering gives +{value} max HP this run.',
-        shrineRite: 'The rite gives +{hp} max HP and +{resolve} resolve.',
-        buyPotion: 'You buy a potion.',
-        buyLantern: 'You refill the lantern: +{value} light.',
-        buyArmor: 'You reinforce your armor: +{value} defense.',
-        buyRelic: 'Relic oil gives +{attack} attack and +{potions} potion.',
-        emptyScout: 'You search the room and find {parts}.',
-        emptySteady: 'You take a moment and gain {value} resolve.',
-        emptyStudy: 'You study the marks on the walls and gain {value} XP.',
-        enemyFallback: 'Something steps into the light.',
-        enemyInfoLocked: 'Enemy details unlock deeper down.',
-        pathOpen: 'The path is clear.',
-        victoryRewards: 'Reward: {parts}.',
-        deathTitle: 'EXPEDITION LOST',
-        deathSummary: 'Best depth: {depth}\nBosses defeated: {bosses}\nPrestige earned: +{prestige}\n{line}',
-        deathRunLine: 'Depth {depth}  |  Bosses {bosses}  |  Prestige +{prestige}',
-        victoryScreenTitle: 'THE ARTIFACT IS YOURS',
-        victoryScreenSummary: 'You descended through {depth} layers of darkness, defeated {bosses} keepers, and claimed the Wish Artifact.\nThe dungeon has nothing left to take from you.',
-        victoryNewRun: 'Descend Again',
-        restart: 'Start New Run',
-        reset: 'Reset soul memory',
-        prestigeBank: 'Prestige bank: {value}',
-        nextDiscovery: 'Next permanent unlock: {requirement} -> {label}.',
-        allDiscovered: 'All permanent unlocks are open.',
-        levelCard: 'Lv {level}/{max}',
-        max: 'MAX',
-        cost: 'Cost {cost}',
-        confirmResetTitle: 'Reset all progress?',
-        confirmResetBody: 'This erases prestige, permanent upgrades, and discoveries.\nThe next run starts from a clean profile.',
-        confirmResetYes: 'Yes, erase all',
-        cancel: 'Cancel',
-        hostile: 'ENEMY',
-        elite: 'ELITE',
-        boss: 'BOSS',
-        start: 'CAMP',
-        treasure: 'CACHE',
-        trap: 'TRAP',
-        rest: 'REST',
-        shrine: 'ALTAR',
-        merchant: 'TRADER',
-        empty: 'EMPTY',
-        roomCamp: 'Camp',
-        roomEnemy: 'Enemy',
-        roomTreasure: 'Cache',
-        roomTrap: 'Trap',
-        roomRest: 'Rest',
-        roomShrine: 'Altar',
-        roomMerchant: 'Trader',
-        roomElite: 'Elite',
-        roomBoss: 'Boss',
-        roomEmpty: 'Empty room',
-        intentAttack: 'Strike',
-        intentAttackDetail: 'Prepares to strike.',
-        intentHeavy: 'Heavy strike',
-        intentHeavyDetail: 'Raises its weapon for a heavy blow.',
-        intentGuard: 'Guard',
-        intentGuardDetail: 'Pulls back and covers itself.',
-        intentCharge: 'Prepare',
-        intentChargeDetail: 'Prepares for a stronger hit.',
-        intentCurse: 'Curse',
-        intentCurseDetail: 'Whispers a curse.',
-        combatBoss: 'A floor keeper blocks the way.',
-        combatElite: 'A stronger enemy blocks the way.',
-        combatHostile: 'Enemy contact.',
-        strikeCrit: 'Critical hit: {damage} damage.',
-        strike: 'You deal {damage} damage.',
-        brace: 'You raise your guard.',
-        needResolve: 'Not enough resolve.',
-        skillStagger: 'You break "{intent}" and deal {damage} damage.',
-        skillLand: 'The technique deals {damage} damage.',
-        noPotions: 'No potions left.',
-        drinkPotion: 'You drink a potion and heal {healed} HP.',
-        enemyFalls: '{name} falls.',
-        planBreaks: "{name}'s move is stopped.",
-        darknessCloses: 'You fall in the dark.',
-        guardAbsorbs: "{name}'s block absorbs {blocked}.",
-        enemyGuard: '{name} gains {guard} block.',
-        enemyCharge: '{name} prepares a stronger hit.',
-        enemyCurse: '{name} curses you for {damage}{suffix}.',
-        curseSuffix: ' and drains {light} light',
-        enemyStrikes: '{name} strikes',
-        enemyHeavy: '{name} swings hard',
-        enemyHits: '{label}: {damage} damage.',
-        absorb: 'Your guard absorbs the hit.',
-        hudBossPrologueA: 'A ruler of this floor rises.',        hudBossPrologueB: 'Every system you earned is being tested at once.',        hudEliteIntroTitle: 'A hardened threat bars the corridor.',        hudEliteIntroBody: 'Winning here should feel costly and worth it.',        hudCombatContactTitle: 'Threat detected',        hudCombatContactBody: 'The corridor narrows. Something waits in the dark.',        hudReturnHint: 'Collect yourself and continue deeper.',        hudProfileBrute: 'Brute: enrages when wounded.',        hudProfileStalker: 'Stalker: may strike twice.',        hudProfileMage: 'Mage: charges a heavy spell.',        hudProfileBoss: 'Boss: relentless power.',        hudHintEnraged: 'ENRAGED!',        hudHintCharging: 'Charging...',        hudHintSkillCost: 'Skill: {skillCost} resolve.',        combatBossEncounter: 'Boss encounter.',        combatEliteEncounter: 'Elite encounter.',        combatHostileContact: 'Hostile contact.',        combatBleedTick: '{name} bleeds for {bleedDamage}.',        combatRegenTick: 'Regen restores {healed} HP.',        combatNeedResolveForSkill: 'You need {cost} resolve for {value}.',        combatSkillCleave: 'Cleave lands for {dmg}.',        combatSkillBleedStrike: 'Bleed Strike for {dmg}. Bleed applied.',        combatSkillParryBreak: 'Parry Stance breaks their rhythm.',        combatSkillParrySteady: 'Parry Stance steadies you.',        combatSkillFocusedStrike: 'Focused Strike for {dmg}. Next hit marked.',        combatSkillRupture: 'Rupture tears for {dmg}.',        combatSkillRally: 'Rally restores {healed} HP and sharpens focus.',        combatSkillCrushingBlow: 'Crushing Blow for {dmg} — the recoil bites you for 3.',        combatEnemyStunned: '{name} is stunned and skips its turn.',        combatEnemyEvadeFirst: 'You slip past {name}\'s first strike.',        combatEnemyEnrage: '{name} enters a frenzy!',        combatEnemyLunge: '{name} lunges for {firstHit}.',        combatEnemyDoubleStrike: ' Double strike!',        combatEnemyChannelDark: '{name} channels dark energy...',        combatEnemyOpenWound: '{name} opens a ragged wound.',        combatEnemyWeakenAttack: '{name} saps your strength. (-1 atk 2t)',        combatEnemyHit: '{name} hits you for {takenDamage}.{extraMessage}',        combatThornsRetaliate: 'Thorns retaliate for {thorns}.',        stressBarLabel: 'STRESS',        stressNextLabel: 'Next',        stressVirtueShort: 'VIRTUE',        stressAfflictionShort: 'AFFLICTION',        stressVirtueTitle: 'Virtue',        stressAfflictionTitle: 'Affliction',        relicsLabel: 'Relics: ',        relicObtained: 'Relic obtained: {value}. {value2}',        roomTreasureName: 'Forgotten Cache',        roomTreasureDesc: 'A cracked chest still rewards careful hands. {value}.',        roomTreasureHint: 'Claim the spoils and move on.',        trapMechanicalName: 'Mechanical Snare',        trapMechanicalDesc: 'A pressure plate snaps awake under your boot.',        trapDartName: 'Poison Dart Wall',        trapDartDesc: 'Tiny holes line the corridor. Something hisses inside.',        trapCollapseName: 'Collapsing Floor',        trapCollapseDesc: 'The stones shift. One wrong step and the ground gives way.',        trapHint: 'Rush through or try to disarm it.',        trapAfterRush: 'The worst is behind you.',        trapAfterDisarm: 'The mechanism falls apart in your hands.',        restCampfireName: 'Campfire',        restCampfireDesc: 'The coals are low, but still warm enough to matter.',        restHint: 'Recover body, mind, or spirit.',        unitLight: 'light',        restAfterHint: 'The room feels less hostile for a moment.',        restAfterSteady: 'You leave steadier than you arrived.',        restMeditateLabel: '[3] Meditate',        restMeditateApplied: 'You breathe through the weight. -{meditateStressRelief} stress.',        restMeditateAfter: 'The shadows lose an edge, if briefly.',        npcMiraPotion: 'Mira slides a potion across without comment.',        npcMiraLight: 'Mira refills your lantern: +{gainedLight} light.',        npcMiraArmor: 'Mira fastens armor straps: +{armorDefenseGain} defense.',        npcMiraPremium: 'Mira anoints your blade. +{premiumAttackBonus} attack, +{premiumPotionBonus} potion.',        npcCasimirPray: 'Casimir whispers a heretical line. +{prayAttackBonus} attack.',        npcCasimirOffer: 'The altar pays him in your blood. -{damage} HP, +{resolve} resolve.',        npcCasimirFeed: 'Casimir feeds the altar. +{offerMaxHpBonus} max HP this run.',        npcCasimirRite: 'Casimir performs the wrong rite, perfectly. +{premiumMaxHpBonus} max HP, +{premiumResolveBonus} resolve.',        npcHollowPay: 'The Trader pays in coin instead. The deal is honoured.',        npcHollowMark: 'The Hollow Trader marks the ledger. The pain is precise.',        npcHollowRelic: 'The Trader trades absence for absence. A relic settles into your kit.',        npcHollowPotion: 'The Trader takes the potion as if it were never there. +{cost} gold.',        npcVethCoin: 'Veth pockets her pact and pays you in coin. "A scar is a scar."',        npcVethCarry: 'Veth admires the line she drew. "Carry it well."',        npcVethThirdCut: 'Veth teaches the third cut. +2 attack this run; the lesson costs.',        npcVethStrop: 'Veth strops your blade against the leather. +1 attack.',        npcChoristerSong: 'The Chorister sings. -20 stress.',        npcChoristerSteady: 'The Chorister steadies your hands. +2 resolve.',        npcChoristerUnbind: 'The Chorister unbinds the affliction. The song carries it away.',        npcChoristerCarry: 'There is no crack to mend today. The song becomes resolve. +3 resolve.',        npcKessaCup: 'Kessa pours the second cup. +4 HP, -10 stress.',        npcKessaTip: 'Kessa: "Third room of any depth lies. Bring two potions if you can." (+1 resolve)',        npcKessaEarring: 'Kessa presses Sera\'s brass earring into your palm. +1 attack, +1 defense for this run.',        shrineRemembersName: 'The shrine remembers your name.',        roomShrineGenericName: 'Forgotten Altar',        roomShrineGenericDesc: 'Something old still listens from beneath the stone.',        roomShrineGenericHint: 'A prayer, an offering, or a careful retreat.',        npcMerchantPay: 'The merchant counts the coins and looks away.',        npcMerchantOil: 'The oil smells cleaner than the dungeon air.',        npcMerchantFair: 'A fair trade, by dungeon standards.',        npcMerchantSmile: 'The merchant smiles only when relics change hands.',        roomShadowTraderName: 'Shadow Trader',        roomShadowTraderDesc: 'A hooded figure has already decided what your fear is worth.',        roomShadowTraderHint: 'Spend carefully. This room lasts one choice.',        roomEnemyEncounterTitle: 'ENCOUNTER',        roomEmptyDustyName: 'Dusty Chamber',        roomEmptyDustyDesc: 'Stillness can hide a cache or steady a shaking hand.',        roomEmptyCollapsedName: 'Collapsed Passage',        roomEmptyCollapsedDesc: 'Rubble blocks the way, but gaps reveal hidden corners.',        roomEmptyEchoingName: 'Echoing Hall',        roomEmptyEchoingDesc: 'Footsteps return from walls that should not be so far away.',        roomEmptyAlcoveName: 'Forgotten Alcove',        roomEmptyAlcoveDesc: 'Someone sheltered here before. Their scratches mark the stone.',        roomEmptyHint: 'Search the room or keep your footing.',        unitGold: 'gold',        roomEmptyAfterSearch: 'You leave with a slightly clearer picture of the dark.',        roomEmptyAfterSkip: 'The room gives nothing, and that helps.',        shopAcquaintances: '— Acquaintances —',        shopBeginRun: 'Begin New Expedition',        shopResetSouls: 'Reset soul progress',        shopPrestigeBank: 'Prestige bank',        shopNextDiscovery: 'Next permanent discovery',        shopAllUnlocked: 'Every planned layer of permanent content has been unlocked.',        shopMaxLabel: 'MAX',        shopCostLabel: 'Cost',        shopResetConfirm: 'Yes, delete everything',        shopResetCancel: 'Cancel',        soundOptionsTitle: 'Sound', musicVolumeLabel: 'Music', sfxVolumeLabel: 'Effects', soundOptionsClose: 'Close', soundOptionsHint: 'Mute icon silences both channels.',    },
-    ru: {
-        bootTagline: 'Говорят, внизу лежит артефакт, исполняющий желания. Спустись и проверь.',
-        bootStart: 'Начать экспедицию',
-        uiVital: 'ОЗ',
-        eventLog: 'ЖУРНАЛ',
-        hp: 'ОЗ',
-        stressLabel: 'СТРЕСС',
-        level: 'УР',
-        xp: 'ОП',
-        attackShort: 'Атака',
-        defenseShort: 'Защита',
-        reviveShort: 'Жизни',
-        bright: 'СВТ',
-        dark: 'МРАК',
-        goldShort: 'Золото',
-        potionShort: 'Элик.',
-        resolveShort: 'Воля',
-        lightShort: 'Свет',
-        shardShort: 'Осколки',
-        depthShort: 'Глубина',
-        killShort: 'Убито',
-        bossShort: 'Боссы',
-        prestige: 'ПРЕСТИЖ',
-        depth: 'Глубина',
-        mapDepth: 'ГЛУБИНА',
-        returnToMap: '[Пробел] На карту',
-        beginSilence: 'Ворота за спиной встают на засов.',
-        dungeonListens: 'Каждая комната оставляет урок на камне.',
-        levelUp: 'Уровень {level}.',
-        revive: 'Последний шанс сработал. Зарядов: {count}.',
-        lightLower: 'Фонарь гаснет на {count}.',
-        unlocked: 'Память закрепила: {label}.',
-        chooseMove: 'Твой ход.',
-        actionAttack: '[1] Удар',
-        actionDefend: '[2] Защита',
-        actionStagger: '[3] Сорвать',
-        actionPotion: '[{num}] Эликсир',
-        actionCareful: '[1] Осторожно',
-        actionForce: '[2] Вскрыть',
-        actionLeave: '[3] Оставить',
-        actionRush: '[1] Прорваться',
-        actionDisarm: '[2] Обезвредить',
-        actionProbe: '[3] Изучить',
-        actionRecover: '[1] Отдохнуть',
-        actionFocus: '[2] Собраться',
-        actionScout: '[1] Обыскать',
-        actionSteady: '[2] Выдохнуть',
-        actionPray: '[1] Молиться',
-        actionOffer: '[2] Подношение {cost}з',
-        actionRite: '[3] Обряд {cost}о',
-        actionDynamicLeave: '[{num}] Уйти',
-        actionBuyPotion: '[1] Эликсир {cost}з',
-        actionLantern: '[{num}] Масло {cost}з',
-        actionArmor: '[{num}] Броня {cost}з',
-        actionRelic: '[{num}] Реликтовое масло {cost}о',
-        collectSelf: 'Выдохни и иди глубже.',
-        intentLine: '{detail}',
-        guardLine: 'Защита: {guard}.',
-        treasureLeaveGain: 'Ты не трогаешь тайник и приходишь в себя: {parts}.',
-        treasureLeaveNoGain: 'Ты оставляешь тайник и уходишь.',
-        treasureSecured: 'Добыча: {parts}.',
-        lockBites: 'Замок вспарывает ладонь: {damage} урона.',
-        plusXp: '+{value} опыта',
-        plusGold: '+{value} золота',
-        plusPotion: '+1 эликсир',
-        plusAttack: '+{value} атаки',
-        plusShard: '+{value} осколк.',
-        trapRush: 'Ты проскакиваешь ловушку: {damage} урона.',
-        trapDisarm: 'Ты обезвреживаешь механизм и находишь {gold} золота.',
-        trapSnap: 'Ловушка срабатывает: {damage} урона.',
-        trapSnapIntel: 'Механизм щёлкает раньше, чем ты отдёргиваешь руку.',
-        trapProbe: 'Ты разбираешь механизм ценой воли: {parts}.',
-        restRecover: 'Короткий отдых даёт {parts}.',
-        focusResolve: 'Ты ровняешь дыхание: +{value} воли.',
-        focusXp: 'Ты читаешь следы в комнате: +{value} опыта.',
-        shrineAttack: 'Алтарь оставляет зарубку на оружии: +1 атаки до конца забега.',
-        shrineWound: 'Алтарь берёт {damage} ОЗ и возвращает {resolve} воли.',
-        shrineOffer: 'Подношение укрепляет тело: +{value} макс. ОЗ до конца забега.',
-        shrineRite: 'Обряд даёт +{hp} макс. ОЗ и +{resolve} воли.',
-        buyPotion: 'Ты берёшь эликсир.',
-        buyLantern: 'Ты доливаешь масло: +{value} света.',
-        buyArmor: 'Ремни подтянуты: +{value} защиты.',
-        buyRelic: 'Реликтовое масло даёт +{attack} атаки и +{potions} эликсир.',
-        emptyScout: 'Ты обыскиваешь комнату: {parts}.',
-        emptySteady: 'Ты берёшь паузу: +{value} воли.',
-        emptyStudy: 'Ты сверяешь зарубки на стенах: +{value} опыта.',
-        enemyFallback: 'Что-то входит в свет фонаря.',
-        enemyInfoLocked: 'Подробности о врагах придут с опытом.',
-        pathOpen: 'Путь свободен.',
-        victoryRewards: 'Награда: {parts}.',
-        deathTitle: 'ЭКСПЕДИЦИЯ НЕ ВЕРНУЛАСЬ',
-        deathSummary: 'Лучшая глубина: {depth}\nБоссов побеждено: {bosses}\nПрестиж: +{prestige}\n{line}',
-        deathRunLine: 'Глубина {depth}  |  Боссы {bosses}  |  Престиж +{prestige}',
-        victoryScreenTitle: 'АРТЕФАКТ У ТЕБЯ',
-        victoryScreenSummary: 'Ты прошёл {depth} глубин, победил {bosses} хранителей и вынес Артефакт Желаний.\nВнизу больше нечего у тебя забрать.',
-        victoryNewRun: 'Спуститься снова',
-        restart: 'Новый забег',
-        reset: 'Стереть память',
-        prestigeBank: 'Запас престижа: {value}',
-        nextDiscovery: 'Следующее открытие: {requirement} -> {label}.',
-        allDiscovered: 'Все постоянные открытия уже закреплены.',
-        levelCard: 'Ур {level}/{max}',
-        max: 'МАКС',
-        cost: 'Цена {cost}',
-        confirmResetTitle: 'Стереть весь прогресс?',
-        confirmResetBody: 'Это сотрёт престиж, улучшения и открытия.\nСледующий забег начнётся с чистого профиля.',
-        confirmResetYes: 'Да, стереть всё',
-        cancel: 'Отмена',
-        hostile: 'ВРАГ',
-        elite: 'ЭЛИТА',
-        boss: 'БОСС',
-        start: 'ЛАГЕРЬ',
-        treasure: 'ТАЙНИК',
-        trap: 'ЛОВУШКА',
-        rest: 'ПРИВАЛ',
-        shrine: 'АЛТАРЬ',
-        merchant: 'ТОРГОВЕЦ',
-        empty: 'ПУСТАЯ',
-        roomCamp: 'Лагерь',
-        roomEnemy: 'Враг',
-        roomTreasure: 'Тайник',
-        roomTrap: 'Ловушка',
-        roomRest: 'Привал',
-        roomShrine: 'Алтарь',
-        roomMerchant: 'Торговец',
-        roomElite: 'Элита',
-        roomBoss: 'Босс',
-        roomEmpty: 'Пустая комната',
-        intentAttack: 'Удар',
-        intentAttackDetail: 'Собирается ударить.',
-        intentHeavy: 'Сильный удар',
-        intentHeavyDetail: 'Поднимает оружие для тяжёлого удара.',
-        intentGuard: 'Защита',
-        intentGuardDetail: 'Отходит и закрывается.',
-        intentCharge: 'Подготовка',
-        intentChargeDetail: 'Копит силу для следующего удара.',
-        intentCurse: 'Проклятие',
-        intentCurseDetail: 'Шепчет сквозь зубы.',
-        combatBoss: 'Хранитель перекрыл лестницу вниз.',
-        combatElite: 'Опытный враг держит проход.',
-        combatHostile: 'Контакт с врагом.',
-        strikeCrit: 'Критический удар: {damage} урона.',
-        strike: 'Ты наносишь {damage} урона.',
-        brace: 'Ты встаёшь в защиту.',
-        needResolve: 'Не хватает воли.',
-        skillStagger: 'Ты срываешь "{intent}" и наносишь {damage} урона.',
-        skillLand: 'Приём наносит {damage} урона.',
-        noPotions: 'Эликсиров нет.',
-        drinkPotion: 'Ты пьёшь эликсир: +{healed} ОЗ.',
-        enemyFalls: '{name} падает.',
-        planBreaks: 'Действие {name} сорвано.',
-        darknessCloses: 'Свет гаснет. Ты падаешь.',
-        guardAbsorbs: 'Защита {name} поглощает {blocked}.',
-        enemyGuard: '{name} получает {guard} защиты.',
-        enemyCharge: '{name} копит силу для удара.',
-        enemyCurse: '{name} проклинает тебя: {damage}{suffix}.',
-        curseSuffix: ' и гасит {light} света',
-        enemyStrikes: '{name} бьёт',
-        enemyHeavy: '{name} бьёт со всей силы',
-        enemyHits: '{label}: {damage} урона.',
-        absorb: 'Твоя защита держит удар.',
-        hudBossPrologueA: 'Хранитель этажа перекрывает лестницу.',        hudBossPrologueB: 'Сейчас пригодится всё, чему тебя научил спуск.',        hudEliteIntroTitle: 'Опытный враг держит коридор.',        hudEliteIntroBody: 'Победа здесь будет дорогой. Добыча тоже.',        hudCombatContactTitle: 'Контакт',        hudCombatContactBody: 'Коридор сужается. Впереди заняли проход.',        hudReturnHint: 'Выдохни и иди глубже.',        hudProfileBrute: 'Громила: ярится в ране.',        hudProfileStalker: 'Охотник: бьёт сериями.',        hudProfileMage: 'Маг: копит силу для тяжёлого удара.',        hudProfileBoss: 'Босс: держит путь вниз.',        hudHintEnraged: 'ЯРОСТЬ!',        hudHintCharging: 'Копит силу...',        hudHintSkillCost: 'Навык: {skillCost} воли.',        combatBossEncounter: 'Босс держит проход.',        combatEliteEncounter: 'Элитный враг.',        combatHostileContact: 'Контакт с врагом.',        combatBleedTick: '{name} теряет от кровотечения {bleedDamage}.',        combatRegenTick: 'Регенерация возвращает {healed} ОЗ.',        combatNeedResolveForSkill: 'Нужно {cost} воли для навыка "{value}".',        combatSkillCleave: 'Рубящий удар: {dmg}.',        combatSkillBleedStrike: 'Кровопускание: {dmg}. Кровотечение наложено.',        combatSkillParryBreak: 'Парирование сбивает ритм врага.',        combatSkillParrySteady: 'Парирование выравнивает твою стойку.',        combatSkillFocusedStrike: 'Точный удар: {dmg}. Метка поставлена.',        combatSkillRupture: 'Разрыв: {dmg}.',        combatSkillRally: 'Адреналин возвращает {healed} ОЗ и собирает фокус.',        combatSkillCrushingBlow: 'Сокрушающий удар: {dmg}; отдача бьёт тебя на 3.',        combatEnemyStunned: '{name} оглушён и пропускает ход.',        combatEnemyEvadeFirst: 'Ты уходишь от первого удара {name}.',        combatEnemyEnrage: '{name} срывается в ярость!',        combatEnemyLunge: '{name} бросается вперёд: {firstHit}.',        combatEnemyDoubleStrike: ' Второй удар!',        combatEnemyChannelDark: '{name} копит силу...',        combatEnemyOpenWound: '{name} раскрывает рваную рану.',        combatEnemyWeakenAttack: '{name} вытягивает силы. (-1 атака на 2 хода)',        combatEnemyHit: '{name} попадает по тебе: {takenDamage}.{extraMessage}',        combatThornsRetaliate: 'Шипы отвечают: {thorns}.',        stressBarLabel: 'СТРЕСС',        stressNextLabel: 'Дальше',        stressVirtueShort: 'ДОБЛЕСТЬ',        stressAfflictionShort: 'СРЫВ',        stressVirtueTitle: 'Доблесть',        stressAfflictionTitle: 'Срыв',        relicsLabel: 'Реликвии: ',        relicObtained: 'Реликвия: {value}. {value2}',        roomTreasureName: 'Старый тайник',        roomTreasureDesc: 'Треснувший сундук не любит спешки. {value}.',        roomTreasureHint: 'Забери добычу и уходи.',        trapMechanicalName: 'Проволочная петля',        trapMechanicalDesc: 'Плита щёлкает под сапогом.',        trapDartName: 'Дротиковая стена',        trapDartDesc: 'В камне ряд мелких отверстий. Внутри шипит давление.',        trapCollapseName: 'Просевший пол',        trapCollapseDesc: 'Камни ходят под ногами. Вес решит всё.',        trapHint: 'Проскочить или разобрать механизм.',        trapAfterRush: 'Механизм замолк.',        trapAfterDisarm: 'Пружина сдаётся у тебя в руках.',        restCampfireName: 'Костёр',        restCampfireDesc: 'Угли уже слабые, но тепла в них ещё хватает.',        restHint: 'Залатай тело, дыхание или нервы.',        unitLight: 'света',        restAfterHint: 'Комната на минуту отпускает.',        restAfterSteady: 'Ты уходишь ровнее, чем вошёл.',        restMeditateLabel: '[3] Медитация',        restMeditateApplied: 'Ты выдыхаешь лишний вес. -{meditateStressRelief} стресса.',        restMeditateAfter: 'Углы на миг теряют зубы.',        npcMiraPotion: 'Мира без слов ставит эликсир ближе.',        npcMiraLight: 'Мира доливает масло в фонарь: +{gainedLight} света.',        npcMiraArmor: 'Мира затягивает ремни брони: +{armorDefenseGain} защиты.',        npcMiraPremium: 'Мира смазывает клинок реликтовым маслом. +{premiumAttackBonus} атаки, +{premiumPotionBonus} эликсир.',        npcCasimirPray: 'Казимир шепчет строку безымянной молитвы. +{prayAttackBonus} атаки.',        npcCasimirOffer: 'Алтарь берёт кровь и возвращает волю. -{damage} ОЗ, +{resolve} воли.',        npcCasimirFeed: 'Казимир кладёт подношение на камень. +{offerMaxHpBonus} к макс. ОЗ на этот забег.',        npcCasimirRite: 'Казимир проводит обряд слишком уверенно. +{premiumMaxHpBonus} макс. ОЗ, +{premiumResolveBonus} воли.',        npcHollowPay: 'Торговец платит монетой. Сделка закрыта.',        npcHollowMark: 'Полый торговец ставит отметку в книге. Боль точна.',        npcHollowRelic: 'Торговец забирает часть тебя. Реликвия ложится в сумку.',        npcHollowPotion: 'Торговец забирает эликсир так, будто он уже был его. +{cost} золота.',        npcVethCoin: 'Вет прячет договор и платит монетой. "Шрам есть шрам."',        npcVethCarry: 'Вет смотрит на свежую линию. "Неси её достойно."',        npcVethThirdCut: 'Вет показывает третий разрез: +2 атаки на этот забег. Цена остаётся с тобой.',        npcVethStrop: 'Вет правит клинок о старую кожу. +1 атаки.',        npcChoristerSong: 'Хорист держит низкую ноту. -20 стресса.',        npcChoristerSteady: 'Хорист выравнивает твои руки. +2 воли.',        npcChoristerUnbind: 'Хорист ослабляет срыв. Песня держит трещину закрытой.',        npcChoristerCarry: 'Сегодня нечего чинить. Песня становится волей. +3 воли.',        npcKessaCup: 'Кесса наливает вторую кружку. +4 ОЗ, -10 стресса.',        npcKessaTip: 'Кесса: "Третья комната на любой глубине врёт. Держи второй эликсир, если можешь." (+1 воля)',        npcKessaEarring: 'Кесса вкладывает в ладонь латунную серьгу Серы. +1 атаки и +1 защиты на этот забег.',        shrineRemembersName: 'Алтарь запомнил твою кровь.',        roomShrineGenericName: 'Старый алтарь',        roomShrineGenericDesc: 'Под камнем что-то слушает сквозь пыль.',        roomShrineGenericHint: 'Молитва, подношение или тихий уход.',        npcMerchantPay: 'Торговец считает монеты, не поднимая глаз.',        npcMerchantOil: 'Масло пахнет чище здешнего воздуха.',        npcMerchantFair: 'Честная сделка. Насколько здесь бывает.',        npcMerchantSmile: 'Торговец улыбается, когда реликвия меняет хозяина.',        roomShadowTraderName: 'Торговец в капюшоне',        roomShadowTraderDesc: 'Фигура в капюшоне уже оценила твой страх.',        roomShadowTraderHint: 'Выбирай осторожно. Здесь дают одну сделку.',        roomEnemyEncounterTitle: 'ВСТРЕЧА',        roomEmptyDustyName: 'Пыльная камера',        roomEmptyDustyDesc: 'В тишине слышно и тайник, и собственные руки.',        roomEmptyCollapsedName: 'Заваленный проход',        roomEmptyCollapsedDesc: 'Завал держит проход, но в щелях видны боковые ниши.',        roomEmptyEchoingName: 'Гулкий зал',        roomEmptyEchoingDesc: 'Шаги возвращаются позднее, чем должны.',        roomEmptyAlcoveName: 'Старая ниша',        roomEmptyAlcoveDesc: 'Здесь уже прятались. Царапины на камне ещё светлые.',        roomEmptyHint: 'Обыскать комнату или выровнять дыхание.',        unitGold: 'золота',        roomEmptyAfterSearch: 'Ты уходишь с более ясной картой углов.',        roomEmptyAfterSkip: 'Комната ничего не требует. Этого достаточно.',        shopAcquaintances: '— Встреченные —',        shopBeginRun: 'Новый забег',        shopResetSouls: 'Стереть память',        shopPrestigeBank: 'Запас престижа',        shopNextDiscovery: 'Следующее открытие',        shopAllUnlocked: 'Все постоянные открытия уже закреплены.',        shopMaxLabel: 'МАКС',        shopCostLabel: 'Цена',        shopResetConfirm: 'Да, удалить всё',        shopResetCancel: 'Отмена',        soundOptionsTitle: 'Звук', musicVolumeLabel: 'Музыка', sfxVolumeLabel: 'Эффекты', soundOptionsClose: 'Закрыть', soundOptionsHint: 'Кнопка ♪ глушит оба канала сразу.',    },
-} as const;
+/**
+ * Per-language string tables. Held as a plain map keyed by
+ * `Language` so `t(key)` is a constant-time lookup. The English table
+ * is canonical (its keys define {@link LocaleKey}) and Russian is
+ * type-checked to define every key, so missing translations fail the
+ * build instead of silently falling back at runtime.
+ */
+const TEXT: Record<Language, Record<LocaleKey, string>> = {
+    en: EN_STRINGS,
+    ru: RU_STRINGS,
+};
 
+/**
+ * Tiny localisation runtime. Wraps the per-language string tables and
+ * exposes a typed `t(key, vars?)` helper that performs `{name}` style
+ * placeholder substitution.
+ */
 export class Localization {
     language: Language;
 
@@ -342,7 +38,8 @@ export class Localization {
         this.language = language;
     }
 
-    t(key: keyof typeof TEXT.en, vars: Vars = {}): string {
+    /** Look up a string and substitute `{name}` placeholders. */
+    t(key: LocaleKey, vars: Vars = {}): string {
         const template: string = TEXT[this.language][key] || TEXT.en[key];
         return Object.entries(vars).reduce(
             (text, [name, value]) => text.replaceAll(`{${name}}`, String(value)),
@@ -350,10 +47,12 @@ export class Localization {
         );
     }
 
+    /** Pick the best-matching string from a {@link LocalizedText} blob. */
     pick(text: LocalizedText | string | null | undefined): string {
         return pickLocalized(this.language, text);
     }
 
+    /** Pick a string and substitute placeholders in a single call. */
     format(text: LocalizedText | string | null | undefined, vars: Vars = {}): string {
         const template = this.pick(text);
         return Object.entries(vars).reduce(
@@ -370,6 +69,7 @@ export class Localization {
         return this.language === 'ru' ? RU_ENEMY_TEXT[name]?.description ?? fallback : fallback;
     }
 
+    /** Toggle language, persist to `localStorage`, return the new value. */
     toggle(): Language {
         const next = this.language === 'ru' ? 'en' : 'ru';
         this.language = next;
@@ -378,6 +78,7 @@ export class Localization {
     }
 }
 
+/** Read the persisted language, defaulting to Russian. */
 export function getSavedLanguage(): Language {
     try {
         return window.localStorage.getItem(STORAGE_KEY) === 'en' ? 'en' : 'ru';
@@ -386,6 +87,7 @@ export function getSavedLanguage(): Language {
     }
 }
 
+/** Persist the player-selected language and update the document `lang`. */
 export function saveLanguage(language: Language): void {
     try {
         window.localStorage.setItem(STORAGE_KEY, language);
