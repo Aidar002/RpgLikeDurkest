@@ -107,7 +107,9 @@ export class GameScene extends Phaser.Scene {
      *  centre as the new room emerges. */
     private readonly torchlightSweepPx = 110;
     /** Duration of each fade phase (`fade-to-black` / `fade-from-black`). */
-    private readonly roomTransitionPhaseMs = 1500;
+    private readonly roomTransitionPhaseMs = 800;
+    /** Duration of the walk along the map edge before the room fade. */
+    private readonly walkDurationMs = 3500;
     /** Fade-in / fade-out duration for the looped footsteps SFX that
      *  plays during the camera-pan room transition. */
     private readonly footstepsFadeMs = 500;
@@ -1112,11 +1114,12 @@ export class GameScene extends Phaser.Scene {
 
     /**
      * Sequence the post-move animation: dim cleared rooms, build any
-     * freshly-revealed nodes, redraw edges, then glide the map to
-     * centre on the new node before fading into the room itself.
+     * freshly-revealed nodes, redraw edges, then walk along the edge
+     * path to the new node (with footstep traces and sound) before
+     * fading into the room itself.
      * Triggered by `DungeonManager.onMove` (wired in `create()`).
      */
-    private afterMove(node: MapNode, _previous: MapNode) {
+    private afterMove(node: MapNode, previous: MapNode) {
         this.updateRunProgress(node.depth);
         this.animating = true;
 
@@ -1124,12 +1127,29 @@ export class GameScene extends Phaser.Scene {
             this.mapView.build(true);
             this.mapView.redrawEdges();
             this.mapView.refresh();
-            // Keep `animating` true through the entire fadeToRoom so map
-            // node clicks stay locked until the transition fully finishes.
-            // fadeToRoom flips it back to false in its terminal onComplete.
-            this.mapView.animateShift(node, () => {
-                this.fadeToRoom(node);
-            });
+
+            this.sfx.startFootstepsLoop(this.footstepsFadeMs);
+
+            this.mapView.animateWalk(
+                previous,
+                node,
+                this.walkDurationMs,
+                (_screenX, _screenY) => {
+                    if (this.torchlight) {
+                        this.torchlight.setPosition(_screenX, _screenY);
+                    }
+                },
+                () => {
+                    this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
+                    if (this.torchlight) {
+                        this.torchlight.setPosition(
+                            this.torchlightHomeX,
+                            this.torchlightHomeY,
+                        );
+                    }
+                    this.fadeToRoom(node);
+                },
+            );
         });
     }
 
@@ -1193,7 +1213,6 @@ export class GameScene extends Phaser.Scene {
         this.animating = true;
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.animateTorchlightSweep('forward');
-        this.sfx.startFootstepsLoop(this.footstepsFadeMs);
         this.tweens.add({
             targets: overlay,
             alpha: 1,
@@ -1209,7 +1228,6 @@ export class GameScene extends Phaser.Scene {
                     ease: 'Sine.out',
                     onComplete: () => {
                         overlay.destroy();
-                        this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
                         this.animating = false;
                     },
                 });
@@ -1339,7 +1357,6 @@ export class GameScene extends Phaser.Scene {
         this.animating = true;
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.animateTorchlightSweep('back');
-        this.sfx.startFootstepsLoop(this.footstepsFadeMs);
         this.tweens.add({
             targets: overlay,
             alpha: 1,
@@ -1360,7 +1377,6 @@ export class GameScene extends Phaser.Scene {
                     ease: 'Sine.out',
                     onComplete: () => {
                         overlay.destroy();
-                        this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
                         this.animating = false;
                     },
                 });

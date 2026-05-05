@@ -747,4 +747,151 @@ export class MapView {
             onComplete: done,
         });
     }
+
+    // ─── walk animation ──────────────────────────────────────────
+
+    /** Graphics layer for footprint trace dots drawn during the walk. */
+    private traceGfx: Phaser.GameObjects.Graphics | null = null;
+
+    /**
+     * Compute the polyline (in container-local coords) that connects
+     * `from` to `to` along the same L-shaped lane used by
+     * {@link redrawEdges}. Returns an array of {x,y} waypoints.
+     */
+    getEdgePath(
+        from: MapNode,
+        to: MapNode,
+    ): { x: number; y: number }[] {
+        const x1 = this.nodeX(from);
+        const y1 = this.nodeY(from);
+        const x2 = this.nodeX(to);
+        const y2 = this.nodeY(to);
+
+        const targets = from.edges
+            .map((id) =>
+                this.dungeon
+                    .getAllNodes()
+                    .find((candidate) => candidate.id === id),
+            )
+            .filter((t): t is MapNode => !!t)
+            .sort((a, b) => a.slot - b.slot);
+
+        const index = targets.findIndex((t) => t.id === to.id);
+        const rank = (index + 1) / (targets.length + 1);
+        const laneX = x1 + (x2 - x1) * (0.35 + rank * 0.3);
+
+        return [
+            { x: x1, y: y1 },
+            { x: laneX, y: y1 },
+            { x: laneX, y: y2 },
+            { x: x2, y: y2 },
+        ];
+    }
+
+    /**
+     * Total euclidean length of a polyline.
+     */
+    private static pathLength(pts: { x: number; y: number }[]): number {
+        let len = 0;
+        for (let i = 1; i < pts.length; i++) {
+            const dx = pts[i].x - pts[i - 1].x;
+            const dy = pts[i].y - pts[i - 1].y;
+            len += Math.sqrt(dx * dx + dy * dy);
+        }
+        return len;
+    }
+
+    /**
+     * Interpolate a position along a polyline at fractional distance `t`
+     * (0 = start, 1 = end).
+     */
+    private static samplePath(
+        pts: { x: number; y: number }[],
+        t: number,
+    ): { x: number; y: number } {
+        const total = MapView.pathLength(pts);
+        let target = t * total;
+        for (let i = 1; i < pts.length; i++) {
+            const dx = pts[i].x - pts[i - 1].x;
+            const dy = pts[i].y - pts[i - 1].y;
+            const seg = Math.sqrt(dx * dx + dy * dy);
+            if (target <= seg || i === pts.length - 1) {
+                const frac = seg > 0 ? target / seg : 0;
+                return {
+                    x: pts[i - 1].x + dx * frac,
+                    y: pts[i - 1].y + dy * frac,
+                };
+            }
+            target -= seg;
+        }
+        return pts[pts.length - 1];
+    }
+
+    /**
+     * Animate a walk from `from` to `to` over `durationMs`.
+     *
+     * During the walk the map container is repositioned each frame so the
+     * current walk position stays centred at the viewport focal point, and
+     * small dot traces are drawn along the path.
+     *
+     * @param onStep  Called every frame with the current walk position in
+     *                **screen** coordinates so the caller can update the
+     *                torchlight overlay.
+     * @param done    Fires once the walk completes.
+     */
+    animateWalk(
+        from: MapNode,
+        to: MapNode,
+        durationMs: number,
+        onStep: (screenX: number, screenY: number) => void,
+        done: () => void,
+    ): void {
+        const path = this.getEdgePath(from, to);
+
+        if (!this.traceGfx) {
+            this.traceGfx = this.scene.add.graphics();
+            this.container.add(this.traceGfx);
+        }
+
+        const proxy = { t: 0 };
+        const traceInterval = 18;
+        let lastTraceDist = -traceInterval;
+        const totalLen = MapView.pathLength(path);
+
+        this.scene.tweens.add({
+            targets: proxy,
+            t: 1,
+            duration: durationMs,
+            ease: 'Sine.inOut',
+            onUpdate: () => {
+                const pos = MapView.samplePath(path, proxy.t);
+
+                this.container.setPosition(
+                    VIEW_X - pos.x,
+                    VIEW_Y - pos.y,
+                );
+
+                const currentDist = proxy.t * totalLen;
+                if (currentDist - lastTraceDist >= traceInterval) {
+                    this.traceGfx!.fillStyle(0xcccccc, 0.45);
+                    this.traceGfx!.fillCircle(pos.x, pos.y, 2.5);
+                    lastTraceDist = currentDist;
+                }
+
+                onStep(VIEW_X, VIEW_Y);
+            },
+            onComplete: () => {
+                this.centerOnNode(to);
+                done();
+            },
+        });
+    }
+
+    /** Remove walk trace dots (called when starting a new run / map
+     *  reset so the old traces don't pile up). */
+    clearTraces(): void {
+        if (this.traceGfx) {
+            this.traceGfx.clear();
+        }
+    }
 }
