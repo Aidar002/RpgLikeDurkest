@@ -54,6 +54,7 @@ import {
 } from '../ui/HudTheme';
 import { hasTexture } from '../ui/AssetGuard';
 import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../ui/HudFrame';
+import { createTorchlightOverlay } from '../ui/Torchlight';
 import { createHudCell, createHudInlineSlot, type HudCellHandle, type HudInlineSlotHandle } from '../ui/HudCell';
 import { createHudIcon } from '../ui/HudIcons';
 import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
@@ -363,7 +364,18 @@ export class GameScene extends Phaser.Scene {
         // ── PLAY-AREA BACKDROP ───────────────────────────────────
         // Optional carved-stone wall texture between the two HUD bars.
         // Drops out gracefully when the asset is missing.
-        const stoneWall = drawStoneBackdrop(this, TOP_H, GAME_WIDTH, GAME_HEIGHT - TOP_H - BOT_H);
+        const playAreaH = GAME_HEIGHT - TOP_H - BOT_H;
+        const stoneWall = drawStoneBackdrop(this, TOP_H, GAME_WIDTH, playAreaH);
+        // Torchlight: a radial darkening overlay that keeps the centre
+        // (where the room panel sits) readable and fades the rest of the
+        // wall toward black so the dungeon feels lit by a single lamp.
+        const torchlight = createTorchlightOverlay(this, GAME_WIDTH, playAreaH, {
+            innerRadius: 250,
+            outerRadius: 600,
+            centerAlpha: 0.45,
+            edgeAlpha: 0.94,
+        });
+        torchlight.setPosition(0, TOP_H).setDepth(Depths.Background - 0.5);
 
         // ── TOP BAR ─────────────────────────────────────────────
         // Carved-stone frame (PNG when available, layered fallback otherwise).
