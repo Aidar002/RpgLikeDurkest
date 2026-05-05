@@ -78,6 +78,11 @@ export function ensureStoneTexture(
  * Add a stone-wall `Image` to the scene at `(x, y)` with the given
  * dimensions. Caller is responsible for depth ordering; the image
  * uses `setOrigin(0, 0)` so `(x, y)` is its top-left.
+ *
+ * If the authored `hud_stone_wall` PNG has been preloaded, that
+ * raster is used and the procedural pipeline is skipped. The
+ * `brightness` option is then applied as a tint on the image so
+ * end-screen variants still read as darker than the play area.
  */
 export function createStoneBackdrop(
     scene: Phaser.Scene,
@@ -87,6 +92,18 @@ export function createStoneBackdrop(
     height: number,
     opts: StoneBackdropOptions = {},
 ): Phaser.GameObjects.Image {
+    if (scene.textures.exists('hud_stone_wall')) {
+        const img = scene.add
+            .image(x, y, 'hud_stone_wall')
+            .setOrigin(0, 0)
+            .setDisplaySize(width, height);
+        const brightness = opts.brightness ?? 1;
+        if (brightness < 1) {
+            const v = Math.max(0, Math.min(255, Math.round(255 * brightness)));
+            img.setTint(Phaser.Display.Color.GetColor(v, v, v));
+        }
+        return img;
+    }
     const key = ensureStoneTexture(scene, width, height, opts);
     return scene.add.image(x, y, key).setOrigin(0, 0);
 }
