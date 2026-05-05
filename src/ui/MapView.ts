@@ -449,10 +449,13 @@ export class MapView {
         const currentId = this.dungeon.currentNode.id;
         const allNodes = this.dungeon.getAllNodes();
 
-        // Per-source-node grouping: each source spreads its outgoing
-        // lanes so lines never overlap with siblings from the same node.
+        // Draw edges from the current node and from future nodes.
+        // Skip sibling nodes at the current depth (not the current
+        // node itself) — their edges are unreachable and confuse
+        // the player into thinking those connections are usable.
         allNodes.forEach((node) => {
             if (node.depth < currentDepth) return;
+            if (node.depth === currentDepth && node.id !== currentId) return;
             if (node.edges.length === 0) return;
 
             const targets = node.edges
