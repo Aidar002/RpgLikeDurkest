@@ -113,12 +113,14 @@ export class MapGenerator {
         newLayer.forEach((node) => {
             const hasParent = previousLayer.some((previousNode) => previousNode.edges.includes(node.id));
             if (!hasParent) {
-                const parent = previousLayer[Math.floor(this.rng.next() * previousLayer.length)];
-                if (!parent.edges.includes(node.id)) {
-                    parent.edges.push(node.id);
+                const closest = this.closestParent(previousLayer, node, newLayer);
+                if (!closest.edges.includes(node.id)) {
+                    closest.edges.push(node.id);
                 }
             }
         });
+
+        MapGenerator.removeCrossings(previousLayer, newLayer);
 
         return newLayer;
     }
@@ -217,6 +219,77 @@ export class MapGenerator {
     private getWeight(type: RoomType): number {
         const weights: Partial<Record<RoomType, number>> = MAP_CONFIG.roomTypeWeights;
         return weights[type] ?? 0;
+    }
+
+    /**
+     * Pick the parent whose slot is closest to `orphan`'s slot so
+     * the resulting edge is less likely to cross existing ones.
+     */
+    private closestParent(
+        parents: MapNode[],
+        orphan: MapNode,
+        _targets: MapNode[],
+    ): MapNode {
+        let best = parents[0];
+        let bestDist = Math.abs(best.slot - orphan.slot);
+        for (let i = 1; i < parents.length; i++) {
+            const d = Math.abs(parents[i].slot - orphan.slot);
+            if (d < bestDist) {
+                best = parents[i];
+                bestDist = d;
+            }
+        }
+        return best;
+    }
+
+    /**
+     * Remove edges that cross. Two edges (s1→t1, s2→t2) cross when
+     * the source slot order disagrees with the target slot order.
+     * We greedily drop the later-added edge of each crossing pair,
+     * but never leave a target orphaned — if removing an edge would
+     * orphan its target, we skip that removal.
+     */
+    private static removeCrossings(
+        sources: MapNode[],
+        targets: MapNode[],
+    ): void {
+        interface Edge { src: MapNode; tgt: MapNode }
+        const edges: Edge[] = [];
+        for (const src of sources) {
+            for (const tgtId of src.edges) {
+                const tgt = targets.find((n) => n.id === tgtId);
+                if (tgt) edges.push({ src, tgt });
+            }
+        }
+
+        const toRemove = new Set<Edge>();
+        for (let i = 0; i < edges.length; i++) {
+            for (let j = i + 1; j < edges.length; j++) {
+                const a = edges[i];
+                const b = edges[j];
+                if (toRemove.has(a) || toRemove.has(b)) continue;
+                const srcDiff = a.src.slot - b.src.slot;
+                const tgtDiff = a.tgt.slot - b.tgt.slot;
+                if (srcDiff !== 0 && tgtDiff !== 0 && Math.sign(srcDiff) !== Math.sign(tgtDiff)) {
+                    const parentCountA = edges.filter(
+                        (e) => e.tgt.id === a.tgt.id && !toRemove.has(e),
+                    ).length;
+                    const parentCountB = edges.filter(
+                        (e) => e.tgt.id === b.tgt.id && !toRemove.has(e),
+                    ).length;
+                    if (parentCountB > 1) {
+                        toRemove.add(b);
+                    } else if (parentCountA > 1) {
+                        toRemove.add(a);
+                    }
+                }
+            }
+        }
+
+        for (const e of toRemove) {
+            const idx = e.src.edges.indexOf(e.tgt.id);
+            if (idx !== -1) e.src.edges.splice(idx, 1);
+        }
     }
 
     private makeNode(depth: number, slot: number, type: RoomType): MapNode {

@@ -83,4 +83,59 @@ describe('MapGenerator', () => {
         expect(extension.length).toBeGreaterThan(0);
         expect(extension.every((n) => n.depth === maxDepth + 1)).toBe(true);
     });
+
+    it('never produces crossing edges across many seeds', () => {
+        for (let seed = 0; seed < 50; seed++) {
+            const gen = new MapGenerator(undefined, new Mulberry32(seed));
+            const nodes = gen.generateInitialMap(8);
+            const maxDepth = Math.max(...nodes.map((n) => n.depth));
+
+            for (let d = 0; d < maxDepth; d++) {
+                const sources = nodes.filter((n) => n.depth === d);
+                const targets = nodes.filter((n) => n.depth === d + 1);
+
+                interface Edge { srcSlot: number; tgtSlot: number }
+                const edges: Edge[] = [];
+                for (const src of sources) {
+                    for (const tgtId of src.edges) {
+                        const tgt = targets.find((n) => n.id === tgtId);
+                        if (tgt) edges.push({ srcSlot: src.slot, tgtSlot: tgt.slot });
+                    }
+                }
+
+                for (let i = 0; i < edges.length; i++) {
+                    for (let j = i + 1; j < edges.length; j++) {
+                        const a = edges[i];
+                        const b = edges[j];
+                        const srcDiff = a.srcSlot - b.srcSlot;
+                        const tgtDiff = a.tgtSlot - b.tgtSlot;
+                        if (srcDiff !== 0 && tgtDiff !== 0) {
+                            expect(Math.sign(srcDiff)).toBe(
+                                Math.sign(tgtDiff),
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    });
+
+    it('every target node has at least one parent edge', () => {
+        for (let seed = 0; seed < 30; seed++) {
+            const gen = new MapGenerator(undefined, new Mulberry32(seed));
+            const nodes = gen.generateInitialMap(8);
+            const maxDepth = Math.max(...nodes.map((n) => n.depth));
+
+            for (let d = 1; d <= maxDepth; d++) {
+                const targets = nodes.filter((n) => n.depth === d);
+                const sources = nodes.filter((n) => n.depth === d - 1);
+                for (const target of targets) {
+                    const hasParent = sources.some((s) =>
+                        s.edges.includes(target.id),
+                    );
+                    expect(hasParent).toBe(true);
+                }
+            }
+        }
+    });
 });
