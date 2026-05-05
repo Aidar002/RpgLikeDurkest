@@ -3,6 +3,7 @@ import {
     EXPEDITION_CONFIG,
     LEVEL_UP_CONFIG,
     PLAYER_CONFIG,
+    RELIC_CAP_CONFIG,
 } from '../data/GameConfig';
 import { Emitter } from './Emitter';
 import type { PlayerMetaBonuses } from './MetaProgressionManager';
@@ -36,6 +37,12 @@ export class PlayerManager {
     public killCount = 0;
     public status: StatusState = emptyStatusState();
     public relics: RelicId[] = [];
+    /**
+     * [FIX-8] One-time death-save flag for the run. Once any revive
+     * source (Last Stand or Revenant's Spite) has fired, no further
+     * revive may consume a charge.
+     */
+    public deathSaveConsumed = false;
 
     public readonly hpChange = new Emitter<{ hp: number; max: number }>();
     public readonly death = new Emitter<void>();
@@ -98,8 +105,14 @@ export class PlayerManager {
         return this.resources.light >= EXPEDITION_CONFIG.highLightThreshold;
     }
 
+    /**
+     * [FIX-2] Strictly `< lowLightThreshold` (default 4). The previous
+     * `<=` made low-light the default for the whole mid-run; the
+     * patched threshold means the penalty kicks in only when the
+     * lantern dips below the safe band.
+     */
     get hasLowLight(): boolean {
-        return this.resources.light <= EXPEDITION_CONFIG.lowLightThreshold;
+        return this.resources.light < EXPEDITION_CONFIG.lowLightThreshold;
     }
 
     get aggregate(): RelicAggregate {
@@ -113,7 +126,10 @@ export class PlayerManager {
 
     getCritChance(): number {
         const light = this.hasHighLight ? COMBAT_CONFIG.criticalChanceFromHighLight : 0;
-        return COMBAT_CONFIG.baseCritChance + light + this.relicAggregate.critChanceBonus;
+        const raw = COMBAT_CONFIG.baseCritChance + light + this.relicAggregate.critChanceBonus;
+        // [FIX-13] Hard cap on crit chance so Gambler's Knuckle plus
+        // High Light can't push the build past 45%.
+        return Math.min(raw, RELIC_CAP_CONFIG.gamblersCritCap);
     }
 
     getEnemyAttackBonusFromLight(): number {
@@ -141,17 +157,26 @@ export class PlayerManager {
         this.stats.hp = Math.max(0, this.stats.hp - actual);
 
         if (this.stats.hp === 0) {
-            // Relic revive preempts the meta last-stand.
-            if (this.relicAggregate.reviveOnce) {
-                this.relicAggregate.reviveOnce = false;
-                this.stats.hp = 10;
+            // [FIX-8] Last Stand (meta) takes priority over Revenant's
+            // Spite (relic). Either source can fire, but only once per
+            // run. If the death-save was already consumed earlier in
+            // the run, both are blocked.
+            if (!this.deathSaveConsumed && this.reviveCharges > 0) {
+                this.reviveCharges--;
+                this.deathSaveConsumed = true;
+                if (this.relicAggregate.reviveOnce) {
+                    // Block the relic too so the player can't double-dip.
+                    this.relicAggregate.reviveOnce = false;
+                }
+                this.stats.hp = Math.max(1, Math.ceil(this.stats.maxHp * 0.4));
                 this.emitAllChanges();
                 this.revive.emit({ remaining: this.reviveCharges });
                 return actual;
             }
-            if (this.reviveCharges > 0) {
-                this.reviveCharges--;
-                this.stats.hp = Math.max(1, Math.ceil(this.stats.maxHp * 0.4));
+            if (!this.deathSaveConsumed && this.relicAggregate.reviveOnce) {
+                this.relicAggregate.reviveOnce = false;
+                this.deathSaveConsumed = true;
+                this.stats.hp = 10;
                 this.emitAllChanges();
                 this.revive.emit({ remaining: this.reviveCharges });
                 return actual;
@@ -175,16 +200,41 @@ export class PlayerManager {
     }
 
     gainXp(amount: number): number {
-        const scaledAmount = Math.max(1, Math.round(amount * this.xpMultiplier));
+        // [FIX-9] Hard level cap. Past the cap, no further XP is awarded
+        // and no level-up loop can fire. Wisdom XP multiplier also stops
+        // applying once we are past `wisdomXpBonusUpToLevel` so the late-
+        // run reward curve flattens.
+        if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
+            this.stats.xp = 0;
+            this.emitStats();
+            return 0;
+        }
+        const effectiveMult =
+            this.stats.level > LEVEL_UP_CONFIG.wisdomXpBonusUpToLevel
+                ? 1
+                : this.xpMultiplier;
+        const scaledAmount = Math.max(1, Math.round(amount * effectiveMult));
         this.stats.xp += scaledAmount;
 
-        while (this.stats.xp >= this.xpToNextLevel) {
+        while (
+            this.stats.level < LEVEL_UP_CONFIG.levelCap &&
+            this.stats.xp >= this.xpToNextLevel
+        ) {
             this.stats.xp -= this.xpToNextLevel;
             this.applyLevelUp();
         }
 
+        if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
+            this.stats.xp = 0;
+        }
+
         this.emitStats();
         return scaledAmount;
+    }
+
+    /** True when the player has reached the configured level cap. */
+    get atLevelCap(): boolean {
+        return this.stats.level >= LEVEL_UP_CONFIG.levelCap;
     }
 
     registerKill() {
@@ -194,7 +244,13 @@ export class PlayerManager {
 
     gainGold(amount: number): number {
         if (amount <= 0) return 0;
-        const scaled = Math.max(1, Math.round(amount * this.relicAggregate.goldMultiplier));
+        // [FIX-13] Cursed Coin's gold multiplier cannot exceed
+        // RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap (default 2.0).
+        const cappedMult = Math.min(
+            this.relicAggregate.goldMultiplier,
+            RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap
+        );
+        const scaled = Math.max(1, Math.round(amount * cappedMult));
         this.resources.gold += scaled;
         this.emitResources();
         return scaled;
@@ -231,7 +287,12 @@ export class PlayerManager {
 
     spendResolve(amount: number): boolean {
         if (amount > this.resources.resolve) return false;
-        this.resources.resolve -= amount;
+        // [FIX-3] Defensive clamp — guarantees `resolve >= 0` even if a
+        // bug elsewhere requested a negative-spend.
+        this.resources.resolve = Math.max(
+            0,
+            Math.min(this.resources.maxResolve, this.resources.resolve - amount)
+        );
         this.emitResources();
         return true;
     }
@@ -331,6 +392,12 @@ export class PlayerManager {
     }
 
     private applyLevelUp() {
+        // [FIX-9] Belt-and-braces guard: gainXp() is the only caller and
+        // already blocks past the cap, but applyLevelUp() is safe even
+        // if a future call site forgets that.
+        if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
+            return;
+        }
         this.stats.level++;
         this.stats.maxHp += LEVEL_UP_CONFIG.hpGainPerLevel;
         this.stats.attack += LEVEL_UP_CONFIG.attackGainPerLevel;

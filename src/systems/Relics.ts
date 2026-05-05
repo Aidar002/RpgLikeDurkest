@@ -1,6 +1,7 @@
 import type { LocalizedText } from './LocalizedText';
 import { lt } from './LocalizedText';
 import { defaultRng, type Rng } from './Rng';
+import { RELIC_CAP_CONFIG } from '../data/GameConfig';
 
 // Relic catalog. Relics are permanent modifiers for the current run.
 // They stack additively. Relics are acquired from boss rooms, elite rooms,
@@ -307,6 +308,25 @@ export function emptyAggregate(): RelicAggregate {
 export function aggregateRelics(ids: RelicId[]): RelicAggregate {
     const agg = emptyAggregate();
     ids.forEach((id) => applyRelic(agg, id));
+    // [FIX-13] Final safety caps. Per-instance Math.min calls also live
+    // at the call sites (PlayerManager.gainGold, CombatManager.thorns,
+    // etc.) so the headless simulator and direct readers see the
+    // capped values regardless of entry point.
+    if (agg.bleedStackBonus > RELIC_CAP_CONFIG.pyreAshBleedStacksCap) {
+        agg.bleedStackBonus = RELIC_CAP_CONFIG.pyreAshBleedStacksCap;
+    }
+    if (agg.bleedTurnBonus > RELIC_CAP_CONFIG.pyreAshBleedTurnsCap) {
+        agg.bleedTurnBonus = RELIC_CAP_CONFIG.pyreAshBleedTurnsCap;
+    }
+    if (agg.goldMultiplier > RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap) {
+        agg.goldMultiplier = RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap;
+    }
+    if (agg.thornsDamage > RELIC_CAP_CONFIG.thornedMailReflectionCap) {
+        agg.thornsDamage = RELIC_CAP_CONFIG.thornedMailReflectionCap;
+    }
+    if (agg.lowHpDamageBonus > RELIC_CAP_CONFIG.emberVowLowHpBonusCap) {
+        agg.lowHpDamageBonus = RELIC_CAP_CONFIG.emberVowLowHpBonusCap;
+    }
     return agg;
 }
 

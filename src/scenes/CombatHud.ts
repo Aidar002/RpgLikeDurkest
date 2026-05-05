@@ -177,6 +177,20 @@ export class CombatHudController {
         };
 
         const hints: string[] = [];
+        // [FIX-10][FIX-15] Show the boss intent + phase first so the player
+        // can read what the boss is about to do before deciding their turn.
+        if (enemy.currentIntent) {
+            hints.push(scene.loc.t('hudIntentLabel', { intent: enemy.currentIntent }));
+        }
+        if (enemy.bossPhase) {
+            const total = enemy.bossPhase.blueprint.phases.length;
+            hints.push(
+                scene.loc.t('hudPhaseLabel', {
+                    current: enemy.bossPhase.phaseIndex + 1,
+                    total,
+                })
+            );
+        }
         hints.push(profileHints[enemy.profile] ?? '');
 
         if (enemy.enraged) {
@@ -184,6 +198,16 @@ export class CombatHudController {
         }
         if (enemy.charging) {
             hints.push(scene.loc.t('hudHintCharging'));
+        }
+
+        // [FIX-15] Surface Rupture's remaining cooldown next to the skill
+        // hint so the player isn't surprised when the button is disabled.
+        const ruptureCd = scene.combat.skillCooldowns.rupture ?? 0;
+        if (ruptureCd > 0) {
+            hints.push(scene.loc.t('skillCooldownBadge', { value: ruptureCd }));
+        }
+        if (scene.combat.adrenalineUsedThisCombat) {
+            hints.push(scene.loc.t('adrenalineUsedBadge'));
         }
 
         if (scene.meta.isUnlocked('action_skill')) {
@@ -267,12 +291,22 @@ export class CombatHudController {
         const rewardLines: string[] = [];
 
         scene.tracker.record('enemiesKilled');
-        if (payload.kind === 'elite') scene.tracker.record('elitesKilled');
+        if (payload.kind === 'elite') {
+            scene.tracker.record('elitesKilled');
+            // [FIX-7] Tracks elite kills for the Resolve-Test virtue bonus.
+            scene.eliteKillsThisRun += 1;
+        }
         if (payload.kind === 'boss') {
             scene.runBossKills += 1;
             scene.tracker.record('bossesKilled');
             const bossMilestones = scene.meta.registerBossKill();
             scene.handleMilestoneUnlocks(bossMilestones);
+        }
+        // [FIX-1] Final-boss specific log line. The actual win is gated
+        // below by depth and finalBossDefeated to avoid surprising the
+        // player on non-final boss kills.
+        if (payload.finalBossDefeated) {
+            scene.log.addMessage(scene.loc.t('victoryWishArtifact'), '#ffd36e');
         }
 
         const gainedXp = scene.player.gainXp(payload.rewards.xp);

@@ -1,6 +1,20 @@
 import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
-import { COMBAT_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
+import {
+    ADRENALINE_CONFIG,
+    COMBAT_CONFIG,
+    LIGHT_CONFIG,
+    RELIC_CAP_CONFIG,
+    ROOM_CONFIG,
+    RUPTURE_CONFIG,
+    STRESS_CONFIG,
+    STUN_RESIST_CONFIG,
+} from '../data/GameConfig';
 import type { EnemyDef, EnemyProfile } from '../data/GameConfig';
+import {
+    BOSS_BLUEPRINT_BY_NAME,
+    pickLine,
+    type BossBlueprint,
+} from '../data/Bosses';
 import type { EventLog } from '../ui/EventLog';
 import { Emitter } from './Emitter';
 import { narrate } from './Narrator';
@@ -35,6 +49,25 @@ export type CombatAction =
 
 export type EncounterKind = 'normal' | 'elite' | 'boss';
 
+/**
+ * [FIX-10] Per-combat boss phase tracking. Built from a BossBlueprint
+ * when the enemy's name matches an entry in BOSS_BLUEPRINT_BY_NAME.
+ * Lives on the ActiveEnemy so it is GC'd when combat ends.
+ */
+export interface BossPhaseState {
+    blueprint: BossBlueprint;
+    phaseIndex: number;
+    actionIndex: number;
+    /** Boss takes +N extra damage on the player's next hit. */
+    pendingExposeBonus: number;
+    /** Block remaining on the boss (e.g. Bone Shield). */
+    pendingBlock: number;
+    /** Pending False Mercy heal if the player did no damage this turn. */
+    pendingHealOnSafe: number;
+    /** Whether the player damaged the boss during the just-finished player turn. */
+    damagedThisTurn: boolean;
+}
+
 export interface ActiveEnemy {
     kind: EncounterKind;
     name: string;
@@ -55,6 +88,15 @@ export interface ActiveEnemy {
     stressAura?: number;
     firstHitEvaded?: boolean;
     firstStunResisted?: boolean;
+    /** [FIX-10] Phase blueprint runtime state, only set on bosses. */
+    bossPhase?: BossPhaseState;
+    /**
+     * [FIX-10] Localised one-line intent shown BEFORE the boss's next
+     * turn so the player can respond. `null` for non-boss enemies.
+     */
+    currentIntent?: string | null;
+    /** [FIX-1] Hard cap on stack count for bleed (final boss). */
+    bleedCap?: number;
 }
 
 export interface CombatRewards {
@@ -70,6 +112,10 @@ export interface CombatEndPayload {
     kind: EncounterKind;
     rewards: CombatRewards;
     killedByBleed: boolean;
+    /** [FIX-1] Set when the slain enemy was the final boss. */
+    finalBossDefeated: boolean;
+    /** [FIX-2] Light recovered from boss kill, applied by GameScene. */
+    lightRecovered: number;
 }
 
 export interface EnemyUpdatePayload {
@@ -107,6 +153,20 @@ export class CombatManager {
     public readonly playerHit = new Emitter<{ damage: number }>();
     public readonly combatEnd = new Emitter<CombatEndPayload>();
 
+    /** [FIX-5] Per-combat skill cooldowns keyed by SkillId; only Rupture uses
+     *  this for now, but the table is generic. */
+    public skillCooldowns: Partial<Record<SkillId, number>> = {};
+    /** [FIX-6] One-shot adrenaline guard. Reset every startCombat. */
+    public adrenalineUsedThisCombat = false;
+    /**
+     * [FIX-13] Per-turn relic guards. Reset at the top of every player
+     * turn so Vampiric Sigil / Gambler's Knuckle resolve gain can fire
+     * at most once per turn regardless of how many crits / kills line
+     * up in that turn.
+     */
+    private vampiricHealedThisTurn = false;
+    private gamblersResolveThisTurn = 0;
+
     constructor(
         player: PlayerManager,
         log: EventLog,
@@ -126,6 +186,10 @@ export class CombatManager {
     }
 
     startCombat(depth: number, kind: EncounterKind) {
+        // [FIX-5, FIX-6] Reset per-combat state. Cooldowns & adrenaline
+        // tracking start fresh for every fight.
+        this.skillCooldowns = {};
+        this.adrenalineUsedThisCombat = false;
         const definition = kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth);
         this.setupEnemy(depth, kind, definition);
     }
@@ -148,6 +212,11 @@ export class CombatManager {
             ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
             : definition.attack;
 
+        // [FIX-10] Look up a boss blueprint by canonical English name so
+        // localisation never breaks the lookup. Non-boss kinds skip this.
+        const blueprint =
+            kind === 'boss' ? BOSS_BLUEPRINT_BY_NAME[definition.name] : undefined;
+
         this.enemy = {
             kind,
             name: this.loc.enemyName(definition.name),
@@ -166,7 +235,25 @@ export class CombatManager {
             status: emptyStatusState(),
             inflictBleed: definition.inflictBleed,
             stressAura: definition.stressAura,
+            bleedCap: blueprint?.bleedCap,
+            bossPhase: blueprint
+                ? {
+                      blueprint,
+                      phaseIndex: 0,
+                      actionIndex: 0,
+                      pendingExposeBonus: 0,
+                      pendingBlock: 0,
+                      pendingHealOnSafe: 0,
+                      damagedThisTurn: false,
+                  }
+                : undefined,
+            currentIntent: null,
         };
+        // Compute the initial intent so the UI can show what the boss
+        // is about to do BEFORE the first player turn.
+        if (this.enemy.bossPhase) {
+            this.enemy.currentIntent = this.intentLabelForPhase(this.enemy.bossPhase);
+        }
 
         const header =
             kind === 'boss'
@@ -212,6 +299,19 @@ export class CombatManager {
         this.enemyStatusChange.emit();
     }
 
+    /**
+     * [FIX-5] Look up the remaining cooldown for a skill (0 = ready).
+     * Used by both UI and the headless simulator.
+     */
+    getSkillCooldown(id: SkillId): number {
+        return this.skillCooldowns[id] ?? 0;
+    }
+
+    /** [FIX-5] True when the skill is on cooldown and unusable. */
+    isSkillOnCooldown(id: SkillId): boolean {
+        return this.getSkillCooldown(id) > 0;
+    }
+
     processTurn(action: CombatAction) {
         if (!this.enemy) {
             return;
@@ -225,6 +325,24 @@ export class CombatManager {
             enemyEvaded: false,
         };
         this.enemy.turnsAlive += 1;
+        // [FIX-10] Reset per-turn boss-phase state before the player acts.
+        if (this.enemy.bossPhase) {
+            this.enemy.bossPhase.damagedThisTurn = false;
+        }
+        // [FIX-13] Reset per-turn relic guards.
+        this.vampiricHealedThisTurn = false;
+        this.gamblersResolveThisTurn = 0;
+
+        // [FIX-5] Tick down cooldowns at the start of each player turn.
+        for (const id of Object.keys(this.skillCooldowns) as SkillId[]) {
+            const remaining = this.skillCooldowns[id] ?? 0;
+            if (remaining > 0) {
+                this.skillCooldowns[id] = remaining - 1;
+            }
+            if ((this.skillCooldowns[id] ?? 0) <= 0) {
+                delete this.skillCooldowns[id];
+            }
+        }
 
         const actionName = typeof action === 'string' ? action : action.kind;
 
@@ -305,6 +423,27 @@ export class CombatManager {
     private handlePlayerSkill(skillId: SkillId): boolean {
         if (!this.enemy) return false;
         const skill = SKILLS[skillId];
+        // [FIX-5] Cooldown gate. Currently only Rupture sets a cooldown,
+        // but the gate is generic so future skills can adopt it.
+        if (this.isSkillOnCooldown(skillId)) {
+            this.log.addMessage(
+                this.loc.t('combatSkillOnCooldown', {
+                    value: this.skillName(skillId),
+                    turns: this.getSkillCooldown(skillId),
+                }),
+                '#8899aa'
+            );
+            return false;
+        }
+        // [FIX-6] Adrenaline hard cap: 1 use per combat. Refuse to even
+        // pay the resolve cost if it has already been used.
+        if (skillId === 'adrenaline' && this.adrenalineUsedThisCombat) {
+            this.log.addMessage(
+                this.loc.t('combatAdrenalineSpent'),
+                '#8899aa'
+            );
+            return false;
+        }
         const stressMod = this.stress?.resolveCostMod() ?? 0;
         const cost = Math.max(1, skill.resolveCost + stressMod);
         if (!this.player.spendResolve(cost)) {
@@ -333,7 +472,12 @@ export class CombatManager {
                 );
                 this.applyPlayerDamage(dmg, false);
                 const agg = this.player.aggregate;
-                applyBleed(this.enemy.status, 2 + agg.bleedStackBonus, 3 + agg.bleedTurnBonus);
+                applyBleed(
+                    this.enemy.status,
+                    2 + agg.bleedStackBonus,
+                    3 + agg.bleedTurnBonus,
+                    this.enemy.bleedCap // [FIX-1] respects final-boss cap
+                );
                 this.log.addMessage(
                     this.loc.t('combatSkillBleedStrike', { dmg }),
                     '#d06060'
@@ -367,17 +511,28 @@ export class CombatManager {
                 break;
             }
             case 'rupture': {
-                const pct = Math.ceil(this.enemy.maxHp * 0.22);
+                // [FIX-5] Per-target % cap. Bosses & final boss take a
+                // tighter slice so Rupture can't 3-shot them.
+                const cap = this.ruptureCapForEnemy(this.enemy);
+                const pct = Math.ceil(this.enemy.maxHp * cap);
                 const dmg = Math.max(this.player.getAttackPower(), pct) + this.effectiveDamageMod();
                 this.applyPlayerDamage(dmg, false);
+                this.skillCooldowns.rupture = RUPTURE_CONFIG.cooldownTurns + 1;
                 this.log.addMessage(this.loc.t('combatSkillRupture', { dmg }), '#c048a0');
                 this.applyOnAttackRelics();
                 break;
             }
             case 'adrenaline': {
-                const healed = this.player.heal(6);
-                this.player.gainResolve(1);
-                applyFocus(this.player.status, 1, 3);
+                // [FIX-6] Mark adrenaline as used so the gate at the top
+                // of this method blocks any further attempts.
+                this.adrenalineUsedThisCombat = true;
+                const healed = this.player.heal(ADRENALINE_CONFIG.heal);
+                this.player.gainResolve(ADRENALINE_CONFIG.resolveGain);
+                applyFocus(
+                    this.player.status,
+                    ADRENALINE_CONFIG.focusAmount,
+                    ADRENALINE_CONFIG.focusTurns
+                );
                 this.log.addMessage(
                     this.loc.t('combatSkillRally', { healed }),
                     '#66dd88'
@@ -432,14 +587,44 @@ export class CombatManager {
             damage = Math.max(1, Math.round(damage * COMBAT_CONFIG.criticalMultiplier));
         }
 
-        this.enemy.hp = Math.max(0, this.enemy.hp - damage);
+        // [FIX-10] Boss "Exposed" actions queue +N damage on the next
+        // player hit. Consume the queue here so subsequent hits (e.g.
+        // bleed tick) do NOT eat the bonus.
+        if (this.enemy.bossPhase && this.enemy.bossPhase.pendingExposeBonus > 0) {
+            damage += this.enemy.bossPhase.pendingExposeBonus;
+            this.enemy.bossPhase.pendingExposeBonus = 0;
+        }
+
+        // [FIX-10] Bone-Shield style block on the boss soaks the next
+        // player hit before HP loss.
+        if (this.enemy.bossPhase && this.enemy.bossPhase.pendingBlock > 0) {
+            const blocked = Math.min(this.enemy.bossPhase.pendingBlock, damage);
+            damage -= blocked;
+            this.enemy.bossPhase.pendingBlock -= blocked;
+        }
+
+        if (damage > 0) {
+            this.enemy.hp = Math.max(0, this.enemy.hp - damage);
+            if (this.enemy.bossPhase) this.enemy.bossPhase.damagedThisTurn = true;
+        }
         this.lastActionResult.critical = this.lastActionResult.critical || critical;
         this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
 
         if (critical) {
             const agg = this.player.aggregate;
-            if (agg.lifestealOnCrit > 0) this.player.heal(agg.lifestealOnCrit);
-            if (agg.critResolveGain > 0) this.player.gainResolve(agg.critResolveGain);
+            // [FIX-13] Vampiric Sigil & Gambler's Knuckle each fire at
+            // most once per player turn.
+            if (agg.lifestealOnCrit > 0 && !this.vampiricHealedThisTurn) {
+                this.player.heal(agg.lifestealOnCrit);
+                this.vampiricHealedThisTurn = true;
+            }
+            if (
+                agg.critResolveGain > 0 &&
+                this.gamblersResolveThisTurn < RELIC_CAP_CONFIG.gamblersResolvePerTurn
+            ) {
+                this.player.gainResolve(agg.critResolveGain);
+                this.gamblersResolveThisTurn += agg.critResolveGain;
+            }
         }
     }
 
@@ -450,26 +635,70 @@ export class CombatManager {
             applyBleed(
                 this.enemy.status,
                 agg.bleedOnAttackStacks + agg.bleedStackBonus,
-                agg.bleedOnAttackTurns + agg.bleedTurnBonus
+                agg.bleedOnAttackTurns + agg.bleedTurnBonus,
+                this.enemy.bleedCap // [FIX-1] respects final-boss cap
             );
         }
     }
 
+    /**
+     * [FIX-5] Per-target Rupture cap: 15% for boss/final_boss, 18% for
+     * elites, 22% otherwise. Sourced from RUPTURE_CONFIG.
+     */
+    private ruptureCapForEnemy(enemy: ActiveEnemy): number {
+        if (enemy.profile === 'final_boss') return RUPTURE_CONFIG.capByKind.final_boss;
+        if (enemy.profile === 'boss' || enemy.kind === 'boss') return RUPTURE_CONFIG.capByKind.boss;
+        if (enemy.kind === 'elite') return RUPTURE_CONFIG.capByKind.elite;
+        return RUPTURE_CONFIG.capByKind.normal;
+    }
+
+    /**
+     * [FIX-11] Stun resistance keyed by enemy profile / boss name. The
+     * Guard portion of Parry Stance is applied by the caller before
+     * tryStun() — when stun is resisted we just skip the Stun status
+     * and log it. Returns true when the stun stuck.
+     */
     private tryStun(turns: number): boolean {
         if (!this.enemy) return false;
-        // Bosses resist stun; halve duration, min 1.
+        const resistChance = this.stunResistChance(this.enemy);
+        if (resistChance > 0 && this.rng.next() < resistChance) {
+            this.log.addMessage(
+                this.loc.t('combatEnemyResistStun', { name: this.enemy.name }),
+                '#9aa3b3'
+            );
+            return false;
+        }
+        // Bosses still get a half-duration soft penalty when the stun
+        // does land, preserving the prior "hard to lock" feel.
         const effective = this.enemy.kind === 'boss' ? Math.max(1, Math.floor(turns / 2)) : turns;
         applyStun(this.enemy.status, effective);
         return true;
     }
 
+    private stunResistChance(enemy: ActiveEnemy): number {
+        const named = STUN_RESIST_CONFIG.bossByName[enemy.name];
+        if (named !== undefined) return named;
+        if (enemy.profile === 'final_boss') {
+            return STUN_RESIST_CONFIG.bossByName['The Undying Wound'] ?? STUN_RESIST_CONFIG.finalBoss;
+        }
+        if (enemy.profile === 'boss' || enemy.kind === 'boss') return STUN_RESIST_CONFIG.boss;
+        if (enemy.kind === 'elite') return STUN_RESIST_CONFIG.elite;
+        return STUN_RESIST_CONFIG.normal;
+    }
+
     private effectiveDamageMod(): number {
         const stress = this.stress?.damageDealtMod() ?? 0;
         const focus = this.player.status.focus.turns > 0 ? this.player.status.focus.amount : 0;
+        // [FIX-13] Ember Vow's low-HP damage bonus is hard-capped at
+        // RELIC_CAP_CONFIG.emberVowLowHpBonusCap (default 0.50).
+        const lowHpFraction = Math.min(
+            this.player.aggregate.lowHpDamageBonus,
+            RELIC_CAP_CONFIG.emberVowLowHpBonusCap
+        );
         const lowHp =
-            this.player.aggregate.lowHpDamageBonus > 0 &&
+            lowHpFraction > 0 &&
             this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * this.player.aggregate.lowHpThreshold)
-                ? Math.round(this.player.getAttackPower() * this.player.aggregate.lowHpDamageBonus)
+                ? Math.round(this.player.getAttackPower() * lowHpFraction)
                 : 0;
         return stress + focus + lowHp;
     }
@@ -483,6 +712,11 @@ export class CombatManager {
                 this.loc.t('combatEnemyStunned', { name: this.enemy.name }),
                 '#7aaaff'
             );
+            // [FIX-10] Recompute next intent so the UI reflects what the
+            // boss will do AFTER recovering from stun.
+            if (this.enemy.bossPhase) {
+                this.enemy.currentIntent = this.intentLabelForPhase(this.enemy.bossPhase);
+            }
             this.enemyStatusChange.emit();
             return;
         }
@@ -495,6 +729,14 @@ export class CombatManager {
                     this.loc.t('combatEnemyEvadeFirst', { name: this.enemy.name }),
                 '#9fb4c4'
             );
+            return;
+        }
+
+        // [FIX-10] Boss enemies with a phase blueprint use the phase
+        // runner instead of the profile-based fallback. This is also the
+        // hook for the final-boss FIX-1 phase logic.
+        if (this.enemy.bossPhase) {
+            this.runBossTurn(playerAction);
             return;
         }
 
@@ -631,7 +873,12 @@ export class CombatManager {
             this.playerHit.emit({ damage: taken });
 
             // Thorns damage back at the attacker.
-            const thorns = this.player.aggregate.thornsDamage;
+            // [FIX-13] Thorned Mail is capped at
+            // RELIC_CAP_CONFIG.thornedMailReflectionCap per hit.
+            const thorns = Math.min(
+                this.player.aggregate.thornsDamage,
+                RELIC_CAP_CONFIG.thornedMailReflectionCap
+            );
             if (thorns > 0) {
                 this.enemy.hp = Math.max(0, this.enemy.hp - thorns);
                 this.log.addMessage(
@@ -658,6 +905,13 @@ export class CombatManager {
         if (this.enemy.kind === 'boss') this.stress?.relieve(STRESS_CONFIG.onBossKill * -1);
         else if (this.enemy.kind === 'elite') this.stress?.relieve(STRESS_CONFIG.onEliteKill * -1);
 
+        // [FIX-2] Light recovery on boss kill is reported back to the
+        // GameScene through the payload so the run-level resource
+        // model is the single owner of light state.
+        if (this.enemy.kind === 'boss' && this.enemy.profile !== 'final_boss') {
+            this.player.gainLight(LIGHT_CONFIG.onBossKill);
+        }
+
         this.enemy = null;
         this.combatEnd.emit(payload);
     }
@@ -683,10 +937,15 @@ export class CombatManager {
     }
 
     private buildRewards(enemy: ActiveEnemy, killedByBleed: boolean): CombatEndPayload {
+        const finalBoss = enemy.profile === 'final_boss';
+        const lightRecovered =
+            enemy.kind === 'boss' && !finalBoss ? LIGHT_CONFIG.onBossKill : 0;
         return {
             enemyName: enemy.name,
             kind: enemy.kind,
             killedByBleed,
+            finalBossDefeated: finalBoss,
+            lightRecovered,
             rewards: {
                 xp: enemy.xp,
                 gold: enemy.gold + (enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusGold : 0),
@@ -700,6 +959,179 @@ export class CombatManager {
                           : 0,
             },
         };
+    }
+
+    // -----------------------------------------------------------------
+    // [FIX-10] Boss phase / intent runner.
+    // -----------------------------------------------------------------
+
+    private intentLabelForPhase(phase: { blueprint: BossBlueprint; phaseIndex: number; actionIndex: number }): string {
+        const phaseDef = phase.blueprint.phases[phase.phaseIndex];
+        const action = phaseDef.actions[phase.actionIndex % phaseDef.actions.length];
+        return pickLine(action.intent, this.loc.language);
+    }
+
+    /**
+     * Re-evaluates the boss's HP-driven phase. Called at the start of
+     * the boss's turn so phase-entry effects fire after the player has
+     * just damaged it. Returns `true` when a phase change happened.
+     */
+    private maybeAdvancePhase(): boolean {
+        if (!this.enemy || !this.enemy.bossPhase) return false;
+        const state = this.enemy.bossPhase;
+        const ratio = this.enemy.hp / Math.max(1, this.enemy.maxHp);
+        let newIndex = state.phaseIndex;
+        for (let i = state.phaseIndex + 1; i < state.blueprint.phases.length; i++) {
+            if (ratio <= state.blueprint.phases[i].enterAtHpRatio) {
+                newIndex = i;
+            }
+        }
+        if (newIndex === state.phaseIndex) return false;
+        state.phaseIndex = newIndex;
+        state.actionIndex = 0;
+        const phaseDef = state.blueprint.phases[newIndex];
+        if (phaseDef.label) {
+            this.log.addMessage(pickLine(phaseDef.label, this.loc.language), '#c4a35a');
+        }
+        const onEnter = phaseDef.onEnter;
+        if (onEnter) {
+            if (onEnter.addStress && this.stress) {
+                this.stress.add(onEnter.addStress, this.player.aggregate.stressReductionPct);
+            }
+            if (onEnter.atkBoost) {
+                this.enemy.attack += onEnter.atkBoost;
+            }
+            if (onEnter.drainLight) {
+                this.player.spendLight(onEnter.drainLight);
+            }
+            if (onEnter.capLight !== undefined) {
+                const overflow = this.player.resources.light - onEnter.capLight;
+                if (overflow > 0) this.player.spendLight(overflow);
+            }
+            if (onEnter.markPlayer) {
+                applyMark(this.player.status, onEnter.markPlayer);
+            }
+        }
+        return true;
+    }
+
+    private runBossTurn(playerAction: 'attack' | 'defend' | 'skill' | 'potion') {
+        if (!this.enemy || !this.enemy.bossPhase) return;
+        const state = this.enemy.bossPhase;
+
+        // Phase advancement is HP-driven and happens BEFORE picking an
+        // action so the very next attack reflects the new phase's
+        // pattern.
+        this.maybeAdvancePhase();
+
+        const phaseDef = state.blueprint.phases[state.phaseIndex];
+        const action = phaseDef.actions[state.actionIndex % phaseDef.actions.length];
+
+        const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
+        const wardenBlock =
+            playerAction === 'defend' ? this.player.aggregate.defendExtraBlock : 0;
+        const flatBlock = flatBlockBase + wardenBlock;
+
+        const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
+        let attackPower =
+            this.enemy.attack +
+            this.player.getEnemyAttackBonusFromLight() -
+            weakenReduction;
+        if (action.damageBonus) attackPower += action.damageBonus;
+        if (attackPower < 1) attackPower = 1;
+
+        // Lich Cinderlight passive: low light → +1 atk damage on attacks.
+        const passives = state.blueprint.passives ?? [];
+        if (passives.includes('cinderlight') && this.player.hasLowLight) {
+            attackPower += 1;
+        }
+
+        // Resource pressure (always applies).
+        if (action.drainLight && action.drainLight > 0) {
+            this.player.spendLight(action.drainLight);
+        }
+        if (action.addStress && action.addStress > 0 && this.stress) {
+            this.stress.add(action.addStress, this.player.aggregate.stressReductionPct);
+        }
+        if (action.weaken) {
+            applyWeaken(this.player.status, action.weaken.amount, action.weaken.turns);
+        }
+        if (action.markPlayer) {
+            applyMark(this.player.status, action.markPlayer);
+        }
+        if (action.selfBlock) {
+            state.pendingBlock += action.selfBlock;
+        }
+        if (action.selfHealIfNoDamageTaken) {
+            state.pendingHealOnSafe = action.selfHealIfNoDamageTaken;
+        }
+        if (action.exposedExtraDamage) {
+            state.pendingExposeBonus = action.exposedExtraDamage;
+        }
+        if (action.selfAtkBoost) {
+            this.enemy.attack += action.selfAtkBoost;
+        }
+
+        // Stress aura passive (Maw): every 3rd boss turn ticks stress.
+        if (passives.includes('maw_aura') && this.enemy.turnsAlive > 0 && this.enemy.turnsAlive % 3 === 0) {
+            const tick = this.player.hasLowLight ? 6 : 4;
+            this.stress?.add(tick, this.player.aggregate.stressReductionPct);
+        }
+
+        // Damage-dealing actions hit the player.
+        if (!action.noAttack) {
+            const taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
+            if (taken > 0) {
+                this.log.addMessage(
+                    this.loc.t('combatEnemyHit', { name: this.enemy.name, takenDamage: taken, extraMessage: '' }),
+                    '#ff6666'
+                );
+            } else {
+                this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
+            }
+            if (action.bleed) {
+                const marked = this.player.status.mark.turns > 0;
+                const willBleed = action.bleed.alwaysIfHit ? taken > 0 : action.bleed.onlyIfMarked ? marked : true;
+                if (willBleed) applyBleed(this.player.status, action.bleed.stacks, action.bleed.turns);
+            }
+        } else if (action.id === 'expose_self') {
+            this.log.addMessage(
+                this.loc.t('combatEnemyExposed', { name: this.enemy.name }),
+                '#9fb4c4'
+            );
+        }
+
+        // Resolve False Mercy: heal only if player did no damage.
+        if (state.pendingHealOnSafe > 0 && !state.damagedThisTurn) {
+            const heal = state.pendingHealOnSafe;
+            this.enemy.hp = Math.min(this.enemy.maxHp, this.enemy.hp + heal);
+            this.log.addMessage(
+                this.loc.t('combatEnemyHeal', { name: this.enemy.name, heal }),
+                '#88dd88'
+            );
+            this.enemyUpdate.emit({
+                hp: this.enemy.hp,
+                maxHp: this.enemy.maxHp,
+                color: this.enemy.color,
+                name: this.enemy.name,
+                icon: this.enemy.icon,
+            });
+        }
+        state.pendingHealOnSafe = 0;
+
+        if (this.player.stats.hp <= 0) {
+            this.logDeath();
+            return;
+        }
+        if (this.player.stats.hp > 0 && this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * 0.25)) {
+            this.stress?.add(STRESS_CONFIG.onLowHp, this.player.aggregate.stressReductionPct);
+        }
+
+        // Advance to next action and update the intent shown to the player.
+        state.actionIndex = (state.actionIndex + 1) % phaseDef.actions.length;
+        this.enemy.currentIntent = this.intentLabelForPhase(state);
+        this.playerStatusChange.emit();
+        this.enemyStatusChange.emit();
     }
 
     /** Returns a human-readable line of enemy statuses. */
