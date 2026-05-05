@@ -535,12 +535,19 @@ export class SoundManager {
 
     // ─── footsteps loop (room transitions) ─────────────────────
 
+    /** Peak gain target for the footsteps loop. Web Audio gain nodes
+     *  accept values >1 (the master gain that follows the SFX slider
+     *  scales it back down), so a small boost here keeps the recording
+     *  audible above the rest of the SFX bed without distorting. */
+    private readonly footstepsPeakGain = 3.0;
+
     /**
      * Start a looped footsteps SFX (used while the camera-pan transition
      * between rooms is playing). The audio file is lazily loaded the first
      * time this is called and routed through the master gain so it shares
      * the SFX volume slider and mute toggle. The volume ramps up from 0
-     * to full over `fadeInMs` so it never lurches into existence.
+     * to `footstepsPeakGain` over `fadeInMs` so it never lurches into
+     * existence.
      */
     startFootstepsLoop(fadeInMs = 600) {
         const ctx = this.ensure();
@@ -560,7 +567,7 @@ export class SoundManager {
         const audio = this.footstepsAudio;
         try { audio.currentTime = 0; } catch { /* file may not be ready yet */ }
         void audio.play().catch(() => { /* autoplay race; safe to ignore */ });
-        this.fadeFootsteps(1, fadeInMs);
+        this.fadeFootsteps(this.footstepsPeakGain, fadeInMs);
     }
 
     /** Fade the footsteps loop to silence over `fadeOutMs` and pause. */
