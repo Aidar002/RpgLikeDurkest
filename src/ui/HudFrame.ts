@@ -12,6 +12,7 @@
  */
 import * as Phaser from 'phaser';
 
+import { hasTexture, withTexture } from './AssetGuard';
 import { HudColors } from './HudTheme';
 
 /**
@@ -44,13 +45,16 @@ export function drawTopFrame(
     width: number,
     height: number,
 ): Phaser.GameObjects.GameObject {
-    if (scene.textures.exists('hud_top_bar')) {
-        return scene.add
-            .image(0, 0, 'hud_top_bar')
-            .setOrigin(0, 0)
-            .setDisplaySize(width, height);
-    }
-    return drawProceduralTopBar(scene, 0, 0, width, height);
+    return withTexture(
+        scene,
+        'hud_top_bar',
+        () =>
+            scene.add
+                .image(0, 0, 'hud_top_bar')
+                .setOrigin(0, 0)
+                .setDisplaySize(width, height),
+        () => drawProceduralTopBar(scene, 0, 0, width, height),
+    );
 }
 
 /** Draw the bottom HUD frame. */
@@ -60,23 +64,26 @@ export function drawBottomFrame(
     width: number,
     height: number,
 ): Phaser.GameObjects.GameObject {
-    if (scene.textures.exists('hud_bottom_bar')) {
-        return scene.add
-            .nineslice(
-                0,
-                y,
-                'hud_bottom_bar',
-                undefined,
-                width,
-                height,
-                PANEL_SLICE.left,
-                PANEL_SLICE.right,
-                PANEL_SLICE.top,
-                PANEL_SLICE.bottom,
-            )
-            .setOrigin(0, 0);
-    }
-    return drawFallbackPanel(scene, 0, y, width, height);
+    return withTexture(
+        scene,
+        'hud_bottom_bar',
+        () =>
+            scene.add
+                .nineslice(
+                    0,
+                    y,
+                    'hud_bottom_bar',
+                    undefined,
+                    width,
+                    height,
+                    PANEL_SLICE.left,
+                    PANEL_SLICE.right,
+                    PANEL_SLICE.top,
+                    PANEL_SLICE.bottom,
+                )
+                .setOrigin(0, 0),
+        () => drawFallbackPanel(scene, 0, y, width, height),
+    );
 }
 
 /**
@@ -99,23 +106,26 @@ export function drawCarvedPanel(
     width: number,
     height: number,
 ): Phaser.GameObjects.NineSlice | Phaser.GameObjects.Container {
-    if (scene.textures.exists('hud_bottom_bar')) {
-        return scene.add
-            .nineslice(
-                x,
-                y,
-                'hud_bottom_bar',
-                undefined,
-                width,
-                height,
-                PANEL_SLICE.left,
-                PANEL_SLICE.right,
-                PANEL_SLICE.top,
-                PANEL_SLICE.bottom,
-            )
-            .setOrigin(0, 0);
-    }
-    return drawFallbackPanel(scene, x, y, width, height);
+    return withTexture(
+        scene,
+        'hud_bottom_bar',
+        () =>
+            scene.add
+                .nineslice(
+                    x,
+                    y,
+                    'hud_bottom_bar',
+                    undefined,
+                    width,
+                    height,
+                    PANEL_SLICE.left,
+                    PANEL_SLICE.right,
+                    PANEL_SLICE.top,
+                    PANEL_SLICE.bottom,
+                )
+                .setOrigin(0, 0),
+        () => drawFallbackPanel(scene, x, y, width, height),
+    );
 }
 
 /**
@@ -129,7 +139,7 @@ export function drawStoneBackdrop(
     width: number,
     height: number,
 ): Phaser.GameObjects.Image | null {
-    if (!scene.textures.exists('hud_stone_wall')) {
+    if (!hasTexture(scene, 'hud_stone_wall')) {
         return null;
     }
     return scene.add

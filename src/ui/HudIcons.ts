@@ -17,6 +17,7 @@
  */
 import * as Phaser from 'phaser';
 
+import { hasTexture } from './AssetGuard';
 import { HUD_FONT, HUD_STROKE, HudHex } from './HudTheme';
 
 /**
@@ -95,7 +96,7 @@ export function createHudIcon(
 ): Phaser.GameObjects.GameObject {
     const pixelSize = options.pixelSize ?? 18;
 
-    if (scene.textures.exists(ICON_SHEET_KEY)) {
+    if (hasTexture(scene, ICON_SHEET_KEY)) {
         const img = scene.add
             .image(x, y, ICON_SHEET_KEY, IconFrame[key])
             .setOrigin(0.5)

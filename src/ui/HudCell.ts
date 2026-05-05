@@ -12,6 +12,7 @@
  */
 import * as Phaser from 'phaser';
 
+import { hasTexture } from './AssetGuard';
 import { createHudIcon, type IconKey } from './HudIcons';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 
@@ -76,7 +77,7 @@ export function createHudCell(
 
     // When the bottom-bar PNG is missing we still want visible separators,
     // so draw a thin pill border under the cell.
-    if (!scene.textures.exists('hud_bottom_bar')) {
+    if (!hasTexture(scene, 'hud_bottom_bar')) {
         const border = scene.add.graphics();
         border.lineStyle(1, options.highlight ? HudColors.cellGoldEdge : HudColors.divider, 0.85);
         border.strokeRect(x + 0.5, y + 0.5, w - 1, h - 1);
