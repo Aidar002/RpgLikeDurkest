@@ -734,8 +734,10 @@ export class GameScene extends Phaser.Scene {
             this.hintText,
         ];
 
-        this.uiContainer.add(stoneWall);
-        stoneWall.setDepth(-1);
+        // Stone wall must sit below the room content. Inside a Container
+        // setDepth has no effect, so keep it scene-level and pin it under
+        // every Depths.* tier (Background = 0).
+        stoneWall.setDepth(Depths.Background - 1);
         this.uiContainer.add([...topWidgets, ...bottomWidgets]);
 
         this.roomContainer.add(this.enemyStatusText);
