@@ -99,6 +99,15 @@ export class GameScene extends Phaser.Scene {
 
     private animating = false;
     private dead = false;
+    private torchlight: Phaser.GameObjects.Image | null = null;
+    private torchlightHomeX = 0;
+    private torchlightHomeY = 0;
+    /** Horizontal slide each direction during a room transition (px). */
+    private readonly torchlightSweepPx = 30;
+    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`).
+     *  At ~15 px/s with the 30 px sweep this lands in the 10–20 px/s
+     *  ballpark Aidar asked for. */
+    private readonly roomTransitionPhaseMs = 2000;
     private deathSequenceStarted = false;
     public lastEnemyHp = 0;
     private runBestDepth = 0;
@@ -369,13 +378,25 @@ export class GameScene extends Phaser.Scene {
         // Torchlight: a radial darkening overlay that keeps the centre
         // (where the room panel sits) readable and fades the rest of the
         // wall toward black so the dungeon feels lit by a single lamp.
-        const torchlight = createTorchlightOverlay(this, GAME_WIDTH, playAreaH, {
+        // The texture is oversized by TORCH_MARGIN on every side so the
+        // overlay can slide during room transitions without exposing an
+        // un-dimmed strip of stone at the trailing edge.
+        const TORCH_MARGIN = 256;
+        const torchW = GAME_WIDTH + TORCH_MARGIN * 2;
+        const torchH = playAreaH + TORCH_MARGIN * 2;
+        const torchlight = createTorchlightOverlay(this, torchW, torchH, {
             innerRadius: 250,
             outerRadius: 400,
             centerAlpha: 0.45,
             edgeAlpha: 0.94,
         });
-        torchlight.setPosition(0, TOP_H).setDepth(Depths.Background - 0.5);
+        this.torchlightHomeX = GAME_WIDTH / 2;
+        this.torchlightHomeY = TOP_H + playAreaH / 2;
+        torchlight
+            .setOrigin(0.5, 0.5)
+            .setPosition(this.torchlightHomeX, this.torchlightHomeY)
+            .setDepth(Depths.Background - 0.5);
+        this.torchlight = torchlight;
 
         // ── TOP BAR ─────────────────────────────────────────────
         // Carved-stone frame (PNG when available, layered fallback otherwise).
@@ -1165,22 +1186,50 @@ export class GameScene extends Phaser.Scene {
 
     private fadeToRoom(node: MapNode) {
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
+        this.animateTorchlightSweep('forward');
         this.tweens.add({
             targets: overlay,
             alpha: 1,
-            duration: 220,
-            ease: 'Quad.in',
+            duration: this.roomTransitionPhaseMs,
+            ease: 'Sine.in',
             onComplete: () => {
                 this.mapContainer.setVisible(false);
                 this.roomContainer.setVisible(true);
                 this.tweens.add({
                     targets: overlay,
                     alpha: 0,
-                    duration: 260,
-                    ease: 'Quad.out',
+                    duration: this.roomTransitionPhaseMs,
+                    ease: 'Sine.out',
                     onComplete: () => overlay.destroy(),
                 });
                 this.enterRoom(node);
+            },
+        });
+    }
+
+    /**
+     * Slide the torchlight pool toward `direction` over `roomTransitionPhaseMs`,
+     * then ease it back to the home position over the same duration. Lines up
+     * the visible "camera drift" of the lit area with the existing fade-to-
+     * black / fade-from-black phases of the room transition.
+     */
+    private animateTorchlightSweep(direction: 'forward' | 'back') {
+        const tl = this.torchlight;
+        if (!tl) return;
+        const delta = direction === 'forward' ? this.torchlightSweepPx : -this.torchlightSweepPx;
+        this.tweens.killTweensOf(tl);
+        this.tweens.add({
+            targets: tl,
+            x: this.torchlightHomeX + delta,
+            duration: this.roomTransitionPhaseMs,
+            ease: 'Sine.in',
+            onComplete: () => {
+                this.tweens.add({
+                    targets: tl,
+                    x: this.torchlightHomeX,
+                    duration: this.roomTransitionPhaseMs,
+                    ease: 'Sine.out',
+                });
             },
         });
     }
@@ -1276,11 +1325,12 @@ export class GameScene extends Phaser.Scene {
 
     public returnToMap() {
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
+        this.animateTorchlightSweep('back');
         this.tweens.add({
             targets: overlay,
             alpha: 1,
-            duration: 180,
-            ease: 'Quad.in',
+            duration: this.roomTransitionPhaseMs,
+            ease: 'Sine.in',
             onComplete: () => {
                 this.roomContainer.setVisible(false);
                 this.mapContainer.setVisible(true);
@@ -1292,8 +1342,8 @@ export class GameScene extends Phaser.Scene {
                 this.tweens.add({
                     targets: overlay,
                     alpha: 0,
-                    duration: 240,
-                    ease: 'Quad.out',
+                    duration: this.roomTransitionPhaseMs,
+                    ease: 'Sine.out',
                     onComplete: () => overlay.destroy(),
                 });
             },
