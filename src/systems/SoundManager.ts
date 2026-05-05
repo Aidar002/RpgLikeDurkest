@@ -52,6 +52,9 @@ export class SoundManager {
     private _volume: number;
     private ambientNodes: { osc: OscillatorNode; gain: GainNode }[] = [];
     private ambientRunning = false;
+    private footstepsAudio: HTMLAudioElement | null = null;
+    private footstepsFadeGain: GainNode | null = null;
+    private footstepsFadeRaf: number | null = null;
 
     constructor() {
         this._muted = localStorage.getItem(STORAGE_KEY) === '1';
@@ -528,6 +531,72 @@ export class SoundManager {
         const { gain } = this.noise(0.06, 0.1);
         this.env(gain, 0.005, 0.02, 0.2, 0.03);
         this.osc('sine', 120, 0.04, 0.06);
+    }
+
+    // ─── footsteps loop (room transitions) ─────────────────────
+
+    /**
+     * Start a looped footsteps SFX (used while the camera-pan transition
+     * between rooms is playing). The audio file is lazily loaded the first
+     * time this is called and routed through the master gain so it shares
+     * the SFX volume slider and mute toggle. The volume ramps up from 0
+     * to full over `fadeInMs` so it never lurches into existence.
+     */
+    startFootstepsLoop(fadeInMs = 600) {
+        const ctx = this.ensure();
+        if (!this.footstepsAudio || !this.footstepsFadeGain) {
+            const audio = new Audio(`${import.meta.env.BASE_URL}audio/steps_sound1.ogg`);
+            audio.loop = true;
+            audio.preload = 'auto';
+            audio.volume = 1;
+            const source = ctx.createMediaElementSource(audio);
+            const gain = ctx.createGain();
+            gain.gain.value = 0;
+            source.connect(gain);
+            gain.connect(this.master!);
+            this.footstepsAudio = audio;
+            this.footstepsFadeGain = gain;
+        }
+        const audio = this.footstepsAudio;
+        try { audio.currentTime = 0; } catch { /* file may not be ready yet */ }
+        void audio.play().catch(() => { /* autoplay race; safe to ignore */ });
+        this.fadeFootsteps(1, fadeInMs);
+    }
+
+    /** Fade the footsteps loop to silence over `fadeOutMs` and pause. */
+    stopFootstepsLoop(fadeOutMs = 600) {
+        if (!this.footstepsAudio) return;
+        const audio = this.footstepsAudio;
+        this.fadeFootsteps(0, fadeOutMs, () => {
+            try { audio.pause(); } catch { /* ignored */ }
+        });
+    }
+
+    private fadeFootsteps(target: number, durationMs: number, onComplete?: () => void) {
+        if (!this.footstepsFadeGain) return;
+        const gain = this.footstepsFadeGain;
+        const startValue = gain.gain.value;
+        const startTime = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        if (this.footstepsFadeRaf != null && typeof cancelAnimationFrame !== 'undefined') {
+            cancelAnimationFrame(this.footstepsFadeRaf);
+        }
+        this.footstepsFadeRaf = null;
+        const safeDuration = Math.max(1, durationMs);
+        const tick = () => {
+            if (!this.footstepsFadeGain) return;
+            const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            const t = Math.max(0, Math.min(1, (now - startTime) / safeDuration));
+            this.footstepsFadeGain.gain.value = startValue + (target - startValue) * t;
+            if (t < 1) {
+                this.footstepsFadeRaf = (typeof requestAnimationFrame !== 'undefined'
+                    ? requestAnimationFrame(tick)
+                    : (setTimeout(tick, 16) as unknown as number));
+            } else {
+                this.footstepsFadeRaf = null;
+                onComplete?.();
+            }
+        };
+        tick();
     }
 
     // ─── ambient ────────────────────────────────────────────────

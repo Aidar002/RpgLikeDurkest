@@ -108,6 +108,9 @@ export class GameScene extends Phaser.Scene {
      *  At ~15 px/s with the 30 px sweep this lands in the 10–20 px/s
      *  ballpark Aidar asked for. */
     private readonly roomTransitionPhaseMs = 2000;
+    /** Fade-in / fade-out duration for the looped footsteps SFX that
+     *  plays during the camera-pan room transition. */
+    private readonly footstepsFadeMs = 600;
     private deathSequenceStarted = false;
     public lastEnemyHp = 0;
     private runBestDepth = 0;
@@ -1187,6 +1190,7 @@ export class GameScene extends Phaser.Scene {
     private fadeToRoom(node: MapNode) {
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.animateTorchlightSweep('forward');
+        this.sfx.startFootstepsLoop(this.footstepsFadeMs);
         this.tweens.add({
             targets: overlay,
             alpha: 1,
@@ -1195,6 +1199,7 @@ export class GameScene extends Phaser.Scene {
             onComplete: () => {
                 this.mapContainer.setVisible(false);
                 this.roomContainer.setVisible(true);
+                this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
                 this.tweens.add({
                     targets: overlay,
                     alpha: 0,
@@ -1326,6 +1331,7 @@ export class GameScene extends Phaser.Scene {
     public returnToMap() {
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.animateTorchlightSweep('back');
+        this.sfx.startFootstepsLoop(this.footstepsFadeMs);
         this.tweens.add({
             targets: overlay,
             alpha: 1,
@@ -1339,6 +1345,7 @@ export class GameScene extends Phaser.Scene {
                 this.clearRoomTint();
                 this.mapView.refresh();
                 this.refreshUI();
+                this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
                 this.tweens.add({
                     targets: overlay,
                     alpha: 0,
