@@ -109,7 +109,7 @@ export class GameScene extends Phaser.Scene {
     /** Duration of each fade phase (`fade-to-black` / `fade-from-black`). */
     private readonly roomTransitionPhaseMs = 800;
     /** Duration of the walk along the map edge before the room fade. */
-    private readonly walkDurationMs = 3500;
+    private readonly walkDurationMs = 2000;
     /** Fade-in / fade-out duration for the looped footsteps SFX that
      *  plays during the camera-pan room transition. */
     private readonly footstepsFadeMs = 500;
