@@ -102,12 +102,15 @@ export class GameScene extends Phaser.Scene {
     private torchlight: Phaser.GameObjects.Image | null = null;
     private torchlightHomeX = 0;
     private torchlightHomeY = 0;
-    /** Horizontal slide each direction during a room transition (px). */
-    private readonly torchlightSweepPx = 30;
-    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`).
-     *  At ~15 px/s with the 30 px sweep this lands in the 10–20 px/s
-     *  ballpark Aidar asked for. */
-    private readonly roomTransitionPhaseMs = 2000;
+    /** Horizontal slide each direction during a room transition (px). The
+     *  light visibly drifts forward as the screen darkens, then back to
+     *  centre as the new room emerges. */
+    private readonly torchlightSweepPx = 110;
+    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`). */
+    private readonly roomTransitionPhaseMs = 1500;
+    /** Fade-in / fade-out duration for the looped footsteps SFX that
+     *  plays during the camera-pan room transition. */
+    private readonly footstepsFadeMs = 500;
     private deathSequenceStarted = false;
     public lastEnemyHp = 0;
     private runBestDepth = 0;
@@ -1121,8 +1124,10 @@ export class GameScene extends Phaser.Scene {
             this.mapView.build(true);
             this.mapView.redrawEdges();
             this.mapView.refresh();
+            // Keep `animating` true through the entire fadeToRoom so map
+            // node clicks stay locked until the transition fully finishes.
+            // fadeToRoom flips it back to false in its terminal onComplete.
             this.mapView.animateShift(node, () => {
-                this.animating = false;
                 this.fadeToRoom(node);
             });
         });
@@ -1185,8 +1190,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     private fadeToRoom(node: MapNode) {
+        this.animating = true;
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.animateTorchlightSweep('forward');
+        this.sfx.startFootstepsLoop(this.footstepsFadeMs);
         this.tweens.add({
             targets: overlay,
             alpha: 1,
@@ -1200,7 +1207,11 @@ export class GameScene extends Phaser.Scene {
                     alpha: 0,
                     duration: this.roomTransitionPhaseMs,
                     ease: 'Sine.out',
-                    onComplete: () => overlay.destroy(),
+                    onComplete: () => {
+                        overlay.destroy();
+                        this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
+                        this.animating = false;
+                    },
                 });
                 this.enterRoom(node);
             },
@@ -1324,8 +1335,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     public returnToMap() {
+        if (this.animating) return;
+        this.animating = true;
         const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
         this.animateTorchlightSweep('back');
+        this.sfx.startFootstepsLoop(this.footstepsFadeMs);
         this.tweens.add({
             targets: overlay,
             alpha: 1,
@@ -1344,7 +1358,11 @@ export class GameScene extends Phaser.Scene {
                     alpha: 0,
                     duration: this.roomTransitionPhaseMs,
                     ease: 'Sine.out',
-                    onComplete: () => overlay.destroy(),
+                    onComplete: () => {
+                        overlay.destroy();
+                        this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
+                        this.animating = false;
+                    },
                 });
             },
         });
