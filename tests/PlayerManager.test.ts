@@ -182,10 +182,16 @@ describe('PlayerManager — heal and resources', () => {
     it('hasHighLight / hasLowLight flip with the configured thresholds', () => {
         const player = new PlayerManager();
 
+        // [FIX-2] hasLowLight is strictly `< lowLightThreshold`, so we
+        // gain `threshold - 1` here to land inside the low band.
         player.spendLight(player.resources.light);
-        player.gainLight(EXPEDITION_CONFIG.lowLightThreshold);
+        player.gainLight(Math.max(0, EXPEDITION_CONFIG.lowLightThreshold - 1));
         expect(player.hasLowLight).toBe(true);
         expect(player.hasHighLight).toBe(false);
+
+        // Right at the threshold the player is no longer low-light.
+        player.gainLight(1);
+        expect(player.hasLowLight).toBe(false);
 
         player.gainLight(EXPEDITION_CONFIG.maxLight);
         expect(player.hasHighLight).toBe(true);

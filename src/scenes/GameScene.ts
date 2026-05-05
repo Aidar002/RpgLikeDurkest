@@ -120,6 +120,18 @@ export class GameScene extends Phaser.Scene {
     private prestigeReward = 0;
     private prestigeAwarded = false;
     public skipLightSpendThisRoom = false;
+    /**
+     * [FIX-2] Run-level counter incremented every time the player
+     * enters a non-start room. Light is consumed only on every Nth
+     * tick (LIGHT_CONFIG.decayEveryNRooms), preventing the early-game
+     * darkness death-spiral.
+     */
+    public roomsVisitedForLight = 0;
+    /**
+     * [FIX-7] Counts elite kills this run; consumed by the Resolve
+     * Test virtue-chance modifiers.
+     */
+    public eliteKillsThisRun = 0;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
     // HUD bar widths cached so refreshUI can rescale fills without re-measuring.
@@ -232,6 +244,14 @@ export class GameScene extends Phaser.Scene {
         this.player.relicsChange.on(() => this.refreshUI());
 
         this.stress = new StressManager();
+        // [FIX-7] Provide live light & elite-kill state to the Resolve
+        // Test so the modifiers reflect the current run.
+        this.stress.modifiersProvider = () => ({
+            highLight: this.player.hasHighLight,
+            lowLight: this.player.hasLowLight,
+            eliteKilledThisRun: this.eliteKillsThisRun > 0,
+            afflictionActive: this.stress.resolution?.kind === 'affliction',
+        });
         this.stress.valueChange.on(({ value }) => {
             if (value > this.tracker.current.peakStress) this.tracker.trackMax('peakStress', value);
             this.updateStressUI();

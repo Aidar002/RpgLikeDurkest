@@ -41,8 +41,14 @@ export function emptyStatusState(): StatusState {
     };
 }
 
-export function applyBleed(s: StatusState, stacks: number, turns: number) {
-    s.bleed.stacks = Math.min(8, s.bleed.stacks + stacks);
+/**
+ * Apply bleed stacks. The optional `cap` overrides the default 8-stack
+ * ceiling — used by the final boss (FIX-1) to clamp at 4 stacks and
+ * prevent bleed-stacking from trivialising the encounter.
+ */
+export function applyBleed(s: StatusState, stacks: number, turns: number, cap: number = 8) {
+    const ceiling = Math.max(1, cap);
+    s.bleed.stacks = Math.min(ceiling, s.bleed.stacks + stacks);
     s.bleed.turns = Math.max(s.bleed.turns, turns);
 }
 

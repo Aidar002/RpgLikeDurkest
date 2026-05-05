@@ -3,6 +3,7 @@ export type EnemyProfile =
     | 'stalker'
     | 'mage'
     | 'boss'
+    | 'final_boss'
     | 'bleeder'
     | 'disruptor';
 
@@ -29,6 +30,8 @@ export const PLAYER_CONFIG = {
     defense: 1,
     level: 1,
     xp: 0,
+    // [FIX-3] Start with 2 resolve so the player can use a starter skill on
+    // turn 1; max stays at 3 (raised by level-ups via LEVEL_UP_CONFIG).
     maxResolve: 3,
 } as const;
 
@@ -39,17 +42,36 @@ export const LEVEL_UP_CONFIG = {
     defenseEveryNLevels: 3,
     resolveEveryNLevels: 4,
     healOnLevelUp: true,
+    // [FIX-9] Hard level ceiling. Past this level, gainXp() / level-up are
+    // no-ops and the HUD shows "MAX" instead of an XP bar.
+    levelCap: 10,
+    // Wisdom XP bonus stops applying at this level (FIX-9).
+    wisdomXpBonusUpToLevel: 8,
 } as const;
 
 export const EXPEDITION_CONFIG = {
     startingGold: 20,
     startingPotions: 2,
-    startingResolve: 1,
+    // [FIX-3] startingResolve raised 1 -> 2 so a 2-cost skill is available
+    // on turn 1.
+    startingResolve: 2,
     startingLight: 7,
     maxLight: 10,
+    /** @deprecated kept for legacy call sites; light decay is now driven by
+     *  LIGHT_CONFIG.decayEveryNRooms (FIX-2). */
     lightLossPerRoom: 1,
     lowLightThreshold: 4,
     highLightThreshold: 8,
+} as const;
+
+// [FIX-2] Light economy. Light now ticks down every 2 rooms instead of
+// every room, with a +3 recovery on boss kills. Thresholds are sourced
+// from EXPEDITION_CONFIG via the helpers in src/systems/Light.ts.
+export const LIGHT_CONFIG = {
+    decayEveryNRooms: 2,
+    onBossKill: 3,
+    /** Players see a warning when light is at this value or lower. */
+    warningThreshold: 4,
 } as const;
 
 export const COMBAT_CONFIG = {
@@ -137,7 +159,8 @@ export const ROOM_CONFIG = {
     },
     rest: {
         recoverHeal: 9,
-        recoverLight: 1,
+        // [FIX-2] Rest now restores +2 light (was +1).
+        recoverLight: 2,
         focusResolve: 1,
         focusXp: 4,
         meditateStressRelief: 25,
@@ -156,9 +179,10 @@ export const ROOM_CONFIG = {
     },
     merchant: {
         potionCost: 14,
-        lanternCost: 10,
+        // [FIX-2] Merchant lantern: cost 10 -> 12, +3 light -> +4 light.
+        lanternCost: 12,
         armorCost: 24,
-        lanternLightGain: 3,
+        lanternLightGain: 4,
         armorDefenseGain: 1,
         premiumShardCost: 1,
         premiumAttackBonus: 2,
@@ -436,9 +460,14 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
     },
 ];
 
+// [FIX-1, FIX-4] Boss mapping is keyed by exact depth bucket (every
+// MAP_CONFIG.bossEveryNDepths floors), so depth 25 cannot fall back to
+// the depth-20 boss. The depth=0 entry is the safety fallback if a
+// caller ever asks before the first boss bucket. See
+// src/data/Enemies.ts and src/data/Bosses.ts.
 export const BOSSES: { depth: number; def: EnemyDef }[] = [
     {
-        depth: 0,
+        depth: 5,
         def: {
             name: 'Necromancer Regent',
             description: 'A patient tyrant who tests whether your whole run was honest.',
@@ -495,4 +524,134 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             stressAura: 5,
         },
     },
+    {
+        // [FIX-1] depth 25 — final boss. Resolves to The Undying Wound
+        // and ends the run on victory.
+        depth: 25,
+        def: {
+            name: 'The Undying Wound',
+            description: 'A wish made flesh that refuses to be unmade.',
+            icon: '\u2620',
+            hp: 140,
+            attack: 15,
+            xp: 50,
+            gold: 40,
+            color: 0x2a0814,
+            profile: 'final_boss',
+            stressAura: 6,
+        },
+    },
 ];
+
+// ---------------------------------------------------------------------------
+// FIX-5: Rupture skill — cooldown + per-target damage cap. The cap is
+// applied after `max(playerATK, percentDamage)` is computed so the skill
+// stays useful against weak elites but stops one-shotting bosses.
+// ---------------------------------------------------------------------------
+export const RUPTURE_CONFIG = {
+    cooldownTurns: 2,
+    /** Fraction of enemy maxHP. Applied per encounter kind. */
+    capByKind: {
+        normal: 0.22,
+        elite: 0.18,
+        boss: 0.15,
+        final_boss: 0.15,
+    },
+} as const;
+
+// ---------------------------------------------------------------------------
+// FIX-6: Adrenaline can fire at most once per combat. Tracked on
+// CombatManager and reset in setupEnemy().
+// ---------------------------------------------------------------------------
+export const ADRENALINE_CONFIG = {
+    maxUsesPerCombat: 1,
+    /** HP healed when Adrenaline fires. */
+    heal: 6,
+    /** Resolve restored alongside the heal. */
+    resolveGain: 1,
+    /** Focus stack amount applied. */
+    focusAmount: 1,
+    /** Turns the Focus stack persists. */
+    focusTurns: 3,
+} as const;
+
+// ---------------------------------------------------------------------------
+// FIX-7: Stress bands and Resolve-Test reweighting. Bands are open at
+// the bottom and closed at the top: e.g. Strained covers [40, 70).
+// ---------------------------------------------------------------------------
+export const STRESS_BAND_CONFIG = {
+    strainedMin: 40,
+    breakingMin: 70,
+    overwhelmedMin: 100,
+    /** Stress gain bonus while in Strained or Breaking. */
+    bandGainBonus: 1,
+    /** Outgoing damage modifier while in Breaking. */
+    breakingOutgoingDamage: -1,
+} as const;
+
+/**
+ * [FIX-7] Resolve Test weighting. Plain `number` typing (no `as const`)
+ * so consumers can mutate/clamp the running chance against
+ * min/max bounds without TS rejecting the assignment.
+ */
+export const RESOLVE_TEST_CONFIG: {
+    baseVirtueChance: number;
+    highLightVirtueBonus: number;
+    lowLightVirtueMalus: number;
+    eliteKilledVirtueBonus: number;
+    afflictionActiveVirtueMalus: number;
+    minVirtueChance: number;
+    maxVirtueChance: number;
+    stressAfterTest: number;
+} = {
+    baseVirtueChance: 0.3,
+    highLightVirtueBonus: 0.1,
+    lowLightVirtueMalus: -0.1,
+    eliteKilledVirtueBonus: 0.05,
+    afflictionActiveVirtueMalus: -0.15,
+    minVirtueChance: 0.1,
+    maxVirtueChance: 0.45,
+    stressAfterTest: 50,
+};
+
+// ---------------------------------------------------------------------------
+// FIX-11: Stun resistance percentages by enemy class. The higher the
+// pct, the more often a stun is fully resisted (instead of half-duration
+// like the v0.1 boss handling).
+// ---------------------------------------------------------------------------
+export const STUN_RESIST_CONFIG = {
+    normal: 0,
+    elite: 0.5,
+    boss: 0.7,
+    finalBoss: 0.95,
+    /** Per-boss override map, indexed by EnemyDef.name. */
+    bossByName: {
+        'Necromancer Regent': 0.7,
+        'The Lich of Cinders': 0.75,
+        'Splintered Oracle': 0.8,
+        'Nameless Maw': 0.9,
+        'The Undying Wound': 0.95,
+    } as Record<string, number>,
+} as const;
+
+// ---------------------------------------------------------------------------
+// FIX-13: Relic safety caps. CombatManager / PlayerManager read these
+// to prevent runaway compounding interactions.
+// ---------------------------------------------------------------------------
+export const RELIC_CAP_CONFIG = {
+    /** Total crit chance can never exceed 45% even with stacking. */
+    gamblersCritCap: 0.45,
+    /** Per-turn resolve refund from Gambler's Knuckle. */
+    gamblersResolvePerTurn: 1,
+    /** Per-turn heal triggers from Vampiric Sigil (kill OR crit). */
+    vampiricHealPerTurn: 1,
+    /** Hard cap on Thorned Mail reflection per incoming hit. */
+    thornedMailReflectionCap: 6,
+    /** Ember Vow low-HP damage bonus is hard-capped here (fraction). */
+    emberVowLowHpBonusCap: 0.5,
+    /** Pyre Ash bleed stack/turn boosts can never exceed these caps. */
+    pyreAshBleedStacksCap: 2,
+    pyreAshBleedTurnsCap: 2,
+    /** Cursed Coin's stacking gold multiplier hard ceiling. */
+    cursedCoinGoldMultiplierCap: 2.0,
+} as const;

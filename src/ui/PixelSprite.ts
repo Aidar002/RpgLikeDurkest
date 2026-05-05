@@ -529,6 +529,11 @@ const ENEMY_PROFILE_DRAWERS: Record<EnemyProfile, () => Grid> = {
     stalker: drawStalker,
     mage: drawMage,
     boss: drawBoss,
+    // [FIX-1] The Undying Wound currently reuses the boss silhouette.
+    // The Undying Wound's mood comes from its colour palette in BOSSES,
+    // not a unique sprite, so we share `drawBoss` rather than ship a
+    // half-finished new sprite.
+    final_boss: drawBoss,
     bleeder: drawBleeder,
     disruptor: drawDisruptor,
 };

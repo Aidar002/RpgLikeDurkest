@@ -2,13 +2,40 @@ import type { LocalizedText } from './LocalizedText';
 import { lt } from './LocalizedText';
 import { Emitter } from './Emitter';
 import { defaultRng, type Rng } from './Rng';
+import { RESOLVE_TEST_CONFIG, STRESS_BAND_CONFIG } from '../data/GameConfig';
 
 // Stress mechanic, inspired by Darkest Dungeon.
 //
 // Stress builds from certain combat/exploration events. When it reaches 100
-// the expedition rolls a Resolve Test: 50% Affliction (penalties), 50%
-// Virtue (buffs). Stress is then reset to 50 and the resolution persists for
-// the remainder of the run.
+// the expedition rolls a Resolve Test. The base distribution is now 70%
+// Affliction / 30% Virtue (FIX-7), modified by light, prior afflictions,
+// and elite kills. Stress is then reset to RESOLVE_TEST_CONFIG.stressAfterTest
+// (default 50) and the resolution persists for the remainder of the run.
+
+/**
+ * [FIX-7] Stress bands. The boundaries are sourced from
+ * STRESS_BAND_CONFIG so the gameplay/UI/sim layers all read the same
+ * thresholds.
+ */
+export type StressBand = 'controlled' | 'strained' | 'breaking' | 'overwhelmed';
+
+export function bandFor(value: number): StressBand {
+    if (value >= STRESS_BAND_CONFIG.overwhelmedMin) return 'overwhelmed';
+    if (value >= STRESS_BAND_CONFIG.breakingMin) return 'breaking';
+    if (value >= STRESS_BAND_CONFIG.strainedMin) return 'strained';
+    return 'controlled';
+}
+
+/**
+ * Optional per-roll modifiers for the Resolve Test (FIX-7). Callers pass
+ * what they know — defaults match "no modifier".
+ */
+export interface ResolveTestModifiers {
+    highLight?: boolean;
+    lowLight?: boolean;
+    eliteKilledThisRun?: boolean;
+    afflictionActive?: boolean;
+}
 
 export type Affliction =
     | 'paranoid' // +1 incoming damage
@@ -110,22 +137,53 @@ export const VIRTUES: Record<Virtue, Resolution> = {
 export class StressManager {
     public value = 0;
     public resolution: Resolution | null = null;
+    /**
+     * [FIX-7] When the player has previously rolled an Affliction in
+     * this run, future Virtue rolls are -15%. Tracks whether ANY
+     * affliction has ever resolved (sticky).
+     */
+    public hasResolvedAfflictionThisRun = false;
 
     public readonly resolutionChange = new Emitter<Resolution>();
     public readonly valueChange = new Emitter<{ value: number }>();
 
     private rng: Rng;
+    /**
+     * Optional callback that returns the current Resolve-Test
+     * modifiers. Wired by GameScene so we can read live light /
+     * elite-kill state without a hard import cycle. The simulator
+     * provides its own implementation.
+     */
+    public modifiersProvider: (() => ResolveTestModifiers) | null = null;
 
     constructor(rng: Rng = defaultRng) {
         this.rng = rng;
     }
 
+    /** [FIX-7] Current stress band, computed from `value`. */
+    get band(): StressBand {
+        return bandFor(this.value);
+    }
+
+    /**
+     * [FIX-7] Apply a stress gain, after accounting for:
+     *  - external `reductionPct` (e.g. Ossuary Rosary)
+     *  - the abusive-affliction +50% multiplier (legacy)
+     *  - the band-based +1 flat surcharge while in Strained / Breaking
+     */
     add(amount: number, reductionPct: number = 0): Resolution | null {
         let delta = Math.max(0, amount * (1 - reductionPct));
         if (this.resolution?.id === 'abusive') delta *= 1.5;
-        this.value = Math.min(100, this.value + Math.round(delta));
+        let intDelta = Math.round(delta);
+        if (intDelta > 0) {
+            const currentBand = this.band;
+            if (currentBand === 'strained' || currentBand === 'breaking') {
+                intDelta += STRESS_BAND_CONFIG.bandGainBonus;
+            }
+        }
+        this.value = Math.min(100, Math.max(0, this.value + intDelta));
         this.valueChange.emit({ value: this.value });
-        if (this.value >= 100) {
+        if (this.value >= STRESS_BAND_CONFIG.overwhelmedMin) {
             return this.resolve();
         }
         return null;
@@ -137,17 +195,40 @@ export class StressManager {
     }
 
     get isOverwhelmed(): boolean {
-        return this.value >= 100;
+        return this.value >= STRESS_BAND_CONFIG.overwhelmedMin;
+    }
+
+    /**
+     * [FIX-7] Compute the Virtue chance for the next Resolve Test using
+     * the configured base + modifiers, clamped to [min, max]. Exposed
+     * for testing and the headless simulator.
+     */
+    computeVirtueChance(mods: ResolveTestModifiers = {}): number {
+        let chance = RESOLVE_TEST_CONFIG.baseVirtueChance;
+        if (mods.highLight) chance += RESOLVE_TEST_CONFIG.highLightVirtueBonus;
+        if (mods.lowLight) chance += RESOLVE_TEST_CONFIG.lowLightVirtueMalus;
+        if (mods.eliteKilledThisRun) chance += RESOLVE_TEST_CONFIG.eliteKilledVirtueBonus;
+        if (mods.afflictionActive || this.hasResolvedAfflictionThisRun) {
+            chance += RESOLVE_TEST_CONFIG.afflictionActiveVirtueMalus;
+        }
+        if (chance < RESOLVE_TEST_CONFIG.minVirtueChance) chance = RESOLVE_TEST_CONFIG.minVirtueChance;
+        if (chance > RESOLVE_TEST_CONFIG.maxVirtueChance) chance = RESOLVE_TEST_CONFIG.maxVirtueChance;
+        return chance;
     }
 
     private resolve(): Resolution {
-        const useAffliction = this.rng.next() < 0.5;
-        const next: Resolution = useAffliction
-            ? this.pickFrom(AFFLICTIONS)
-            : this.pickFrom(VIRTUES);
+        const mods = this.modifiersProvider ? this.modifiersProvider() : {};
+        const virtueChance = this.computeVirtueChance(mods);
+        const useVirtue = this.rng.next() < virtueChance;
+        const next: Resolution = useVirtue
+            ? this.pickFrom(VIRTUES)
+            : this.pickFrom(AFFLICTIONS);
 
+        if (next.kind === 'affliction') {
+            this.hasResolvedAfflictionThisRun = true;
+        }
         this.resolution = next;
-        this.value = 50;
+        this.value = RESOLVE_TEST_CONFIG.stressAfterTest;
         this.valueChange.emit({ value: this.value });
         this.resolutionChange.emit(next);
         return next;
@@ -166,9 +247,14 @@ export class StressManager {
     }
 
     damageDealtMod(): number {
-        if (this.resolution?.id === 'hopeless') return -1;
-        if (this.resolution?.id === 'courageous') return 1;
-        return 0;
+        let mod = 0;
+        if (this.resolution?.id === 'hopeless') mod -= 1;
+        if (this.resolution?.id === 'courageous') mod += 1;
+        // [FIX-7] Breaking band gives -1 outgoing damage.
+        if (this.band === 'breaking' || this.band === 'overwhelmed') {
+            mod += STRESS_BAND_CONFIG.breakingOutgoingDamage;
+        }
+        return mod;
     }
 
     resolveCostMod(): number {
