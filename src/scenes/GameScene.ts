@@ -30,7 +30,7 @@ import { VFX } from '../ui/VFX';
 import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
-import { fitEnemySprite, fitRoomSprite, hasFireEffect, roomFrameIndex, roomIcon, roomIconFrame, roomSpriteKey, roomTypeName } from '../ui/RoomVisuals';
+import { fitEnemySprite } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
 import {
     BOTTOM_BAR_H,
@@ -57,6 +57,8 @@ import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../ui/HudFrame
 import { createHudCell, createHudInlineSlot, type HudCellHandle, type HudInlineSlotHandle } from '../ui/HudCell';
 import { createHudIcon } from '../ui/HudIcons';
 import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
+import { createRoomButtons, type RoomButtonAction, type RoomButtonsHandle } from '../ui/RoomButtons';
+import { MapView } from '../ui/MapView';
 import {
     showDeathScreen,
     showVictoryScreen,
@@ -65,92 +67,13 @@ import {
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
 
-const COL_W = 180;
-const ROW_H = 140;
-const NODE_SZ = 80;
-const MAP_X = 360;
-const MAP_Y = 380;
-const VIEW_X = 512;
-const VIEW_Y = 380;
+// Map layout / node-visual types moved to ../ui/MapView.ts.
 
-interface NodeVisual {
-    rect: Phaser.GameObjects.Rectangle;
-    icon: Phaser.GameObjects.Text;
-    sprite?: Phaser.GameObjects.Image;
-    frame?: Phaser.GameObjects.Image;
-}
-
-/**
- * Visual variants for room-choice buttons. Each maps to a sliced sprite
- * preloaded in BootScene (btn_default / btn_gold / btn_dark / btn_silver /
- * btn_positive / btn_danger). Callers that don't supply a variant get
- * 'default' unless their legacy `fill` value can be heuristically mapped
- * (see variantFromFill).
- */
-export type RoomButtonVariant =
-    | 'default'
-    | 'gold'
-    | 'dark'
-    | 'silver'
-    | 'positive'
-    | 'danger';
-
-const BUTTON_TEXTURES: Record<RoomButtonVariant, string> = {
-    default: 'btn_default',
-    gold: 'btn_gold',
-    dark: 'btn_dark',
-    silver: 'btn_silver',
-    positive: 'btn_positive',
-    danger: 'btn_danger',
-};
-
-/**
- * Nineslice insets for the button frames (native 183-184 × 67-68 px). The
- * ornate corners occupy ~16 × 14 px so the middle 152 × 40 px stretches.
- */
-const BUTTON_SLICE = { left: 16, right: 16, top: 14, bottom: 14 };
-
-/**
- * Map a legacy fill colour to the closest variant the new spritesheet
- * provides. Used as a backward-compat shim so call sites that still
- * pass `fill` get a sensible button skin without every site needing
- * to migrate to explicit `variant` simultaneously.
- */
-function variantFromFill(fill: number | undefined): RoomButtonVariant {
-    if (fill === undefined) return 'default';
-    const r = (fill >> 16) & 0xff;
-    const g = (fill >> 8) & 0xff;
-    const b = fill & 0xff;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    if (max - min < 20) return max < 80 ? 'dark' : 'silver';
-    if (g === max && g > r + 16 && g > b + 16) return 'positive';
-    if (b === max && r > g + 8) return 'danger';
-    if (r === max && b > g + 16) return 'danger';
-    if (r === max && g > b + 16) return 'gold';
-    if (b === max) return 'silver';
-    return 'default';
-}
-
-interface ActionButton {
-    background: Phaser.GameObjects.NineSlice;
-    label: Phaser.GameObjects.Text;
-    callback: (() => void) | null;
-    enabled: boolean;
-    variant: RoomButtonVariant;
-    defaultX: number;
-    defaultY: number;
-    defaultWidth: number;
-}
-
-export interface RoomButtonAction {
-    label: string;
-    callback: () => void;
-    enabled?: boolean;
-    /** @deprecated kept for backward compat; prefer `variant`. */
-    fill?: number;
-    variant?: RoomButtonVariant;
-}
+// Room-action button types/builders moved to ../ui/RoomButtons.ts.
+// Re-exported here for backward compat with `import { RoomButtonAction,
+// RoomButtonVariant } from '../scenes/GameScene'` call sites in
+// CombatHud / RoomFlow.
+export type { RoomButtonAction, RoomButtonVariant } from '../ui/RoomButtons';
 
 export class GameScene extends Phaser.Scene {
     public meta!: MetaProgressionManager;
@@ -171,10 +94,7 @@ export class GameScene extends Phaser.Scene {
     public mapContainer!: Phaser.GameObjects.Container;
     public roomContainer!: Phaser.GameObjects.Container;
     public uiContainer!: Phaser.GameObjects.Container;
-    private edgeGfx!: Phaser.GameObjects.Graphics;
-    private visuals: Map<string, NodeVisual> = new Map();
-    private glowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
-    private fireMap: Map<string, { destroy: () => void }> = new Map();
+    private mapView!: MapView;
 
     private animating = false;
     private dead = false;
@@ -241,7 +161,7 @@ export class GameScene extends Phaser.Scene {
     public enemyIntelText!: Phaser.GameObjects.Text;
     public roomFlavorText!: Phaser.GameObjects.Text;
     public roomPanelGroup!: Phaser.GameObjects.Container;
-    public actionButtons: ActionButton[] = [];
+    public roomButtons!: RoomButtonsHandle;
 
     private roomFlow: RoomFlowController = new RoomFlowController(this);
     private combatHud: CombatHudController = new CombatHudController(this);
@@ -310,10 +230,6 @@ export class GameScene extends Phaser.Scene {
 
         this.mapGen = new MapGenerator(this.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
 
-        this.actionButtons = [];
-        this.visuals = new Map();
-        this.glowMap = new Map();
-        this.fireMap = new Map();
         this.roomTintOverlay = null;
         this.animating = false;
         this.dead = false;
@@ -339,8 +255,33 @@ export class GameScene extends Phaser.Scene {
         this.uiContainer = this.add.container(0, 0);
         this.roomContainer.setVisible(false);
 
-        this.edgeGfx = this.add.graphics();
-        this.mapContainer.add(this.edgeGfx);
+        // Tooltip text used by MapView for hover-name labels. Created
+        // before MapView so the constructor can capture it.
+        this.tooltipText = this.add.text(0, 0, '', {
+            fontFamily: 'Courier New',
+            fontSize: '11px',
+            color: '#d0d0d0',
+            backgroundColor: '#1a1a1aee',
+            padding: { x: 6, y: 3 },
+        }).setDepth(Depths.Tooltip).setVisible(false);
+
+        this.mapView = new MapView({
+            scene: this,
+            container: this.mapContainer,
+            dungeon: this.dungeon,
+            meta: this.meta,
+            loc: this.loc,
+            tooltipText: this.tooltipText,
+            canMove: (_node) =>
+                this.mapContainer.visible &&
+                !this.roomContainer.visible &&
+                !this.animating &&
+                !this.dead,
+            onNodeClick: (node) => {
+                this.sfx.play('nodeSelect');
+                this.advanceToNode(node);
+            },
+        });
 
         this.log = new EventLog(
             this,
@@ -368,19 +309,11 @@ export class GameScene extends Phaser.Scene {
 
         this.setupRoomUI();
         this.setupKeyboardShortcuts();
-        this.buildAllVisuals(false);
-        this.redrawEdges();
-        this.refreshInteractivity();
-        this.centerMapOnNode(this.dungeon.currentNode);
+        this.mapView.build(false);
+        this.mapView.redrawEdges();
+        this.mapView.refresh();
+        this.mapView.centerOnNode(this.dungeon.currentNode);
         this.refreshUI();
-
-        this.tooltipText = this.add.text(0, 0, '', {
-            fontFamily: 'Courier New',
-            fontSize: '11px',
-            color: '#d0d0d0',
-            backgroundColor: '#1a1a1aee',
-            padding: { x: 6, y: 3 },
-        }).setDepth(Depths.Tooltip).setVisible(false);
 
         VFX.scanlines(this, GAME_WIDTH, GAME_HEIGHT);
         VFX.ambientEmbers(this, 22);
@@ -404,7 +337,7 @@ export class GameScene extends Phaser.Scene {
         this.input.keyboard?.on('keydown-FOUR', () => this.triggerActionButton(3));
         this.input.keyboard?.on('keydown-FIVE', () => this.triggerActionButton(4));
         this.input.keyboard?.on('keydown-SPACE', () => {
-            if (this.actionButtons[4]?.background.visible && this.actionButtons[4].enabled) {
+            if (this.roomButtons.wideEnabled()) {
                 this.triggerActionButton(4);
                 return;
             }
@@ -418,12 +351,7 @@ export class GameScene extends Phaser.Scene {
             return;
         }
 
-        const button = this.actionButtons[index];
-        if (!button || !button.enabled || !button.callback || !button.background.visible) {
-            return;
-        }
-
-        button.callback();
+        this.roomButtons.trigger(index);
     }
 
     private setupGlobalUI() {
@@ -1130,477 +1058,37 @@ export class GameScene extends Phaser.Scene {
         // Buttons live inside the right info panel (x=570..1004, centred at
         // 787). The left column was previously at x=650 which spilled past
         // the panel border and overlapped the EVENT LOG seam — shift the
-        // pair so each column sits ~22 px inside the panel walls.
-        //
-        // Button Y values are derived from the layout constants so they
-        // automatically follow the panel's bottom edge whenever
-        // BOTTOM_BAR_H changes (otherwise the wide [5] button slips under
-        // the HUD bar — see the 108→140 BOTTOM_BAR_H bump that left the
-        // old hard-coded y=625 spec poking past the new bar top at y=618).
-        const BTN_H = 40;
-        const BTN_ROW_GAP = 10;
-        const BTN_PANEL_PAD = 4;
-        const panelBottom = GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET;
-        const wideButtonY = panelBottom - BTN_PANEL_PAD - BTN_H / 2;
-        const middleRowY = wideButtonY - (BTN_H + BTN_ROW_GAP);
-        const topRowY = middleRowY - (BTN_H + BTN_ROW_GAP);
-        const buttonSpecs = [
-            { x: 682, y: topRowY, width: 180 },
-            { x: 892, y: topRowY, width: 180 },
-            { x: 682, y: middleRowY, width: 180 },
-            { x: 892, y: middleRowY, width: 180 },
-            { x: 787, y: wideButtonY, width: 390 },
-        ];
-
-        buttonSpecs.forEach((spec) => {
-            const background = this.add
-                .nineslice(
-                    spec.x,
-                    spec.y,
-                    BUTTON_TEXTURES.default,
-                    undefined,
-                    spec.width,
-                    40,
-                    BUTTON_SLICE.left,
-                    BUTTON_SLICE.right,
-                    BUTTON_SLICE.top,
-                    BUTTON_SLICE.bottom,
-                )
-                .setInteractive({ useHandCursor: true });
-
-            const label = this.add.text(spec.x, spec.y, '', {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#dddddd',
-            }).setOrigin(0.5);
-
-            const actionButton: ActionButton = {
-                background,
-                label,
-                callback: null,
-                enabled: false,
-                variant: 'default',
-                defaultX: spec.x,
-                defaultY: spec.y,
-                defaultWidth: spec.width,
-            };
-
-            background.on('pointerover', () => {
-                if (actionButton.enabled) {
-                    // Hover: lighter tint + a subtle scale-up so the
-                    // active option visibly "pops" relative to the
-                    // other buttons. Tint went 0xfff2c2 → 0xfff8df
-                    // (closer to white) for a brighter highlight.
-                    background.setTint(0xfff8df);
-                    this.tweens.killTweensOf([background, label]);
-                    this.tweens.add({
-                        targets: [background, label],
-                        scaleX: 1.04,
-                        scaleY: 1.04,
-                        duration: 90,
-                        ease: 'Sine.out',
-                    });
-                    this.sfx.play('buttonHover');
-                }
-            });
-            background.on('pointerout', () => {
-                background.clearTint();
-                this.tweens.killTweensOf([background, label]);
-                this.tweens.add({
-                    targets: [background, label],
-                    scaleX: 1,
-                    scaleY: 1,
-                    duration: 90,
-                    ease: 'Sine.out',
-                });
-            });
-            background.on('pointerdown', () => {
-                if (actionButton.enabled && actionButton.callback) {
-                    this.sfx.play('buttonClick');
-                    // Press feedback: yoyo a quick shrink so the
-                    // button reads as "depressed" before the callback
-                    // either swaps the room or rebuilds the panel.
-                    this.tweens.killTweensOf([background, label]);
-                    this.tweens.add({
-                        targets: [background, label],
-                        scaleX: 0.94,
-                        scaleY: 0.9,
-                        duration: 60,
-                        ease: 'Quad.out',
-                        yoyo: true,
-                    });
-                    actionButton.callback();
-                }
-            });
-
-            this.actionButtons.push(actionButton);
-            this.roomContainer.add([background, label]);
-        });
-
-        this.setRoomButtons([]);
-    }
-
-    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false) {
-        this.actionButtons.forEach((button) => {
-            // Kill any in-flight hover/press tween so re-configured
-            // buttons don't inherit a stale scale or partial yoyo.
-            this.tweens.killTweensOf([button.background, button.label]);
-            button.background.setScale(1, 1);
-            button.label.setScale(1, 1);
-            button.background.setPosition(button.defaultX, button.defaultY);
-            button.background.setSize(button.defaultWidth, 40);
-            button.label.setPosition(button.defaultX, button.defaultY);
-            button.background.setVisible(false);
-            button.label.setVisible(false);
-            button.background.disableInteractive();
-            button.background.clearTint();
-            button.callback = null;
-            button.enabled = false;
-        });
-
-        if (useWideOnly && actions.length === 1) {
-            this.applyButtonAction(this.actionButtons[4], actions[0]);
-            return;
-        }
-
-        actions.forEach((action, index) => {
-            const button = this.actionButtons[index];
-            if (!button) {
-                return;
-            }
-
-            this.applyButtonAction(button, action);
-        });
-    }
-
-    private applyButtonAction(button: ActionButton, action: RoomButtonAction) {
-        const enabled = action.enabled ?? true;
-        const variant = action.variant ?? variantFromFill(action.fill);
-        button.callback = action.callback;
-        button.enabled = enabled;
-        button.variant = variant;
-        button.background.setVisible(true);
-        button.label.setVisible(true);
-        button.background.setInteractive({ useHandCursor: true });
-        button.background.setTexture(BUTTON_TEXTURES[variant]);
-        button.background.clearTint();
-        // Disabled buttons render at half alpha so the carved frame
-        // still reads but the variant colour is visibly muted.
-        button.background.setAlpha(enabled ? 1 : 0.5);
-        button.label.setText(compactText(action.label, button.defaultWidth > 200 ? 42 : 24));
-        button.label.setColor(enabled ? '#f0f0f0' : '#686868');
-    }
-
-    private nodeX(node: MapNode) {
-        return MAP_X + node.depth * COL_W;
-    }
-
-    private nodeY(node: MapNode) {
-        const siblings = this.dungeon.getAllNodes().filter((candidate) => candidate.depth === node.depth);
-        return MAP_Y + (node.slot - (siblings.length - 1) / 2) * ROW_H;
-    }
-
-    private getMapOffset(node: MapNode) {
-        return {
-            x: VIEW_X - this.nodeX(node),
-            y: VIEW_Y - this.nodeY(node),
-        };
-    }
-
-    private centerMapOnNode(node: MapNode) {
-        const { x, y } = this.getMapOffset(node);
-        this.mapContainer.setPosition(x, y);
-    }
-
-    private buildAllVisuals(fadeIn: boolean) {
-        const unlocks = this.meta.getUiUnlockState();
-        const currentId = this.dungeon.currentNode.id;
-        const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
-
-        this.dungeon.getAllNodes().forEach((node) => {
-            if (this.visuals.has(node.id)) {
-                return;
-            }
-
-            const x = this.nodeX(node);
-            const y = this.nodeY(node);
-            const revealed = node.visited || forwardIds.has(node.id) || node.id === currentId;
-            const knowsType = node.cleared || node.visited || node.id === currentId || unlocks.showRoomIcons;
-            // Every room sits on a black backdrop; the carved frame
-            // overlay (room_frames.png) is what carries the state colour
-            // (gold safe / red danger / grey unknown). The procedural
-            // fallback below adds a thin stroke when the frame texture
-            // is missing.
-            const alpha = node.cleared ? 0.35 : 1;
-            const hasFrame = hasTexture(this, 'hud_room_frames');
-            const stroke = node.cleared
-                ? 0x333333
-                : node.id === currentId
-                  ? 0xffffff
-                  : forwardIds.has(node.id)
-                    ? 0x6d6d6d
-                    : 0x343434;
-
-            const rect = this.add
-                .rectangle(x, y, NODE_SZ, NODE_SZ, 0x000000)
-                .setAlpha(alpha);
-            if (!hasFrame) {
-                rect.setStrokeStyle(2, stroke);
-            }
-
-            const icon = this.add
-                .text(x, y, revealed && knowsType ? roomIcon(node.type) : '?', {
-                    fontFamily: 'Courier New',
-                    fontSize: '28px',
-                    color: node.cleared ? '#888888' : '#ffffff',
-                })
-                .setOrigin(0.5)
-                .setAlpha(alpha);
-
-            // Sprite priority: hand-authored room_icons spritesheet →
-            // procedural PixelSprite (per-type 24×24 sprite) → text glyph.
-            let sprite: Phaser.GameObjects.Image | undefined;
-            if (revealed && knowsType && hasTexture(this, 'hud_room_icons')) {
-                icon.setVisible(false);
-                sprite = this.add
-                    .image(x, y, 'hud_room_icons', roomIconFrame(node.type))
-                    .setOrigin(0.5)
-                    .setAlpha(alpha);
-                fitRoomSprite(sprite);
-                if (node.cleared) sprite.setTint(0x555555);
-            } else {
-                const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
-                if (revealed && knowsType && hasTexture(this, spriteKey)) {
-                    icon.setVisible(false);
-                    sprite = this.add.image(x, y, spriteKey)
-                        .setOrigin(0.5)
-                        .setAlpha(alpha);
-                    fitRoomSprite(sprite);
-                    if (node.cleared) sprite.setTint(0x555555);
-                }
-            }
-
-            // Decorative frame overlay (bronze for safe, iron-red for danger,
-            // grey for unknown). Only renders when the optional spritesheet is
-            // present — falls back silently to the base rect+icon otherwise.
-            let frame: Phaser.GameObjects.Image | undefined;
-            if (hasFrame) {
-                const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
-                frame = this.add.image(x, y, 'hud_room_frames', frameIdx)
-                    .setOrigin(0.5)
-                    .setAlpha(alpha);
-                frame.setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
-                if (node.cleared) frame.setTint(0x555555);
-            }
-
-            if (fadeIn && !node.cleared) {
-                rect.setAlpha(0);
-                icon.setAlpha(0);
-                const targets: Phaser.GameObjects.GameObject[] = [rect, icon];
-                if (sprite) { sprite.setAlpha(0); targets.push(sprite); }
-                if (frame) { frame.setAlpha(0); targets.push(frame); }
-                this.tweens.add({
-                    targets,
-                    alpha: 1,
-                    duration: 420,
-                    ease: 'Quad.out',
-                });
-            }
-
-            this.makeClickable(rect, node);
-
-            const children: Phaser.GameObjects.GameObject[] = [rect, icon];
-            if (sprite) children.push(sprite);
-            if (frame) children.push(frame);
-            this.mapContainer.add(children);
-            this.visuals.set(node.id, { rect, icon, sprite, frame });
-        });
-    }
-
-    private makeClickable(rect: Phaser.GameObjects.Rectangle, node: MapNode) {
-        rect.setInteractive({ useHandCursor: true });
-        rect.on('pointerdown', () => {
-            if (this.canUseMapNode(node)) {
-                this.sfx.play('nodeSelect');
-                this.advanceToNode(node);
-            }
-        });
-        rect.on('pointerover', () => {
-            if (this.canUseMapNode(node)) {
-                this.applyNodeHover(node, true);
-            }
-            const unlocks = this.meta.getUiUnlockState();
-            const revealed = node.visited || node.id === this.dungeon.currentNode.id ||
-                this.dungeon.getForwardNodes().some((n) => n.id === node.id);
-            const knowsType = node.visited || node.id === this.dungeon.currentNode.id || unlocks.showRoomIcons;
-            if (revealed && knowsType && !node.cleared) {
-                this.tooltipText.setText(roomTypeName(node.type, this.loc));
-                const screenX = this.nodeX(node) + this.mapContainer.x;
-                const screenY = this.nodeY(node) + this.mapContainer.y - NODE_SZ / 2 - 18;
-                this.tooltipText.setPosition(screenX, screenY).setOrigin(0.5, 1).setVisible(true);
-            }
-        });
-        rect.on('pointerout', () => {
-            this.applyNodeHover(node, false);
-            this.tooltipText.setVisible(false);
-        });
+        // pair so each column sits ~22 px inside the panel walls. The
+        // actual button creation lives in `../ui/RoomButtons.ts`; the
+        // returned handle exposes setActions / trigger / wideEnabled /
+        // disableAll for keyboard shortcuts and combat to call.
+        this.roomButtons = createRoomButtons(this, this.roomContainer, this.sfx);
     }
 
     /**
-     * Map-node hover affordance. With the carved `room_frames.png` overlay
-     * present we scale the frame ~10% and tint it lighter; without the
-     * overlay we fall back to a thicker neutral-gold rect stroke. No white
-     * outline anywhere — that was the "current room" highlight the player
-     * asked us to retire. After hover-out the frame restarts its idle
-     * pulsate if the node is still a reachable forward option, so the
-     * "breathing" affordance never gets eaten by a hover.
+     * @deprecated Use `this.roomButtons.setActions(...)` directly.
+     * Kept as a thin shim so RoomFlow / CombatHud call sites compile
+     * unchanged after the RoomButtons extraction.
      */
-    private applyNodeHover(node: MapNode, hovered: boolean) {
-        const visual = this.visuals.get(node.id);
-        if (!visual) {
-            return;
-        }
-        const targetSize = hovered ? NODE_SZ + 18 : NODE_SZ + 8;
-        const tint = hovered ? 0xfff5cc : 0xffffff;
-        const isReachable = !node.cleared && this.dungeon.canMoveTo(node.id);
-        if (visual.frame) {
-            this.tweens.killTweensOf(visual.frame);
-            this.tweens.add({
-                targets: visual.frame,
-                displayWidth: targetSize,
-                displayHeight: targetSize,
-                duration: 120,
-                ease: 'Sine.out',
-                onComplete: () => {
-                    if (!hovered && isReachable) {
-                        this.startNodePulse(visual);
-                    }
-                },
-            });
-            if (node.cleared) {
-                visual.frame.setTint(0x555555);
-            } else if (hovered) {
-                visual.frame.setTint(tint);
-            } else {
-                visual.frame.clearTint();
-            }
-            return;
-        }
-        // Fallback path (PNG missing) — a thin stroke change with the same
-        // semantic palette as updateMapUI(), no white.
-        const colour = node.cleared ? 0x333333 : isReachable ? 0x6d6d6d : 0x343434;
-        visual.rect.setStrokeStyle(hovered ? 3 : 2, hovered ? 0x9a8a4a : colour);
+    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
+        this.roomButtons.setActions(actions, useWideOnly);
     }
 
     /**
-     * Idle "breathing" pulse on a reachable map node — the carved
-     * frame yoyos between its base size (NODE_SZ + 8) and a slightly
-     * larger peak (NODE_SZ + 14). This replaced the grey
-     * VFX.nodeGlow rectangle that players asked us to retire.
-     *
-     * Hover takes priority via `applyNodeHover` (which kills tweens
-     * on the frame and animates to NODE_SZ + 18); on hover-out the
-     * pulse is restarted from there so the affordance is continuous
-     * across the player's pointer movement.
+     * Sequence the post-move animation: dim cleared rooms, build any
+     * freshly-revealed nodes, redraw edges, then glide the map to
+     * centre on the new node before fading into the room itself.
+     * Triggered by `DungeonManager.onMove` (wired in `create()`).
      */
-    private startNodePulse(visual: NodeVisual) {
-        if (visual.frame) {
-            const baseSize = NODE_SZ + 8;
-            const peakSize = NODE_SZ + 14;
-            this.tweens.killTweensOf(visual.frame);
-            visual.frame.setDisplaySize(baseSize, baseSize);
-            this.tweens.add({
-                targets: visual.frame,
-                displayWidth: peakSize,
-                displayHeight: peakSize,
-                duration: 760,
-                yoyo: true,
-                repeat: -1,
-                ease: 'Sine.inOut',
-            });
-            return;
-        }
-        // PNG missing — pulse the rect's stroke alpha instead so the
-        // affordance is still visible on the fallback render path.
-        this.tweens.killTweensOf(visual.rect);
-        this.tweens.add({
-            targets: visual.rect,
-            alpha: { from: 0.7, to: 1 },
-            duration: 760,
-            yoyo: true,
-            repeat: -1,
-            ease: 'Sine.inOut',
-        });
-    }
-
-    private canUseMapNode(node: MapNode): boolean {
-        return (
-            this.mapContainer.visible &&
-            !this.roomContainer.visible &&
-            !this.animating &&
-            !this.dead &&
-            !node.cleared &&
-            this.dungeon.canMoveTo(node.id)
-        );
-    }
-
-    private redrawEdges() {
-        this.edgeGfx.clear();
-        const currentDepth = this.dungeon.currentDepth;
-        const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
-        const currentId = this.dungeon.currentNode.id;
-        const allNodes = this.dungeon.getAllNodes();
-
-        // Per-source-node grouping: each source spreads its outgoing lanes
-        // so lines never overlap with siblings from the same node.
-        allNodes.forEach((node) => {
-            if (node.depth < currentDepth) return;
-            if (node.edges.length === 0) return;
-
-            const targets = node.edges
-                .map((id) => allNodes.find((candidate) => candidate.id === id))
-                .filter((target): target is MapNode => !!target)
-                .sort((a, b) => a.slot - b.slot);
-
-            const x1 = this.nodeX(node);
-            const y1 = this.nodeY(node);
-
-            targets.forEach((target, index) => {
-                const active = !node.cleared && forwardIds.has(target.id) && node.id === currentId;
-                const lineColor = node.cleared ? 0x2a2a2a : active ? 0x9b9b9b : 0x3b3b3b;
-                const lineAlpha = node.cleared ? 0.18 : active ? 1 : 0.35;
-                const lineWidth = active ? 3 : 2;
-
-                const x2 = this.nodeX(target);
-                const y2 = this.nodeY(target);
-
-                // Fan out: bias lane from source based on this target's
-                // relative rank, not the target's slot (which was the
-                // bug that made lines cross). Spread range is 25%-75%
-                // of the corridor between the two columns.
-                const rank = (index + 1) / (targets.length + 1);
-                const laneX = x1 + (x2 - x1) * (0.35 + rank * 0.30);
-
-                this.edgeGfx.lineStyle(lineWidth, lineColor, lineAlpha);
-                this.edgeGfx.beginPath();
-                this.edgeGfx.moveTo(x1, y1);
-                this.edgeGfx.lineTo(laneX, y1);
-                this.edgeGfx.lineTo(laneX, y2);
-                this.edgeGfx.lineTo(x2, y2);
-                this.edgeGfx.strokePath();
-            });
-        });
-    }
-
     private afterMove(node: MapNode, _previous: MapNode) {
         this.updateRunProgress(node.depth);
         this.animating = true;
 
-        this.animateClearedOut(() => {
-            this.buildAllVisuals(true);
-            this.redrawEdges();
-            this.refreshInteractivity();
-            this.animateShift(node, () => {
+        this.mapView.animateClearedOut(() => {
+            this.mapView.build(true);
+            this.mapView.redrawEdges();
+            this.mapView.refresh();
+            this.mapView.animateShift(node, () => {
                 this.animating = false;
                 this.fadeToRoom(node);
             });
@@ -1629,220 +1117,8 @@ export class GameScene extends Phaser.Scene {
         });
 
         this.refreshAvailableRoomPool(this.dungeon.currentDepth);
-        this.refreshInteractivity();
+        this.mapView.refresh();
         this.refreshUI();
-    }
-
-    private animateClearedOut(done: () => void) {
-        const ids = this.dungeon
-            .getAllNodes()
-            .filter((node) => node.cleared)
-            .map((node) => node.id)
-            .filter((id) => this.visuals.has(id));
-
-        if (!ids.length) {
-            done();
-            return;
-        }
-
-        let remaining = ids.length;
-        ids.forEach((id) => {
-            const visual = this.visuals.get(id);
-            if (!visual) {
-                remaining--;
-                if (remaining === 0) {
-                    done();
-                }
-                return;
-            }
-
-            // Kill any in-flight pulse (fallback render path) so it
-            // doesn't fight the alpha→0.35 fade that follows.
-            this.tweens.killTweensOf(visual.rect);
-            if (visual.frame) this.tweens.killTweensOf(visual.frame);
-
-            visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333);
-            visual.icon.setColor('#777777');
-
-            const tweenTargets: Phaser.GameObjects.GameObject[] = [visual.rect, visual.icon];
-            if (visual.sprite) { visual.sprite.setTint(0x555555); tweenTargets.push(visual.sprite); }
-            this.tweens.add({
-                targets: tweenTargets,
-                alpha: 0.35,
-                duration: 280,
-                ease: 'Quad.in',
-                onComplete: () => {
-                    remaining--;
-                    if (remaining === 0) {
-                        done();
-                    }
-                },
-            });
-        });
-    }
-
-    private animateShift(node: MapNode, done: () => void) {
-        const { x, y } = this.getMapOffset(node);
-        this.tweens.add({
-            targets: this.mapContainer,
-            x,
-            y,
-            duration: 360,
-            ease: 'Quad.inOut',
-            onComplete: done,
-        });
-    }
-
-    public refreshInteractivity() {
-        const unlocks = this.meta.getUiUnlockState();
-
-        // The reachable-node affordance used to be a separate grey
-        // VFX.nodeGlow rectangle; we now pulsate the carved frame
-        // itself instead, so this map only holds left-over glows from
-        // older runs and is always cleared here. The active "pulse"
-        // tween on each frame is killed below as part of the
-        // per-node refresh so it doesn't compound.
-        this.glowMap.forEach((glow) => glow.destroy());
-        this.glowMap.clear();
-        this.fireMap.forEach((fire) => fire.destroy());
-        this.fireMap.clear();
-
-        const currentId = this.dungeon.currentNode.id;
-        const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
-        const allNodes = this.dungeon.getAllNodes();
-
-        this.visuals.forEach((visual, id) => {
-            const node = allNodes.find((candidate) => candidate.id === id);
-            if (!node) {
-                return;
-            }
-
-            const hasFrame = hasTexture(this, 'hud_room_frames');
-
-            // Kill any in-flight pulse on the rect (fallback render
-            // path) before re-deriving its alpha/stroke. Without this
-            // a node that loses its forward status — or gets cleared
-            // — would keep yoyo-ing alpha from `startNodePulse` and
-            // override the setAlpha calls below.
-            this.tweens.killTweensOf(visual.rect);
-
-            if (node.cleared) {
-                visual.rect.setFillStyle(0x000000).setAlpha(0.35);
-                if (hasFrame) {
-                    visual.rect.setStrokeStyle(0);
-                } else {
-                    visual.rect.setStrokeStyle(1, 0x333333);
-                }
-                visual.icon.setColor('#777777').setAlpha(0.5);
-                if (visual.sprite) visual.sprite.setAlpha(0.35).setTint(0x555555);
-                if (visual.frame) {
-                    this.tweens.killTweensOf(visual.frame);
-                    visual.frame
-                        .setAlpha(0.35)
-                        .setTint(0x555555)
-                        .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
-                }
-                return;
-            }
-
-            const isCurrent = id === currentId;
-            const isForward = forwardIds.has(id);
-            const revealed = isCurrent || isForward || node.visited;
-            const knowsType = node.visited || isCurrent || unlocks.showRoomIcons;
-            const iconText = revealed && knowsType ? roomIcon(node.type) : '?';
-
-            // Black backdrop for every room — the carved frame overlay
-            // (when present) carries the state colour, so the rect's
-            // own stroke is only used as a fallback indicator when the
-            // frame texture is missing. The "current room" no longer gets
-            // a separate white outline; the player figures out where they
-            // stand from the play-area state and the upcoming hover scale
-            // affordance on reachable nodes.
-            visual.rect.setFillStyle(0x000000).setAlpha(1);
-            if (hasFrame) {
-                visual.rect.setStrokeStyle(0);
-            } else {
-                visual.rect.setStrokeStyle(2, isForward ? 0x6d6d6d : 0x343434);
-            }
-
-            if (visual.frame) {
-                const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
-                this.tweens.killTweensOf(visual.frame);
-                visual.frame
-                    .setFrame(frameIdx)
-                    .setAlpha(1)
-                    .clearTint()
-                    .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
-            }
-
-            // Sprite priority: hand-authored room_icons spritesheet →
-            // procedural PixelSprite → text glyph (matches buildAllVisuals).
-            const useSheet =
-                revealed && knowsType && hasTexture(this, 'hud_room_icons');
-            const proceduralKey = PixelSprite.roomKey(roomSpriteKey(node.type));
-            const useProcedural =
-                !useSheet &&
-                revealed &&
-                knowsType &&
-                hasTexture(this, proceduralKey);
-            if (useSheet) {
-                if (!visual.sprite) {
-                    visual.sprite = this.add
-                        .image(
-                            this.nodeX(node),
-                            this.nodeY(node),
-                            'hud_room_icons',
-                            roomIconFrame(node.type),
-                        )
-                        .setOrigin(0.5);
-                    this.mapContainer.add(visual.sprite);
-                } else {
-                    visual.sprite.setTexture('hud_room_icons', roomIconFrame(node.type));
-                }
-                fitRoomSprite(visual.sprite);
-                visual.sprite.setAlpha(1).clearTint().setVisible(true);
-                visual.icon.setVisible(false);
-            } else if (useProcedural) {
-                if (!visual.sprite) {
-                    visual.sprite = this.add
-                        .image(this.nodeX(node), this.nodeY(node), proceduralKey)
-                        .setOrigin(0.5);
-                    this.mapContainer.add(visual.sprite);
-                } else {
-                    visual.sprite.setTexture(proceduralKey);
-                }
-                fitRoomSprite(visual.sprite);
-                visual.sprite.setAlpha(1).clearTint().setVisible(true);
-                visual.icon.setVisible(false);
-            } else {
-                visual.icon.setText(iconText).setColor('#ffffff').setAlpha(1).setVisible(true);
-                if (visual.sprite) visual.sprite.setVisible(false);
-            }
-
-            // Reachable-node affordance: pulsate the carved frame
-            // (or, when the PNG is missing, the rect stroke) so the
-            // forward options breathe in and out. The grey
-            // VFX.nodeGlow rectangle was retired — players asked us
-            // to remove the dull grey halo; the pulse sits inside
-            // the existing frame palette so it never clashes with
-            // the room-type tint.
-            if (isForward && !node.cleared) {
-                this.startNodePulse(visual);
-            }
-
-            // Tiny fire embers above campfire/altar nodes (REST/START/SHRINE).
-            // Skipped on cleared rooms because their fire is "out".
-            if (!node.cleared && hasFireEffect(node.type)) {
-                const fire = VFX.nodeFire(
-                    this,
-                    this.mapContainer,
-                    this.nodeX(node),
-                    this.nodeY(node),
-                );
-                this.fireMap.set(id, fire);
-            }
-        });
-
     }
 
     private appendLayer(fromDepth: number) {
@@ -1999,7 +1275,7 @@ export class GameScene extends Phaser.Scene {
                 this.roomPanelGroup.setVisible(false);
                 this.setRoomButtons([]);
                 this.clearRoomTint();
-                this.refreshInteractivity();
+                this.mapView.refresh();
                 this.refreshUI();
                 this.tweens.add({
                     targets: overlay,
@@ -2013,7 +1289,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     public advanceToNode(node: MapNode) {
-        if (!this.canUseMapNode(node)) {
+        if (!this.mapView.canUseNode(node)) {
             return;
         }
 
