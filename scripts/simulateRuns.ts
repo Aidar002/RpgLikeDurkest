@@ -20,7 +20,12 @@
  *   * The route picks Combat / Elite / Rest / Merchant / Boss rooms in a
  *     simplified pattern: every depth has a single Combat room that may
  *     instead become Rest/Merchant/Elite based on the AI heuristics in
- *     FIX-14. Bosses occur on multiples of MAP_CONFIG.bossEveryNDepths.
+ *     FIX-14. Bosses occur every {@link SIM_BOSS_EVERY_N_DEPTHS} floors —
+ *     the simulator keeps the legacy 5-depth cadence so combat-balance
+ *     numbers stay comparable across PRs even though the map generator
+ *     itself no longer schedules mid-run bosses (PR-1 removed
+ *     `MAP_CONFIG.bossEveryNDepths`; PR-2 reintroduces them through a
+ *     bossPressure pass which this simulator doesn't model yet).
  */
 
 import {
@@ -40,6 +45,17 @@ import {
     type BossBlueprint,
     type BossPhaseDef,
 } from '../src/data/Bosses';
+
+/**
+ * Boss cadence used by this combat-balance simulator. Pre-PR-1 the
+ * map generator placed forced BOSS rooms every 5 depths and the
+ * simulator pulled the same value out of `MAP_CONFIG.bossEveryNDepths`.
+ * PR-1 dropped that constant and removed the depth-keyed BOSS rooms
+ * (only the final-layer boss is map-driven now). The simulator
+ * keeps the 5-depth cadence so combat numbers stay comparable to
+ * pre-PR-1 baselines until the bossPressure pass (PR-2) lands.
+ */
+const SIM_BOSS_EVERY_N_DEPTHS = 5;
 
 // ---------------------------------------------------------------------------
 // Deterministic RNG (mulberry32) so runs are reproducible per seed.
@@ -572,7 +588,7 @@ function runOne(seed: number): RunResult {
         }
 
         // Decide room kind
-        const isBoss = depth % MAP_CONFIG.bossEveryNDepths === 0;
+        const isBoss = depth % SIM_BOSS_EVERY_N_DEPTHS === 0;
         let kind: 'normal' | 'elite' | 'boss';
         if (isBoss) kind = 'boss';
         else if (p.hp / p.maxHp > 0.5 && p.stress < 70 && r() < 0.2) kind = 'elite';

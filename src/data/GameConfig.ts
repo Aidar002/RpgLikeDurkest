@@ -115,12 +115,47 @@ export const STRESS_CONFIG = {
     onShrineOfferVirtue: 6,
 } as const;
 
+/**
+ * Top-level run shape. Everything time-dependent (map length,
+ * eventual boss pacing, Light / Stress / XP scaling) must derive
+ * from {@link RUN_CONFIG.runLength} so a run can be stretched or
+ * shortened without rewriting the generator.
+ *
+ * Examples:
+ *  - 25 — short / current legacy length
+ *  - 35 — medium
+ *  - 50 — long
+ *  - 75 — extended
+ *
+ * TODO (post map-gen stabilization): wire runLength-derived
+ * formulas for:
+ *  - LIGHT_CONFIG.decayEveryNRooms ≈ max(2, round(runLength / 12))
+ *  - STRESS multiplier ≈ piecewise interp
+ *      25→×1.00, 35→×0.90, 50→×0.75, 75→×0.65
+ *  - LEVEL_UP_CONFIG.levelCap targets per runLength
+ *      25→8-10, 35→10-12, 50→12-15, 75→15-18
+ *  - phase boundaries (early/mid/late/final) at 0/30/70/95% of runLength
+ *  - targetMajorBosses, targetMiniBosses, requiredSeals (PR-2 / PR-3)
+ *
+ * Until those land, runLength affects map shape only and the
+ * combat curve stays tuned to the legacy ~25-depth baseline.
+ */
+export const RUN_CONFIG = {
+    runLength: 25,
+} as const;
+
 export const MAP_CONFIG = {
     initialLookahead: 5,
     lookaheadBuffer: 3,
-    bossEveryNDepths: 5,
-    /** The boss at this depth guards the Wish Artifact. Defeating it wins the run. */
-    finalDepth: 25,
+    /**
+     * The depth of the final-boss layer. Every node at this depth
+     * is a final-boss room (`bossKind: 'final'`); victory over any
+     * of them ends the run. Mirrors {@link RUN_CONFIG.runLength}
+     * so combat-side lookups (`getBossForDepth`, narrative gating,
+     * etc.) keep matching the actual final layer when runLength
+     * changes.
+     */
+    finalDepth: RUN_CONFIG.runLength,
     /**
      * Distribution of how many *new rooms* a layer adds. The actual
      * layer width is `max(rolledCount, parents)` so a layer never
@@ -490,11 +525,17 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
     },
 ];
 
-// [FIX-1, FIX-4] Boss mapping is keyed by exact depth bucket (every
-// MAP_CONFIG.bossEveryNDepths floors), so depth 25 cannot fall back to
-// the depth-20 boss. The depth=0 entry is the safety fallback if a
-// caller ever asks before the first boss bucket. See
-// src/data/Enemies.ts and src/data/Bosses.ts.
+// [FIX-1, FIX-4] Legacy boss mapping keyed by depth bucket. Pre-PR-1
+// the map generator placed forced bosses every 5 depths, so this table
+// resolved each bucket to a unique encounter. PR-1 removed those
+// hardcoded boss depths — only the final-layer encounter (depth ===
+// RUN_CONFIG.runLength) is map-driven now. The pre-final entries are
+// kept so legacy combat/narrative code can still call
+// `getBossForDepth(d)` for d <= 25, but the map graph no longer spawns
+// BOSS rooms at those depths until PR-2 wires up bossPressure-based
+// placement (MINI_BOSS / major BOSS).
+//
+// See src/data/Enemies.ts (lookup + fallback) and src/data/Bosses.ts.
 export const BOSSES: { depth: number; def: EnemyDef }[] = [
     {
         depth: 5,
