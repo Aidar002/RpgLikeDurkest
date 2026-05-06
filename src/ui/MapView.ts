@@ -121,15 +121,12 @@ export class MapView {
 
     /** Canvas X for the centre of `node`'s background rect. */
     nodeX(node: MapNode): number {
-        return MAP_X + node.depth * COL_W;
+        return node.x;
     }
 
     /** Canvas Y for the centre of `node`'s background rect. */
     nodeY(node: MapNode): number {
-        const siblings = this.dungeon
-            .getAllNodes()
-            .filter((candidate) => candidate.depth === node.depth);
-        return MAP_Y + (node.slot - (siblings.length - 1) / 2) * ROW_H;
+        return node.y;
     }
 
     /**
@@ -462,13 +459,12 @@ export class MapView {
                 .map((id) =>
                     allNodes.find((candidate) => candidate.id === id),
                 )
-                .filter((target): target is MapNode => !!target)
-                .sort((a, b) => a.slot - b.slot);
+                .filter((target): target is MapNode => !!target);
 
             const x1 = this.nodeX(node);
             const y1 = this.nodeY(node);
 
-            targets.forEach((target, index) => {
+            targets.forEach((target) => {
                 const active =
                     !node.cleared &&
                     forwardIds.has(target.id) &&
@@ -484,18 +480,12 @@ export class MapView {
                 const x2 = this.nodeX(target);
                 const y2 = this.nodeY(target);
 
-                // Fan out: bias lane from source based on this target's
-                // relative rank, not the target's slot (which was the
-                // bug that made lines cross). Spread range is 25%-75%
-                // of the corridor between the two columns.
-                const rank = (index + 1) / (targets.length + 1);
-                const laneX = x1 + (x2 - x1) * (0.35 + rank * 0.3);
-
+                // Straight line — child rooms can sit in any direction
+                // around the parent (see MapGenerator.placeNode), so a
+                // direct segment is the only layout-agnostic option.
                 this.edgeGfx.lineStyle(lineWidth, lineColor, lineAlpha);
                 this.edgeGfx.beginPath();
                 this.edgeGfx.moveTo(x1, y1);
-                this.edgeGfx.lineTo(laneX, y1);
-                this.edgeGfx.lineTo(laneX, y2);
                 this.edgeGfx.lineTo(x2, y2);
                 this.edgeGfx.strokePath();
             });
@@ -758,36 +748,17 @@ export class MapView {
 
     /**
      * Compute the polyline (in container-local coords) that connects
-     * `from` to `to` along the same L-shaped lane used by
-     * {@link redrawEdges}. Returns an array of {x,y} waypoints.
+     * `from` to `to` for the walk animation. Edges are now straight
+     * 2-point segments because rooms can be placed in any direction
+     * around their parent (see MapGenerator.placeNode).
      */
     getEdgePath(
         from: MapNode,
         to: MapNode,
     ): { x: number; y: number }[] {
-        const x1 = this.nodeX(from);
-        const y1 = this.nodeY(from);
-        const x2 = this.nodeX(to);
-        const y2 = this.nodeY(to);
-
-        const targets = from.edges
-            .map((id) =>
-                this.dungeon
-                    .getAllNodes()
-                    .find((candidate) => candidate.id === id),
-            )
-            .filter((t): t is MapNode => !!t)
-            .sort((a, b) => a.slot - b.slot);
-
-        const index = targets.findIndex((t) => t.id === to.id);
-        const rank = (index + 1) / (targets.length + 1);
-        const laneX = x1 + (x2 - x1) * (0.35 + rank * 0.3);
-
         return [
-            { x: x1, y: y1 },
-            { x: laneX, y: y1 },
-            { x: laneX, y: y2 },
-            { x: x2, y: y2 },
+            { x: this.nodeX(from), y: this.nodeY(from) },
+            { x: this.nodeX(to), y: this.nodeY(to) },
         ];
     }
 
