@@ -12,10 +12,9 @@ export const RoomType = {
     ELITE: 'ELITE',
     BOSS: 'BOSS',
     /**
-     * Branch-guardian / mid-run threat. Stub for PR-2 — placement
-     * is wired up by the bossPressure pass in the next PR. Already
-     * declared so combat / UI / narrative code can pattern-match
-     * against it without churn later.
+     * Branch-guardian / mid-run threat. Placed by the bossPressure
+     * pass (PR-2) when a branch's `stepsSinceBoss` enters the
+     * pressure window. Pairs with `bossKind === 'mini'`.
      */
     MINI_BOSS: 'MINI_BOSS',
     EMPTY: 'EMPTY',
@@ -94,6 +93,23 @@ const FINAL_APPROACH_POOL: RoomType[] = [
  *  has at least two recovery / reward options before choosing which
  *  final-boss node to enter. */
 const FINAL_APPROACH_MIN_WIDTH = 2;
+
+/**
+ * Recovery / reward room types forced as the **direct child** of a
+ * mid-run major boss (`bossKind === 'major'`). Mini-bosses do *not*
+ * trigger this — only major bosses interrupt the run hard enough
+ * to deserve a guaranteed catch-your-breath room afterwards.
+ */
+const POST_MAJOR_RECOVERY_POOL: RoomType[] = [
+    RoomType.REST,
+    RoomType.SHRINE,
+    RoomType.MERCHANT,
+    RoomType.TREASURE,
+];
+
+function clamp(value: number, lo: number, hi: number): number {
+    return Math.max(lo, Math.min(hi, value));
+}
 
 /**
  * Container-local coordinates of the START node. Chosen so that the
@@ -334,6 +350,21 @@ export class MapGenerator {
      */
     private outwardAngles = new Map<string, number>();
 
+    /**
+     * Per-node "steps since the last boss along this branch". Used
+     * by the bossPressure pass to decide whether a node is forced
+     * into a MINI_BOSS / major BOSS slot. We always combine
+     * incoming parents with `Math.max(...)` so a long-pressure
+     * path can't be masked by a freshly-reset cross-link
+     * (the **max strategy** the user explicitly approved).
+     */
+    private stepsSinceBoss = new Map<string, number>();
+
+    /** Running tallies of mid-run bosses placed so far, used to
+     *  enforce the runLength-derived budgets without overshooting. */
+    private majorBossesPlaced = 0;
+    private miniBossesPlaced = 0;
+
     constructor(
         initialRooms: RoomType[] = BASE_ROOM_POOL,
         rng: Rng = defaultRng,
@@ -351,6 +382,46 @@ export class MapGenerator {
      */
     getRunLength(): number {
         return this.runLength;
+    }
+
+    /**
+     * Pressure window for the current run length, in branch steps
+     * since the last boss. Below `start` a boss is impossible;
+     * inside `[start, end)` a boss becomes increasingly likely;
+     * at `end` a boss is forced.
+     */
+    private getPressureWindow(): { start: number; end: number } {
+        const cfg = RUN_CONFIG.bossPressure;
+        return {
+            start: Math.max(
+                cfg.windowStartFloor,
+                Math.round(this.runLength * cfg.windowStartFactor),
+            ),
+            end: Math.max(
+                cfg.windowEndFloor,
+                Math.round(this.runLength * cfg.windowEndFactor),
+            ),
+        };
+    }
+
+    /** Mid-run major-boss budget, scaled to the current run length. */
+    private getTargetMajorBosses(): number {
+        const cfg = RUN_CONFIG.bossPressure;
+        return clamp(
+            Math.round(this.runLength / cfg.targetMajorFactor),
+            cfg.targetMajorMin,
+            cfg.targetMajorMax,
+        );
+    }
+
+    /** Mid-run mini-boss budget, scaled to the current run length. */
+    private getTargetMiniBosses(): number {
+        const cfg = RUN_CONFIG.bossPressure;
+        return clamp(
+            Math.round(this.runLength / cfg.targetMiniFactor),
+            cfg.targetMiniMin,
+            cfg.targetMiniMax,
+        );
     }
 
     /**
@@ -382,6 +453,9 @@ export class MapGenerator {
         start.y = MAP_START_Y;
         start.visited = true;
         all.push(start);
+        // START seeds the bossPressure counter at 0 so the first
+        // depth's `stepsSinceBoss` is 1.
+        this.stepsSinceBoss.set(start.id, 0);
 
         // Never generate past the final-boss depth. If a caller
         // (or test) asks for `lookahead >= runLength`, we simply
@@ -434,19 +508,13 @@ export class MapGenerator {
         const newLayer: MapNode[] = [];
 
         for (let slot = 0; slot < count; slot++) {
-            const type = isFinalLayer
-                ? RoomType.BOSS
-                : this.pickRoomType(depth, allNodes, newLayer);
-            const bossKind: BossKind = isFinalLayer ? 'final' : null;
-            const node = this.makeNode(depth, slot, type, bossKind);
-
             // Round-robin primary parent so each previous-layer
             // node fans out roughly evenly. If that parent can't
             // host a clean (non-crossing, non-clipping) placement,
             // try the other parents before falling back to the
             // original with the strict invariants relaxed.
             //
-            // Note: PR-1 removes the legacy converging PRE-BOSS /
+            // Note: PR-1 removed the legacy converging PRE-BOSS /
             // BOSS bottleneck. Both the final-approach layer and
             // the final-boss layer use the standard fan-out
             // placement — multiple parents fan onto multiple
@@ -458,11 +526,39 @@ export class MapGenerator {
                     previousLayer[(primaryIndex + i) % previousLayer.length],
                 );
             }
+            const primaryParent = parentOrder[0];
+
+            // Boss-pressure decision uses the primary parent's
+            // counter as a stand-in for "the player's pressure when
+            // they enter this room". After all routing for this
+            // layer settles, every node's stepsSinceBoss is
+            // recomputed as the **max** across all its real
+            // parents — that's the long-pressure-wins guarantee.
+            const bossKind: BossKind = isFinalLayer
+                ? 'final'
+                : this.decideBossKind(primaryParent, isFinalApproach);
+            const type = this.resolveRoomType(
+                bossKind,
+                depth,
+                primaryParent,
+                allNodes,
+                newLayer,
+            );
+            const node = this.makeNode(depth, slot, type, bossKind);
 
             let chosenParent: MapNode | null = null;
             let chosenPoint: Point | null = null;
 
+            // Slot placement honours both invariants up front so we
+            // never have to repair a violation later: skip any
+            // candidate parent that would form a boss-to-boss edge
+            // OR break the recovery-after-major rule.
             for (const candidateParent of parentOrder) {
+                if (
+                    this.edgeViolatesInvariant(candidateParent, type, bossKind)
+                ) {
+                    continue;
+                }
                 const bias = this.getOutwardBias(candidateParent);
                 const place = this.tryPlaceNode(
                     candidateParent,
@@ -476,11 +572,19 @@ export class MapGenerator {
                 }
             }
             if (!chosenParent || !chosenPoint) {
-                chosenParent = parentOrder[0];
+                // Fallback: pick the first invariant-safe parent we
+                // can find (or, as a last resort, the primary
+                // parent with the strict invariants relaxed —
+                // orphaning the node would be worse).
+                const fallbackParent =
+                    parentOrder.find(
+                        (p) => !this.edgeViolatesInvariant(p, type, bossKind),
+                    ) ?? primaryParent;
+                chosenParent = fallbackParent;
                 chosenPoint = this.placeNode(
-                    chosenParent,
+                    fallbackParent,
                     allNodes,
-                    this.getOutwardBias(chosenParent),
+                    this.getOutwardBias(fallbackParent),
                 );
             }
 
@@ -496,6 +600,12 @@ export class MapGenerator {
             allNodes.push(node);
             newLayer.push(node);
             chosenParent.edges.push(node.id);
+
+            // Tally mid-run boss budget consumption immediately so
+            // subsequent slots in this layer (and later layers) see
+            // the updated counters.
+            if (bossKind === 'major') this.majorBossesPlaced++;
+            else if (bossKind === 'mini') this.miniBossesPlaced++;
         }
 
         // Make sure every previous-layer parent that doesn't yet
@@ -508,6 +618,7 @@ export class MapGenerator {
             if (hasChild) return;
 
             const candidates = newLayer
+                .filter((cand) => !this.edgeViolatesInvariant(parent, cand))
                 .slice()
                 .sort(
                     (a, b) => squaredDistance(parent, a) - squaredDistance(parent, b),
@@ -519,8 +630,18 @@ export class MapGenerator {
                     return;
                 }
             }
-            // Last resort: connect to the closest, accepting a violation.
-            parent.edges.push(candidates[0].id);
+            // Last resort: connect to the closest invariant-safe
+            // candidate (or, if none survive, the closest sibling
+            // outright — preserves connectivity even at the cost
+            // of a short-lived violation that the bonus-edge /
+            // safety-net passes can't repair).
+            const fallback = candidates[0] ?? newLayer
+                .slice()
+                .sort(
+                    (a, b) =>
+                        squaredDistance(parent, a) - squaredDistance(parent, b),
+                )[0];
+            if (fallback) parent.edges.push(fallback.id);
         });
 
         // Bonus edges per parent — picks a target outgoing fanout
@@ -528,16 +649,9 @@ export class MapGenerator {
         // raise this parent's child-count up to that target. Each
         // candidate is the closest remaining sibling within
         // {@link FALLBACK_EDGE_LENGTH}, gated by the no-crossing /
-        // no-clipping invariants so we never trade visual clarity
-        // for extra paths.
-        //
-        // Note: PR-1 removes the legacy PRE-BOSS / BOSS bottleneck
-        // skip — every layer (including the final-approach and
-        // final-boss layers) participates in fanout, so the player
-        // can fan onto multiple final-boss nodes from the same
-        // recovery room. The no-adjacent-bosses invariant for
-        // intermediate bosses is enforced in PR-2 once MINI_BOSS /
-        // major BOSS placement lands.
+        // no-clipping / no-boss-adjacency invariants so we never
+        // trade visual clarity (or PR-2's adjacency rule) for
+        // extra paths.
         previousLayer.forEach((parent) => {
             if (newLayer.length <= 1) return;
 
@@ -548,6 +662,7 @@ export class MapGenerator {
 
             const candidates = newLayer
                 .filter((cand) => !parent.edges.includes(cand.id))
+                .filter((cand) => !this.edgeViolatesInvariant(parent, cand))
                 .slice()
                 .sort(
                     (a, b) =>
@@ -578,6 +693,7 @@ export class MapGenerator {
             if (hasParent) return;
 
             const sorted = previousLayer
+                .filter((p) => !this.edgeViolatesInvariant(p, node))
                 .slice()
                 .sort(
                     (a, b) =>
@@ -590,12 +706,182 @@ export class MapGenerator {
                     return;
                 }
             }
-            // Truly nowhere clean to attach — accept a violation rather
-            // than orphan the node so the run can continue.
-            sorted[0].edges.push(node.id);
+            // Truly nowhere clean to attach — accept a violation
+            // rather than orphan the node so the run can continue.
+            // We prefer a non-adjacency parent if any survived the
+            // pre-filter; otherwise fall back to the closest parent
+            // outright.
+            const fallback = sorted[0] ?? previousLayer
+                .slice()
+                .sort(
+                    (a, b) =>
+                        squaredDistance(a, node) - squaredDistance(b, node),
+                )[0];
+            if (fallback) fallback.edges.push(node.id);
         });
 
+        // Now that all incoming edges are settled, recompute each
+        // new node's stepsSinceBoss as the **max** across its real
+        // parents (resetting to 0 if this node is itself a boss).
+        // Final / major / mini bosses all reset the counter; the
+        // final layer is terminal so the value is mostly cosmetic
+        // there but kept consistent.
+        for (const node of newLayer) {
+            if (node.bossKind !== null) {
+                this.stepsSinceBoss.set(node.id, 0);
+                continue;
+            }
+            const parents = previousLayer.filter((p) =>
+                p.edges.includes(node.id),
+            );
+            const parentSteps = parents.map(
+                (p) => this.stepsSinceBoss.get(p.id) ?? 0,
+            );
+            const maxSteps = parentSteps.length === 0
+                ? 0
+                : Math.max(...parentSteps);
+            this.stepsSinceBoss.set(node.id, maxSteps + 1);
+        }
+
         return newLayer;
+    }
+
+    /**
+     * `true` iff connecting `parent` directly to a child with
+     * `childKind` would create a boss-to-boss edge (the
+     * no-adjacent-bosses invariant). The final-boss layer is
+     * exempt because its own children don't exist — the only
+     * adjacency that could form is **into** the final layer, and
+     * that's an explicit rule we enforce via the final-approach
+     * layer being recovery-only.
+     */
+    private bossAdjacencyBlocks(parent: MapNode, childKind: BossKind): boolean {
+        if (childKind === null) return false;
+        return parent.bossKind !== null;
+    }
+
+    /**
+     * `true` iff connecting a major-boss `parent` directly to a
+     * child of `childType` would violate the recovery-after-major
+     * invariant. Only major bosses trigger this; mini bosses get
+     * regular rooms downstream by design.
+     */
+    private recoveryAfterMajorBlocks(
+        parent: MapNode,
+        childType: RoomType,
+    ): boolean {
+        if (parent.bossKind !== 'major') return false;
+        return !POST_MAJOR_RECOVERY_POOL.includes(childType);
+    }
+
+    /**
+     * Combined invariant gate used by every edge-adding pass
+     * (primary placement, parent fix-up, bonus-edge, safety net).
+     * Centralizing the check keeps the four passes from drifting
+     * apart as new invariants land. Also callable with a
+     * not-yet-constructed `(type, bossKind)` pair so the slot
+     * loop can vet a parent before it commits to a child node.
+     */
+    private edgeViolatesInvariant(parent: MapNode, child: MapNode): boolean;
+    private edgeViolatesInvariant(
+        parent: MapNode,
+        prospectiveType: RoomType,
+        prospectiveKind: BossKind,
+    ): boolean;
+    private edgeViolatesInvariant(
+        parent: MapNode,
+        childOrType: MapNode | RoomType,
+        prospectiveKind?: BossKind,
+    ): boolean {
+        const childType =
+            typeof childOrType === 'string' ? childOrType : childOrType.type;
+        const childKind: BossKind =
+            typeof childOrType === 'string' ? prospectiveKind ?? null : childOrType.bossKind;
+        return (
+            this.bossAdjacencyBlocks(parent, childKind) ||
+            this.recoveryAfterMajorBlocks(parent, childType)
+        );
+    }
+
+    /**
+     * Decide whether the about-to-be-placed child of `primaryParent`
+     * should be promoted to a mid-run boss room. Returns the chosen
+     * {@link BossKind} (`'mini'`, `'major'`, or `null` for "no
+     * promotion"). Final-boss placement is handled by the caller.
+     */
+    private decideBossKind(
+        primaryParent: MapNode,
+        isFinalApproach: boolean,
+    ): BossKind {
+        // The final-approach layer is forced to recovery / reward
+        // rooms so the player always has a clean step into the
+        // final encounter — never a boss right before it.
+        if (isFinalApproach) return null;
+        // No two bosses in a row — if the primary parent is itself
+        // a boss room, this slot stays a regular room.
+        if (primaryParent.bossKind !== null) return null;
+
+        const parentSteps = this.stepsSinceBoss.get(primaryParent.id) ?? 0;
+        const steps = parentSteps + 1;
+        const window = this.getPressureWindow();
+        if (steps < window.start) return null;
+
+        const targetMajor = this.getTargetMajorBosses();
+        const targetMini = this.getTargetMiniBosses();
+        const majorAvailable = this.majorBossesPlaced < targetMajor;
+        const miniAvailable = this.miniBossesPlaced < targetMini;
+        // Both budgets exhausted — no mid-run boss can be placed
+        // even though pressure has built up. The branch will keep
+        // accumulating steps; if a downstream branch still has a
+        // budget left it can still trigger.
+        if (!majorAvailable && !miniAvailable) return null;
+
+        const cfg = RUN_CONFIG.bossPressure;
+        // At or past the upper window edge a boss is forced.
+        if (steps >= window.end) {
+            if (
+                majorAvailable &&
+                this.rng.next() < cfg.majorOddsAtForcedEnd
+            ) {
+                return 'major';
+            }
+            return miniAvailable ? 'mini' : 'major';
+        }
+        // Inside the window the boss probability rises linearly
+        // from 0 (at `start`) to 1 (at `end`). We then split the
+        // outcome between MINI / MAJOR using `majorOddsInWindow`,
+        // gated by remaining budgets so we never overshoot.
+        const denom = window.end - window.start;
+        const t = denom === 0 ? 1 : (steps - window.start) / denom;
+        if (this.rng.next() >= t) return null;
+        if (majorAvailable && this.rng.next() < cfg.majorOddsInWindow) {
+            return 'major';
+        }
+        return miniAvailable ? 'mini' : 'major';
+    }
+
+    /**
+     * Resolve the final {@link RoomType} given a (possibly null)
+     * boss kind decided by {@link decideBossKind}. Major / final
+     * bosses use {@link RoomType.BOSS}; minis use
+     * {@link RoomType.MINI_BOSS}. Non-boss rooms fall through to
+     * {@link pickRoomType} which honours the post-major recovery
+     * forcing via {@link getForcedRoomType}.
+     */
+    private resolveRoomType(
+        bossKind: BossKind,
+        depth: number,
+        primaryParent: MapNode,
+        allNodes: MapNode[],
+        newLayer: MapNode[],
+    ): RoomType {
+        if (bossKind === 'final' || bossKind === 'major') {
+            return RoomType.BOSS;
+        }
+        if (bossKind === 'mini') {
+            return RoomType.MINI_BOSS;
+        }
+        return this.pickRoomType(depth, allNodes, newLayer, primaryParent);
     }
 
     /**
@@ -908,8 +1194,18 @@ export class MapGenerator {
         return fallback!.point;
     }
 
-    private pickRoomType(depth: number, allNodes: MapNode[], pendingNodes: MapNode[]): RoomType {
-        const forcedType = this.getForcedRoomType(depth, allNodes, pendingNodes);
+    private pickRoomType(
+        depth: number,
+        allNodes: MapNode[],
+        pendingNodes: MapNode[],
+        primaryParent: MapNode | null = null,
+    ): RoomType {
+        const forcedType = this.getForcedRoomType(
+            depth,
+            primaryParent,
+            allNodes,
+            pendingNodes,
+        );
         if (forcedType) {
             return forcedType;
         }
@@ -937,25 +1233,33 @@ export class MapGenerator {
         return allowed.length > 0 ? allowed : BASE_ROOM_POOL;
     }
 
-    private getForcedRoomType(depth: number, _allNodes: MapNode[], _pendingNodes: MapNode[]): RoomType | null {
-        // PR-1: the only forced layer is the final-approach
-        // (`runLength - 1`). Every room there is a recovery /
-        // reward type drawn from {@link FINAL_APPROACH_POOL} so the
-        // player can stabilize before any final-boss node. PR-2
-        // will add additional forcing (recovery rooms after a
-        // major BOSS, no-adjacent-bosses, etc.) — those are
-        // intentionally absent here so this PR can be reviewed in
-        // isolation.
+    private getForcedRoomType(
+        depth: number,
+        primaryParent: MapNode | null,
+        _allNodes: MapNode[],
+        _pendingNodes: MapNode[],
+    ): RoomType | null {
+        // Final-approach layer (`runLength - 1`) is forced to a
+        // recovery / reward type so the player can stabilize before
+        // any final-boss node.
         if (depth === this.runLength - 1) {
-            const availableRecoveryRooms = FINAL_APPROACH_POOL.filter(
-                (type) => this.availableRooms.has(type),
-            );
-            if (availableRecoveryRooms.length > 0) {
-                return this.pickWeightedRoom(availableRecoveryRooms);
-            }
+            const recovery = this.pickRecoveryType(FINAL_APPROACH_POOL);
+            if (recovery) return recovery;
         }
-
+        // Direct child of a mid-run major BOSS — same recovery
+        // pool, scaled-down "post-boss reward" room. Mini bosses
+        // do *not* trigger this; their pacing pressure is mild
+        // enough that a regular room is fine afterwards.
+        if (primaryParent && primaryParent.bossKind === 'major') {
+            const recovery = this.pickRecoveryType(POST_MAJOR_RECOVERY_POOL);
+            if (recovery) return recovery;
+        }
         return null;
+    }
+
+    private pickRecoveryType(pool: RoomType[]): RoomType | null {
+        const available = pool.filter((type) => this.availableRooms.has(type));
+        return available.length > 0 ? this.pickWeightedRoom(available) : null;
     }
 
     private pickWeightedRoom(pool: RoomType[]): RoomType {
@@ -1059,11 +1363,27 @@ export interface MapValidationReport {
     deadEndCount: number;
     /**
      * Count of edges that connect two boss-encounter nodes
-     * (`bossKind !== null`). PR-1 only generates final bosses, so
-     * this is always 0; PR-2 will track adjacency violations for
-     * intermediate bosses.
+     * (`bossKind !== null`). The bossPressure pass actively
+     * prevents this; a non-zero value means an unrecoverable
+     * placement fallback bypassed the invariant.
      */
     bossAdjacencyViolations: number;
+    /** Number of mid-run major bosses (`bossKind === 'major'`). */
+    majorBossCount: number;
+    /** Number of mid-run mini bosses (`bossKind === 'mini'`). */
+    miniBossCount: number;
+    /** Number of final bosses (`bossKind === 'final'`). Mirrors
+     *  `finalNodeCount` once the final layer is generated. */
+    finalBossCount: number;
+    /**
+     * Count of direct children of a major-boss node whose `type` is
+     * NOT one of the recovery / reward room types (REST / SHRINE /
+     * MERCHANT / TREASURE). Should always be 0 — bossPressure forces
+     * recovery rooms after every major boss. A non-zero value
+     * indicates the generator's recovery-after-major invariant has
+     * been bypassed.
+     */
+    postMajorRecoveryViolations: number;
 }
 
 /**
@@ -1086,19 +1406,33 @@ export function validateMap(
 ): MapValidationReport {
     const byId = new Map(allNodes.map((n) => [n.id, n]));
     const incoming = new Map<string, number>();
+    const recoveryPool = new Set<RoomType>(POST_MAJOR_RECOVERY_POOL);
     let totalEdges = 0;
     let bossAdjacencyViolations = 0;
+    let postMajorRecoveryViolations = 0;
+    let majorBossCount = 0;
+    let miniBossCount = 0;
+    let finalBossCount = 0;
 
     for (const node of allNodes) {
+        if (node.bossKind === 'major') majorBossCount++;
+        else if (node.bossKind === 'mini') miniBossCount++;
+        else if (node.bossKind === 'final') finalBossCount++;
         for (const edgeId of node.edges) {
             const target = byId.get(edgeId);
             if (!target) continue;
             totalEdges++;
             incoming.set(edgeId, (incoming.get(edgeId) ?? 0) + 1);
-            // Boss-to-boss edge — the no-adjacent-bosses invariant
-            // (relevant once PR-2 lands intermediate bosses).
+            // No-adjacent-bosses invariant — boss-to-boss edges
+            // shouldn't exist once the bossPressure pass is wired
+            // up. We still count them so a regression is loud.
             if (node.bossKind !== null && target.bossKind !== null) {
                 bossAdjacencyViolations++;
+            }
+            // Recovery-after-major invariant — every direct child
+            // of a major-boss node must be a recovery room.
+            if (node.bossKind === 'major' && !recoveryPool.has(target.type)) {
+                postMajorRecoveryViolations++;
             }
         }
     }
@@ -1210,6 +1544,10 @@ export function validateMap(
         orphanNodeCount,
         deadEndCount,
         bossAdjacencyViolations,
+        majorBossCount,
+        miniBossCount,
+        finalBossCount,
+        postMajorRecoveryViolations,
     };
 }
 
