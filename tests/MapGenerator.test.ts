@@ -250,4 +250,70 @@ describe('MapGenerator', () => {
             }
         }
     });
+
+    it('respects the per-room outgoing-edge cap', () => {
+        // Every non-bottleneck parent should have at most
+        // MAP_CONFIG.maxEdgesPerNode forward transitions, and at
+        // least 1 (so the player can always advance from any
+        // non-leaf room).
+        const seenFanouts = new Set<number>();
+        for (let seed = 0; seed < 100; seed++) {
+            const gen = new MapGenerator(undefined, new Mulberry32(seed));
+            const nodes = gen.generateInitialMap(8);
+            const maxDepth = Math.max(...nodes.map((n) => n.depth));
+            for (const node of nodes) {
+                if (node.depth === maxDepth) continue; // leaves
+                expect(node.edges.length).toBeGreaterThanOrEqual(1);
+                expect(node.edges.length).toBeLessThanOrEqual(
+                    MAP_CONFIG.maxEdgesPerNode,
+                );
+                seenFanouts.add(node.edges.length);
+            }
+        }
+        // Across many seeds we should see a meaningful spread of
+        // fanouts, not just the always-1 baseline. Require at least
+        // some 2-outgoing rooms so the bonus-edge pass is actually
+        // exercised end-to-end.
+        expect(seenFanouts.has(2)).toBe(true);
+    });
+
+    it('keeps most non-bottleneck edges close to the preferred length', () => {
+        // The user-visible "no cross-screen lines" guarantee. The
+        // forced PRE-BOSS / BOSS convergence still occasionally
+        // produces a long edge (parents spread out then collapse
+        // into one PRE-BOSS room), so we only check non-converging
+        // edges here. Most regular parent→child edges should land
+        // within ~1.5× of the preferred edge length used inside
+        // MapGenerator.
+        const SEED_COUNT = 100;
+        const SOFT_CAP_PX = 240; // mirrors MAX_EDGE_LENGTH internally
+        let total = 0;
+        let overCap = 0;
+        for (let seed = 0; seed < SEED_COUNT; seed++) {
+            const gen = new MapGenerator(undefined, new Mulberry32(seed));
+            const nodes = gen.generateInitialMap(8);
+            const byId = new Map(nodes.map((n) => [n.id, n]));
+            for (const src of nodes) {
+                for (const tgtId of src.edges) {
+                    const tgt = byId.get(tgtId);
+                    if (!tgt) continue;
+                    // Skip edges into a forced bottleneck (PRE-BOSS / BOSS).
+                    const tgtIsBottleneck =
+                        tgt.type === RoomType.BOSS ||
+                        tgt.depth % MAP_CONFIG.bossEveryNDepths ===
+                            MAP_CONFIG.bossEveryNDepths - 1;
+                    if (tgtIsBottleneck) continue;
+                    const dx = tgt.x - src.x;
+                    const dy = tgt.y - src.y;
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    total += 1;
+                    if (len > SOFT_CAP_PX) overCap += 1;
+                }
+            }
+        }
+        // Allow up to 25% of non-bottleneck edges to exceed the
+        // soft cap (covers placement fallbacks on congested
+        // layers); the rest should be at the preferred length.
+        expect(overCap / total).toBeLessThan(0.25);
+    });
 });

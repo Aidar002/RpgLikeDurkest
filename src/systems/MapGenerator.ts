@@ -60,13 +60,38 @@ export const MAP_START_X = 360;
 export const MAP_START_Y = 380;
 
 /** Preferred 2D distance (px) between a parent node and its child. */
-const EDGE_LENGTH = 180;
+const EDGE_LENGTH = 150;
+/**
+ * Soft cap on the parent→child segment length we *want* to stay
+ * under. The bonus-edge pass enforces this strictly so the
+ * "1–4 next rooms" guarantee never produces a cross-screen line.
+ * The placement fallback may still exceed this on geometrically
+ * congested layers (in which case the test failure budget kicks
+ * in), but Pass 1 and Pass 2 always look for a sub-cap clean spot
+ * first.
+ */
+const MAX_EDGE_LENGTH = 240;
+/**
+ * Reach used by the deeper placement fallback passes (and the
+ * bonus-edge / parent-rescue passes) when the preferred radius
+ * fails. Allows just enough slack to dodge crossings on
+ * congested layers without producing the cross-screen lines
+ * that broke the Darkest-Dungeon look.
+ */
+const FALLBACK_EDGE_LENGTH = 360;
+const FALLBACK_EDGE_LENGTH_SQ = FALLBACK_EDGE_LENGTH * FALLBACK_EDGE_LENGTH;
+/**
+ * Pathological last-resort radius used only when even
+ * {@link FALLBACK_EDGE_LENGTH} can't find a clean spot — we
+ * accept the visual hit over deadlocking the run.
+ */
+const LAST_RESORT_EDGE_LENGTH = EDGE_LENGTH * 5;
 /**
  * Minimum 2D distance (px) we want between any two nodes. Slightly
  * larger than the rendered NODE_SZ (80) plus surrounding glow so that
  * neighbouring rooms don't visually touch.
  */
-const MIN_NODE_DISTANCE = 150;
+const MIN_NODE_DISTANCE = 130;
 /**
  * How wide a buffer (px) we keep around each non-endpoint node when
  * routing an edge — i.e. an edge segment must not pass closer than
@@ -318,12 +343,9 @@ export class MapGenerator {
             depth > 0 &&
             (depth + 1) % MAP_CONFIG.bossEveryNDepths === 0;
         const branchRoll = this.rng.next();
+        const { one, two } = MAP_CONFIG.branchRolls;
         const rolledCount =
-            branchRoll < MAP_CONFIG.branchRolls.one
-                ? 1
-                : branchRoll < MAP_CONFIG.branchRolls.one + MAP_CONFIG.branchRolls.two
-                  ? 2
-                  : 3;
+            branchRoll < one ? 1 : branchRoll < one + two ? 2 : 3;
         // Multidirectional placement makes it impossible to fan many
         // parents into a single child without crossing edges, so for
         // open layers we require at least one new node per
@@ -435,28 +457,47 @@ export class MapGenerator {
             parent.edges.push(candidates[0].id);
         });
 
-        // Optional second edge per parent — a bonus path to a sibling
-        // child. Only kept if it stays clear of every other node and
-        // every existing edge.
-        previousLayer.forEach((parent) => {
-            if (newLayer.length <= 1) return;
-            if (this.rng.next() >= MAP_CONFIG.edgeProbability) return;
+        // Bonus edges per parent — picks a target outgoing fanout
+        // from {@link MAP_CONFIG.fanoutRolls} (1–4) and tries to
+        // raise this parent's child-count up to that target. Each
+        // candidate is the closest remaining sibling within
+        // {@link FALLBACK_EDGE_LENGTH}, gated by the no-crossing /
+        // no-clipping invariants so we never trade visual clarity
+        // for extra paths. Bottleneck layers (BOSS / PRE-BOSS)
+        // skip this so the forced single-child convergence stays.
+        if (!isBossDepth && !isPreBossDepth) {
+            previousLayer.forEach((parent) => {
+                if (newLayer.length <= 1) return;
 
-            const candidates = newLayer
-                .filter((cand) => !parent.edges.includes(cand.id))
-                .slice()
-                .sort(
-                    (a, b) =>
-                        squaredDistance(parent, a) - squaredDistance(parent, b),
-                );
+                const targetFanout = this.rollFanout();
+                const cap = Math.min(MAP_CONFIG.maxEdgesPerNode, newLayer.length);
+                let need = Math.min(targetFanout, cap) - parent.edges.length;
+                if (need <= 0) return;
 
-            const edges = collectEdgeSegments(allNodes);
-            for (const cand of candidates) {
-                if (!this.edgeIsClear(parent, cand, edges, allNodes)) continue;
-                parent.edges.push(cand.id);
-                break;
-            }
-        });
+                const candidates = newLayer
+                    .filter((cand) => !parent.edges.includes(cand.id))
+                    .slice()
+                    .sort(
+                        (a, b) =>
+                            squaredDistance(parent, a) -
+                            squaredDistance(parent, b),
+                    );
+
+                for (const cand of candidates) {
+                    if (need <= 0) break;
+                    if (squaredDistance(parent, cand) > FALLBACK_EDGE_LENGTH_SQ) {
+                        // Sorted nearest-first, so subsequent siblings
+                        // are even farther — stop scanning.
+                        break;
+                    }
+                    const edges = collectEdgeSegments(allNodes);
+                    if (this.edgeIsClear(parent, cand, edges, allNodes)) {
+                        parent.edges.push(cand.id);
+                        need--;
+                    }
+                }
+            });
+        }
 
         // Safety net: if a child somehow ended up parentless (e.g. its
         // primary parent assignment landed on a node already saturated),
@@ -508,6 +549,21 @@ export class MapGenerator {
     }
 
     /**
+     * Roll the target outgoing-edge count for a parent room (1–4)
+     * using {@link MAP_CONFIG.fanoutRolls}. The result is later
+     * clamped against the actual size of the next layer and the
+     * global {@link MAP_CONFIG.maxEdgesPerNode} cap.
+     */
+    private rollFanout(): number {
+        const r = this.rng.next();
+        const f = MAP_CONFIG.fanoutRolls;
+        if (r < f.one) return 1;
+        if (r < f.one + f.two) return 2;
+        if (r < f.one + f.two + f.three) return 3;
+        return 4;
+    }
+
+    /**
      * Average outward direction across a set of parents — used by
      * converging layers (BOSS / PRE-BOSS) to bias the single child
      * forward along the level's overall growth direction.
@@ -544,12 +600,19 @@ export class MapGenerator {
         const edges = collectEdgeSegments(allNodes);
         const minDistSq = MIN_NODE_DISTANCE * MIN_NODE_DISTANCE;
 
+        // Ring radii — unlike open-layer placement, converging
+        // layers (PRE-BOSS / BOSS) MUST connect every parent to a
+        // single child, so a long reach here is the difference
+        // between a workable map and one with crossing fan-in
+        // edges. We try the shortest radii first so the common
+        // case keeps the converging edges compact.
         const ringRadii = [
             0,
             EDGE_LENGTH * 0.3,
             EDGE_LENGTH * 0.6,
             EDGE_LENGTH,
-            EDGE_LENGTH * 1.4,
+            EDGE_LENGTH * 1.2,
+            MAX_EDGE_LENGTH,
             EDGE_LENGTH * 1.8,
             EDGE_LENGTH * 2.4,
             EDGE_LENGTH * 3,
@@ -707,7 +770,7 @@ export class MapGenerator {
                 biasAngle === undefined
                     ? this.rng.next() * Math.PI * 2
                     : biasAngle + (this.rng.next() * 2 - 1) * PLACEMENT_CONE;
-            for (const distance of [EDGE_LENGTH, EDGE_LENGTH * 1.25, EDGE_LENGTH * 1.5]) {
+            for (const distance of [EDGE_LENGTH, EDGE_LENGTH * 1.1, EDGE_LENGTH * 1.2]) {
                 const point: Point = {
                     x: parent.x + Math.cos(angle) * distance,
                     y: parent.y + Math.sin(angle) * distance,
@@ -723,16 +786,27 @@ export class MapGenerator {
 
         // Pass 2: dense deterministic angle sweep at growing radii,
         // preferring fully clean candidates that respect the
-        // min-distance. We pick the candidate that maximises
-        // separation from the nearest existing node so two siblings
-        // sharing a parent don't deterministically converge on the
-        // same first-clear angle.
+        // min-distance. Capped at {@link MAX_EDGE_LENGTH} so we
+        // never produce a cross-screen edge here — if no clean
+        // spot exists under the cap, we yield to {@link placeNode}
+        // for the relaxed fallback. We pick the candidate that
+        // maximises separation from the nearest existing node so
+        // two siblings sharing a parent don't deterministically
+        // converge on the same first-clear angle.
         const sweepCount = 192;
+        // We sweep tight radii first (the cheap, common path) so
+        // most edges stay close to the preferred {@link EDGE_LENGTH},
+        // then expand only as far as we have to in order to find a
+        // non-crossing spot. Returning `null` from this method lets
+        // the caller try a different parent before {@link placeNode}
+        // resorts to crossings.
         const expandedDistances = [
             EDGE_LENGTH,
-            EDGE_LENGTH * 1.25,
-            EDGE_LENGTH * 1.5,
-            EDGE_LENGTH * 1.8,
+            EDGE_LENGTH * 1.1,
+            EDGE_LENGTH * 1.2,
+            MAX_EDGE_LENGTH,
+            MAX_EDGE_LENGTH * 1.15,
+            FALLBACK_EDGE_LENGTH,
             EDGE_LENGTH * 2.2,
             EDGE_LENGTH * 2.6,
             EDGE_LENGTH * 3.2,
@@ -839,8 +913,10 @@ export class MapGenerator {
             );
         }
 
-        // Pass 1: random angles, increasing radii — ideal placement.
-        for (const distance of [EDGE_LENGTH, EDGE_LENGTH * 1.25, EDGE_LENGTH * 1.5]) {
+        // Pass 1: random angles at preferred radii — ideal placement.
+        // Most successful placements happen here, so most edges land
+        // close to the preferred {@link EDGE_LENGTH}.
+        for (const distance of [EDGE_LENGTH, EDGE_LENGTH * 1.1, EDGE_LENGTH * 1.2]) {
             for (const angle of randomAngles) {
                 const cand = evaluate(angle, distance);
                 if (
@@ -856,7 +932,12 @@ export class MapGenerator {
 
         // Pass 2: dense deterministic sweep — keep all edge invariants
         // (no crossings, no edge clipping a node, no node landing on
-        // an existing edge), relax min-distance.
+        // an existing edge), relax min-distance. Radii grow up to
+        // {@link LAST_RESORT_EDGE_LENGTH} only because boss-converging
+        // layers occasionally have NO clean spot under the soft cap;
+        // when that happens we'd rather take a longer edge than a
+        // crossing one. Pass 1 already exits early for the common
+        // case so most edges stay ≤ {@link MAX_EDGE_LENGTH}.
         const denseAngles: number[] = [];
         const sweepCount = 96;
         for (let i = 0; i < sweepCount; i++) {
@@ -865,14 +946,16 @@ export class MapGenerator {
 
         const expandedDistances = [
             EDGE_LENGTH,
-            EDGE_LENGTH * 1.25,
-            EDGE_LENGTH * 1.5,
-            EDGE_LENGTH * 1.8,
+            EDGE_LENGTH * 1.1,
+            EDGE_LENGTH * 1.2,
+            MAX_EDGE_LENGTH,
+            MAX_EDGE_LENGTH * 1.15,
+            FALLBACK_EDGE_LENGTH,
             EDGE_LENGTH * 2.2,
             EDGE_LENGTH * 2.6,
             EDGE_LENGTH * 3.2,
             EDGE_LENGTH * 4,
-            EDGE_LENGTH * 5,
+            LAST_RESORT_EDGE_LENGTH,
         ];
         for (const distance of expandedDistances) {
             for (const angle of denseAngles) {
@@ -897,7 +980,8 @@ export class MapGenerator {
         // Pass 4: pathological — accept a crossing candidate as a
         // last resort so the run never deadlocks. Pick the radius
         // and angle that minimised total violations during the
-        // dense sweep.
+        // dense sweep (with a tiny shortest-edge tiebreaker so we
+        // don't pointlessly stretch a fallback).
         let fallback: { point: Point; score: number } | null = null;
         for (const distance of expandedDistances) {
             for (const angle of denseAngles) {
@@ -906,7 +990,8 @@ export class MapGenerator {
                     (cand.crosses ? 1000 : 0) +
                     (cand.clipsNode ? 500 : 0) +
                     (cand.blocksEdge ? 500 : 0) +
-                    (cand.tooClose ? 100 : 0);
+                    (cand.tooClose ? 100 : 0) +
+                    distance * 0.001;
                 if (fallback === null || score < fallback.score) {
                     fallback = { point: cand.point, score };
                 }

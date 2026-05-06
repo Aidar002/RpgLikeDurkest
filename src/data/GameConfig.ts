@@ -121,10 +121,21 @@ export const MAP_CONFIG = {
     bossEveryNDepths: 5,
     /** The boss at this depth guards the Wish Artifact. Defeating it wins the run. */
     finalDepth: 25,
+    /**
+     * Distribution of how many *new rooms* a layer adds. The actual
+     * layer width is `max(rolledCount, parents)` so a layer never
+     * shrinks under what's needed to keep every parent connected.
+     *
+     * Capped at 3 wide because the forced PRE-BOSS convergence
+     * step can't reliably collapse 4 spread-out parents into a
+     * single child without producing crossing edges. Player-facing
+     * "1–4 next rooms" comes from {@link fanoutRolls} (per-room
+     * outgoing edges), which is a separate axis.
+     */
     branchRolls: {
-        one: 0.18,
-        two: 0.52,
-        three: 0.3,
+        one: 0.15,
+        two: 0.40,
+        three: 0.45,
     },
     roomTypeWeights: {
         ENEMY: 0.34,
@@ -136,7 +147,26 @@ export const MAP_CONFIG = {
         MERCHANT: 0.06,
         ELITE: 0.06,
     },
-    edgeProbability: 0.7,
+    /**
+     * Distribution of *outgoing edges per parent room* (i.e. how
+     * many of the next layer's rooms a player can pick from this
+     * room). The actual count is clamped against the number of
+     * available children in the next layer and capped at
+     * {@link MAX_EDGES_PER_NODE}, so dense parts of the run get
+     * 1–4 paths and bottlenecks (PRE-BOSS / BOSS) stay at 1.
+     */
+    fanoutRolls: {
+        one: 0.20,
+        two: 0.35,
+        three: 0.30,
+        four: 0.15,
+    },
+    /**
+     * Hard cap on outgoing edges per non-bottleneck room. Keeps
+     * the visual graph readable even on wide layers and matches
+     * the player-facing "1–4 next rooms" guarantee.
+     */
+    maxEdgesPerNode: 4,
     safeDepths: 1,
 } as const;
 
