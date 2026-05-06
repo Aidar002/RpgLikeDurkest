@@ -15,6 +15,10 @@ const ROOM_COLOR: Record<RoomTypeValue, number> = {
     [RoomType.MERCHANT]: 0x2e6c87,
     [RoomType.ELITE]: 0xb14545,
     [RoomType.BOSS]: 0xc83b3b,
+    // PR-1: MINI_BOSS is declared as a future room kind (placement
+    // lands in PR-2). Until then it visually mirrors a major BOSS
+    // so any stray MINI_BOSS node still renders sensibly.
+    [RoomType.MINI_BOSS]: 0xb84545,
     [RoomType.EMPTY]: 0x454545,
 };
 
@@ -28,6 +32,7 @@ const ROOM_ICON: Record<RoomTypeValue, string> = {
     [RoomType.MERCHANT]: 'M',
     [RoomType.ELITE]: 'E',
     [RoomType.BOSS]: 'B',
+    [RoomType.MINI_BOSS]: 'b',
     [RoomType.EMPTY]: '.',
 };
 
@@ -41,6 +46,7 @@ const ROOM_SPRITE_KEY: Record<RoomTypeValue, string> = {
     [RoomType.MERCHANT]: 'MERCHANT',
     [RoomType.ELITE]: 'ELITE',
     [RoomType.BOSS]: 'BOSS',
+    [RoomType.MINI_BOSS]: 'BOSS',
     [RoomType.EMPTY]: 'EMPTY',
 };
 
@@ -61,6 +67,7 @@ const ROOM_FRAME_INDEX: Record<RoomTypeValue, 0 | 1 | 2> = {
     [RoomType.ENEMY]: 1,
     [RoomType.ELITE]: 1,
     [RoomType.BOSS]: 1,
+    [RoomType.MINI_BOSS]: 1,
     [RoomType.TRAP]: 1,
     [RoomType.EMPTY]: 2,
 };
@@ -89,6 +96,7 @@ const ROOM_ICON_FRAME: Record<RoomTypeValue, number> = {
     [RoomType.EMPTY]: 2,
     [RoomType.ELITE]: 3,
     [RoomType.BOSS]: 4,
+    [RoomType.MINI_BOSS]: 4,
     [RoomType.TREASURE]: 5,
     [RoomType.MERCHANT]: 5,
     [RoomType.TRAP]: 6,
@@ -119,6 +127,7 @@ const ROOM_NAME_KEY = {
     [RoomType.MERCHANT]: 'roomMerchant',
     [RoomType.ELITE]: 'roomElite',
     [RoomType.BOSS]: 'roomBoss',
+    [RoomType.MINI_BOSS]: 'roomBoss',
     [RoomType.EMPTY]: 'roomEmpty',
 } as const satisfies Record<RoomTypeValue, string>;
 

@@ -1,4 +1,4 @@
-import { MAP_CONFIG } from '../data/GameConfig';
+import { MAP_CONFIG, RUN_CONFIG } from '../data/GameConfig';
 import { defaultRng, type Rng } from './Rng';
 
 export const RoomType = {
@@ -11,21 +11,46 @@ export const RoomType = {
     MERCHANT: 'MERCHANT',
     ELITE: 'ELITE',
     BOSS: 'BOSS',
+    /**
+     * Branch-guardian / mid-run threat. Stub for PR-2 — placement
+     * is wired up by the bossPressure pass in the next PR. Already
+     * declared so combat / UI / narrative code can pattern-match
+     * against it without churn later.
+     */
+    MINI_BOSS: 'MINI_BOSS',
     EMPTY: 'EMPTY',
 } as const;
 
 export type RoomType = (typeof RoomType)[keyof typeof RoomType];
 
 /**
+ * Tag describing what kind of boss-encounter (if any) lives in
+ * a node. Set by the generator at node-creation time.
+ *
+ *  - `'final'` — terminal final-boss node (depth === runLength).
+ *    Victory over any of these ends the run.
+ *  - `'major'` — mid-run major boss. Reserved for PR-2; PR-1
+ *    never assigns this kind.
+ *  - `'mini'`  — mid-run threat / branch guardian. Reserved for
+ *    PR-2; PR-1 never assigns this kind.
+ *  - `null`    — non-boss room.
+ */
+export type BossKind = 'final' | 'major' | 'mini' | null;
+
+/**
  * One room in the dungeon graph.
  *
  * `depth` is the **logical** distance from START in graph hops — it
- * still drives game balance (boss every N depths, prep window, run
+ * drives map shape (final layer at `RUN_CONFIG.runLength`, run
  * progress). `x` / `y` are **visual** positions in container-local
  * coordinates and are picked at generation time so that a layer's
  * children can sit in any direction around their parent (not only
  * to the right). `slot` is retained for back-compat with hand-built
  * test fixtures and is no longer used for layout.
+ *
+ * `bossKind` is non-null only for boss-encounter rooms. PR-1 wires
+ * up `'final'` for the final layer; `'major'` / `'mini'` are
+ * placed by the bossPressure pass in PR-2.
  */
 export interface MapNode {
     id: string;
@@ -36,6 +61,11 @@ export interface MapNode {
     /** Container-local y position (px), set by {@link MapGenerator}. */
     y: number;
     type: RoomType;
+    /**
+     * Boss-encounter classification, or `null` for a regular room.
+     * See {@link BossKind} for the semantics of each value.
+     */
+    bossKind: BossKind;
     visited: boolean;
     cleared: boolean;
     edges: string[];
@@ -48,7 +78,22 @@ const BASE_ROOM_POOL: RoomType[] = [
     RoomType.TREASURE,
 ];
 
-const PREP_ROOM_POOL: RoomType[] = [RoomType.REST, RoomType.SHRINE, RoomType.MERCHANT];
+/**
+ * Recovery / reward pool used right before the final boss layer.
+ * Every depth `runLength - 1` room is forced to one of these so the
+ * player can stabilize before the final encounter.
+ */
+const FINAL_APPROACH_POOL: RoomType[] = [
+    RoomType.REST,
+    RoomType.SHRINE,
+    RoomType.MERCHANT,
+    RoomType.TREASURE,
+];
+
+/** Minimum width of the final-approach layer so the player always
+ *  has at least two recovery / reward options before choosing which
+ *  final-boss node to enter. */
+const FINAL_APPROACH_MIN_WIDTH = 2;
 
 /**
  * Container-local coordinates of the START node. Chosen so that the
@@ -274,6 +319,13 @@ export class MapGenerator {
     private availableRooms = new Set<RoomType>(BASE_ROOM_POOL);
     private rng: Rng;
     /**
+     * Total run length (final boss is at this depth). Defaults to
+     * {@link RUN_CONFIG.runLength} but can be overridden per
+     * generator instance — useful for tests that exercise the
+     * scaling behavior at multiple lengths (25 / 35 / 50 / 75 / …).
+     */
+    private runLength: number;
+    /**
      * Per-node "outward direction" (angle from the node's first
      * parent toward the node itself). Children placed off this node
      * fan into the half-plane in this direction, so each branch
@@ -282,9 +334,23 @@ export class MapGenerator {
      */
     private outwardAngles = new Map<string, number>();
 
-    constructor(initialRooms: RoomType[] = BASE_ROOM_POOL, rng: Rng = defaultRng) {
+    constructor(
+        initialRooms: RoomType[] = BASE_ROOM_POOL,
+        rng: Rng = defaultRng,
+        runLength: number = RUN_CONFIG.runLength,
+    ) {
         this.rng = rng;
+        this.runLength = runLength;
         this.setAvailableRoomTypes(initialRooms);
+    }
+
+    /**
+     * The final-boss depth this generator targets. Public so tests
+     * and validation can compute path-length invariants without
+     * reaching into the config singleton.
+     */
+    getRunLength(): number {
+        return this.runLength;
     }
 
     /**
@@ -317,8 +383,13 @@ export class MapGenerator {
         start.visited = true;
         all.push(start);
 
+        // Never generate past the final-boss depth. If a caller
+        // (or test) asks for `lookahead >= runLength`, we simply
+        // build the whole run up to the final layer and stop —
+        // there is nothing beyond the final layer.
+        const lastDepth = Math.min(lookahead, this.runLength);
         let previousLayer = [start];
-        for (let depth = 1; depth <= lookahead; depth++) {
+        for (let depth = 1; depth <= lastDepth; depth++) {
             previousLayer = this.buildLayer(depth, previousLayer, all);
         }
 
@@ -326,6 +397,10 @@ export class MapGenerator {
     }
 
     generateNextLayer(allNodes: MapNode[], fromDepth: number): MapNode[] {
+        // The final layer is terminal — never extend past it.
+        if (fromDepth >= this.runLength) {
+            return [];
+        }
         const previousLayer = allNodes.filter((node) => node.depth === fromDepth);
         // Defensive copy so buildLayer's local push doesn't mutate
         // the caller's node array — DungeonManager owns that and
@@ -334,88 +409,79 @@ export class MapGenerator {
     }
 
     private buildLayer(depth: number, previousLayer: MapNode[], allNodes: MapNode[]): MapNode[] {
-        const isBossDepth = depth > 0 && depth % MAP_CONFIG.bossEveryNDepths === 0;
-        // Pre-boss collapses the map back to a single gate-room
-        // (ELITE / REST / SHRINE / MERCHANT — see getForcedRoomType)
-        // so the boss room has exactly one incoming edge.
-        const isPreBossDepth =
-            !isBossDepth &&
-            depth > 0 &&
-            (depth + 1) % MAP_CONFIG.bossEveryNDepths === 0;
+        // Final-boss layer — every node here is a final-boss room
+        // (`bossKind: 'final'`). Multiple final-boss nodes by design
+        // (see RUN_CONFIG / map architecture spec): no forced
+        // bottleneck, the player picks which one to enter.
+        const isFinalLayer = depth === this.runLength;
+        // The room right before the final layer is forced to a
+        // recovery / reward type so the player can stabilize before
+        // the final encounter.
+        const isFinalApproach = depth === this.runLength - 1;
+
         const branchRoll = this.rng.next();
         const { one, two } = MAP_CONFIG.branchRolls;
         const rolledCount =
             branchRoll < one ? 1 : branchRoll < one + two ? 2 : 3;
-        // Multidirectional placement makes it impossible to fan many
-        // parents into a single child without crossing edges, so for
-        // open layers we require at least one new node per
-        // previous-layer parent. The BOSS and PRE-BOSS layers are
-        // intentional bottlenecks (count = 1).
-        const count =
-            isBossDepth || isPreBossDepth
-                ? 1
-                : Math.max(rolledCount, previousLayer.length);
+        // Final-approach layer always offers ≥ FINAL_APPROACH_MIN_WIDTH
+        // recovery rooms so the player has a real choice of which
+        // final-boss node to head into. Open layers require at least
+        // one new node per previous-layer parent so every parent
+        // keeps a forward edge (multidirectional placement can't
+        // fan many parents into a single child without crossings).
+        const minWidth = isFinalApproach ? FINAL_APPROACH_MIN_WIDTH : 1;
+        const count = Math.max(rolledCount, previousLayer.length, minWidth);
         const newLayer: MapNode[] = [];
 
         for (let slot = 0; slot < count; slot++) {
-            const type = isBossDepth ? RoomType.BOSS : this.pickRoomType(depth, allNodes, newLayer);
-            const node = this.makeNode(depth, slot, type);
+            const type = isFinalLayer
+                ? RoomType.BOSS
+                : this.pickRoomType(depth, allNodes, newLayer);
+            const bossKind: BossKind = isFinalLayer ? 'final' : null;
+            const node = this.makeNode(depth, slot, type, bossKind);
 
-            const isConvergingLayer =
-                (isBossDepth || isPreBossDepth) && previousLayer.length > 1;
+            // Round-robin primary parent so each previous-layer
+            // node fans out roughly evenly. If that parent can't
+            // host a clean (non-crossing, non-clipping) placement,
+            // try the other parents before falling back to the
+            // original with the strict invariants relaxed.
+            //
+            // Note: PR-1 removes the legacy converging PRE-BOSS /
+            // BOSS bottleneck. Both the final-approach layer and
+            // the final-boss layer use the standard fan-out
+            // placement — multiple parents fan onto multiple
+            // children, no forced single-point convergence.
+            const primaryIndex = slot % previousLayer.length;
+            const parentOrder: MapNode[] = [];
+            for (let i = 0; i < previousLayer.length; i++) {
+                parentOrder.push(
+                    previousLayer[(primaryIndex + i) % previousLayer.length],
+                );
+            }
 
             let chosenParent: MapNode | null = null;
             let chosenPoint: Point | null = null;
 
-            if (isConvergingLayer) {
-                // For BOSS / PRE-BOSS layers we collapse multiple
-                // previous-layer parents into a single child. Placing
-                // the child near the *centroid* of its parents (with
-                // a forward bias so converging edges fan ahead of the
-                // previous layer rather than back across earlier
-                // rooms) keeps converging edges short and clear.
-                const fwd = this.averageOutwardBias(previousLayer);
-                chosenPoint = this.placeNearCentroid(
-                    previousLayer,
+            for (const candidateParent of parentOrder) {
+                const bias = this.getOutwardBias(candidateParent);
+                const place = this.tryPlaceNode(
+                    candidateParent,
                     allNodes,
-                    fwd,
+                    bias,
                 );
-                chosenParent = previousLayer[slot % previousLayer.length];
-            } else {
-                // Round-robin primary parent so each previous-layer
-                // node fans out roughly evenly. If that parent can't
-                // host a clean (non-crossing, non-clipping) placement,
-                // try the other parents before falling back to the
-                // original with the strict invariants relaxed.
-                const primaryIndex = slot % previousLayer.length;
-                const parentOrder: MapNode[] = [];
-                for (let i = 0; i < previousLayer.length; i++) {
-                    parentOrder.push(
-                        previousLayer[(primaryIndex + i) % previousLayer.length],
-                    );
+                if (place) {
+                    chosenParent = candidateParent;
+                    chosenPoint = place;
+                    break;
                 }
-
-                for (const candidateParent of parentOrder) {
-                    const bias = this.getOutwardBias(candidateParent);
-                    const place = this.tryPlaceNode(
-                        candidateParent,
-                        allNodes,
-                        bias,
-                    );
-                    if (place) {
-                        chosenParent = candidateParent;
-                        chosenPoint = place;
-                        break;
-                    }
-                }
-                if (!chosenParent || !chosenPoint) {
-                    chosenParent = parentOrder[0];
-                    chosenPoint = this.placeNode(
-                        chosenParent,
-                        allNodes,
-                        this.getOutwardBias(chosenParent),
-                    );
-                }
+            }
+            if (!chosenParent || !chosenPoint) {
+                chosenParent = parentOrder[0];
+                chosenPoint = this.placeNode(
+                    chosenParent,
+                    allNodes,
+                    this.getOutwardBias(chosenParent),
+                );
             }
 
             node.x = chosenPoint.x;
@@ -463,41 +529,46 @@ export class MapGenerator {
         // candidate is the closest remaining sibling within
         // {@link FALLBACK_EDGE_LENGTH}, gated by the no-crossing /
         // no-clipping invariants so we never trade visual clarity
-        // for extra paths. Bottleneck layers (BOSS / PRE-BOSS)
-        // skip this so the forced single-child convergence stays.
-        if (!isBossDepth && !isPreBossDepth) {
-            previousLayer.forEach((parent) => {
-                if (newLayer.length <= 1) return;
+        // for extra paths.
+        //
+        // Note: PR-1 removes the legacy PRE-BOSS / BOSS bottleneck
+        // skip — every layer (including the final-approach and
+        // final-boss layers) participates in fanout, so the player
+        // can fan onto multiple final-boss nodes from the same
+        // recovery room. The no-adjacent-bosses invariant for
+        // intermediate bosses is enforced in PR-2 once MINI_BOSS /
+        // major BOSS placement lands.
+        previousLayer.forEach((parent) => {
+            if (newLayer.length <= 1) return;
 
-                const targetFanout = this.rollFanout();
-                const cap = Math.min(MAP_CONFIG.maxEdgesPerNode, newLayer.length);
-                let need = Math.min(targetFanout, cap) - parent.edges.length;
-                if (need <= 0) return;
+            const targetFanout = this.rollFanout();
+            const cap = Math.min(MAP_CONFIG.maxEdgesPerNode, newLayer.length);
+            let need = Math.min(targetFanout, cap) - parent.edges.length;
+            if (need <= 0) return;
 
-                const candidates = newLayer
-                    .filter((cand) => !parent.edges.includes(cand.id))
-                    .slice()
-                    .sort(
-                        (a, b) =>
-                            squaredDistance(parent, a) -
-                            squaredDistance(parent, b),
-                    );
+            const candidates = newLayer
+                .filter((cand) => !parent.edges.includes(cand.id))
+                .slice()
+                .sort(
+                    (a, b) =>
+                        squaredDistance(parent, a) -
+                        squaredDistance(parent, b),
+                );
 
-                for (const cand of candidates) {
-                    if (need <= 0) break;
-                    if (squaredDistance(parent, cand) > FALLBACK_EDGE_LENGTH_SQ) {
-                        // Sorted nearest-first, so subsequent siblings
-                        // are even farther — stop scanning.
-                        break;
-                    }
-                    const edges = collectEdgeSegments(allNodes);
-                    if (this.edgeIsClear(parent, cand, edges, allNodes)) {
-                        parent.edges.push(cand.id);
-                        need--;
-                    }
+            for (const cand of candidates) {
+                if (need <= 0) break;
+                if (squaredDistance(parent, cand) > FALLBACK_EDGE_LENGTH_SQ) {
+                    // Sorted nearest-first, so subsequent siblings
+                    // are even farther — stop scanning.
+                    break;
                 }
-            });
-        }
+                const edges = collectEdgeSegments(allNodes);
+                if (this.edgeIsClear(parent, cand, edges, allNodes)) {
+                    parent.edges.push(cand.id);
+                    need--;
+                }
+            }
+        });
 
         // Safety net: if a child somehow ended up parentless (e.g. its
         // primary parent assignment landed on a node already saturated),
@@ -561,169 +632,6 @@ export class MapGenerator {
         if (r < f.one + f.two) return 2;
         if (r < f.one + f.two + f.three) return 3;
         return 4;
-    }
-
-    /**
-     * Average outward direction across a set of parents — used by
-     * converging layers (BOSS / PRE-BOSS) to bias the single child
-     * forward along the level's overall growth direction.
-     */
-    private averageOutwardBias(parents: MapNode[]): number {
-        let sx = 0;
-        let sy = 0;
-        for (const p of parents) {
-            const a = this.getOutwardBias(p);
-            sx += Math.cos(a);
-            sy += Math.sin(a);
-        }
-        if (sx === 0 && sy === 0) return this.rng.next() * Math.PI * 2;
-        return Math.atan2(sy, sx);
-    }
-
-    /**
-     * Placement strategy for converging (BOSS / PRE-BOSS) layers.
-     * Multiple parents must point at a single child, so we search
-     * for a spot where every parent→child segment is clear. We probe
-     * concentric rings around the centroid first (short converging
-     * edges) and then around each individual parent so the choice
-     * can drift toward whichever parent has the most open space.
-     */
-    private placeNearCentroid(
-        parents: MapNode[],
-        allNodes: MapNode[],
-        levelDirection?: number,
-    ): Point {
-        const centroid: Point = {
-            x: parents.reduce((sum, p) => sum + p.x, 0) / parents.length,
-            y: parents.reduce((sum, p) => sum + p.y, 0) / parents.length,
-        };
-        const edges = collectEdgeSegments(allNodes);
-        const minDistSq = MIN_NODE_DISTANCE * MIN_NODE_DISTANCE;
-
-        // Ring radii — unlike open-layer placement, converging
-        // layers (PRE-BOSS / BOSS) MUST connect every parent to a
-        // single child, so a long reach here is the difference
-        // between a workable map and one with crossing fan-in
-        // edges. We try the shortest radii first so the common
-        // case keeps the converging edges compact.
-        const ringRadii = [
-            0,
-            EDGE_LENGTH * 0.3,
-            EDGE_LENGTH * 0.6,
-            EDGE_LENGTH,
-            EDGE_LENGTH * 1.2,
-            MAX_EDGE_LENGTH,
-            EDGE_LENGTH * 1.8,
-            EDGE_LENGTH * 2.4,
-            EDGE_LENGTH * 3,
-            EDGE_LENGTH * 4,
-        ];
-        const ringSamples = 96;
-
-        const allParentEdgesCrossingClear = (cand: Point): boolean =>
-            parents.every((p) => !edgeCrossesAny(p, cand, edges));
-        // For each parent edge we only exclude that parent itself.
-        // Other parents that converge on the same child are *real
-        // obstacles*: an edge from parent A to the child can't be
-        // allowed to pass through parent B's icon.
-        const allParentEdgesNodeClear = (cand: Point): boolean =>
-            parents.every(
-                (p) =>
-                    !edgePassesThroughAnyNode(
-                        { x: p.x, y: p.y },
-                        cand,
-                        allNodes,
-                        new Set([p.id]),
-                    ),
-            );
-        const candidateBlocksEdge = (cand: Point): boolean =>
-            nodeBlocksAnyEdge(cand, edges);
-        const tooClose = (cand: Point): boolean =>
-            allNodes.some((n) => squaredDistance(n, cand) < minDistSq);
-
-        // Probe forward-biased centroids first (push along the level
-        // direction so converging edges fan ahead of the previous
-        // layer rather than back into it), then the centroid itself,
-        // and finally each individual parent as a last resort.
-        const probeOrigins: Point[] = [];
-        if (levelDirection !== undefined) {
-            for (const r of [EDGE_LENGTH, EDGE_LENGTH * 1.5, EDGE_LENGTH * 2]) {
-                probeOrigins.push({
-                    x: centroid.x + Math.cos(levelDirection) * r,
-                    y: centroid.y + Math.sin(levelDirection) * r,
-                });
-            }
-        }
-        probeOrigins.push(centroid);
-        for (const p of parents) probeOrigins.push({ x: p.x, y: p.y });
-
-        // Pass 1: ideal placement — every parent edge clear of both
-        // crossings and node-clipping, candidate spaced from all
-        // existing nodes.
-        for (const origin of probeOrigins) {
-            for (const r of ringRadii) {
-                const samples = r === 0 ? 1 : ringSamples;
-                for (let i = 0; i < samples; i++) {
-                    const angle = (i / samples) * Math.PI * 2;
-                    const cand: Point = {
-                        x: origin.x + Math.cos(angle) * r,
-                        y: origin.y + Math.sin(angle) * r,
-                    };
-                    if (
-                        !tooClose(cand) &&
-                        allParentEdgesCrossingClear(cand) &&
-                        allParentEdgesNodeClear(cand) &&
-                        !candidateBlocksEdge(cand)
-                    ) {
-                        return cand;
-                    }
-                }
-            }
-        }
-
-        // Pass 2: drop the min-distance requirement but still keep
-        // every edge invariant.
-        for (const origin of probeOrigins) {
-            for (const r of ringRadii) {
-                const samples = r === 0 ? 1 : ringSamples;
-                for (let i = 0; i < samples; i++) {
-                    const angle = (i / samples) * Math.PI * 2;
-                    const cand: Point = {
-                        x: origin.x + Math.cos(angle) * r,
-                        y: origin.y + Math.sin(angle) * r,
-                    };
-                    if (
-                        allParentEdgesCrossingClear(cand) &&
-                        allParentEdgesNodeClear(cand) &&
-                        !candidateBlocksEdge(cand)
-                    ) {
-                        return cand;
-                    }
-                }
-            }
-        }
-
-        // Pass 3: keep the no-crossing invariant but tolerate a node
-        // graze if necessary — still better than allowing a real
-        // crossing.
-        for (const origin of probeOrigins) {
-            for (const r of ringRadii) {
-                const samples = r === 0 ? 1 : ringSamples;
-                for (let i = 0; i < samples; i++) {
-                    const angle = (i / samples) * Math.PI * 2;
-                    const cand: Point = {
-                        x: origin.x + Math.cos(angle) * r,
-                        y: origin.y + Math.sin(angle) * r,
-                    };
-                    if (allParentEdgesCrossingClear(cand)) {
-                        return cand;
-                    }
-                }
-            }
-        }
-
-        // Last resort: centroid itself, accepting some violations.
-        return centroid;
     }
 
     /**
@@ -1029,43 +937,25 @@ export class MapGenerator {
         return allowed.length > 0 ? allowed : BASE_ROOM_POOL;
     }
 
-    private getForcedRoomType(depth: number, _allNodes: MapNode[], pendingNodes: MapNode[]): RoomType | null {
-        const bossDepth = this.getUpcomingBossDepth(depth);
-        if (bossDepth === null || depth !== bossDepth - 1) {
-            return null;
-        }
-
-        // The pre-boss layer must always offer at least one ELITE
-        // (or, failing that, a prep room — REST/SHRINE/MERCHANT) so
-        // the player has a choice to gear up before the boss room.
-        // We only inspect siblings already placed at this same depth
-        // (`pendingNodes`) so the guarantee holds even if the RNG
-        // happened to drop an ELITE/PREP earlier in the run.
-        const availablePrepRooms = PREP_ROOM_POOL.filter((type) => this.availableRooms.has(type));
-
-        const hasEliteAtThisDepth = pendingNodes.some(
-            (node) => node.type === RoomType.ELITE,
-        );
-        if (this.availableRooms.has(RoomType.ELITE) && !hasEliteAtThisDepth) {
-            return RoomType.ELITE;
-        }
-
-        const hasPrepAtThisDepth = pendingNodes.some((node) =>
-            availablePrepRooms.includes(node.type),
-        );
-        if (availablePrepRooms.length > 0 && !hasPrepAtThisDepth) {
-            return this.pickWeightedRoom(availablePrepRooms);
+    private getForcedRoomType(depth: number, _allNodes: MapNode[], _pendingNodes: MapNode[]): RoomType | null {
+        // PR-1: the only forced layer is the final-approach
+        // (`runLength - 1`). Every room there is a recovery /
+        // reward type drawn from {@link FINAL_APPROACH_POOL} so the
+        // player can stabilize before any final-boss node. PR-2
+        // will add additional forcing (recovery rooms after a
+        // major BOSS, no-adjacent-bosses, etc.) — those are
+        // intentionally absent here so this PR can be reviewed in
+        // isolation.
+        if (depth === this.runLength - 1) {
+            const availableRecoveryRooms = FINAL_APPROACH_POOL.filter(
+                (type) => this.availableRooms.has(type),
+            );
+            if (availableRecoveryRooms.length > 0) {
+                return this.pickWeightedRoom(availableRecoveryRooms);
+            }
         }
 
         return null;
-    }
-
-    private getUpcomingBossDepth(depth: number): number | null {
-        if (depth <= 0) {
-            return null;
-        }
-
-        return Math.ceil(depth / MAP_CONFIG.bossEveryNDepths) * MAP_CONFIG.bossEveryNDepths;
     }
 
     private pickWeightedRoom(pool: RoomType[]): RoomType {
@@ -1091,7 +981,12 @@ export class MapGenerator {
         return weights[type] ?? 0;
     }
 
-    private makeNode(depth: number, slot: number, type: RoomType): MapNode {
+    private makeNode(
+        depth: number,
+        slot: number,
+        type: RoomType,
+        bossKind: BossKind = null,
+    ): MapNode {
         return {
             id: `n${this.counter++}`,
             depth,
@@ -1099,11 +994,223 @@ export class MapGenerator {
             x: 0,
             y: 0,
             type,
+            bossKind,
             visited: false,
             cleared: false,
             edges: [],
         };
     }
+}
+
+/**
+ * Snapshot-style report produced by {@link validateMap}. Every
+ * field is plain data so consumers (debug HUD, tests, dev tools)
+ * can render it without coupling to MapGenerator internals.
+ *
+ * The report is intentionally non-throwing: even an inconsistent
+ * graph still returns a populated report so the caller decides
+ * how to react (log, assert, gate run start, etc.).
+ */
+export interface MapValidationReport {
+    /** Configured run length (depth of the final-boss layer). */
+    runLength: number;
+    /** Mirrors `runLength`; kept under both names so debug output
+     *  is unambiguous when other systems reference `finalDepth`. */
+    finalDepth: number;
+    /** Total nodes generated so far, including START. */
+    totalNodes: number;
+    /** Total directed edges in the graph. */
+    totalEdges: number;
+    /** Whether the final layer (`depth === runLength`) has been
+     *  generated yet. The other final-layer invariants are only
+     *  meaningful when this is `true`. */
+    finalLayerGenerated: boolean;
+    /** Number of nodes at `depth === runLength`. */
+    finalNodeCount: number;
+    /**
+     * `true` iff every node at the final depth has
+     * `bossKind === 'final'` and `type === RoomType.BOSS`.
+     * Trivially `true` when no final layer exists yet.
+     */
+    allFinalAreBossKindFinal: boolean;
+    /**
+     * `true` iff every leaf of the generated graph is a final-boss
+     * node. Only meaningful once the final layer is generated; we
+     * report `null` for an incomplete graph so the caller can
+     * distinguish "not checked" from "checked and passed".
+     */
+    everyFullPathEndsInFinalBoss: boolean | null;
+    /**
+     * `true` iff every non-final node has a forward path to some
+     * final-boss node. Only meaningful once the final layer is
+     * generated; reports `null` until then.
+     */
+    allNodesReachAFinalBoss: boolean | null;
+    /**
+     * Count of non-START nodes that lack any incoming edge. Should
+     * always be 0 — a non-zero value indicates a generator bug.
+     */
+    orphanNodeCount: number;
+    /**
+     * Count of nodes that are *not* at the final depth and have no
+     * outgoing edges. Should always be 0 once the final layer
+     * exists — pre-final-layer nodes always need a forward edge.
+     */
+    deadEndCount: number;
+    /**
+     * Count of edges that connect two boss-encounter nodes
+     * (`bossKind !== null`). PR-1 only generates final bosses, so
+     * this is always 0; PR-2 will track adjacency violations for
+     * intermediate bosses.
+     */
+    bossAdjacencyViolations: number;
+}
+
+/**
+ * Run the full set of map-shape invariants against a snapshot of
+ * the graph. Pure function so tests can call it on hand-built or
+ * generator-produced node lists alike. The check intentionally
+ * stays read-only so it's safe to invoke after every
+ * `generateInitialMap` / `generateNextLayer` call in dev builds.
+ *
+ * The report's path-related fields are only meaningful when the
+ * final layer has actually been built (incremental generation
+ * does not eagerly produce all depths). For early-game graphs
+ * `everyFullPathEndsInFinalBoss` and `allNodesReachAFinalBoss`
+ * report `null` so callers can distinguish "not yet checked"
+ * from a real pass / fail.
+ */
+export function validateMap(
+    allNodes: readonly MapNode[],
+    runLength: number,
+): MapValidationReport {
+    const byId = new Map(allNodes.map((n) => [n.id, n]));
+    const incoming = new Map<string, number>();
+    let totalEdges = 0;
+    let bossAdjacencyViolations = 0;
+
+    for (const node of allNodes) {
+        for (const edgeId of node.edges) {
+            const target = byId.get(edgeId);
+            if (!target) continue;
+            totalEdges++;
+            incoming.set(edgeId, (incoming.get(edgeId) ?? 0) + 1);
+            // Boss-to-boss edge — the no-adjacent-bosses invariant
+            // (relevant once PR-2 lands intermediate bosses).
+            if (node.bossKind !== null && target.bossKind !== null) {
+                bossAdjacencyViolations++;
+            }
+        }
+    }
+
+    const finalNodes = allNodes.filter((n) => n.depth === runLength);
+    const finalLayerGenerated = finalNodes.length > 0;
+
+    const allFinalAreBossKindFinal =
+        !finalLayerGenerated ||
+        finalNodes.every(
+            (n) => n.bossKind === 'final' && n.type === RoomType.BOSS,
+        );
+
+    let orphanNodeCount = 0;
+    for (const node of allNodes) {
+        if (node.type === RoomType.START) continue;
+        if ((incoming.get(node.id) ?? 0) === 0) orphanNodeCount++;
+    }
+
+    let deadEndCount = 0;
+    for (const node of allNodes) {
+        if (node.depth === runLength) continue;
+        if (node.edges.length === 0) deadEndCount++;
+    }
+
+    let everyFullPathEndsInFinalBoss: boolean | null = null;
+    let allNodesReachAFinalBoss: boolean | null = null;
+    if (finalLayerGenerated) {
+        // Walk the graph from START forward; every leaf must be a
+        // final-boss node. We treat any node whose outgoing edges
+        // don't lead to nodes in this snapshot as a leaf — that's
+        // a generator bug we report via `deadEndCount`, not a
+        // path-validation pass condition.
+        const reachableFromStart = new Set<string>();
+        const start = allNodes.find((n) => n.type === RoomType.START);
+        if (start) {
+            const stack: MapNode[] = [start];
+            while (stack.length) {
+                const cur = stack.pop()!;
+                if (reachableFromStart.has(cur.id)) continue;
+                reachableFromStart.add(cur.id);
+                for (const eid of cur.edges) {
+                    const next = byId.get(eid);
+                    if (next) stack.push(next);
+                }
+            }
+        }
+
+        // Reverse adjacency so we can BFS backwards from each
+        // final-boss node and tag every ancestor as "can reach a
+        // final boss".
+        const reverse = new Map<string, MapNode[]>();
+        for (const node of allNodes) {
+            for (const eid of node.edges) {
+                const t = byId.get(eid);
+                if (!t) continue;
+                const list = reverse.get(t.id);
+                if (list) list.push(node);
+                else reverse.set(t.id, [node]);
+            }
+        }
+        const ancestorsOfFinal = new Set<string>();
+        const queue: MapNode[] = [...finalNodes];
+        for (const f of finalNodes) ancestorsOfFinal.add(f.id);
+        while (queue.length) {
+            const cur = queue.shift()!;
+            for (const parent of reverse.get(cur.id) ?? []) {
+                if (ancestorsOfFinal.has(parent.id)) continue;
+                ancestorsOfFinal.add(parent.id);
+                queue.push(parent);
+            }
+        }
+
+        allNodesReachAFinalBoss = allNodes.every((n) =>
+            ancestorsOfFinal.has(n.id),
+        );
+
+        // A "leaf" of the graph reachable from START is any node in
+        // `reachableFromStart` whose outgoing edges all lead
+        // outside the snapshot (i.e. zero edges in PR-1, since the
+        // graph is fully materialized at validation time). Every
+        // such leaf must be a final-boss node.
+        let endsCorrectly = true;
+        for (const id of reachableFromStart) {
+            const node = byId.get(id);
+            if (!node) continue;
+            const isLeaf =
+                node.edges.length === 0 ||
+                node.edges.every((e) => !byId.has(e));
+            if (!isLeaf) continue;
+            if (node.bossKind !== 'final') {
+                endsCorrectly = false;
+                break;
+            }
+        }
+        everyFullPathEndsInFinalBoss = endsCorrectly;
+    }
+
+    return {
+        runLength,
+        finalDepth: runLength,
+        totalNodes: allNodes.length,
+        totalEdges,
+        finalLayerGenerated,
+        finalNodeCount: finalNodes.length,
+        allFinalAreBossKindFinal,
+        everyFullPathEndsInFinalBoss,
+        allNodesReachAFinalBoss,
+        orphanNodeCount,
+        deadEndCount,
+        bossAdjacencyViolations,
+    };
 }
 
 function squaredDistance(a: Point, b: Point): number {

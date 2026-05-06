@@ -190,6 +190,19 @@ export class NarrativeManager {
                     : this.text('The floor keeper blocks the only passage down. You cannot go around it.', 'Хранитель этажа держит единственный проход вниз. Обойти нельзя.');
                 return { title, description, intel: this.bossAccusation() };
             }
+            // PR-1: MINI_BOSS room type is declared but not yet
+            // placed by the generator — fall through to a generic
+            // "branch guardian" card so any stray instance still
+            // renders. PR-2 will give it dedicated copy.
+            case RoomType.MINI_BOSS:
+                return {
+                    title: this.text('Branch Guardian', 'Страж ветки'),
+                    description: this.text(
+                        'A branch-guardian blocks this path. Stronger than a regular floor enemy, but not the keeper of the floor.',
+                        'Страж ветки перекрыл проход. Сильнее обычного врага, но не хозяин этажа.'
+                    ),
+                    intel: this.bossAccusation(),
+                };
             case RoomType.ENEMY:
                 return {
                     title: this.text('Blocked Path', 'Путь перекрыт'),
