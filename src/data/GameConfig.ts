@@ -135,13 +135,46 @@ export const STRESS_CONFIG = {
  *  - LEVEL_UP_CONFIG.levelCap targets per runLength
  *      25→8-10, 35→10-12, 50→12-15, 75→15-18
  *  - phase boundaries (early/mid/late/final) at 0/30/70/95% of runLength
- *  - targetMajorBosses, targetMiniBosses, requiredSeals (PR-2 / PR-3)
+ *  - requiredSeals (PR-3)
  *
  * Until those land, runLength affects map shape only and the
  * combat curve stays tuned to the legacy ~25-depth baseline.
  */
 export const RUN_CONFIG = {
     runLength: 25,
+    /**
+     * Pacing controls for the bossPressure pass (PR-2). Boss
+     * placement uses a "steps since the last boss along this
+     * branch" counter, derived from the **max** of all incoming
+     * parents' counters so a long-pressure path can never be
+     * masked by a short-pressure cross-link.
+     *
+     *  - `windowStartFactor` * runLength is the earliest step at
+     *    which a mid-run boss may appear in a branch.
+     *  - `windowEndFactor` * runLength is the step at which a
+     *    boss is *guaranteed* — pressure has built up too long.
+     *  - `targetMajorFactor` and `targetMiniFactor` set the
+     *    scaling rate for the mid-run boss budgets:
+     *      targetMajor = clamp(round(runLength / targetMajorFactor), 1, majorCap)
+     *      targetMini  = clamp(round(runLength / targetMiniFactor),  1, miniCap)
+     *  - `majorOddsInWindow` is the chance that a boss roll inside
+     *    the pressure window upgrades from MINI to MAJOR (capped
+     *    by the remaining major budget).
+     */
+    bossPressure: {
+        windowStartFactor: 0.10,
+        windowStartFloor: 4,
+        windowEndFactor: 0.20,
+        windowEndFloor: 8,
+        targetMajorFactor: 18,
+        targetMajorMin: 1,
+        targetMajorMax: 4,
+        targetMiniFactor: 12,
+        targetMiniMin: 1,
+        targetMiniMax: 6,
+        majorOddsInWindow: 0.3,
+        majorOddsAtForcedEnd: 0.5,
+    },
 } as const;
 
 export const MAP_CONFIG = {
