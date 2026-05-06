@@ -149,6 +149,89 @@ describe('MapGenerator', () => {
         expect(rate).toBeLessThan(MAX_FAILURE_RATE);
     });
 
+    it('keeps the rate of edges clipping through unrelated rooms well under 5% across many seeds', () => {
+        // Companion to the crossing-edges test: it's not enough that
+        // edges don't cross each other — they also must not pass
+        // *through* the icon rectangle of another room. With the
+        // forced PRE-BOSS / BOSS convergence in fully multidirectional
+        // placement this is occasionally unavoidable, so we bound the
+        // failure rate the same way we bound crossings.
+        const NODE_HALF = 40; // NODE_SZ / 2 — match MapView render.
+        const BUFFER = 4;
+        const blockerRadius = NODE_HALF + BUFFER;
+        const blockerRadSq = blockerRadius * blockerRadius;
+
+        const pointSegmentDistanceSq = (
+            p: { x: number; y: number },
+            a: { x: number; y: number },
+            b: { x: number; y: number },
+        ): number => {
+            const dx = b.x - a.x;
+            const dy = b.y - a.y;
+            const lenSq = dx * dx + dy * dy;
+            if (lenSq === 0) {
+                const ax = p.x - a.x;
+                const ay = p.y - a.y;
+                return ax * ax + ay * ay;
+            }
+            let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+            t = Math.max(0, Math.min(1, t));
+            const cx = a.x + t * dx;
+            const cy = a.y + t * dy;
+            const ddx = p.x - cx;
+            const ddy = p.y - cy;
+            return ddx * ddx + ddy * ddy;
+        };
+
+        const SEED_COUNT = 200;
+        const MAX_FAILURE_RATE = 0.05;
+        let failingSeeds = 0;
+
+        for (let seed = 0; seed < SEED_COUNT; seed++) {
+            const gen = new MapGenerator(undefined, new Mulberry32(seed));
+            const nodes = gen.generateInitialMap(8);
+            const byId = new Map(nodes.map((n) => [n.id, n]));
+
+            interface Seg {
+                srcId: string;
+                tgtId: string;
+                a: { x: number; y: number };
+                b: { x: number; y: number };
+            }
+            const segments: Seg[] = [];
+            for (const src of nodes) {
+                for (const tgtId of src.edges) {
+                    const tgt = byId.get(tgtId);
+                    if (!tgt) continue;
+                    segments.push({
+                        srcId: src.id,
+                        tgtId: tgt.id,
+                        a: { x: src.x, y: src.y },
+                        b: { x: tgt.x, y: tgt.y },
+                    });
+                }
+            }
+
+            outer: for (const seg of segments) {
+                for (const n of nodes) {
+                    if (n.id === seg.srcId || n.id === seg.tgtId) continue;
+                    const distSq = pointSegmentDistanceSq(
+                        { x: n.x, y: n.y },
+                        seg.a,
+                        seg.b,
+                    );
+                    if (distSq < blockerRadSq) {
+                        failingSeeds += 1;
+                        break outer;
+                    }
+                }
+            }
+        }
+
+        const rate = failingSeeds / SEED_COUNT;
+        expect(rate).toBeLessThan(MAX_FAILURE_RATE);
+    });
+
     it('every target node has at least one parent edge', () => {
         for (let seed = 0; seed < 30; seed++) {
             const gen = new MapGenerator(undefined, new Mulberry32(seed));

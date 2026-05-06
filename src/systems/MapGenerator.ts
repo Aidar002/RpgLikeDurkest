@@ -66,9 +66,24 @@ const EDGE_LENGTH = 180;
  * larger than the rendered NODE_SZ (80) plus surrounding glow so that
  * neighbouring rooms don't visually touch.
  */
-const MIN_NODE_DISTANCE = 130;
+const MIN_NODE_DISTANCE = 150;
+/**
+ * How wide a buffer (px) we keep around each non-endpoint node when
+ * routing an edge — i.e. an edge segment must not pass closer than
+ * this to any node it does not touch. NODE_SZ is 80, so half that
+ * (40 px) is the outer edge of the rendered icon; we add a small
+ * visual buffer on top so the line never visually clips the frame.
+ */
+const NODE_BLOCKER_RADIUS = 50;
 /** Number of random angles to sample when placing a node. */
-const PLACEMENT_ATTEMPTS = 24;
+const PLACEMENT_ATTEMPTS = 32;
+/**
+ * Half-width of the "fan" cone used to bias child placement away
+ * from the direction the parent itself was reached from. ±90°
+ * gives every child a full half-plane to spread into, which feels
+ * organic without ever placing a child *behind* the parent.
+ */
+const PLACEMENT_CONE = Math.PI / 2;
 
 interface Point {
     x: number;
@@ -164,37 +179,103 @@ function edgeCrossesAny(
     return false;
 }
 
+/**
+ * Squared distance from point `p` to segment `a→b` (clamped to the
+ * segment, not the infinite line). Used by
+ * {@link edgePassesThroughAnyNode} to keep edges from clipping
+ * through the icon rectangles of unrelated rooms.
+ */
+function pointSegmentDistanceSq(p: Point, a: Point, b: Point): number {
+    const dx = b.x - a.x;
+    const dy = b.y - a.y;
+    const lenSq = dx * dx + dy * dy;
+    if (lenSq === 0) return squaredDistance(p, a);
+    let t = ((p.x - a.x) * dx + (p.y - a.y) * dy) / lenSq;
+    t = Math.max(0, Math.min(1, t));
+    const cx = a.x + t * dx;
+    const cy = a.y + t * dy;
+    const ddx = p.x - cx;
+    const ddy = p.y - cy;
+    return ddx * ddx + ddy * ddy;
+}
+
+/**
+ * Whether the segment from `src` to `cand` passes through (or close
+ * enough to clip) any node that is not the segment's endpoint.
+ * Endpoints are excluded via `excludeIds`; this is what stops the
+ * line from clipping the parent's own icon and lets bonus edges
+ * land on a sibling whose centre is at the segment's tail.
+ */
+function edgePassesThroughAnyNode(
+    src: Point,
+    cand: Point,
+    allNodes: MapNode[],
+    excludeIds: Set<string>,
+): boolean {
+    const radSq = NODE_BLOCKER_RADIUS * NODE_BLOCKER_RADIUS;
+    for (const n of allNodes) {
+        if (excludeIds.has(n.id)) continue;
+        const distSq = pointSegmentDistanceSq(
+            { x: n.x, y: n.y },
+            src,
+            cand,
+        );
+        if (distSq < radSq) return true;
+    }
+    return false;
+}
+
+/**
+ * Whether placing a node at `cand` would block (sit on top of) any
+ * existing edge segment in `edges`. The complement of
+ * {@link edgePassesThroughAnyNode}: there we ask whether a *new
+ * edge* clips an existing node; here we ask whether a *new node*
+ * lands on top of an existing edge. Both invariants are needed
+ * because edges are added across multiple layers and placement of
+ * a later sibling can otherwise land on top of an older edge
+ * routed through what was empty space.
+ */
+function nodeBlocksAnyEdge(cand: Point, edges: EdgeSegment[]): boolean {
+    const radSq = NODE_BLOCKER_RADIUS * NODE_BLOCKER_RADIUS;
+    for (const e of edges) {
+        const distSq = pointSegmentDistanceSq(cand, e.a, e.b);
+        if (distSq < radSq) return true;
+    }
+    return false;
+}
+
 export class MapGenerator {
     private counter = 0;
     private availableRooms = new Set<RoomType>(BASE_ROOM_POOL);
     private rng: Rng;
     /**
-     * Per-level growth direction (level = floor(depth / bossEveryNDepths)).
-     * All non-converging child placements within a level are biased
-     * toward this direction so the layer-by-layer fan-out stays
-     * coherent — this dramatically reduces the chance that the
-     * forced PRE-BOSS / BOSS convergence has to route across the
-     * graph and produce crossing edges.
+     * Per-node "outward direction" (angle from the node's first
+     * parent toward the node itself). Children placed off this node
+     * fan into the half-plane in this direction, so each branch
+     * naturally grows outward from the trunk instead of doubling
+     * back through earlier rooms.
      */
-    private levelDirections = new Map<number, number>();
+    private outwardAngles = new Map<string, number>();
 
     constructor(initialRooms: RoomType[] = BASE_ROOM_POOL, rng: Rng = defaultRng) {
         this.rng = rng;
         this.setAvailableRoomTypes(initialRooms);
     }
 
-    private getLevelDirection(depth: number): number {
-        const level = Math.floor((depth - 1) / MAP_CONFIG.bossEveryNDepths);
-        const cached = this.levelDirections.get(level);
+    /**
+     * Outward direction we want children of `parent` to lean
+     * towards. For interior nodes that's just the angle of the
+     * incoming edge (parent's parent → parent). For START there's
+     * no incoming edge yet, so we cache a single random angle so
+     * consecutive sessions of the same RNG seed are deterministic.
+     */
+    private getOutwardBias(parent: MapNode): number {
+        const cached = this.outwardAngles.get(parent.id);
         if (cached !== undefined) return cached;
-        // Pick a fresh random direction for this level. Levels can
-        // grow in any direction independently — this satisfies the
-        // user-facing "rooms in any direction" requirement while
-        // keeping each level's layout internally coherent. We avoid
-        // re-using the previous level's direction so consecutive
-        // levels visibly turn instead of marching straight.
+        // START node — no incoming edge yet; pick a random direction
+        // that will seed the whole map's overall fan-out.
         const angle = this.rng.next() * Math.PI * 2;
-        this.levelDirections.set(level, angle);
+        this.outwardAngles.set(parent.id, angle);
         return angle;
     }
 
@@ -268,23 +349,22 @@ export class MapGenerator {
                 // For BOSS / PRE-BOSS layers we collapse multiple
                 // previous-layer parents into a single child. Placing
                 // the child near the *centroid* of its parents (with
-                // a forward bias so converging edges fan in the same
-                // direction as the rest of the level) keeps edges
-                // short and roughly radial, which dramatically
-                // reduces crossings against the rest of the graph.
-                const levelDir = this.getLevelDirection(depth);
+                // a forward bias so converging edges fan ahead of the
+                // previous layer rather than back across earlier
+                // rooms) keeps converging edges short and clear.
+                const fwd = this.averageOutwardBias(previousLayer);
                 chosenPoint = this.placeNearCentroid(
                     previousLayer,
                     allNodes,
-                    levelDir,
+                    fwd,
                 );
                 chosenParent = previousLayer[slot % previousLayer.length];
             } else {
                 // Round-robin primary parent so each previous-layer
                 // node fans out roughly evenly. If that parent can't
-                // host a clean (non-crossing) placement, try the
-                // other parents before falling back to the original
-                // with a crossing accepted.
+                // host a clean (non-crossing, non-clipping) placement,
+                // try the other parents before falling back to the
+                // original with the strict invariants relaxed.
                 const primaryIndex = slot % previousLayer.length;
                 const parentOrder: MapNode[] = [];
                 for (let i = 0; i < previousLayer.length; i++) {
@@ -293,12 +373,12 @@ export class MapGenerator {
                     );
                 }
 
-                const levelDir = this.getLevelDirection(depth);
                 for (const candidateParent of parentOrder) {
+                    const bias = this.getOutwardBias(candidateParent);
                     const place = this.tryPlaceNode(
                         candidateParent,
                         allNodes,
-                        levelDir,
+                        bias,
                     );
                     if (place) {
                         chosenParent = candidateParent;
@@ -308,12 +388,23 @@ export class MapGenerator {
                 }
                 if (!chosenParent || !chosenPoint) {
                     chosenParent = parentOrder[0];
-                    chosenPoint = this.placeNode(chosenParent, allNodes, levelDir);
+                    chosenPoint = this.placeNode(
+                        chosenParent,
+                        allNodes,
+                        this.getOutwardBias(chosenParent),
+                    );
                 }
             }
 
             node.x = chosenPoint.x;
             node.y = chosenPoint.y;
+            // Cache outward direction so this node's own children
+            // will fan further along the same trajectory rather than
+            // doubling back through their grandparent.
+            this.outwardAngles.set(
+                node.id,
+                Math.atan2(node.y - chosenParent.y, node.x - chosenParent.x),
+            );
             allNodes.push(node);
             newLayer.push(node);
             chosenParent.edges.push(node.id);
@@ -335,17 +426,18 @@ export class MapGenerator {
                 );
             const edges = collectEdgeSegments(allNodes);
             for (const cand of candidates) {
-                if (!edgeCrossesAny(parent, { x: cand.x, y: cand.y }, edges)) {
+                if (this.edgeIsClear(parent, cand, edges, allNodes)) {
                     parent.edges.push(cand.id);
                     return;
                 }
             }
-            // Last resort: connect to the closest, accepting a crossing.
+            // Last resort: connect to the closest, accepting a violation.
             parent.edges.push(candidates[0].id);
         });
 
         // Optional second edge per parent — a bonus path to a sibling
-        // child. Only kept if it doesn't cross any existing edge.
+        // child. Only kept if it stays clear of every other node and
+        // every existing edge.
         previousLayer.forEach((parent) => {
             if (newLayer.length <= 1) return;
             if (this.rng.next() >= MAP_CONFIG.edgeProbability) return;
@@ -360,9 +452,7 @@ export class MapGenerator {
 
             const edges = collectEdgeSegments(allNodes);
             for (const cand of candidates) {
-                if (edgeCrossesAny(parent, { x: cand.x, y: cand.y }, edges)) {
-                    continue;
-                }
+                if (!this.edgeIsClear(parent, cand, edges, allNodes)) continue;
                 parent.edges.push(cand.id);
                 break;
             }
@@ -370,7 +460,7 @@ export class MapGenerator {
 
         // Safety net: if a child somehow ended up parentless (e.g. its
         // primary parent assignment landed on a node already saturated),
-        // hand it the closest non-crossing parent.
+        // hand it the closest clean parent.
         newLayer.forEach((node) => {
             const hasParent = previousLayer.some((parent) => parent.edges.includes(node.id));
             if (hasParent) return;
@@ -383,17 +473,55 @@ export class MapGenerator {
                 );
             const edges = collectEdgeSegments(allNodes);
             for (const parent of sorted) {
-                if (!edgeCrossesAny(parent, { x: node.x, y: node.y }, edges)) {
+                if (this.edgeIsClear(parent, node, edges, allNodes)) {
                     parent.edges.push(node.id);
                     return;
                 }
             }
-            // Truly nowhere clean to attach — accept a crossing rather
+            // Truly nowhere clean to attach — accept a violation rather
             // than orphan the node so the run can continue.
             sorted[0].edges.push(node.id);
         });
 
         return newLayer;
+    }
+
+    /**
+     * Convenience predicate combining both edge-routing invariants:
+     * the candidate edge must not cross any existing edge **and**
+     * must not pass through any unrelated node's icon rect.
+     */
+    private edgeIsClear(
+        src: MapNode,
+        tgt: MapNode,
+        edges: EdgeSegment[],
+        allNodes: MapNode[],
+    ): boolean {
+        const candPt: Point = { x: tgt.x, y: tgt.y };
+        if (edgeCrossesAny(src, candPt, edges)) return false;
+        return !edgePassesThroughAnyNode(
+            { x: src.x, y: src.y },
+            candPt,
+            allNodes,
+            new Set([src.id, tgt.id]),
+        );
+    }
+
+    /**
+     * Average outward direction across a set of parents — used by
+     * converging layers (BOSS / PRE-BOSS) to bias the single child
+     * forward along the level's overall growth direction.
+     */
+    private averageOutwardBias(parents: MapNode[]): number {
+        let sx = 0;
+        let sy = 0;
+        for (const p of parents) {
+            const a = this.getOutwardBias(p);
+            sx += Math.cos(a);
+            sy += Math.sin(a);
+        }
+        if (sx === 0 && sy === 0) return this.rng.next() * Math.PI * 2;
+        return Math.atan2(sy, sx);
     }
 
     /**
@@ -427,10 +555,26 @@ export class MapGenerator {
             EDGE_LENGTH * 3,
             EDGE_LENGTH * 4,
         ];
-        const ringSamples = 72;
+        const ringSamples = 96;
 
-        const allParentEdgesClear = (cand: Point): boolean =>
+        const allParentEdgesCrossingClear = (cand: Point): boolean =>
             parents.every((p) => !edgeCrossesAny(p, cand, edges));
+        // For each parent edge we only exclude that parent itself.
+        // Other parents that converge on the same child are *real
+        // obstacles*: an edge from parent A to the child can't be
+        // allowed to pass through parent B's icon.
+        const allParentEdgesNodeClear = (cand: Point): boolean =>
+            parents.every(
+                (p) =>
+                    !edgePassesThroughAnyNode(
+                        { x: p.x, y: p.y },
+                        cand,
+                        allNodes,
+                        new Set([p.id]),
+                    ),
+            );
+        const candidateBlocksEdge = (cand: Point): boolean =>
+            nodeBlocksAnyEdge(cand, edges);
         const tooClose = (cand: Point): boolean =>
             allNodes.some((n) => squaredDistance(n, cand) < minDistSq);
 
@@ -450,7 +594,9 @@ export class MapGenerator {
         probeOrigins.push(centroid);
         for (const p of parents) probeOrigins.push({ x: p.x, y: p.y });
 
-        // Pass 1: ideal placement (clear edges + spaced from existing nodes).
+        // Pass 1: ideal placement — every parent edge clear of both
+        // crossings and node-clipping, candidate spaced from all
+        // existing nodes.
         for (const origin of probeOrigins) {
             for (const r of ringRadii) {
                 const samples = r === 0 ? 1 : ringSamples;
@@ -460,15 +606,20 @@ export class MapGenerator {
                         x: origin.x + Math.cos(angle) * r,
                         y: origin.y + Math.sin(angle) * r,
                     };
-                    if (!tooClose(cand) && allParentEdgesClear(cand)) {
+                    if (
+                        !tooClose(cand) &&
+                        allParentEdgesCrossingClear(cand) &&
+                        allParentEdgesNodeClear(cand) &&
+                        !candidateBlocksEdge(cand)
+                    ) {
                         return cand;
                     }
                 }
             }
         }
 
-        // Pass 2: still no crossings, but allow the candidate to sit
-        // close to existing nodes if that's the only way to fit.
+        // Pass 2: drop the min-distance requirement but still keep
+        // every edge invariant.
         for (const origin of probeOrigins) {
             for (const r of ringRadii) {
                 const samples = r === 0 ? 1 : ringSamples;
@@ -478,14 +629,37 @@ export class MapGenerator {
                         x: origin.x + Math.cos(angle) * r,
                         y: origin.y + Math.sin(angle) * r,
                     };
-                    if (allParentEdgesClear(cand)) {
+                    if (
+                        allParentEdgesCrossingClear(cand) &&
+                        allParentEdgesNodeClear(cand) &&
+                        !candidateBlocksEdge(cand)
+                    ) {
                         return cand;
                     }
                 }
             }
         }
 
-        // Last resort: centroid itself, accepting some crossings.
+        // Pass 3: keep the no-crossing invariant but tolerate a node
+        // graze if necessary — still better than allowing a real
+        // crossing.
+        for (const origin of probeOrigins) {
+            for (const r of ringRadii) {
+                const samples = r === 0 ? 1 : ringSamples;
+                for (let i = 0; i < samples; i++) {
+                    const angle = (i / samples) * Math.PI * 2;
+                    const cand: Point = {
+                        x: origin.x + Math.cos(angle) * r,
+                        y: origin.y + Math.sin(angle) * r,
+                    };
+                    if (allParentEdgesCrossingClear(cand)) {
+                        return cand;
+                    }
+                }
+            }
+        }
+
+        // Last resort: centroid itself, accepting some violations.
         return centroid;
     }
 
@@ -501,18 +675,38 @@ export class MapGenerator {
     ): Point | null {
         const edges = collectEdgeSegments(allNodes);
         const minDistSq = MIN_NODE_DISTANCE * MIN_NODE_DISTANCE;
+        const parentSrc: Point = { x: parent.x, y: parent.y };
+        const excludeIds = new Set([parent.id]);
+
+        const candidatePassesAll = (point: Point): boolean => {
+            if (edgeCrossesAny(parent, point, edges)) return false;
+            if (
+                edgePassesThroughAnyNode(
+                    parentSrc,
+                    point,
+                    allNodes,
+                    excludeIds,
+                )
+            ) {
+                return false;
+            }
+            // A new node at `point` must also not land on top of any
+            // existing edge — otherwise that earlier edge would visually
+            // pass through this freshly-placed room icon.
+            if (nodeBlocksAnyEdge(point, edges)) return false;
+            return true;
+        };
 
         // Pass 1: random angles at preferred radii — ideal placement
-        // (no crossing, no min-distance violation). When a level
-        // direction is supplied we restrict angles to a ±45° cone
-        // around it so the layer fans forward instead of sometimes
-        // doubling back through earlier rooms.
-        const cone = Math.PI / 4;
+        // (no crossing, no clipping, no min-distance violation). When
+        // an outward bias is supplied we restrict angles to a half-
+        // plane around it so the branch fans onward instead of doubling
+        // back through earlier rooms.
         for (let i = 0; i < PLACEMENT_ATTEMPTS; i++) {
             const angle =
                 biasAngle === undefined
                     ? this.rng.next() * Math.PI * 2
-                    : biasAngle + (this.rng.next() * 2 - 1) * cone;
+                    : biasAngle + (this.rng.next() * 2 - 1) * PLACEMENT_CONE;
             for (const distance of [EDGE_LENGTH, EDGE_LENGTH * 1.25, EDGE_LENGTH * 1.5]) {
                 const point: Point = {
                     x: parent.x + Math.cos(angle) * distance,
@@ -521,19 +715,19 @@ export class MapGenerator {
                 const tooClose = allNodes.some(
                     (n) => squaredDistance(n, point) < minDistSq,
                 );
-                if (!tooClose && !edgeCrossesAny(parent, point, edges)) {
+                if (!tooClose && candidatePassesAll(point)) {
                     return point;
                 }
             }
         }
 
         // Pass 2: dense deterministic angle sweep at growing radii,
-        // preferring non-crossing candidates that respect the
+        // preferring fully clean candidates that respect the
         // min-distance. We pick the candidate that maximises
         // separation from the nearest existing node so two siblings
         // sharing a parent don't deterministically converge on the
         // same first-clear angle.
-        const sweepCount = 144;
+        const sweepCount = 192;
         const expandedDistances = [
             EDGE_LENGTH,
             EDGE_LENGTH * 1.25,
@@ -554,7 +748,7 @@ export class MapGenerator {
                     x: parent.x + Math.cos(angle) * distance,
                     y: parent.y + Math.sin(angle) * distance,
                 };
-                if (edgeCrossesAny(parent, point, edges)) continue;
+                if (!candidatePassesAll(point)) continue;
 
                 let nearestSq = Infinity;
                 for (const n of allNodes) {
@@ -605,11 +799,19 @@ export class MapGenerator {
     ): Point {
         const edges = collectEdgeSegments(allNodes);
         const minDistSq = MIN_NODE_DISTANCE * MIN_NODE_DISTANCE;
+        const parentSrc: Point = { x: parent.x, y: parent.y };
+        const excludeIds = new Set([parent.id]);
 
         const evaluate = (
             angle: number,
             distance: number,
-        ): { point: Point; tooClose: boolean; crosses: boolean } => {
+        ): {
+            point: Point;
+            tooClose: boolean;
+            crosses: boolean;
+            clipsNode: boolean;
+            blocksEdge: boolean;
+        } => {
             const point: Point = {
                 x: parent.x + Math.cos(angle) * distance,
                 y: parent.y + Math.sin(angle) * distance,
@@ -618,16 +820,22 @@ export class MapGenerator {
                 (n) => squaredDistance(n, point) < minDistSq,
             );
             const crosses = edgeCrossesAny(parent, point, edges);
-            return { point, tooClose, crosses };
+            const clipsNode = edgePassesThroughAnyNode(
+                parentSrc,
+                point,
+                allNodes,
+                excludeIds,
+            );
+            const blocksEdge = nodeBlocksAnyEdge(point, edges);
+            return { point, tooClose, crosses, clipsNode, blocksEdge };
         };
 
-        const cone = Math.PI / 4;
         const randomAngles: number[] = [];
         for (let i = 0; i < PLACEMENT_ATTEMPTS; i++) {
             randomAngles.push(
                 biasAngle === undefined
                     ? this.rng.next() * Math.PI * 2
-                    : biasAngle + (this.rng.next() * 2 - 1) * cone,
+                    : biasAngle + (this.rng.next() * 2 - 1) * PLACEMENT_CONE,
             );
         }
 
@@ -635,16 +843,22 @@ export class MapGenerator {
         for (const distance of [EDGE_LENGTH, EDGE_LENGTH * 1.25, EDGE_LENGTH * 1.5]) {
             for (const angle of randomAngles) {
                 const cand = evaluate(angle, distance);
-                if (!cand.tooClose && !cand.crosses) {
+                if (
+                    !cand.tooClose &&
+                    !cand.crosses &&
+                    !cand.clipsNode &&
+                    !cand.blocksEdge
+                ) {
                     return cand.point;
                 }
             }
         }
 
-        // Pass 2: dense deterministic sweep, still no crossings —
-        // relax the min-distance check first, then expand the radius.
+        // Pass 2: dense deterministic sweep — keep all edge invariants
+        // (no crossings, no edge clipping a node, no node landing on
+        // an existing edge), relax min-distance.
         const denseAngles: number[] = [];
-        const sweepCount = 72;
+        const sweepCount = 96;
         for (let i = 0; i < sweepCount; i++) {
             denseAngles.push((i / sweepCount) * Math.PI * 2);
         }
@@ -663,21 +877,36 @@ export class MapGenerator {
         for (const distance of expandedDistances) {
             for (const angle of denseAngles) {
                 const cand = evaluate(angle, distance);
+                if (!cand.crosses && !cand.clipsNode && !cand.blocksEdge) {
+                    return cand.point;
+                }
+            }
+        }
+
+        // Pass 3: still no crossings, but tolerate a node graze if
+        // unavoidable.
+        for (const distance of expandedDistances) {
+            for (const angle of denseAngles) {
+                const cand = evaluate(angle, distance);
                 if (!cand.crosses) {
                     return cand.point;
                 }
             }
         }
 
-        // Pass 3: pathological — accept a crossing candidate as a
+        // Pass 4: pathological — accept a crossing candidate as a
         // last resort so the run never deadlocks. Pick the radius
-        // and angle that minimised overlap during the dense sweep.
+        // and angle that minimised total violations during the
+        // dense sweep.
         let fallback: { point: Point; score: number } | null = null;
         for (const distance of expandedDistances) {
             for (const angle of denseAngles) {
                 const cand = evaluate(angle, distance);
                 const score =
-                    (cand.crosses ? 1000 : 0) + (cand.tooClose ? 100 : 0);
+                    (cand.crosses ? 1000 : 0) +
+                    (cand.clipsNode ? 500 : 0) +
+                    (cand.blocksEdge ? 500 : 0) +
+                    (cand.tooClose ? 100 : 0);
                 if (fallback === null || score < fallback.score) {
                     fallback = { point: cand.point, score };
                 }
