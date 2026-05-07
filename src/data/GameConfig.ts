@@ -64,11 +64,38 @@ export const EXPEDITION_CONFIG = {
     highLightThreshold: 8,
 } as const;
 
-// [FIX-2] Light economy. Light now ticks down every 2 rooms instead of
-// every room, with a +3 recovery on boss kills. Thresholds are sourced
-// from EXPEDITION_CONFIG via the helpers in src/systems/Light.ts.
+// [FIX-2] Light economy. Light ticks down every N rooms (was every room
+// in pre-FIX-2 builds), with a +3 recovery on boss kills. Thresholds are
+// sourced from EXPEDITION_CONFIG via the helpers in src/systems/Light.ts.
+//
+// Decay interval is now runLength-derived through
+// {@link getLightDecayInterval} so longer runs don't drain Light too fast:
+//
+//   decayInterval = max(decayIntervalFloor, round(runLength / decayIntervalFactor))
+//
+// Empirical onsets at startingLight=7 and lowLightThreshold=4 (no recovery):
+//   runLength=25  → interval=2 → low-light at room  8 (~32 % of run)
+//   runLength=35  → interval=3 → low-light at room 12 (~34 %)
+//   runLength=50  → interval=4 → low-light at room 16 (~32 %)
+//   runLength=75  → interval=6 → low-light at room 24 (~32 %)
+//
+// (Spec quoted "≈ 60-70 % onset". That target assumes a fully-recovering
+// player; with no recovery the onset clamps to ~32 % across all lengths
+// because the (startingLight - lowLightThreshold) drop count is fixed.
+// See PR notes for the calibration table.)
 export const LIGHT_CONFIG = {
+    /** @deprecated kept only for the legacy `BalancePatch` test
+     *  assertion. New code should call
+     *  {@link getLightDecayInterval} (which reads
+     *  `decayIntervalFactor` / `decayIntervalFloor`). */
     decayEveryNRooms: 2,
+    /** Divisor for the runLength-scaled decay interval. */
+    decayIntervalFactor: 12,
+    /** Lower bound: even very short runs decay no faster than this. */
+    decayIntervalFloor: 2,
+    /** Light gained on a Rest room. Currently runLength-independent. */
+    restLightGain: 2,
+    /** Light gained on a boss kill (mid-run majors and minis). */
     onBossKill: 3,
     /** Players see a warning when light is at this value or lower. */
     warningThreshold: 4,
@@ -129,15 +156,18 @@ export const STRESS_CONFIG = {
  *
  * TODO (post map-gen stabilization): wire runLength-derived
  * formulas for:
- *  - LIGHT_CONFIG.decayEveryNRooms ≈ max(2, round(runLength / 12))
  *  - STRESS multiplier ≈ piecewise interp
  *      25→×1.00, 35→×0.90, 50→×0.75, 75→×0.65
  *  - LEVEL_UP_CONFIG.levelCap targets per runLength
  *      25→8-10, 35→10-12, 50→12-15, 75→15-18
  *  - phase boundaries (early/mid/late/final) at 0/30/70/95% of runLength
  *
- * Until those land, runLength affects map shape only and the
- * combat curve stays tuned to the legacy ~25-depth baseline.
+ * Done:
+ *  - Light decay interval — see `LIGHT_CONFIG.decayIntervalFactor`
+ *    and {@link getLightDecayInterval}.
+ *
+ * Until the rest land, runLength affects map shape + Light only;
+ * the combat curve stays tuned to the legacy ~25-depth baseline.
  */
 export const RUN_CONFIG = {
     runLength: 25,

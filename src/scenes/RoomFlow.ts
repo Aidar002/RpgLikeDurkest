@@ -1,4 +1,4 @@
-import { LIGHT_CONFIG, MAP_CONFIG, ROOM_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
+import { MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
 import { RoomType } from '../systems/MapGenerator';
 import { isLightWarning, shouldDecayLight } from '../systems/Light';
 import type { MapNode } from '../systems/MapGenerator';
@@ -34,17 +34,18 @@ export class RoomFlowController {
         scene.sfx.play('footstep');
         scene.sfx.updateAmbientDepth(scene.dungeon.currentDepth);
 
-        // [FIX-2] Light now decays once every LIGHT_CONFIG.decayEveryNRooms
-        // (default: 2) instead of every room. Empty rooms spared by relic
-        // and the START room never tick the counter so the relic effect
-        // stays meaningful.
+        // [FIX-2] Light now decays once every
+        // {@link getLightDecayInterval} rooms (runLength-derived; was a
+        // flat 2 per room before the runLength refactor). Empty rooms
+        // spared by relic and the START room never tick the counter so
+        // the relic effect stays meaningful.
         const sparesLight =
             scene.player.aggregate.emptyRoomsSpareLight && node.type === RoomType.EMPTY;
         if (scene.skipLightSpendThisRoom) {
             scene.skipLightSpendThisRoom = false;
         } else if (!sparesLight && node.type !== RoomType.START) {
             scene.roomsVisitedForLight += 1;
-            if (shouldDecayLight(scene.roomsVisitedForLight)) {
+            if (shouldDecayLight(scene.roomsVisitedForLight, RUN_CONFIG.runLength)) {
                 const spent = scene.player.spendLight(1);
                 if (spent > 0) {
                     scene.log.addMessage(scene.loc.t('lightLower', { count: spent }), '#e0c873');
@@ -54,8 +55,6 @@ export class RoomFlowController {
                 scene.log.addMessage(scene.loc.t('lightWarning'), '#c4a35a');
             }
         }
-        // Reference LIGHT_CONFIG so the linter recognises usage.
-        void LIGHT_CONFIG;
 
         if (scene.player.hasLowLight && node.type !== RoomType.START) {
             scene.stress.add(STRESS_CONFIG.onLowLightRoom, scene.player.aggregate.stressReductionPct);

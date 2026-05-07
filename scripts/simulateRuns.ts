@@ -35,10 +35,12 @@ import {
     LIGHT_CONFIG,
     MAP_CONFIG,
     PLAYER_CONFIG,
+    RUN_CONFIG,
     RUPTURE_CONFIG,
     STRESS_BAND_CONFIG,
     STUN_RESIST_CONFIG,
 } from '../src/data/GameConfig';
+import { shouldDecayLight } from '../src/systems/Light';
 import { getBossForDepth, getEnemyForDepth } from '../src/data/Enemies';
 import {
     BOSS_BLUEPRINT_BY_NAME,
@@ -577,9 +579,10 @@ function runOne(seed: number): RunResult {
     let finalBossDefeated = false;
 
     for (let depth = 1; depth <= MAP_CONFIG.finalDepth; depth++) {
-        // Light decay every 2 rooms
+        // Light decay every {@link getLightDecayInterval} rooms
+        // (runLength-derived). Uses the same helper as the live game.
         roomsVisitedForLight++;
-        if (roomsVisitedForLight % LIGHT_CONFIG.decayEveryNRooms === 0) {
+        if (shouldDecayLight(roomsVisitedForLight, RUN_CONFIG.runLength)) {
             p.light = Math.max(0, p.light - 1);
         }
         if (p.light <= 0 && r() < 0.05) {
