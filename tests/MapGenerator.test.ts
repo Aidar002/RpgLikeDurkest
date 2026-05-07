@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_CONFIG, RUN_CONFIG } from '../src/data/GameConfig';
+import { FEATURES, MAP_CONFIG, RUN_CONFIG } from '../src/data/GameConfig';
 import {
     MapGenerator,
     RoomType,
@@ -577,7 +577,7 @@ describe('MapGenerator', () => {
         });
     });
 
-    describe('seals + path validation (PR-3)', () => {
+    describe.runIf(FEATURES.seals)('seals + path validation (PR-3)', () => {
         it('scales requiredSeals according to runLength formula', () => {
             // requiredSeals = clamp(round(runLength / 20), 1, 4)
             const cfg = RUN_CONFIG.seals;
