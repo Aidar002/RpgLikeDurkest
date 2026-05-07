@@ -451,6 +451,7 @@ export class MapView {
         // node itself) — their edges are unreachable and confuse
         // the player into thinking those connections are usable.
         allNodes.forEach((node) => {
+            if (node.cleared) return;
             if (node.depth < currentDepth) return;
             if (node.depth === currentDepth && node.id !== currentId) return;
             if (node.edges.length === 0) return;
@@ -536,21 +537,12 @@ export class MapView {
             this.scene.tweens.killTweensOf(visual.rect);
 
             if (node.cleared) {
-                visual.rect.setFillStyle(0x000000).setAlpha(0.35);
-                if (hasFrame) {
-                    visual.rect.setStrokeStyle(0);
-                } else {
-                    visual.rect.setStrokeStyle(1, 0x333333);
-                }
-                visual.icon.setColor('#777777').setAlpha(0.5);
-                if (visual.sprite)
-                    visual.sprite.setAlpha(0.35).setTint(0x555555);
+                visual.rect.setVisible(false);
+                visual.icon.setVisible(false);
+                if (visual.sprite) visual.sprite.setVisible(false);
                 if (visual.frame) {
                     this.scene.tweens.killTweensOf(visual.frame);
-                    visual.frame
-                        .setAlpha(0.35)
-                        .setTint(0x555555)
-                        .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
+                    visual.frame.setVisible(false);
                 }
                 return;
             }
@@ -702,23 +694,25 @@ export class MapView {
             this.scene.tweens.killTweensOf(visual.rect);
             if (visual.frame) this.scene.tweens.killTweensOf(visual.frame);
 
-            visual.rect.setFillStyle(0x232323).setStrokeStyle(1, 0x333333);
-            visual.icon.setColor('#777777');
-
             const tweenTargets: Phaser.GameObjects.GameObject[] = [
                 visual.rect,
                 visual.icon,
             ];
-            if (visual.sprite) {
-                visual.sprite.setTint(0x555555);
-                tweenTargets.push(visual.sprite);
+            if (visual.sprite) tweenTargets.push(visual.sprite);
+            if (visual.frame) {
+                this.scene.tweens.killTweensOf(visual.frame);
+                tweenTargets.push(visual.frame);
             }
             this.scene.tweens.add({
                 targets: tweenTargets,
-                alpha: 0.35,
-                duration: 280,
+                alpha: 0,
+                duration: 350,
                 ease: 'Quad.in',
                 onComplete: () => {
+                    visual.rect.setVisible(false);
+                    visual.icon.setVisible(false);
+                    if (visual.sprite) visual.sprite.setVisible(false);
+                    if (visual.frame) visual.frame.setVisible(false);
                     remaining--;
                     if (remaining === 0) {
                         done();

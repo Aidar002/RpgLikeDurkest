@@ -1070,7 +1070,9 @@ export class MapGenerator {
     private rollFanout(): number {
         const r = this.rng.next();
         const f = MAP_CONFIG.fanoutRolls;
-        if (r < f.one) return 1;
+        // Minimum fanout is 2 so the player always has a meaningful
+        // choice — single-path corridors kill the sense of exploration.
+        if (r < f.one) return 2;
         if (r < f.one + f.two) return 2;
         if (r < f.one + f.two + f.three) return 3;
         return 4;
