@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { MAP_CONFIG, RUN_CONFIG } from '../src/data/GameConfig';
+import { FEATURES, MAP_CONFIG, RUN_CONFIG } from '../src/data/GameConfig';
 import {
     MapGenerator,
     RoomType,
@@ -577,7 +577,14 @@ describe('MapGenerator', () => {
         });
     });
 
-    describe('seals + path validation (PR-3)', () => {
+    // The seal feature is currently hidden behind FEATURES.seals;
+    // when off, getRequiredSeals returns 0 and the seal-coverage
+    // generator pass is skipped. The describe block below only runs
+    // when the feature is re-enabled so the legacy invariants stay
+    // protected without polluting the disabled-flag CI matrix.
+    const sealsDescribe = FEATURES.seals ? describe : describe.skip;
+
+    sealsDescribe('seals + path validation (PR-3)', () => {
         it('scales requiredSeals according to runLength formula', () => {
             // requiredSeals = clamp(round(runLength / 20), 1, 4)
             const cfg = RUN_CONFIG.seals;

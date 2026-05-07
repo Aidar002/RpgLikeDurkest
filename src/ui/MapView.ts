@@ -586,7 +586,8 @@ export class MapView {
                     .setFrame(frameIdx)
                     .setAlpha(1)
                     .clearTint()
-                    .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8);
+                    .setDisplaySize(NODE_SZ + 8, NODE_SZ + 8)
+                    .setVisible(true);
             }
 
             // Sprite priority: hand-authored room_icons spritesheet →
