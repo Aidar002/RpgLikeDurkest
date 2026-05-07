@@ -2,6 +2,7 @@ import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
 import {
     ADRENALINE_CONFIG,
     COMBAT_CONFIG,
+    FEATURES,
     LIGHT_CONFIG,
     RELIC_CAP_CONFIG,
     ROOM_CONFIG,
@@ -915,12 +916,13 @@ export class CombatManager {
                 gold: enemy.gold + (enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusGold : 0),
                 potions: enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusPotions : 0,
                 attackBonus: enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusAttack : 0,
-                relicShards:
-                    enemy.kind === 'elite'
-                        ? ROOM_CONFIG.elite.shardReward
-                        : enemy.kind === 'boss'
-                          ? ROOM_CONFIG.boss.shardReward
-                          : 0,
+                relicShards: !FEATURES.shards
+                    ? 0
+                    : enemy.kind === 'elite'
+                      ? ROOM_CONFIG.elite.shardReward
+                      : enemy.kind === 'boss'
+                        ? ROOM_CONFIG.boss.shardReward
+                        : 0,
             },
         };
     }

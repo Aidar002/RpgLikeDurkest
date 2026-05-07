@@ -798,7 +798,7 @@ export class RoomFlowController {
             fill: 0x355070,
         });
 
-        if (scene.meta.isUnlocked('merchant_premium')) {
+        if (FEATURES.shards && scene.meta.isUnlocked('merchant_premium')) {
             actions.push({
                 label: scene.loc.t('actionRelic', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.premiumShardCost }),
                 callback: () => {
