@@ -115,6 +115,9 @@ export class GameScene extends Phaser.Scene {
     public runBossKills = 0;
     private prestigeReward = 0;
     private prestigeAwarded = false;
+    private escaped = false;
+    /** Two-step confirm timer for the HUD escape button. -1 == idle. */
+    private escapeConfirmAt = -1;
     public skipLightSpendThisRoom = false;
     /**
      * [FIX-2] Run-level counter incremented every time the player
@@ -152,6 +155,8 @@ export class GameScene extends Phaser.Scene {
     private killsStat!: HudCellHandle;
     private bossStat!: HudCellHandle;
     private prestigeStat!: HudCellHandle;
+    private escapeButtonBg!: Phaser.GameObjects.Rectangle;
+    private escapeButtonLabel!: Phaser.GameObjects.Text;
     private hintText!: Phaser.GameObjects.Text;
     // mapDepthText was the small "ГЛУБИНА N" pill below the bottom bar —
     // removed because the dedicated ГЛУБИНА cell in the bottom HUD now
@@ -237,6 +242,8 @@ export class GameScene extends Phaser.Scene {
         this.runBossKills = 0;
         this.prestigeReward = 0;
         this.prestigeAwarded = false;
+        this.escaped = false;
+        this.escapeConfirmAt = -1;
         this.skipLightSpendThisRoom = false;
 
         const nodes = this.mapGen.generateInitialMap();
@@ -662,6 +669,40 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0.5, 0);
 
+        // ── ESCAPE BUTTON ───────────────────────────────────────
+        // Out-of-combat escape from the run. Click once to arm,
+        // click again within ~3s to confirm. On confirm: prestige
+        // is awarded for current depth + bosses, then the scene
+        // hands off to the victory/escape end screen which routes
+        // back to the hub via safeRestart().
+        const ESCAPE_BTN_W = 110;
+        const ESCAPE_BTN_H = 26;
+        const ESCAPE_BTN_X = GAME_WIDTH - PAD - ESCAPE_BTN_W / 2;
+        const ESCAPE_BTN_Y = TOP_H + 18;
+        this.escapeButtonBg = this.add
+            .rectangle(ESCAPE_BTN_X, ESCAPE_BTN_Y, ESCAPE_BTN_W, ESCAPE_BTN_H, HudColors.panelBg, 0.92)
+            .setStrokeStyle(1, HudColors.panelHi)
+            .setOrigin(0.5)
+            .setDepth(220)
+            .setInteractive({ useHandCursor: true });
+        this.escapeButtonLabel = this.add
+            .text(ESCAPE_BTN_X, ESCAPE_BTN_Y - 1, this.loc.t('escapeButton'), {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.textSecondary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5)
+            .setDepth(221);
+        this.escapeButtonBg.on('pointerover', () => {
+            this.escapeButtonBg.setStrokeStyle(2, HudColors.accentExp);
+        });
+        this.escapeButtonBg.on('pointerout', () => {
+            this.escapeButtonBg.setStrokeStyle(1, HudColors.panelHi);
+        });
+        this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
+
         const topWidgets: Phaser.GameObjects.GameObject[] = [
             topFrame,
             hpIcon,
@@ -698,6 +739,8 @@ export class GameScene extends Phaser.Scene {
             this.prestigeStat.root,
             this.relicText,
             this.hintText,
+            this.escapeButtonBg,
+            this.escapeButtonLabel,
         ];
 
         // Stone wall must sit below the room content. Inside a Container
@@ -834,6 +877,14 @@ export class GameScene extends Phaser.Scene {
 
         this.relicText.setText(this.relicSummary());
         this.updatePlayerStatusUI();
+
+        // Escape button is HUD-only and only meaningful out of combat.
+        // Hide while an enemy is active, while a death sequence is
+        // running, or while we're already on an end screen.
+        const escapeVisible =
+            !this.combat?.enemy && !this.dead && !this.deathSequenceStarted;
+        this.escapeButtonBg.setVisible(escapeVisible);
+        this.escapeButtonLabel.setVisible(escapeVisible);
     }
 
     public updatePlayerStatusUI() {
@@ -1312,6 +1363,8 @@ export class GameScene extends Phaser.Scene {
                 set prestigeAwarded(v: boolean) { scene.prestigeAwarded = v; },
                 get prestigeReward() { return scene.prestigeReward; },
                 set prestigeReward(v: number) { scene.prestigeReward = v; },
+                get escaped() { return scene.escaped; },
+                set escaped(v: boolean) { scene.escaped = v; },
             },
         };
     }
@@ -1329,6 +1382,43 @@ export class GameScene extends Phaser.Scene {
         this.time.removeAllEvents();
         this.input.removeAllListeners();
         this.scene.restart();
+    }
+
+    /**
+     * HUD escape button. First click arms a confirm window; second
+     * click within {@link ESCAPE_CONFIRM_MS} commits the escape and
+     * hands off to the end screen (which awards prestige and routes
+     * the player back to the hub via safeRestart). Pressing the
+     * button while combat is active or while the player is dead is
+     * a no-op — the visibility logic in refreshUI() also hides it in
+     * those cases, this guard is belt-and-braces.
+     */
+    private handleEscapeClick() {
+        if (this.combat?.enemy || this.dead || this.deathSequenceStarted) {
+            return;
+        }
+        const now = this.time.now;
+        const ESCAPE_CONFIRM_MS = 3000;
+        if (this.escapeConfirmAt > 0 && now - this.escapeConfirmAt <= ESCAPE_CONFIRM_MS) {
+            // Confirmed — commit the escape.
+            this.escapeConfirmAt = -1;
+            this.escaped = true;
+            this.dead = true;
+            this.showVictoryScreen();
+            return;
+        }
+        // First click — arm the confirm window and update the label.
+        this.escapeConfirmAt = now;
+        this.escapeButtonLabel.setText(this.loc.t('escapeButtonConfirm'));
+        this.escapeButtonLabel.setColor(HudHex.accentBloodLow);
+        this.time.delayedCall(ESCAPE_CONFIRM_MS, () => {
+            // Window expired without a confirm — revert label.
+            if (this.escapeConfirmAt > 0 && this.time.now - this.escapeConfirmAt >= ESCAPE_CONFIRM_MS) {
+                this.escapeConfirmAt = -1;
+                this.escapeButtonLabel.setText(this.loc.t('escapeButton'));
+                this.escapeButtonLabel.setColor(HudHex.textSecondary);
+            }
+        });
     }
 
 }
