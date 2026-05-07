@@ -118,6 +118,12 @@ export class RoomFlowController {
                     : 'The final floor. The Artifact Guardian awaits.',
                 '#ffd36e'
             );
+            // TODO(seals): require player.seals >= getRequiredSeals(RUN_CONFIG.runLength)
+            //   before allowing entry into / victory over the final boss.
+            //   Map-gen (PR-3) guarantees `requiredSeals` seal opportunities
+            //   on every full path; combat-side gating + player.seals
+            //   inventory + UI progress are intentionally deferred to a
+            //   later balance pass.
         }
 
         switch (node.type) {

@@ -3,6 +3,8 @@ import { MAP_CONFIG, RUN_CONFIG } from '../src/data/GameConfig';
 import {
     MapGenerator,
     RoomType,
+    formatMapDebug,
+    getRequiredSeals,
     validateMap,
 } from '../src/systems/MapGenerator';
 import { Mulberry32 } from '../src/systems/Rng';
@@ -437,9 +439,15 @@ describe('MapGenerator', () => {
                 expect(seedsWithMidRunBoss).toBeGreaterThanOrEqual(20);
             });
 
-            it(`never exceeds the runLength-derived boss budgets for runLength=${runLength}`, () => {
+            it(`respects the major-boss budget and exceeds the mini budget only as needed for seal coverage at runLength=${runLength}`, () => {
                 // targetMajor = clamp(round(runLength / 18), 1, 4)
                 // targetMini  = clamp(round(runLength / 12), 1, 6)
+                // The seal-coverage pass (PR-3) may add extra mini
+                // bosses when no existing mini sits on a deficit
+                // path — `requiredSeals` is a hard invariant, the
+                // mini target is a soft pacing hint. Major budget
+                // remains a hard cap (the pass never promotes to
+                // major).
                 const targetMajor = Math.max(
                     1,
                     Math.min(4, Math.round(runLength / 18)),
@@ -448,6 +456,10 @@ describe('MapGenerator', () => {
                     1,
                     Math.min(6, Math.round(runLength / 12)),
                 );
+                // Cap on extra minis the seal pass may add — at
+                // most one per `requiredSeals` "cut" through the
+                // map plus a small slack.
+                const sealCoverageSlack = 6;
                 for (let seed = 0; seed < 20; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
                     const report = validateMap(nodes, runLength);
@@ -455,7 +467,7 @@ describe('MapGenerator', () => {
                         targetMajor,
                     );
                     expect(report.miniBossCount).toBeLessThanOrEqual(
-                        targetMini,
+                        targetMini + sealCoverageSlack,
                     );
                 }
             });
@@ -523,6 +535,133 @@ describe('MapGenerator', () => {
             expect(report.miniBossCount).toBe(mini);
             expect(report.finalBossCount).toBe(final);
             expect(report.finalNodeCount).toBe(final);
+        });
+    });
+
+    describe('seals + path validation (PR-3)', () => {
+        it('scales requiredSeals according to runLength formula', () => {
+            // requiredSeals = clamp(round(runLength / 20), 1, 4)
+            const cfg = RUN_CONFIG.seals;
+            for (const rl of [20, 25, 35, 50, 75, 80]) {
+                const expected = Math.max(
+                    cfg.requiredSealsMin,
+                    Math.min(
+                        cfg.requiredSealsMax,
+                        Math.round(rl / cfg.requiredSealsFactor),
+                    ),
+                );
+                expect(getRequiredSeals(rl)).toBe(expected);
+            }
+        });
+
+        it('every major boss grants a major seal; every mini boss has bossKind="mini"', () => {
+            // Sanity-check the seal metadata wiring across a wide
+            // range of runLengths and seeds.
+            for (const runLength of [25, 35, 50, 75]) {
+                for (let seed = 0; seed < 10; seed++) {
+                    const { nodes } = generateFullRun(runLength, seed);
+                    for (const n of nodes) {
+                        if (n.bossKind === 'major') {
+                            expect(n.grantsSeal).toBe(true);
+                            expect(n.sealType).toBe('major');
+                        }
+                        if (n.bossKind === 'mini' && n.grantsSeal) {
+                            expect(n.sealType).toBe('mini');
+                        }
+                        if (n.bossKind === null || n.bossKind === 'final') {
+                            expect(n.grantsSeal).toBe(false);
+                            expect(n.sealType).toBe(null);
+                        }
+                    }
+                }
+            }
+        });
+
+        for (const runLength of [25, 35, 50, 75]) {
+            it(`every full path has at least requiredSeals seal opportunities for runLength=${runLength}`, () => {
+                const required = getRequiredSeals(runLength);
+                for (let seed = 0; seed < 30; seed++) {
+                    const { nodes } = generateFullRun(runLength, seed);
+                    const r = validateMap(nodes, runLength);
+                    expect(r.requiredSeals).toBe(required);
+                    expect(r.sealsPerPath).not.toBeNull();
+                    expect(r.sealsPerPath!.min).toBeGreaterThanOrEqual(required);
+                    expect(r.pathMeetsRequiredSeals).toBe(true);
+                }
+            });
+
+            it(`reports per-path seal/boss min ≤ avg ≤ max for runLength=${runLength}`, () => {
+                for (let seed = 0; seed < 10; seed++) {
+                    const { nodes } = generateFullRun(runLength, seed);
+                    const r = validateMap(nodes, runLength);
+                    expect(r.sealsPerPath).not.toBeNull();
+                    expect(r.bossesPerPath).not.toBeNull();
+                    const seals = r.sealsPerPath!;
+                    const bosses = r.bossesPerPath!;
+                    expect(seals.min).toBeLessThanOrEqual(seals.avg);
+                    expect(seals.avg).toBeLessThanOrEqual(seals.max);
+                    expect(bosses.min).toBeLessThanOrEqual(bosses.avg);
+                    expect(bosses.avg).toBeLessThanOrEqual(bosses.max);
+                }
+            });
+        }
+
+        it('sealOpportunityCount equals the number of grantsSeal=true nodes', () => {
+            for (const runLength of [25, 50, 75]) {
+                for (let seed = 0; seed < 5; seed++) {
+                    const { nodes } = generateFullRun(runLength, seed);
+                    const r = validateMap(nodes, runLength);
+                    const granters = nodes.filter((n) => n.grantsSeal).length;
+                    expect(r.sealOpportunityCount).toBe(granters);
+                }
+            }
+        });
+
+        it('reports pressureStrategy="max"', () => {
+            const { nodes } = generateFullRun(50, 1);
+            const r = validateMap(nodes, 50);
+            expect(r.pressureStrategy).toBe('max');
+        });
+
+        it('formatMapDebug emits every spec field in a stable order', () => {
+            const { nodes } = generateFullRun(50, 7);
+            const r = validateMap(nodes, 50);
+            const text = formatMapDebug(r);
+            for (const field of [
+                'runLength',
+                'finalDepth',
+                'totalNodes',
+                'totalEdges',
+                'major=',
+                'mini=',
+                'final=',
+                'required=',
+                'opportunities=',
+                'sealsPerPath',
+                'bossesPerPath',
+                'pathMeetsRequiredSeals',
+                'allFinalAreBossKindFinal',
+                'everyFullPathEndsInFinalBoss',
+                'allNodesReachAFinalBoss',
+                'invariants:',
+                'pressureStrategy=max',
+            ]) {
+                expect(text).toContain(field);
+            }
+        });
+
+        it('seal-coverage pass keeps no-boss-adjacency and post-major-recovery invariants', () => {
+            // The seal-coverage pass promotes regular rooms to mini
+            // bosses when needed; verify it never violates the
+            // adjacency or recovery invariants.
+            for (const runLength of [25, 35, 50, 75]) {
+                for (let seed = 0; seed < 20; seed++) {
+                    const { nodes } = generateFullRun(runLength, seed);
+                    const r = validateMap(nodes, runLength);
+                    expect(r.bossAdjacencyViolations).toBe(0);
+                    expect(r.postMajorRecoveryViolations).toBe(0);
+                }
+            }
         });
     });
 });
