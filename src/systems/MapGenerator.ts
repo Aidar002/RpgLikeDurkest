@@ -28,13 +28,23 @@ export type RoomType = (typeof RoomType)[keyof typeof RoomType];
  *
  *  - `'final'` — terminal final-boss node (depth === runLength).
  *    Victory over any of these ends the run.
- *  - `'major'` — mid-run major boss. Reserved for PR-2; PR-1
- *    never assigns this kind.
- *  - `'mini'`  — mid-run threat / branch guardian. Reserved for
- *    PR-2; PR-1 never assigns this kind.
+ *  - `'major'` — mid-run major boss. Always grants a seal.
+ *  - `'mini'`  — mid-run threat / branch guardian. Optionally
+ *    grants a seal (see `RUN_CONFIG.seals.miniSealOdds`).
  *  - `null`    — non-boss room.
  */
 export type BossKind = 'final' | 'major' | 'mini' | null;
+
+/**
+ * Tag for seal-granting rooms (PR-3). Major bosses produce
+ * `'major'` seals; a fraction of mini bosses produce `'mini'`
+ * seals (controlled by `RUN_CONFIG.seals.miniSealOdds`). The
+ * combat-side `player.seals` inventory and the requiredSeals
+ * gate at the final-boss entry are intentionally not yet
+ * implemented — see TODO(seals) markers in `GameScene.ts` and
+ * the final-boss combat code.
+ */
+export type SealType = 'major' | 'mini';
 
 /**
  * One room in the dungeon graph.
@@ -65,6 +75,16 @@ export interface MapNode {
      * See {@link BossKind} for the semantics of each value.
      */
     bossKind: BossKind;
+    /**
+     * Whether clearing this room grants a seal (PR-3). Always
+     * `true` on major-boss rooms, sometimes `true` on mini-boss
+     * rooms (see `RUN_CONFIG.seals.miniSealOdds`), `false`
+     * otherwise. Final-boss rooms never grant seals — they are
+     * the *target* of the seal gate, not a seal source.
+     */
+    grantsSeal: boolean;
+    /** Seal flavour, present iff {@link grantsSeal} is `true`. */
+    sealType: SealType | null;
     visited: boolean;
     cleared: boolean;
     edges: string[];
@@ -109,6 +129,22 @@ const POST_MAJOR_RECOVERY_POOL: RoomType[] = [
 
 function clamp(value: number, lo: number, hi: number): number {
     return Math.max(lo, Math.min(hi, value));
+}
+
+/**
+ * Compute the `requiredSeals` budget for a given run length using
+ * `RUN_CONFIG.seals`. Mirrors the bossPressure target formulas so
+ * scaling stays consistent across runLength variants.
+ *
+ *     requiredSeals = clamp(round(runLength / requiredSealsFactor), min, max)
+ */
+export function getRequiredSeals(runLength: number): number {
+    const cfg = RUN_CONFIG.seals;
+    return clamp(
+        Math.round(runLength / cfg.requiredSealsFactor),
+        cfg.requiredSealsMin,
+        cfg.requiredSealsMax,
+    );
 }
 
 /**
@@ -467,6 +503,10 @@ export class MapGenerator {
             previousLayer = this.buildLayer(depth, previousLayer, all);
         }
 
+        if (lastDepth >= this.runLength) {
+            this.enforceSealCoverage(all);
+        }
+
         return all;
     }
 
@@ -479,7 +519,72 @@ export class MapGenerator {
         // Defensive copy so buildLayer's local push doesn't mutate
         // the caller's node array — DungeonManager owns that and
         // re-merges via `addNodes`.
-        return this.buildLayer(fromDepth + 1, previousLayer, [...allNodes]);
+        const newLayer = this.buildLayer(fromDepth + 1, previousLayer, [...allNodes]);
+        // The final-boss layer was just built — promote enough mini
+        // bosses to grant seal so every full path meets `requiredSeals`.
+        // We mutate the caller's array in-place via the new-layer
+        // refs, plus any earlier mini-boss nodes already in `allNodes`.
+        if (fromDepth + 1 >= this.runLength) {
+            this.enforceSealCoverage([...allNodes, ...newLayer]);
+        }
+        return newLayer;
+    }
+
+    /**
+     * Post-generation pass: greedily promote mini-boss nodes to
+     * grant a seal until every full START → final-boss path
+     * traverses at least `requiredSeals` seal-granting nodes.
+     *
+     * Mini bosses are tagged at creation time with `grantsSeal`
+     * rolled at `RUN_CONFIG.seals.miniSealOdds`. That gives nice
+     * variety on average but doesn't guarantee that *every* path
+     * the player can pick has enough seal opportunities — a
+     * branchy player might happen to walk past every non-seal
+     * mini and arrive at the final boss short on seals. This
+     * pass walks the DAG, finds paths below the seal budget, and
+     * upgrades the mini boss whose promotion covers the most
+     * deficient paths until either the invariant holds or no
+     * non-seal mini boss is left to promote.
+     *
+     * The pass is deterministic for a given seed: when several
+     * candidates tie, we break ties by id (smallest first), and
+     * the rng is not consulted. This keeps replays stable.
+     */
+    private enforceSealCoverage(allNodes: MapNode[]): void {
+        const required = getRequiredSeals(this.runLength);
+        if (required <= 0) return;
+        let safety = allNodes.length * 2;
+        while (safety-- > 0) {
+            const stat = computeMinSealsPerPath(allNodes);
+            if (stat === null || stat.min >= required) return;
+            // Phase 1: promote an existing non-seal mini boss that
+            // covers a deficit path. This is cheap and preserves
+            // the boss-budget targets from PR-2.
+            const miniCandidate = pickBestSealPromotion(allNodes, required);
+            if (miniCandidate) {
+                miniCandidate.grantsSeal = true;
+                miniCandidate.sealType = 'mini';
+                continue;
+            }
+            // Phase 2: no existing mini sits on a deficit path.
+            // Promote a regular (non-boss) room to a mini boss
+            // so the deficit path picks up a seal. The choice is
+            // constrained to nodes that respect boss-adjacency and
+            // post-major-recovery invariants — see
+            // {@link pickRegularNodeToPromoteToMini}.
+            const promoteRegular = pickRegularNodeToPromoteToMini(
+                allNodes,
+                this.runLength,
+                required,
+                this.getPressureWindow().start,
+            );
+            if (!promoteRegular) return;
+            promoteRegular.type = RoomType.MINI_BOSS;
+            promoteRegular.bossKind = 'mini';
+            promoteRegular.grantsSeal = true;
+            promoteRegular.sealType = 'mini';
+            this.miniBossesPlaced++;
+        }
     }
 
     private buildLayer(depth: number, previousLayer: MapNode[], allNodes: MapNode[]): MapNode[] {
@@ -1291,6 +1396,21 @@ export class MapGenerator {
         type: RoomType,
         bossKind: BossKind = null,
     ): MapNode {
+        // Seal assignment (PR-3): every major boss grants a seal,
+        // mini bosses opt in via `RUN_CONFIG.seals.miniSealOdds`.
+        // Final bosses never grant seals — they are the *target*
+        // of the seal gate, not a seal source.
+        let grantsSeal = false;
+        let sealType: SealType | null = null;
+        if (bossKind === 'major') {
+            grantsSeal = true;
+            sealType = 'major';
+        } else if (bossKind === 'mini') {
+            if (this.rng.next() < RUN_CONFIG.seals.miniSealOdds) {
+                grantsSeal = true;
+                sealType = 'mini';
+            }
+        }
         return {
             id: `n${this.counter++}`,
             depth,
@@ -1299,6 +1419,8 @@ export class MapGenerator {
             y: 0,
             type,
             bossKind,
+            grantsSeal,
+            sealType,
             visited: false,
             cleared: false,
             edges: [],
@@ -1384,6 +1506,37 @@ export interface MapValidationReport {
      * been bypassed.
      */
     postMajorRecoveryViolations: number;
+    /** Configured `requiredSeals` budget for this run. */
+    requiredSeals: number;
+    /** Number of nodes with `grantsSeal === true`. */
+    sealOpportunityCount: number;
+    /**
+     * Min / max / average count of seal-granting rooms encountered
+     * across every full path from START to a final-boss node.
+     * `null` until the final layer is generated.
+     */
+    sealsPerPath: { min: number; max: number; avg: number } | null;
+    /**
+     * Min / max / average count of boss-threat rooms (major + mini
+     * + final) encountered across every full path from START to a
+     * final-boss node. `null` until the final layer is generated.
+     */
+    bossesPerPath: { min: number; max: number; avg: number } | null;
+    /**
+     * `true` iff the worst-case full path's seal opportunities are
+     * `>= requiredSeals`. The hard player-side gate (final boss
+     * blocked when seals < requiredSeals) is intentionally NOT yet
+     * implemented — see TODO(seals) markers in the combat code.
+     * `null` until the final layer is generated.
+     */
+    pathMeetsRequiredSeals: boolean | null;
+    /**
+     * Diagnostic tag for the per-node `stepsSinceBoss` aggregation
+     * strategy used by the bossPressure pass. The user explicitly
+     * approved `"max"` (long-pressure path always wins). Per-edge
+     * pressure is left as a possible v2 — see `decideBossKind`.
+     */
+    pressureStrategy: 'max';
 }
 
 /**
@@ -1413,11 +1566,13 @@ export function validateMap(
     let majorBossCount = 0;
     let miniBossCount = 0;
     let finalBossCount = 0;
+    let sealOpportunityCount = 0;
 
     for (const node of allNodes) {
         if (node.bossKind === 'major') majorBossCount++;
         else if (node.bossKind === 'mini') miniBossCount++;
         else if (node.bossKind === 'final') finalBossCount++;
+        if (node.grantsSeal) sealOpportunityCount++;
         for (const edgeId of node.edges) {
             const target = byId.get(edgeId);
             if (!target) continue;
@@ -1439,6 +1594,7 @@ export function validateMap(
 
     const finalNodes = allNodes.filter((n) => n.depth === runLength);
     const finalLayerGenerated = finalNodes.length > 0;
+    const requiredSeals = getRequiredSeals(runLength);
 
     const allFinalAreBossKindFinal =
         !finalLayerGenerated ||
@@ -1460,6 +1616,9 @@ export function validateMap(
 
     let everyFullPathEndsInFinalBoss: boolean | null = null;
     let allNodesReachAFinalBoss: boolean | null = null;
+    let sealsPerPath: { min: number; max: number; avg: number } | null = null;
+    let bossesPerPath: { min: number; max: number; avg: number } | null = null;
+    let pathMeetsRequiredSeals: boolean | null = null;
     if (finalLayerGenerated) {
         // Walk the graph from START forward; every leaf must be a
         // final-boss node. We treat any node whose outgoing edges
@@ -1529,6 +1688,31 @@ export function validateMap(
             }
         }
         everyFullPathEndsInFinalBoss = endsCorrectly;
+
+        // Per-path stats over full START → final-boss paths. Weight
+        // each path equally (the player's choice is free, so an
+        // arithmetic mean is the right summary). Path counts blow
+        // up exponentially in wide graphs, so we use BigInt for
+        // the running totals.
+        if (start) {
+            sealsPerPath = computePerPathStat(
+                allNodes,
+                byId,
+                start,
+                finalNodes,
+                (n) => (n.grantsSeal ? 1 : 0),
+            );
+            bossesPerPath = computePerPathStat(
+                allNodes,
+                byId,
+                start,
+                finalNodes,
+                (n) => (n.bossKind !== null ? 1 : 0),
+            );
+            if (sealsPerPath) {
+                pathMeetsRequiredSeals = sealsPerPath.min >= requiredSeals;
+            }
+        }
     }
 
     return {
@@ -1548,7 +1732,409 @@ export function validateMap(
         miniBossCount,
         finalBossCount,
         postMajorRecoveryViolations,
+        requiredSeals,
+        sealOpportunityCount,
+        sealsPerPath,
+        bossesPerPath,
+        pathMeetsRequiredSeals,
+        pressureStrategy: 'max',
     };
+}
+
+/**
+ * Format a {@link MapValidationReport} as a human-readable, fixed-
+ * width block suitable for `console.log` debugging or copy-pasting
+ * into bug reports. Stable order, includes every field the user's
+ * PR-3 spec lists for the per-map debug dump (runLength,
+ * boss/seal counts, per-path stats, invariant counts, pressure
+ * strategy). Returns the formatted string instead of logging so
+ * tests can assert on it.
+ */
+export function formatMapDebug(report: MapValidationReport): string {
+    const fmtStat = (s: { min: number; max: number; avg: number } | null) =>
+        s ? `min=${s.min} max=${s.max} avg=${s.avg}` : 'n/a';
+    const fmtBool = (b: boolean | null) => (b === null ? 'n/a' : String(b));
+    const lines = [
+        `runLength=${report.runLength}  finalDepth=${report.finalDepth}`,
+        `totalNodes=${report.totalNodes}  totalEdges=${report.totalEdges}`,
+        `bosses: major=${report.majorBossCount}  mini=${report.miniBossCount}  final=${report.finalBossCount}`,
+        `seals: required=${report.requiredSeals}  opportunities=${report.sealOpportunityCount}`,
+        `sealsPerPath:  ${fmtStat(report.sealsPerPath)}`,
+        `bossesPerPath: ${fmtStat(report.bossesPerPath)}`,
+        `pathMeetsRequiredSeals: ${fmtBool(report.pathMeetsRequiredSeals)}`,
+        `finalLayerGenerated=${report.finalLayerGenerated}  finalNodeCount=${report.finalNodeCount}`,
+        `allFinalAreBossKindFinal=${fmtBool(report.allFinalAreBossKindFinal)}`,
+        `everyFullPathEndsInFinalBoss=${fmtBool(report.everyFullPathEndsInFinalBoss)}`,
+        `allNodesReachAFinalBoss=${fmtBool(report.allNodesReachAFinalBoss)}`,
+        `invariants: orphans=${report.orphanNodeCount}  deadEnds=${report.deadEndCount}  bossAdjacency=${report.bossAdjacencyViolations}  postMajorRecovery=${report.postMajorRecoveryViolations}`,
+        `pressureStrategy=${report.pressureStrategy}`,
+    ];
+    return lines.join('\n');
+}
+
+/**
+ * Trimmed variant of {@link computePerPathStat} that returns only
+ * `min` for the seal score — used by the seal-coverage pass which
+ * runs in a tight loop and doesn't need max / avg.
+ */
+function computeMinSealsPerPath(
+    allNodes: readonly MapNode[],
+): { min: number } | null {
+    const start = allNodes.find((n) => n.type === RoomType.START);
+    if (!start) return null;
+    const finalNodes = allNodes.filter((n) => n.bossKind === 'final');
+    if (finalNodes.length === 0) return null;
+    const byId = new Map<string, MapNode>();
+    for (const n of allNodes) byId.set(n.id, n);
+
+    const ordered = allNodes.slice().sort((a, b) => a.depth - b.depth);
+    const minScore = new Map<string, number>();
+    minScore.set(start.id, start.grantsSeal ? 1 : 0);
+    for (const node of ordered) {
+        const here = minScore.get(node.id);
+        if (here === undefined) continue;
+        for (const eid of node.edges) {
+            const child = byId.get(eid);
+            if (!child) continue;
+            const cand = here + (child.grantsSeal ? 1 : 0);
+            const prev = minScore.get(child.id);
+            if (prev === undefined || cand < prev) minScore.set(child.id, cand);
+        }
+    }
+    let min = Number.POSITIVE_INFINITY;
+    for (const f of finalNodes) {
+        const v = minScore.get(f.id);
+        if (v !== undefined) min = Math.min(min, v);
+    }
+    if (!Number.isFinite(min)) return null;
+    return { min };
+}
+
+/**
+ * Walk the DAG and pick the non-seal mini-boss whose promotion
+ * benefits the most "deficit" paths (paths whose seal count is
+ * still below {@link required}). Ties are broken by node id for
+ * deterministic seed-replay.
+ *
+ * Returns `null` if no non-seal mini boss exists or no candidate
+ * actually sits on a deficit path (in which case we cannot help).
+ */
+function pickBestSealPromotion(
+    allNodes: readonly MapNode[],
+    required: number,
+): MapNode | null {
+    const start = allNodes.find((n) => n.type === RoomType.START);
+    if (!start) return null;
+    const finalNodes = allNodes.filter((n) => n.bossKind === 'final');
+    if (finalNodes.length === 0) return null;
+    const byId = new Map<string, MapNode>();
+    for (const n of allNodes) byId.set(n.id, n);
+
+    // Forward DP: for every node, the minimum seal count over all
+    // partial paths from START. This is the same shortest-path DP
+    // as {@link computeMinSealsPerPath} but we keep it locally to
+    // chain into a "deficit" check below.
+    const ordered = allNodes.slice().sort((a, b) => a.depth - b.depth);
+    const minSealsToHere = new Map<string, number>();
+    minSealsToHere.set(start.id, start.grantsSeal ? 1 : 0);
+    for (const node of ordered) {
+        const here = minSealsToHere.get(node.id);
+        if (here === undefined) continue;
+        for (const eid of node.edges) {
+            const child = byId.get(eid);
+            if (!child) continue;
+            const cand = here + (child.grantsSeal ? 1 : 0);
+            const prev = minSealsToHere.get(child.id);
+            if (prev === undefined || cand < prev) {
+                minSealsToHere.set(child.id, cand);
+            }
+        }
+    }
+
+    // Backward DP: for every node, the minimum seal count over all
+    // partial paths to *some* final boss (not counting the node
+    // itself — we add that below).
+    const minSealsFromHere = new Map<string, number>();
+    for (const f of finalNodes) minSealsFromHere.set(f.id, 0);
+    for (const node of ordered.slice().reverse()) {
+        if (minSealsFromHere.has(node.id)) continue;
+        let best = Number.POSITIVE_INFINITY;
+        for (const eid of node.edges) {
+            const child = byId.get(eid);
+            if (!child) continue;
+            const childForward = minSealsFromHere.get(child.id);
+            if (childForward === undefined) continue;
+            const cand = (child.grantsSeal ? 1 : 0) + childForward;
+            if (cand < best) best = cand;
+        }
+        if (Number.isFinite(best)) minSealsFromHere.set(node.id, best);
+    }
+
+    // For every non-seal mini, compute the worst-case full-path
+    // seal count *passing through this node*. Picking the mini
+    // with the lowest such value targets the most deficient
+    // paths first.
+    let bestNode: MapNode | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    const candidates = allNodes
+        .filter((n) => n.bossKind === 'mini' && !n.grantsSeal)
+        .slice()
+        .sort((a, b) => a.id.localeCompare(b.id));
+    for (const cand of candidates) {
+        const before = minSealsToHere.get(cand.id);
+        const after = minSealsFromHere.get(cand.id);
+        if (before === undefined || after === undefined) continue;
+        // Total seal count on the worst full path through `cand`
+        // (counting `cand` itself, which currently doesn't grant).
+        const worst = before + after;
+        // Skip candidates whose worst-case path is already
+        // satisfied — promoting them would be pure waste.
+        if (worst >= required) continue;
+        if (worst < bestScore) {
+            bestScore = worst;
+            bestNode = cand;
+        }
+    }
+    return bestNode;
+}
+
+/**
+ * Pick a regular (non-boss) node on a deficit START → final path
+ * and convert it to a mini-boss seal-grant. Used by the seal
+ * coverage pass when no existing mini boss covers a deficit path
+ * (so we cannot satisfy the `requiredSeals` invariant by simple
+ * promotion). Returns `null` when no candidate respects all of:
+ *
+ *   - non-START / non-final / non-boss
+ *   - not the recovery slot of a major boss (would break the
+ *     post-major-recovery invariant)
+ *   - no boss-typed parent or child (would break boss-adjacency)
+ *   - sits on a path whose worst-case seal count is below
+ *     `required` even after this node grants one (i.e. promoting
+ *     it actually helps).
+ *
+ * Ties broken by node id for deterministic seed-replay.
+ */
+function pickRegularNodeToPromoteToMini(
+    allNodes: readonly MapNode[],
+    runLength: number,
+    required: number,
+    pressureWindowStart: number,
+): MapNode | null {
+    const start = allNodes.find((n) => n.type === RoomType.START);
+    if (!start) return null;
+    const finalNodes = allNodes.filter((n) => n.bossKind === 'final');
+    if (finalNodes.length === 0) return null;
+    const byId = new Map<string, MapNode>();
+    for (const n of allNodes) byId.set(n.id, n);
+    // Reverse adjacency — we need to know each node's parents to
+    // enforce no-boss-adjacency and post-major-recovery rules.
+    const parents = new Map<string, MapNode[]>();
+    for (const node of allNodes) {
+        for (const eid of node.edges) {
+            const t = byId.get(eid);
+            if (!t) continue;
+            const list = parents.get(t.id);
+            if (list) list.push(node);
+            else parents.set(t.id, [node]);
+        }
+    }
+
+    // Forward / backward DP for min seal count from / to each node.
+    const ordered = allNodes.slice().sort((a, b) => a.depth - b.depth);
+    const minSealsToHere = new Map<string, number>();
+    minSealsToHere.set(start.id, start.grantsSeal ? 1 : 0);
+    for (const node of ordered) {
+        const here = minSealsToHere.get(node.id);
+        if (here === undefined) continue;
+        for (const eid of node.edges) {
+            const child = byId.get(eid);
+            if (!child) continue;
+            const cand = here + (child.grantsSeal ? 1 : 0);
+            const prev = minSealsToHere.get(child.id);
+            if (prev === undefined || cand < prev) minSealsToHere.set(child.id, cand);
+        }
+    }
+    const minSealsFromHere = new Map<string, number>();
+    for (const f of finalNodes) minSealsFromHere.set(f.id, 0);
+    for (const node of ordered.slice().reverse()) {
+        if (minSealsFromHere.has(node.id)) continue;
+        let best = Number.POSITIVE_INFINITY;
+        for (const eid of node.edges) {
+            const child = byId.get(eid);
+            if (!child) continue;
+            const childForward = minSealsFromHere.get(child.id);
+            if (childForward === undefined) continue;
+            const cand = (child.grantsSeal ? 1 : 0) + childForward;
+            if (cand < best) best = cand;
+        }
+        if (Number.isFinite(best)) minSealsFromHere.set(node.id, best);
+    }
+
+    let bestNode: MapNode | null = null;
+    let bestScore = Number.POSITIVE_INFINITY;
+    const candidates = allNodes
+        .filter((n) => {
+            if (n.bossKind !== null) return false;
+            if (n.type === RoomType.START) return false;
+            if (n.depth === runLength) return false;
+            // Final-approach layer is forced to recovery types
+            // and shouldn't be promoted to a mini boss.
+            if (n.depth === runLength - 1) return false;
+            // Respect the bossPressure window (PR-2 invariant) —
+            // never place a fresh threat before the window opens
+            // along its branch. We approximate the per-branch
+            // `stepsSinceBoss` constraint with a flat depth gate
+            // (every node has depth >= stepsSinceBoss), so this is
+            // strictly safe.
+            if (n.depth < pressureWindowStart) return false;
+            // Skip recovery slots after a major boss (would
+            // demote the post-major reward room to a threat).
+            const ps = parents.get(n.id) ?? [];
+            if (ps.some((p) => p.bossKind === 'major')) return false;
+            // No boss adjacency — neither parents nor children
+            // may be boss rooms.
+            if (ps.some((p) => p.bossKind !== null)) return false;
+            for (const eid of n.edges) {
+                const c = byId.get(eid);
+                if (c && c.bossKind !== null) return false;
+            }
+            return true;
+        })
+        .slice()
+        .sort((a, b) => a.id.localeCompare(b.id));
+    for (const cand of candidates) {
+        const before = minSealsToHere.get(cand.id);
+        const after = minSealsFromHere.get(cand.id);
+        if (before === undefined || after === undefined) continue;
+        // Worst-case full-path seal count *passing through* this
+        // node, after promotion (so +1 for `cand` itself).
+        const worstAfter = before + after + 1;
+        if (worstAfter > required) continue; // already enough on every path through cand
+        // Also skip if `cand` doesn't sit on a deficit path —
+        // the path's existing minimum is already adequate.
+        const worstBefore = before + after;
+        if (worstBefore >= required) continue;
+        if (worstBefore < bestScore) {
+            bestScore = worstBefore;
+            bestNode = cand;
+        }
+    }
+    return bestNode;
+}
+
+/**
+ * Min / max / average count of nodes matching `score` across every
+ * full START → final-boss path in the DAG. Pure helper for
+ * {@link validateMap}; runs in O(V+E) time using two topologically
+ * ordered scans (forward for `min/max` and path counts, backward
+ * for paths-to-final). Path counts use plain `number` — for
+ * realistic runLengths (≤80, fanout ≤4) the totals stay well
+ * below `Number.MAX_VALUE` and 1e-15 relative error in the avg
+ * is invisible at three-decimal reporting precision.
+ */
+function computePerPathStat(
+    allNodes: readonly MapNode[],
+    byId: Map<string, MapNode>,
+    start: MapNode,
+    finalNodes: readonly MapNode[],
+    score: (n: MapNode) => number,
+): { min: number; max: number; avg: number } | null {
+    if (finalNodes.length === 0) return null;
+
+    // Topological order by depth (the graph is depth-ordered by
+    // construction so this is just a stable sort).
+    const ordered = allNodes.slice().sort((a, b) => a.depth - b.depth);
+
+    // Forward DP: shortest / longest score sum from START to each
+    // node, plus the number of distinct paths from START. Nodes
+    // unreachable from START keep `pathsFromStart === 0` and are
+    // skipped naturally below.
+    const minScore = new Map<string, number>();
+    const maxScore = new Map<string, number>();
+    const pathsFromStart = new Map<string, number>();
+    minScore.set(start.id, score(start));
+    maxScore.set(start.id, score(start));
+    pathsFromStart.set(start.id, 1);
+
+    for (const node of ordered) {
+        const minHere = minScore.get(node.id);
+        const maxHere = maxScore.get(node.id);
+        const pathsHere = pathsFromStart.get(node.id) ?? 0;
+        if (minHere === undefined || maxHere === undefined || pathsHere === 0) {
+            continue;
+        }
+        for (const eid of node.edges) {
+            const child = byId.get(eid);
+            if (!child) continue;
+            const childScore = score(child);
+            const candidateMin = minHere + childScore;
+            const candidateMax = maxHere + childScore;
+            const prevMin = minScore.get(child.id);
+            const prevMax = maxScore.get(child.id);
+            if (prevMin === undefined || candidateMin < prevMin) {
+                minScore.set(child.id, candidateMin);
+            }
+            if (prevMax === undefined || candidateMax > prevMax) {
+                maxScore.set(child.id, candidateMax);
+            }
+            pathsFromStart.set(
+                child.id,
+                (pathsFromStart.get(child.id) ?? 0) + pathsHere,
+            );
+        }
+    }
+
+    // Backward DP: number of paths from each node to *some* final
+    // boss. Combined with `pathsFromStart`, gives us the number of
+    // full paths passing through each node — the weight used to
+    // compute the arithmetic mean.
+    const pathsToFinal = new Map<string, number>();
+    for (const f of finalNodes) pathsToFinal.set(f.id, 1);
+    const reverseOrder = ordered.slice().reverse();
+    for (const node of reverseOrder) {
+        if (pathsToFinal.has(node.id)) continue; // already 1 for finals
+        let sum = 0;
+        for (const eid of node.edges) {
+            const child = byId.get(eid);
+            if (!child) continue;
+            sum += pathsToFinal.get(child.id) ?? 0;
+        }
+        if (sum > 0) pathsToFinal.set(node.id, sum);
+    }
+
+    // Min / max are the best / worst score on any final-boss node
+    // reachable from START. (Finals unreachable from START don't
+    // appear in `minScore`, so they're skipped naturally.)
+    let min = Number.POSITIVE_INFINITY;
+    let max = Number.NEGATIVE_INFINITY;
+    for (const f of finalNodes) {
+        const fmin = minScore.get(f.id);
+        const fmax = maxScore.get(f.id);
+        if (fmin !== undefined) min = Math.min(min, fmin);
+        if (fmax !== undefined) max = Math.max(max, fmax);
+    }
+    if (!Number.isFinite(min) || !Number.isFinite(max)) return null;
+
+    // Weighted average: for each node `n`, the number of full paths
+    // passing through `n` is `pathsFromStart * pathsToFinal`, and
+    // `n` contributes `score(n)` to every such path.
+    let weightedScoreSum = 0;
+    let totalPaths = 0;
+    for (const node of allNodes) {
+        const fromStart = pathsFromStart.get(node.id) ?? 0;
+        const toFinal = pathsToFinal.get(node.id) ?? 0;
+        if (fromStart === 0 || toFinal === 0) continue;
+        const s = score(node);
+        if (s !== 0) weightedScoreSum += s * fromStart * toFinal;
+    }
+    for (const f of finalNodes) {
+        totalPaths += pathsFromStart.get(f.id) ?? 0;
+    }
+    if (totalPaths === 0 || !Number.isFinite(totalPaths)) return null;
+    const avg = Math.round((weightedScoreSum / totalPaths) * 1000) / 1000;
+
+    return { min, max, avg };
 }
 
 function squaredDistance(a: Point, b: Point): number {
