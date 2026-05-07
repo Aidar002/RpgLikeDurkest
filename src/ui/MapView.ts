@@ -446,14 +446,15 @@ export class MapView {
         const currentId = this.dungeon.currentNode.id;
         const allNodes = this.dungeon.getAllNodes();
 
-        // Draw edges from the current node and from future nodes.
-        // Skip sibling nodes at the current depth (not the current
-        // node itself) — their edges are unreachable and confuse
-        // the player into thinking those connections are usable.
+        // Fog-of-war: only the edges fanning out from the current
+        // room are drawn. Edges between not-yet-reachable future
+        // rooms would point at hidden nodes — drawing them would
+        // leak the upcoming layout the player isn't supposed to see
+        // yet.
         allNodes.forEach((node) => {
+            if (node.id !== currentId) return;
             if (node.cleared) return;
             if (node.depth < currentDepth) return;
-            if (node.depth === currentDepth && node.id !== currentId) return;
             if (node.edges.length === 0) return;
 
             const targets = node.edges
@@ -528,6 +529,8 @@ export class MapView {
             }
 
             const hasFrame = hasTexture(this.scene, 'hud_room_frames');
+            const isCurrent = id === currentId;
+            const isForward = forwardIds.has(id);
 
             // Kill any in-flight pulse on the rect (fallback render
             // path) before re-deriving its alpha/stroke. Without this
@@ -536,7 +539,12 @@ export class MapView {
             // override the setAlpha calls below.
             this.scene.tweens.killTweensOf(visual.rect);
 
-            if (node.cleared) {
+            // Fog-of-war: only the current room and its directly
+            // reachable forward options are rendered. Cleared
+            // (already-walked) rooms and not-yet-reachable future
+            // rooms stay hidden until the player advances toward them.
+            const visible = !node.cleared && (isCurrent || isForward);
+            if (!visible) {
                 visual.rect.setVisible(false);
                 visual.icon.setVisible(false);
                 if (visual.sprite) visual.sprite.setVisible(false);
@@ -546,9 +554,8 @@ export class MapView {
                 }
                 return;
             }
+            visual.rect.setVisible(true);
 
-            const isCurrent = id === currentId;
-            const isForward = forwardIds.has(id);
             const revealed = isCurrent || isForward || node.visited;
             const knowsType =
                 node.visited || isCurrent || unlocks.showRoomIcons;
@@ -850,6 +857,13 @@ export class MapView {
             },
             onComplete: () => {
                 this.centerOnNode(to);
+                // Fog-of-war: the breadcrumb dots only exist while
+                // the player is in motion. Once they've arrived at
+                // the next room the trail is wiped so the map only
+                // shows the current room and the upcoming options.
+                if (this.traceGfx) {
+                    this.traceGfx.clear();
+                }
                 done();
             },
         });
