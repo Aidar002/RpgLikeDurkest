@@ -19,8 +19,6 @@ export interface EnemyDef {
     profile: EnemyProfile;
     /** Optional inherent per-turn bleed application on basic attack. */
     inflictBleed?: { stacks: number; turns: number; chance: number };
-    /** Optional stress caused by merely facing this enemy. */
-    stressAura?: number;
 }
 
 export const PLAYER_CONFIG = {
@@ -126,25 +124,9 @@ export const COMBAT_CONFIG = {
     bossRewardMultiplier: 2.1,
 } as const;
 
-export const STRESS_CONFIG = {
-    onCritReceived: 10,
-    onLowHp: 5,
-    onLowLightRoom: 4,
-    onBossStart: 20,
-    onEliteStart: 12,
-    onPlayerHit: 2,
-    onEnemyEnrage: 5,
-    onEmptyRoomHighLight: -2,
-    onRestMeditate: 25,
-    onBossKill: -15,
-    onEliteKill: -8,
-    onTreasure: 4,
-    onShrineOfferVirtue: 6,
-} as const;
-
 /**
  * Top-level run shape. Everything time-dependent (map length,
- * eventual boss pacing, Light / Stress / XP scaling) must derive
+ * eventual boss pacing, Light / XP scaling) must derive
  * from {@link RUN_CONFIG.runLength} so a run can be stretched or
  * shortened without rewriting the generator.
  *
@@ -156,8 +138,6 @@ export const STRESS_CONFIG = {
  *
  * TODO (post map-gen stabilization): wire runLength-derived
  * formulas for:
- *  - STRESS multiplier ≈ piecewise interp
- *      25→×1.00, 35→×0.90, 50→×0.75, 75→×0.65
  *  - LEVEL_UP_CONFIG.levelCap targets per runLength
  *      25→8-10, 35→10-12, 50→12-15, 75→15-18
  *  - phase boundaries (early/mid/late/final) at 0/30/70/95% of runLength
@@ -336,7 +316,6 @@ export const ROOM_CONFIG = {
         recoverLight: 2,
         focusResolve: 1,
         focusXp: 4,
-        meditateStressRelief: 25,
     },
     shrine: {
         prayBlessChance: 0.7,
@@ -441,7 +420,6 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 6,
                 color: 0x515045,
                 profile: 'disruptor',
-                stressAura: 1,
             },
         ],
     },
@@ -503,7 +481,6 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x50406a,
                 profile: 'disruptor',
-                stressAura: 2,
             },
         ],
     },
@@ -553,7 +530,6 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 15,
                 color: 0x3f3360,
                 profile: 'disruptor',
-                stressAura: 3,
             },
             {
                 name: 'Splinter Lord',
@@ -615,7 +591,6 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 20,
                 color: 0x331f4d,
                 profile: 'disruptor',
-                stressAura: 4,
             },
             {
                 name: 'Carrion Matron',
@@ -700,7 +675,6 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 30,
             color: 0x170f24,
             profile: 'boss',
-            stressAura: 5,
         },
     },
     {
@@ -717,7 +691,6 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0x2a0814,
             profile: 'final_boss',
-            stressAura: 6,
         },
     },
 ];
@@ -753,45 +726,6 @@ export const ADRENALINE_CONFIG = {
     /** Turns the Focus stack persists. */
     focusTurns: 3,
 } as const;
-
-// ---------------------------------------------------------------------------
-// FIX-7: Stress bands and Resolve-Test reweighting. Bands are open at
-// the bottom and closed at the top: e.g. Strained covers [40, 70).
-// ---------------------------------------------------------------------------
-export const STRESS_BAND_CONFIG = {
-    strainedMin: 40,
-    breakingMin: 70,
-    overwhelmedMin: 100,
-    /** Stress gain bonus while in Strained or Breaking. */
-    bandGainBonus: 1,
-    /** Outgoing damage modifier while in Breaking. */
-    breakingOutgoingDamage: -1,
-} as const;
-
-/**
- * [FIX-7] Resolve Test weighting. Plain `number` typing (no `as const`)
- * so consumers can mutate/clamp the running chance against
- * min/max bounds without TS rejecting the assignment.
- */
-export const RESOLVE_TEST_CONFIG: {
-    baseVirtueChance: number;
-    highLightVirtueBonus: number;
-    lowLightVirtueMalus: number;
-    eliteKilledVirtueBonus: number;
-    afflictionActiveVirtueMalus: number;
-    minVirtueChance: number;
-    maxVirtueChance: number;
-    stressAfterTest: number;
-} = {
-    baseVirtueChance: 0.3,
-    highLightVirtueBonus: 0.1,
-    lowLightVirtueMalus: -0.1,
-    eliteKilledVirtueBonus: 0.05,
-    afflictionActiveVirtueMalus: -0.15,
-    minVirtueChance: 0.1,
-    maxVirtueChance: 0.45,
-    stressAfterTest: 50,
-};
 
 // ---------------------------------------------------------------------------
 // FIX-11: Stun resistance percentages by enemy class. The higher the

@@ -48,8 +48,6 @@ export function sanitizeNpcMemoryMap(raw: Partial<Record<string, Partial<NpcMemo
 export interface NpcEvalContext {
     depth: number;
     hpFrac: number;          // 0..1
-    stress: number;          // 0..100
-    resolution: 'none' | 'affliction' | 'virtue';
     bleedDamageDealt: number;
     relicsFound: number;
     bossesKilledEver: number;
@@ -61,9 +59,6 @@ function tagsFor(memory: NpcMemory, ctx: NpcEvalContext): Set<NpcStateTag> {
     if (memory.affinity >= 4) tags.add('trusted');
     if (memory.affinity <= -2) tags.add('wary');
     if (ctx.hpFrac <= 0.3) tags.add('low-hp');
-    if (ctx.stress >= 60) tags.add('high-stress');
-    if (ctx.resolution === 'affliction') tags.add('afflicted');
-    if (ctx.resolution === 'virtue') tags.add('virtuous');
     if (ctx.bleedDamageDealt >= 8) tags.add('bleeder');
     if (ctx.relicsFound >= 3) tags.add('relic-rich');
     if (ctx.depth >= 6) tags.add('deep-run');

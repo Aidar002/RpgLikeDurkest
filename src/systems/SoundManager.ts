@@ -27,7 +27,6 @@ type SoundId =
     | 'whisper'
     | 'nodeSelect'
     | 'relicDrop'
-    | 'stressSpike'
     | 'footstep';
 
 const STORAGE_KEY = 'dd_sound_muted';
@@ -191,7 +190,6 @@ export class SoundManager {
             case 'whisper': return this.playWhisper();
             case 'nodeSelect': return this.playNodeSelect();
             case 'relicDrop': return this.playRelicDrop();
-            case 'stressSpike': return this.playStressSpike();
             case 'footstep': return this.playFootstep();
         }
     }
@@ -518,12 +516,6 @@ export class SoundManager {
             o.start(t + i * 0.08);
             o.stop(t + i * 0.08 + 0.2);
         });
-    }
-
-    /** Dissonant sting for stress. */
-    private playStressSpike() {
-        this.osc('sawtooth', 180, 0.12, 0.1);
-        this.osc('square', 233, 0.1, 0.06);
     }
 
     /** Soft footstep for map movement. */

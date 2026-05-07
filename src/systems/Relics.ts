@@ -22,7 +22,6 @@ export type RelicId =
     | 'stoneheart'
     | 'rally_standard'
     | 'cursed_coin'
-    | 'ossuary_rosary'
     | 'witchglass'
     | 'pyre_ash'
     | 'silent_boots'
@@ -152,16 +151,6 @@ export const RELICS: Record<RelicId, RelicDef> = {
             '+50% gold gain. You take +1 damage from traps.'
         ),
     },
-    ossuary_rosary: {
-        id: 'ossuary_rosary',
-        name: lt('Костяные чётки', 'Ossuary Rosary'),
-        short: lt('Чётки', 'Rosary'),
-        rarity: 'common',
-        description: lt(
-            'Получаемый стресс снижен на 30%.',
-            'Stress gain is reduced by 30%.'
-        ),
-    },
     witchglass: {
         id: 'witchglass',
         name: lt('Ведьмино стекло', 'Witchglass'),
@@ -250,7 +239,6 @@ export interface RelicAggregate {
     lifestealOnCrit: number;
     goldMultiplier: number;
     trapDamageMod: number;
-    stressReductionPct: number; // e.g. 0.3 means -30%
     bleedOnAttackStacks: number;
     bleedOnAttackTurns: number;
     bleedStackBonus: number;
@@ -284,7 +272,6 @@ export function emptyAggregate(): RelicAggregate {
         lifestealOnCrit: 0,
         goldMultiplier: 1,
         trapDamageMod: 0,
-        stressReductionPct: 0,
         bleedOnAttackStacks: 0,
         bleedOnAttackTurns: 0,
         bleedStackBonus: 0,
@@ -371,9 +358,6 @@ function applyRelic(agg: RelicAggregate, id: RelicId) {
         case 'cursed_coin':
             agg.goldMultiplier *= 1.5;
             agg.trapDamageMod += 1;
-            break;
-        case 'ossuary_rosary':
-            agg.stressReductionPct = Math.max(agg.stressReductionPct, 0.3);
             break;
         case 'witchglass':
             agg.mapRevealLayers = Math.max(agg.mapRevealLayers, 2);

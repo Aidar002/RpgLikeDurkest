@@ -10,9 +10,7 @@ import {
     LIGHT_CONFIG,
     RELIC_CAP_CONFIG,
     RUPTURE_CONFIG,
-    STRESS_BAND_CONFIG,
     STUN_RESIST_CONFIG,
-    RESOLVE_TEST_CONFIG,
     PLAYER_CONFIG,
     MAP_CONFIG,
 } from '../src/data/GameConfig';
@@ -20,7 +18,6 @@ import { CombatManager } from '../src/systems/CombatManager';
 import { PlayerManager } from '../src/systems/PlayerManager';
 import { Mulberry32 } from '../src/systems/Rng';
 import { aggregateRelics } from '../src/systems/Relics';
-import { StressManager } from '../src/systems/Stress';
 import { shouldDecayLight } from '../src/systems/Light';
 import type { EventLog } from '../src/ui/EventLog';
 
@@ -31,7 +28,7 @@ function makeCombat(seed = 1) {
             /* no-op */
         },
     } as unknown as EventLog;
-    const combat = new CombatManager(player, log, null, undefined, new Mulberry32(seed));
+    const combat = new CombatManager(player, log, undefined, new Mulberry32(seed));
     return { player, combat };
 }
 
@@ -140,32 +137,6 @@ describe('[FIX-6] Adrenaline once per combat', () => {
         const { combat } = makeCombat(3);
         combat.startCombat(5, 'boss');
         expect(combat.adrenalineUsedThisCombat).toBe(false);
-    });
-});
-
-describe('[FIX-7] Stress bands & Resolve Test virtue chance', () => {
-    it('breaking band gives -1 outgoing damage', () => {
-        const stress = new StressManager();
-        // Push to breaking
-        stress.add(80);
-        const mod = stress.damageDealtMod();
-        expect(mod).toBeLessThanOrEqual(STRESS_BAND_CONFIG.breakingOutgoingDamage);
-    });
-
-    it('virtue chance respects clamps', () => {
-        const stress = new StressManager();
-        stress.hasResolvedAfflictionThisRun = true;
-        const chance = stress.computeVirtueChance({ lowLight: true });
-        expect(chance).toBeGreaterThanOrEqual(RESOLVE_TEST_CONFIG.minVirtueChance);
-        expect(chance).toBeLessThanOrEqual(RESOLVE_TEST_CONFIG.maxVirtueChance);
-    });
-
-    it('high light + elite kill bumps virtue chance', () => {
-        const stress = new StressManager();
-        const baseline = stress.computeVirtueChance({});
-        const boosted = stress.computeVirtueChance({ highLight: true, eliteKilledThisRun: true });
-        expect(boosted).toBeGreaterThan(baseline);
-        expect(boosted).toBeLessThanOrEqual(RESOLVE_TEST_CONFIG.maxVirtueChance);
     });
 });
 
