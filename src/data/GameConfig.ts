@@ -1,3 +1,18 @@
+/**
+ * Feature flags. Toggle individual game systems on/off without removing
+ * their logic. When `false`, the corresponding system is hidden from
+ * the UI and skipped at all call sites, but the underlying code stays
+ * intact so a feature can be re-enabled later by flipping the flag.
+ */
+export const FEATURES = {
+    /** Light economy (decay, low/high light bonuses, lantern shops). */
+    light: false,
+    /** Boss / mini-boss `grantsSeal` tagging and seal-coverage validation. */
+    seals: false,
+    /** Relic shards currency + premium shrine/merchant offers. */
+    shards: false,
+} as const;
+
 export type EnemyProfile =
     | 'brute'
     | 'stalker'
