@@ -21,11 +21,7 @@ export function getEnemyForDepth(depth: number): EnemyDef {
  * table doesn't satisfy the canonical depth -> name mapping.
  */
 export const EXPECTED_BOSS_NAMES: Record<number, string> = {
-    5: 'Necromancer Regent',
-    10: 'The Lich of Cinders',
-    15: 'Splintered Oracle',
-    20: 'Nameless Maw',
-    25: 'The Undying Wound',
+    25: 'Death Knight',
 };
 
 export function getBossForDepth(depth: number): EnemyDef {

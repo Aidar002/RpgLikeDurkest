@@ -43,11 +43,9 @@ export const ALL_UNLOCK_IDS = [
     'merchant_premium',
     'shrine_premium',
     'ui_prestige_forecast',
-    'skill_parry_stance',
-    'skill_focused_strike',
-    'skill_rupture',
-    'skill_adrenaline',
-    'skill_crushing_blow',
+    'skill_cleave',
+    'skill_bleed_strike',
+    'skill_preparation',
     'relic_pool_rare',
     'relic_pool_unique',
 ] as const;
@@ -164,11 +162,9 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     merchant_premium: true,
     shrine_premium: true,
     ui_prestige_forecast: true,
-    skill_parry_stance: false,
-    skill_focused_strike: false,
-    skill_rupture: false,
-    skill_adrenaline: false,
-    skill_crushing_blow: false,
+    skill_cleave: false,
+    skill_bleed_strike: false,
+    skill_preparation: false,
     relic_pool_rare: false,
     relic_pool_unique: false,
 };
@@ -193,17 +189,17 @@ const DEFAULT_PROFILE: MetaProfile = {
 const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
     {
         id: 'depth-3',
-        label: lt('Навык: Парирующая стойка', 'Skill: Parry Stance'),
+        label: lt('Навык: Рубка', 'Skill: Cleave'),
         requirement: lt('Достигни глубины 3', 'Reach depth 3'),
         depth: 3,
-        unlocks: ['skill_parry_stance'],
+        unlocks: ['skill_cleave'],
     },
     {
         id: 'depth-5',
-        label: lt('Навык: Точный удар', 'Skill: Focused Strike'),
+        label: lt('Навык: Кровавый разрез', 'Skill: Bleed Strike'),
         requirement: lt('Достигни глубины 5', 'Reach depth 5'),
         depth: 5,
-        unlocks: ['skill_focused_strike'],
+        unlocks: ['skill_bleed_strike'],
     },
     {
         id: 'depth-7',
@@ -212,35 +208,19 @@ const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
         depth: 7,
         unlocks: ['relic_pool_rare'],
     },
-    {
-        id: 'depth-10',
-        label: lt('Навык: Адреналин', 'Skill: Adrenaline'),
-        requirement: lt('Достигни глубины 10', 'Reach depth 10'),
-        depth: 10,
-        unlocks: ['skill_adrenaline'],
-    },
 ];
 
 const FIRST_BOSS_MILESTONE: ContentUnlockMilestone = {
     id: 'first-boss',
-    label: lt('Навык: Разрыв и уникальные реликвии', 'Skill: Rupture + unique relics'),
+    label: lt('Навык: Подготовка и уникальные реликвии', 'Skill: Preparation + unique relics'),
     requirement: lt('Победи первого босса', 'Defeat your first boss'),
     requiresFirstBossKill: true,
-    unlocks: ['skill_rupture', 'relic_pool_unique'],
-};
-
-const SECOND_BOSS_MILESTONE: ContentUnlockMilestone = {
-    id: 'second-boss',
-    label: lt('Навык: Сокрушающий удар', 'Skill: Crushing Blow'),
-    requirement: lt('Победи 3 боссов за все забеги', 'Defeat 3 bosses total'),
-    requiresFirstBossKill: true,
-    unlocks: ['skill_crushing_blow'],
+    unlocks: ['skill_preparation', 'relic_pool_unique'],
 };
 
 const ALL_MILESTONES: ContentUnlockMilestone[] = [
     ...DEPTH_MILESTONES,
     FIRST_BOSS_MILESTONE,
-    SECOND_BOSS_MILESTONE,
 ];
 
 const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
@@ -372,11 +352,9 @@ export class MetaProgressionManager {
 
     getUnlockedExtraSkills(): SkillId[] {
         const unlocked: SkillId[] = [];
-        if (this.isUnlocked('skill_parry_stance')) unlocked.push('parry_stance');
-        if (this.isUnlocked('skill_focused_strike')) unlocked.push('focused_strike');
-        if (this.isUnlocked('skill_rupture')) unlocked.push('rupture');
-        if (this.isUnlocked('skill_adrenaline')) unlocked.push('adrenaline');
-        if (this.isUnlocked('skill_crushing_blow')) unlocked.push('crushing_blow');
+        if (this.isUnlocked('skill_cleave')) unlocked.push('cleave');
+        if (this.isUnlocked('skill_bleed_strike')) unlocked.push('bleed_strike');
+        if (this.isUnlocked('skill_preparation')) unlocked.push('preparation');
         return unlocked;
     }
 
@@ -455,9 +433,6 @@ export class MetaProgressionManager {
         };
 
         maybeApply(FIRST_BOSS_MILESTONE);
-        if (this.profile.bossesKilledEver >= 3) {
-            maybeApply(SECOND_BOSS_MILESTONE);
-        }
 
         this.saveProfile();
         return unlocked;

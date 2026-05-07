@@ -366,36 +366,10 @@ export class RoomFlowController {
     }
 
     private npcOfferCost(offerId: string, _npcId: NpcId): number {
-        const scene = this.scene;
         switch (offerId) {
-            case 'mira_potion':
-                return ROOM_CONFIG.merchant.potionCost;
-            case 'mira_lantern':
-                return ROOM_CONFIG.merchant.lanternCost;
-            case 'mira_armor':
-                return ROOM_CONFIG.merchant.armorCost;
-            case 'mira_relic_oil':
-                return ROOM_CONFIG.merchant.premiumShardCost;
-            case 'casimir_offer':
-                return ROOM_CONFIG.shrine.offerGoldCost;
-            case 'casimir_rite':
-                return ROOM_CONFIG.shrine.premiumShardCost;
-            case 'hollow_relic_for_hp':
-                return Math.max(4, Math.floor(scene.player.stats.maxHp * 0.25));
-            case 'hollow_shards_for_relic':
-                return 2;
-            case 'hollow_potion_for_gold':
-                return ROOM_CONFIG.merchant.potionCost - 2;
-            case 'veth_challenge':
-                return Math.max(3, Math.floor(scene.player.stats.maxHp * 0.15));
-            case 'veth_lesson':
-                return 25;
-            case 'chorister_relieve':
-                return ROOM_CONFIG.shrine.offerGoldCost - 6;
-            case 'chorister_resolve':
-                return ROOM_CONFIG.shrine.offerGoldCost - 8;
-            case 'chorister_unbind':
-                return ROOM_CONFIG.shrine.premiumShardCost;
+            case 'gogi_what':
+            case 'gogi_who':
+                return 10;
             default:
                 return 0;
         }
@@ -405,32 +379,9 @@ export class RoomFlowController {
         const scene = this.scene;
         const cost = this.npcOfferCost(offer.id, npcId);
         switch (offer.id) {
-            case 'mira_potion':
-            case 'mira_lantern':
-            case 'mira_armor':
-            case 'casimir_offer':
-            case 'chorister_relieve':
-            case 'chorister_resolve':
+            case 'gogi_what':
+            case 'gogi_who':
                 return scene.player.resources.gold >= cost;
-            case 'mira_relic_oil':
-            case 'casimir_rite':
-            case 'hollow_shards_for_relic':
-            case 'chorister_unbind':
-                return scene.player.resources.relicShards >= cost;
-            case 'hollow_relic_for_hp':
-            case 'veth_challenge':
-                return scene.player.stats.hp > cost + 1;
-            case 'veth_lesson':
-                return true;
-            case 'hollow_potion_for_gold':
-                return scene.player.resources.potions > 0;
-            case 'veth_strop':
-                return !scene.vethSharpenedThisRoom;
-            case 'kessa_tea':
-            case 'kessa_warning':
-                return true;
-            case 'kessa_token':
-                return !scene.npcs.hasFlag('kessa', 'gave-token');
             default:
                 return true;
         }
@@ -438,8 +389,6 @@ export class RoomFlowController {
 
     private presentNpcRoom(npcId: NpcId, headerLabel: string): void {
         const scene = this.scene;
-        scene.vethSharpenedThisRoom = false;
-
         const ctx = this.buildNpcEvalContext();
         const picked = scene.npcs.pickDialog(npcId, ctx);
         scene.npcs.markEncounter(npcId, scene.dungeon.currentDepth);
@@ -501,169 +450,55 @@ export class RoomFlowController {
         let affinityDelta = 1;
 
         switch (offer.id) {
-            // -- Mira ------------------------------------------------------------
-            case 'mira_potion':
-                if (!scene.player.spendGold(cost)) { consumed = false; break; }
-                scene.tracker.record('goldSpent', cost);
-                scene.player.gainPotions(1);
-                scene.log.addMessage(scene.loc.t('npcMiraPotion'), '#9be0a7');
-                break;
-            case 'mira_lantern': {
-                if (!scene.player.spendGold(cost)) { consumed = false; break; }
-                scene.tracker.record('goldSpent', cost);
-                const gainedLight = scene.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
-                scene.log.addMessage(scene.loc.t('npcMiraLight', { gainedLight }), '#ffe08a');
-                affinityDelta = 2;
-                break;
-            }
-            case 'mira_armor':
-                if (!scene.player.spendGold(cost)) { consumed = false; break; }
-                scene.tracker.record('goldSpent', cost);
-                scene.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
-                scene.log.addMessage(scene.loc.t('npcMiraArmor', { armorDefenseGain: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
-                break;
-            case 'mira_relic_oil':
-                if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
-                scene.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
-                scene.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
+            // -- Sara ---------------------------------------------------------------
+            case 'sara_where':
                 scene.log.addMessage(
-                    scene.loc.t('npcMiraPremium', { premiumAttackBonus: ROOM_CONFIG.merchant.premiumAttackBonus, premiumPotionBonus: ROOM_CONFIG.merchant.premiumPotionBonus }),
-                    '#ffd9f7'
+                    scene.loc.language === 'ru'
+                        ? '\u0421\u0430\u0440\u0430: "\u041c\u043d\u0435 \u0431\u044b \u043a\u0442\u043e \u0441\u043a\u0430\u0437\u0430\u043b."'
+                        : 'Sara: "I wish someone would tell me."',
+                    '#cdb8ff'
                 );
-                affinityDelta = 2;
                 break;
-
-            // -- Casimir ---------------------------------------------------------
-            case 'casimir_pray':
-                if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
-                    scene.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
-                    scene.log.addMessage(
-                        scene.loc.t('npcCasimirPray', { prayAttackBonus: ROOM_CONFIG.shrine.prayAttackBonus }),
-                        '#d7b6ff'
-                    );
-                    affinityDelta = 2;
-                } else {
-                    const damage = scene.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
-                    const resolve = scene.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
-                    scene.log.addMessage(
-                        scene.loc.t('npcCasimirOffer', { damage, resolve }),
-                        '#c99cff'
-                    );
-                    affinityDelta = 1;
-                }
-                break;
-            case 'casimir_offer':
-                if (!scene.player.spendGold(cost)) { consumed = false; break; }
-                scene.tracker.record('goldSpent', cost);
-                scene.player.addMaxHpBonus(ROOM_CONFIG.shrine.offerMaxHpBonus);
+            case 'sara_who':
                 scene.log.addMessage(
-                    scene.loc.t('npcCasimirFeed', { offerMaxHpBonus: ROOM_CONFIG.shrine.offerMaxHpBonus }),
-                    '#ffd36e'
+                    scene.loc.language === 'ru'
+                        ? '\u0421\u0430\u0440\u0430: "\u042f? \u0414\u0430 \u043d\u0438\u043a\u0442\u043e."'
+                        : 'Sara: "Me? Nobody."',
+                    '#cdb8ff'
                 );
-                affinityDelta = 2;
                 break;
-            case 'casimir_rite':
-                if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
-                scene.player.addMaxHpBonus(
-                    ROOM_CONFIG.shrine.premiumMaxHpBonus,
-                    ROOM_CONFIG.shrine.premiumMaxHpBonus
-                );
-                scene.player.gainResolve(ROOM_CONFIG.shrine.premiumResolveBonus);
+            case 'sara_right':
                 scene.log.addMessage(
-                    scene.loc.t('npcCasimirRite', { premiumMaxHpBonus: ROOM_CONFIG.shrine.premiumMaxHpBonus, premiumResolveBonus: ROOM_CONFIG.shrine.premiumResolveBonus }),
-                    '#ffd9f7'
+                    scene.loc.language === 'ru'
+                        ? '\u0421\u0430\u0440\u0430: "\u0418 \u0445\u043b\u0430\u0434\u043d\u043e\u043a\u0440\u043e\u0432\u043d\u044b\u0439. \u041d\u0430\u0434\u0435\u044e\u0441\u044c \u0442\u044b \u0432\u044b\u0436\u0438\u0432\u0435\u0448\u044c. \u0425\u043e\u0447\u0435\u0448\u044c \u0441\u043e\u0432\u0435\u0442?"'
+                        : 'Sara: "And cold-blooded. I hope you survive. Want some advice?"',
+                    '#cdb8ff'
                 );
+                this.presentSaraAdviceChoice();
                 affinityDelta = 2;
-                break;
+                return;
 
-            // -- Hollow Trader ---------------------------------------------------
-            case 'hollow_relic_for_hp': {
-                scene.player.takeDamage(cost, 0, 'true');
-                const got = scene.maybeDropRelic('elite');
-                if (!got) {
-                    scene.player.gainGold(8);
-                    scene.log.addMessage(scene.loc.t('npcHollowPay'), '#a8a0c0');
-                } else {
-                    scene.log.addMessage(scene.loc.t('npcHollowMark'), '#a8a0c0');
-                }
-                affinityDelta = 2;
-                scene.npcs.addFlag('hollow', 'paid-in-blood');
-                break;
-            }
-            case 'hollow_shards_for_relic':
-                if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
-                scene.maybeDropRelic('boss');
-                scene.log.addMessage(scene.loc.t('npcHollowRelic'), '#f0a8ff');
-                affinityDelta = 2;
-                break;
-            case 'hollow_potion_for_gold':
-                if (scene.player.resources.potions <= 0) { consumed = false; break; }
-                scene.player.resources.potions -= 1;
-                scene.player.gainGold(cost);
-                scene.log.addMessage(scene.loc.t('npcHollowPotion', { cost }), '#ffd36e');
-                break;
-
-            // -- Veth ------------------------------------------------------------
-            case 'veth_challenge': {
-                scene.player.takeDamage(cost, 0, 'true');
-                const got = scene.maybeDropRelic('elite');
-                if (!got) {
-                    scene.player.gainGold(20);
-                    scene.log.addMessage(scene.loc.t('npcVethCoin'), '#ffb084');
-                } else {
-                    scene.log.addMessage(scene.loc.t('npcVethCarry'), '#ffb084');
-                }
-                affinityDelta = 2;
-                scene.npcs.addFlag('veth', 'pacted');
-                break;
-            }
-            case 'veth_lesson':
-                scene.player.takeDamage(Math.max(1, Math.floor(cost / 5)), 0, 'true');
-                scene.player.addAttackBonus(2);
-                scene.log.addMessage(scene.loc.t('npcVethThirdCut'), '#ffb084');
-                affinityDelta = 2;
-                scene.npcs.addFlag('veth', 'taught');
-                break;
-            case 'veth_strop':
-                if (scene.vethSharpenedThisRoom) { consumed = false; break; }
-                scene.vethSharpenedThisRoom = true;
-                scene.player.addAttackBonus(1);
-                scene.log.addMessage(scene.loc.t('npcVethStrop'), '#ffb084');
+            // -- Gogi ---------------------------------------------------------------
+            case 'gogi_what':
+                scene.log.addMessage(
+                    scene.loc.language === 'ru'
+                        ? '\u0413\u043e\u0433\u0438: "\u041d\u0435\u0432\u0430\u0436\u043d\u043e. \u0421\u043e\u0432\u0435\u0442 \u0445\u043e\u0447\u0435\u0448\u044c? \u041e\u043d \u0441\u0442\u043e\u0438\u0442 10 \u043c\u043e\u043d\u0435\u0442."'
+                        : 'Gogi: "Doesn\'t matter. Want advice? It costs 10 gold."',
+                    '#d4c87a'
+                );
+                this.presentGogiPayChoice();
                 affinityDelta = 1;
-                break;
-
-            // -- Chorister -------------------------------------------------------
-            case 'chorister_resolve':
-                if (!scene.player.spendGold(cost)) { consumed = false; break; }
-                scene.tracker.record('goldSpent', cost);
-                scene.player.gainResolve(2);
-                scene.log.addMessage(scene.loc.t('npcChoristerSteady'), '#9bc8ff');
-                break;
-
-            // -- Kessa -----------------------------------------------------------
-            case 'kessa_tea':
-                scene.player.heal(6);
-                scene.log.addMessage(scene.loc.t('npcKessaCup'), '#9be0a7');
-                affinityDelta = 2;
-                break;
-            case 'kessa_warning':
-                scene.player.gainResolve(1);
+                return;
+            case 'gogi_who':
                 scene.log.addMessage(
-                    scene.loc.t('npcKessaTip'),
-                    '#9bc8ff'
+                    scene.loc.language === 'ru'
+                        ? '\u0413\u043e\u0433\u0438: "\u0422\u0432\u043e\u0439 \u0448\u0430\u043d\u0441 \u043f\u0440\u043e\u0436\u0438\u0442\u044c \u0447\u0443\u0442\u044c \u043f\u043e\u0434\u043e\u043b\u044c\u0448\u0435. 10 \u043c\u043e\u043d\u0435\u0442 \u0435\u0441\u0442\u044c?"'
+                        : 'Gogi: "Your chance to live a little longer. Got 10 gold?"',
+                    '#d4c87a'
                 );
+                this.presentGogiPayChoice();
                 affinityDelta = 1;
-                break;
-            case 'kessa_token':
-                scene.player.addAttackBonus(1);
-                scene.player.addDefenseBonus(1);
-                scene.log.addMessage(
-                    scene.loc.t('npcKessaEarring'),
-                    '#ffd36e'
-                );
-                scene.npcs.addFlag('kessa', 'gave-token');
-                affinityDelta = 3;
-                break;
+                return;
 
             default:
                 consumed = false;
@@ -678,6 +513,90 @@ export class RoomFlowController {
             scene.enemyIntelText.setText(compactText(flavor, 60));
         }
         scene.showReturnButton();
+    }
+
+    private presentSaraAdviceChoice(): void {
+        const scene = this.scene;
+        scene.setRoomButtons([
+            {
+                label: scene.loc.language === 'ru' ? '[1] \u0414\u0430' : '[1] Yes',
+                callback: () => {
+                    scene.npcs.adjustAffinity('sara', 2);
+                    scene.npcs.addFlag('sara', 'vampire-blessing');
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0421\u0430\u0440\u0430 \u0434\u0430\u043b\u0430 \u0431\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u0435\u043d\u0438\u0435 \u0432\u0430\u043c\u043f\u0438\u0440\u043e\u0432: \u0448\u0430\u043d\u0441 25% \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c 2 \u041e\u0417 \u043f\u0440\u0438 \u0443\u0434\u0430\u0440\u0435.'
+                            : 'Sara granted Vampire Blessing: 25% chance to restore 2 HP on attack.',
+                        '#d7b6ff'
+                    );
+                    scene.enemyIntelText.setText(
+                        scene.loc.language === 'ru'
+                            ? '\u0411\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u0435\u043d\u0438\u0435 \u0432\u0430\u043c\u043f\u0438\u0440\u043e\u0432 \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u043e.'
+                            : 'Vampire Blessing received.'
+                    );
+                    scene.showReturnButton();
+                },
+                fill: 0x8a6cb6,
+            },
+            {
+                label: scene.loc.language === 'ru' ? '[2] \u041d\u0435\u0442' : '[2] No',
+                callback: () => {
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0421\u0430\u0440\u0430: "\u0417\u0440\u044f."'
+                            : 'Sara: "Shame."',
+                        '#cdb8ff'
+                    );
+                    scene.showReturnButton();
+                },
+                fill: 0x202020,
+            },
+        ]);
+    }
+
+    private presentGogiPayChoice(): void {
+        const scene = this.scene;
+        const canPay = scene.player.resources.gold >= 10;
+        scene.setRoomButtons([
+            {
+                label: scene.loc.language === 'ru' ? '[1] \u0414\u0435\u0440\u0436\u0438 (10 \u043c\u043e\u043d\u0435\u0442)' : '[1] Here (10 gold)',
+                callback: () => {
+                    if (!scene.player.spendGold(10)) return;
+                    scene.tracker.record('goldSpent', 10);
+                    scene.npcs.adjustAffinity('gogi', 2);
+                    scene.npcs.addFlag('gogi', 'initial-training');
+                    scene.player.addMaxHpBonus(5, 5);
+                    scene.player.addDefenseBonus(1);
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0413\u043e\u0433\u0438 \u0434\u0430\u043b \u043d\u0430\u0447\u0430\u043b\u044c\u043d\u0443\u044e \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0443: +5 \u0436\u0438\u0437\u043d\u0438, +1 \u0437\u0430\u0449\u0438\u0442\u0430.'
+                            : 'Gogi granted Initial Training: +5 HP, +1 defense.',
+                        '#d4c87a'
+                    );
+                    scene.enemyIntelText.setText(
+                        scene.loc.language === 'ru'
+                            ? '\u041d\u0430\u0447\u0430\u043b\u044c\u043d\u0430\u044f \u043f\u043e\u0434\u0433\u043e\u0442\u043e\u0432\u043a\u0430 \u043f\u043e\u043b\u0443\u0447\u0435\u043d\u0430.'
+                            : 'Initial Training received.'
+                    );
+                    scene.showReturnButton();
+                },
+                enabled: canPay,
+                fill: 0xb6a44a,
+            },
+            {
+                label: scene.loc.language === 'ru' ? '[2] \u041d\u0435\u0442' : '[2] No',
+                callback: () => {
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0413\u043e\u0433\u0438: "\u041d\u0443 \u0438 \u0432\u0430\u043b\u0438 \u043d\u0430\u0445\u0440\u0435\u043d."'
+                            : 'Gogi: "Then get lost."',
+                        '#d4c87a'
+                    );
+                    scene.showReturnButton();
+                },
+                fill: 0x202020,
+            },
+        ]);
     }
 
     private showShrineOptions(): void {
@@ -696,25 +615,67 @@ export class RoomFlowController {
         const scene = this.scene;
         const actions: RoomButtonAction[] = [
             {
-                label: scene.loc.t('actionPray'),
+                label: scene.loc.language === 'ru' ? '[1] \u0411\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u0435\u043d\u0438\u0435 (+1 \u0443\u0440\u043e\u043d)' : '[1] Blessing (+1 attack)',
                 callback: () => {
-                    if (Math.random() < ROOM_CONFIG.shrine.prayBlessChance) {
-                        scene.player.addAttackBonus(ROOM_CONFIG.shrine.prayAttackBonus);
-                        scene.log.addMessage(scene.loc.t('shrineAttack'), '#d7b6ff');
-                    } else {
-                        const damage = scene.player.takeDamage(ROOM_CONFIG.shrine.prayDamage);
-                        const resolve = scene.player.gainResolve(ROOM_CONFIG.shrine.prayResolveGain);
-                        scene.log.addMessage(scene.loc.t('shrineWound', { damage, resolve }), '#c99cff');
-                    }
-                    if (scene.player.stats.hp > 0) {
-                        scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
-                        scene.showReturnButton();
-                    }
+                    scene.player.addAttackBonus(1);
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u0431\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u043b\u044f\u0435\u0442 \u043e\u0440\u0443\u0436\u0438\u0435: +1 \u0443\u0440\u043e\u043d.'
+                            : 'The altar blesses your weapon: +1 attack.',
+                        '#d7b6ff'
+                    );
+                    scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                    scene.showReturnButton();
                 },
                 fill: 0x5f4e8a,
             },
             {
-                label: scene.loc.t('actionDynamicLeave', { num: 2 }),
+                label: scene.loc.language === 'ru' ? '[2] \u041c\u043e\u043b\u0438\u0442\u0432\u0430 (+5 \u041e\u0417)' : '[2] Prayer (+5 HP)',
+                callback: () => {
+                    scene.player.addMaxHpBonus(5, 5);
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u0443\u043a\u0440\u0435\u043f\u043b\u044f\u0435\u0442 \u0442\u0435\u043b\u043e: +5 \u0436\u0438\u0437\u043d\u0438.'
+                            : 'The altar strengthens your body: +5 HP.',
+                        '#79e28f'
+                    );
+                    scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                    scene.showReturnButton();
+                },
+                fill: 0x2f8b4b,
+            },
+            {
+                label: scene.loc.language === 'ru' ? '[3] \u0420\u0435\u0447\u044c (+3 \u0432\u043e\u043b\u0438)' : '[3] Speech (+3 resolve)',
+                callback: () => {
+                    scene.player.gainResolve(3);
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u043d\u0430\u043f\u043e\u043b\u043d\u044f\u0435\u0442 \u0440\u0435\u0448\u0438\u043c\u043e\u0441\u0442\u044c\u044e: +3 \u0432\u043e\u043b\u0438.'
+                            : 'The altar fills you with resolve: +3 resolve.',
+                        '#9bc8ff'
+                    );
+                    scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                    scene.showReturnButton();
+                },
+                fill: 0x1b335b,
+            },
+            {
+                label: scene.loc.language === 'ru' ? '[4] \u0421\u043e\u0432\u0435\u0442 (+1 \u0437\u0430\u0449\u0438\u0442\u0430)' : '[4] Counsel (+1 defense)',
+                callback: () => {
+                    scene.player.addDefenseBonus(1);
+                    scene.log.addMessage(
+                        scene.loc.language === 'ru'
+                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u0443\u043a\u0440\u0435\u043f\u043b\u044f\u0435\u0442 \u0437\u0430\u0449\u0438\u0442\u0443: +1 \u0437\u0430\u0449\u0438\u0442\u0430.'
+                            : 'The altar fortifies your guard: +1 defense.',
+                        '#b8d3ff'
+                    );
+                    scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                    scene.showReturnButton();
+                },
+                fill: 0x355070,
+            },
+            {
+                label: scene.loc.t('actionDynamicLeave', { num: 5 }),
                 callback: () => scene.showReturnButton(),
                 fill: 0x202020,
             },

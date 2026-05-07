@@ -86,8 +86,6 @@ export class GameScene extends Phaser.Scene {
     public sfx!: SoundManager;
     public music!: MusicManager;
     public npcs!: NpcManager;
-    public vethSharpenedThisRoom = false;
-
     public mapContainer!: Phaser.GameObjects.Container;
     public roomContainer!: Phaser.GameObjects.Container;
     public uiContainer!: Phaser.GameObjects.Container;
