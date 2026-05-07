@@ -136,6 +136,15 @@ export class RoomFlowController {
             case RoomType.BOSS:
                 scene.startCombatEncounter('boss');
                 return;
+            case RoomType.MINI_BOSS:
+                // Branch-guardian / mid-run threat (PR-2). Semantically
+                // sits between ELITE and BOSS — we route it through the
+                // elite combat path so the player gets the elite intro
+                // card + elite-tier hp / attack / reward multipliers.
+                // Without this case the switch fell through silently
+                // and entering a MINI_BOSS room produced no UI at all.
+                scene.startCombatEncounter('elite');
+                return;
             case RoomType.TREASURE:
                 this.resolveTreasureRoom();
                 return;
@@ -167,6 +176,16 @@ export class RoomFlowController {
                 );
                 scene.showReturnButton();
                 return;
+            default: {
+                // Compile-time exhaustiveness: if a new RoomType is
+                // added to MapGenerator and not wired here, the
+                // assignment below stops type-checking. Catches the
+                // class of bug where a fresh room kind silently
+                // produces no UI on entry (PR-2 MINI_BOSS regression).
+                const _unhandled: never = node.type;
+                void _unhandled;
+                return;
+            }
         }
     }
 

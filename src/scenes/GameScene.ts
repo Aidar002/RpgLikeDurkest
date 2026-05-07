@@ -1288,6 +1288,7 @@ export class GameScene extends Phaser.Scene {
             case RoomType.ENEMY: return { color: 0x331111, alpha: 0.12 };
             case RoomType.ELITE: return { color: 0x442211, alpha: 0.15 };
             case RoomType.BOSS: return { color: 0x440000, alpha: 0.18 };
+            case RoomType.MINI_BOSS: return { color: 0x441111, alpha: 0.16 };
             case RoomType.TREASURE: return { color: 0x332800, alpha: 0.10 };
             case RoomType.TRAP: return { color: 0x220033, alpha: 0.14 };
             case RoomType.REST: return { color: 0x003311, alpha: 0.10 };
