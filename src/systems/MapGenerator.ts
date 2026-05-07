@@ -1,4 +1,4 @@
-import { MAP_CONFIG, RUN_CONFIG } from '../data/GameConfig';
+import { FEATURES, MAP_CONFIG, RUN_CONFIG } from '../data/GameConfig';
 import { defaultRng, type Rng } from './Rng';
 
 export const RoomType = {
@@ -367,6 +367,7 @@ export class MapGenerator {
      * nodes. Deterministic for a given seed: ties broken by id.
      */
     private enforceSealCoverage(allNodes: MapNode[]): void {
+        if (!FEATURES.seals) return;
         const required = getRequiredSeals(this.runLength);
         if (required <= 0) return;
         let safety = allNodes.length * 2;
@@ -882,13 +883,15 @@ export class MapGenerator {
     ): MapNode {
         let grantsSeal = false;
         let sealType: SealType | null = null;
-        if (bossKind === 'major') {
-            grantsSeal = true;
-            sealType = 'major';
-        } else if (bossKind === 'mini') {
-            if (this.rng.next() < RUN_CONFIG.seals.miniSealOdds) {
+        if (FEATURES.seals) {
+            if (bossKind === 'major') {
                 grantsSeal = true;
-                sealType = 'mini';
+                sealType = 'major';
+            } else if (bossKind === 'mini') {
+                if (this.rng.next() < RUN_CONFIG.seals.miniSealOdds) {
+                    grantsSeal = true;
+                    sealType = 'mini';
+                }
             }
         }
         return {
