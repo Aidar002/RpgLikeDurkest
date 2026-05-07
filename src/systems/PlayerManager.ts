@@ -317,6 +317,7 @@ export class PlayerManager {
     }
 
     gainRelicShards(amount: number): number {
+        if (!FEATURES.shards) return 0;
         if (amount <= 0) return 0;
         this.resources.relicShards += amount;
         this.emitResources();
@@ -324,6 +325,7 @@ export class PlayerManager {
     }
 
     spendRelicShard(amount: number): boolean {
+        if (!FEATURES.shards) return false;
         if (amount > this.resources.relicShards) return false;
         this.resources.relicShards -= amount;
         this.emitResources();
