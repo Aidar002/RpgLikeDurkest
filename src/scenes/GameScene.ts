@@ -14,13 +14,10 @@ import {
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { RunTracker } from '../systems/RunTracker';
-import { narrate } from '../systems/Narrator';
 import { RELICS, rollRelicFor } from '../systems/Relics';
 import type { RelicRarity } from '../systems/Relics';
 import { SKILLS, STARTER_LOADOUT } from '../systems/Skills';
 import type { SkillId } from '../systems/Skills';
-import { StressManager } from '../systems/Stress';
-import type { Resolution } from '../systems/Stress';
 import { statusSummary } from '../systems/StatusEffects';
 import { Localization } from '../systems/Localization';
 import type { NpcManager } from '../systems/NpcManager';
@@ -84,7 +81,6 @@ export class GameScene extends Phaser.Scene {
     public combat!: CombatManager;
     public log!: EventLog;
     public tracker!: RunTracker;
-    public stress!: StressManager;
     public skillLoadout: SkillId[] = [...STARTER_LOADOUT];
     public loc!: Localization;
     public sfx!: SoundManager;
@@ -127,19 +123,12 @@ export class GameScene extends Phaser.Scene {
      * darkness death-spiral.
      */
     public roomsVisitedForLight = 0;
-    /**
-     * [FIX-7] Counts elite kills this run; consumed by the Resolve
-     * Test virtue-chance modifiers.
-     */
     public eliteKillsThisRun = 0;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
     // HUD bar widths cached so refreshUI can rescale fills without re-measuring.
-    // HP and stress share width / start-X so the two rows align as a clean grid.
     private readonly hpBarWidth = 200;
     private readonly hpBarHeight = 14;
-    private readonly stressBarWidth = 200;
-    private readonly stressBarHeight = 8;
     private readonly xpBarWidth = 200;
     private readonly xpBarHeight = 10;
 
@@ -169,10 +158,6 @@ export class GameScene extends Phaser.Scene {
     // shows the same value with much better legibility.
     public tooltipText!: Phaser.GameObjects.Text;
 
-    private stressBarBg!: Phaser.GameObjects.Rectangle;
-    private stressBar!: Phaser.GameObjects.Rectangle;
-    private stressText!: Phaser.GameObjects.Text;
-    private resolutionText!: Phaser.GameObjects.Text;
     private relicText!: Phaser.GameObjects.Text;
     private playerStatusText!: Phaser.GameObjects.Text;
     private enemyStatusText!: Phaser.GameObjects.Text;
@@ -226,13 +211,6 @@ export class GameScene extends Phaser.Scene {
         return this.loc.format(offer.label, { cost, index });
     }
 
-    private resolutionInfo(resolution: Resolution): { name: string; description: string } {
-        return {
-            name: this.loc.pick(resolution.name),
-            description: this.loc.pick(resolution.description),
-        };
-    }
-
     create() {
         this.meta = new MetaProgressionManager();
         this.npcs = this.meta.getNpcManager();
@@ -242,21 +220,6 @@ export class GameScene extends Phaser.Scene {
 
         this.player = new PlayerManager(metaBonuses.player);
         this.player.relicsChange.on(() => this.refreshUI());
-
-        this.stress = new StressManager();
-        // [FIX-7] Provide live light & elite-kill state to the Resolve
-        // Test so the modifiers reflect the current run.
-        this.stress.modifiersProvider = () => ({
-            highLight: this.player.hasHighLight,
-            lowLight: this.player.hasLowLight,
-            eliteKilledThisRun: this.eliteKillsThisRun > 0,
-            afflictionActive: this.stress.resolution?.kind === 'affliction',
-        });
-        this.stress.valueChange.on(({ value }) => {
-            if (value > this.tracker.current.peakStress) this.tracker.trackMax('peakStress', value);
-            this.updateStressUI();
-        });
-        this.stress.resolutionChange.on((r) => this.handleStressResolution(r));
 
         // Pick loadout: first 2 skills from [starter + meta-unlocked extras].
         const extras = this.meta.getUnlockedExtraSkills();
@@ -332,7 +295,6 @@ export class GameScene extends Phaser.Scene {
         this.combat = new CombatManager(
             this.player,
             this.log,
-            this.stress,
             this.loc
         );
         this.combat.combatEnd.on((payload) => this.combatHud.handleVictory(payload));
@@ -427,13 +389,9 @@ export class GameScene extends Phaser.Scene {
         // Carved-stone frame (PNG when available, layered fallback otherwise).
         const topFrame = drawTopFrame(this, GAME_WIDTH, TOP_H);
 
-        // Group A — Vitals (HP bar + stress bar) on the left ~third.
+        // Group A — Vitals (HP bar) on the left ~third.
         // The 96px panel has a 52px interior (y=22..74 after the carved
-        // gold rim). Two rows are spread across that band — HP at y=36,
-        // stress at y=64 — so neither bar fights the corner ornament.
-        // Vitals share a single bar-start X so HP and stress line up cleanly.
-        // 64 is the floor for the label column so the carved-frame corner
-        // ornament never crowds the leftmost label glyph.
+        // gold rim).
         const VITALS_LABEL_X = PAD + 22;
         const VITALS_BAR_X = PAD + 22 + 64 + 12;
         const hpIcon = createHudIcon(this, PAD + 8, 36, 'heart', { pixelSize: 16 });
@@ -462,52 +420,9 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        const stressIcon = createHudIcon(this, PAD + 8, 64, 'skull', { pixelSize: 14 });
-        const stressLabel = this.add.text(VITALS_LABEL_X, 57, this.loc.t('stressLabel').toUpperCase(), {
-            fontFamily: HUD_FONT,
-            fontSize: '11px',
-            color: HudHex.textSecondary,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
-        const stressBarX = VITALS_BAR_X;
-        const stressBarY = 64;
-        const stressBarFrame = drawBarFrame(
-            this,
-            stressBarX,
-            stressBarY,
-            this.stressBarWidth,
-            this.stressBarHeight,
-        );
-        this.stressBarBg = this.add
-            .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressTrack)
-            .setOrigin(0, 0.5);
-        // Fill is built at full width so refreshUI's setDisplaySize
-        // can scale it linearly. Initial scale 0 keeps it empty.
-        this.stressBar = this.add
-            .rectangle(stressBarX, stressBarY, this.stressBarWidth, this.stressBarHeight, HudColors.stressFill)
-            .setOrigin(0, 0.5);
-        this.stressBar.setDisplaySize(0, this.stressBarHeight);
-        this.stressText = this.add.text(stressBarX + this.stressBarWidth + 8, stressBarY - 8, '0', {
-            fontFamily: HUD_FONT,
-            fontSize: '12px',
-            color: HudHex.accentStress,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
-        this.resolutionText = this.add.text(stressBarX + this.stressBarWidth + 36, stressBarY - 8, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '11px',
-            color: HudHex.accentVirtue,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
-
         // Group B — Level + XP, centred about the canvas midline. Top
-        // bar reads as a 2-row × 3-column grid: vitals (HP/stress) on
-        // the left, level+XP in the middle, combat (atk/def) on the
-        // right. Both rows of group B share y with vitals/combat so
-        // values line up across the entire bar.
+        // bar reads as a 2-row × 3-column grid: vitals (HP) on the
+        // left, level+XP in the middle, combat (atk/def) on the right.
         const centreX = GAME_WIDTH / 2;
         // "УР N" right-anchored, "ОП X/Y" left-anchored, with an 8 px gap
         // around centre — the row stays centred regardless of value width.
@@ -593,7 +508,7 @@ export class GameScene extends Phaser.Scene {
         this.playerStatusText = this.add.text(CENTER_X, TOP_H + 14, '', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
-            color: HudHex.accentVirtue,
+            color: HudHex.accentResolve,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         }).setOrigin(0.5, 0);
@@ -757,13 +672,6 @@ export class GameScene extends Phaser.Scene {
             this.hpBar,
             hpSegments,
             this.hpValueText,
-            stressIcon,
-            stressLabel,
-            stressBarFrame,
-            this.stressBarBg,
-            this.stressBar,
-            this.stressText,
-            this.resolutionText,
             this.levelText,
             this.xpBarFrame,
             this.xpBarBg,
@@ -909,7 +817,7 @@ export class GameScene extends Phaser.Scene {
         this.hintText.setText(
             nextUnlock
                 ? compactText(
-                    `${this.loc.t('stressNextLabel')}: ${this.milestoneRequirement(nextUnlock)}`,
+                    `${this.loc.t('nextUnlockLabel')}: ${this.milestoneRequirement(nextUnlock)}`,
                     60
                 )
                 : ''
@@ -925,56 +833,7 @@ export class GameScene extends Phaser.Scene {
         this.hintText.setVisible(hintVisible);
 
         this.relicText.setText(this.relicSummary());
-        this.updateStressUI();
         this.updatePlayerStatusUI();
-    }
-
-    public updateStressUI() {
-        const v = this.stress.value;
-        const ratio = Phaser.Math.Clamp(v / 100, 0, 1);
-        this.stressBar.setDisplaySize(this.stressBarWidth * ratio, this.stressBarHeight);
-        this.stressBar.setFillStyle(
-            v >= 75
-                ? HudColors.stressFillHigh
-                : v >= 50
-                  ? HudColors.stressFillMid
-                  : HudColors.stressFill
-        );
-        this.stressText.setText(`${v}`);
-        if (this.stress.resolution) {
-            const info = this.resolutionInfo(this.stress.resolution);
-            this.resolutionText.setText(
-                this.stress.resolution.kind === 'virtue'
-                    ? `\u2605\uFE0E ${info.name}`
-                    : `\u2620\uFE0E ${info.name}`
-            );
-            this.resolutionText.setColor(
-                this.stress.resolution.kind === 'virtue' ? HudHex.accentVirtue : HudHex.accentAffliction
-            );
-        } else {
-            this.resolutionText.setText('');
-        }
-    }
-
-    private handleStressResolution(r: Resolution) {
-        this.tracker.record('stressResolutions');
-        this.sfx.play('stressSpike');
-        const info = this.resolutionInfo(r);
-        this.log.addMessage(
-            r.kind === 'virtue'
-                ? `${this.loc.t('stressVirtueShort')}: ${info.name}. ${info.description}`
-                : `${this.loc.t('stressAfflictionShort')}: ${info.name}. ${info.description}`,
-            r.kind === 'virtue' ? '#8bd8ff' : '#e07070'
-        );
-        this.log.addMessage(
-            narrate(r.kind === 'virtue' ? 'virtue' : 'affliction', this.loc.language),
-            '#c4a35a'
-        );
-        showUnlockBanner(this, 
-            r.kind === 'virtue'
-                ? `${this.loc.t('stressVirtueTitle')}: ${info.name}`
-                : `${this.loc.t('stressAfflictionTitle')}: ${info.name}`
-        );
     }
 
     public updatePlayerStatusUI() {

@@ -95,7 +95,7 @@ export class CombatHudController {
 
         scene.skillLoadout.forEach((id) => {
             const def = SKILLS[id];
-            const cost = Math.max(1, def.resolveCost + (scene.stress?.resolveCostMod() ?? 0));
+            const cost = Math.max(1, def.resolveCost);
             actions.push({
                 label: `[${actions.length + 1}] ${scene.skillShort(id)} ${cost} ${scene.loc.t('resolveShort').toLowerCase()}`,
                 callback: () => this.performAction({ kind: 'skill', id }),
@@ -293,7 +293,6 @@ export class CombatHudController {
         scene.tracker.record('enemiesKilled');
         if (payload.kind === 'elite') {
             scene.tracker.record('elitesKilled');
-            // [FIX-7] Tracks elite kills for the Resolve-Test virtue bonus.
             scene.eliteKillsThisRun += 1;
         }
         if (payload.kind === 'boss') {

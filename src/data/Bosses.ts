@@ -3,8 +3,8 @@
  *
  * Each boss has 1+ phases; a phase becomes active when the boss's HP
  * fraction first drops to or below `enterAtHpRatio`. On entry the
- * `onEnter` block applies (stress to player, atk bonus, light cap,
- * etc.). During the phase the boss cycles through `actions` in order;
+ * `onEnter` block applies (atk bonus, light cap, etc.).
+ * During the phase the boss cycles through `actions` in order;
  * the next action's `intent` is shown to the player BEFORE the boss's
  * turn so the player can adapt.
  *
@@ -39,7 +39,6 @@ export type BossActionId =
     | 'wish_tax'
     | 'dim_flame'
     | 'dread_pulse'
-    | 'whisper_stress'
     | 'dread_silence'
     | 'grave_chill'
     // Effects.
@@ -64,8 +63,6 @@ export interface BossActionDef {
     selfHealIfNoDamageTaken?: number;
     /** Boss takes +N extra damage from the next player hit (decays to 0 after). */
     exposedExtraDamage?: number;
-    /** Stress applied to the player on this action. */
-    addStress?: number;
     /** Light drained from the player on this action. */
     drainLight?: number;
     /** Player atk weaken (amount, turns). */
@@ -83,7 +80,6 @@ export interface BossPhaseDef {
      *  are evaluated top-down, so list them in descending order. */
     enterAtHpRatio: number;
     onEnter?: {
-        addStress?: number;
         atkBoost?: number;
         drainLight?: number;
         /** Cap the player's light to at most this value. */
@@ -131,14 +127,12 @@ const A = {
         intent: { en: 'Wish Tax', ru: 'Налог желания' },
         noAttack: true,
         drainLight: 1,
-        addStress: 4,
     },
     wishTax5: {
         id: 'wish_tax' as const,
         intent: { en: 'Wish Tax', ru: 'Налог желания' },
         noAttack: true,
         drainLight: 1,
-        addStress: 5,
     },
     exposedDream2: {
         id: 'expose_self' as const,
@@ -162,7 +156,7 @@ const A = {
         id: 'dread_silence' as const,
         intent: { en: 'Dread Silence', ru: 'Гнетущая тишина' },
         noAttack: true,
-        addStress: 8,
+        selfBlock: 2,
     },
 } as const;
 
@@ -186,7 +180,7 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                         id: 'grave_chill',
                         intent: { en: 'Grave Chill', ru: 'Могильный холод' },
                         noAttack: true,
-                        addStress: 6,
+                        weaken: { amount: 1, turns: 2 },
                     },
                     {
                         id: 'expose_self',
@@ -198,7 +192,7 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
             },
             {
                 enterAtHpRatio: 0.5,
-                onEnter: { addStress: 5, atkBoost: 1 },
+                onEnter: { atkBoost: 1 },
                 label: { en: 'The Regent rises in fury.', ru: 'Регент поднимается в ярости.' },
                 actions: [
                     {
@@ -216,7 +210,7 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                         id: 'grave_chill',
                         intent: { en: 'Grave Chill', ru: 'Могильный холод' },
                         noAttack: true,
-                        addStress: 8,
+                        weaken: { amount: 1, turns: 3 },
                     },
                     {
                         id: 'expose_self',
@@ -255,7 +249,7 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
             },
             {
                 enterAtHpRatio: 0.5,
-                onEnter: { drainLight: 1, addStress: 8 },
+                onEnter: { drainLight: 1 },
                 label: { en: 'Embers rise — the Lich draws on the dark.', ru: 'Угли вспыхивают — Лич черпает из тьмы.' },
                 actions: [
                     {
@@ -302,16 +296,15 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                         bleed: { stacks: 2, turns: 3, onlyIfMarked: true },
                     },
                     {
-                        id: 'whisper_stress',
+                        id: 'attack',
                         intent: { en: 'Whispered Future', ru: 'Шёпот будущего' },
-                        noAttack: true,
-                        addStress: 8,
+                        damageBonus: 1,
                     },
                 ],
             },
             {
                 enterAtHpRatio: 0.5,
-                onEnter: { addStress: 10, markPlayer: 2 },
+                onEnter: { markPlayer: 2 },
                 label: { en: 'The Oracle foresees your fall.', ru: 'Оракул видит твоё падение.' },
                 actions: [
                     {
@@ -355,7 +348,7 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                         id: 'dread_pulse',
                         intent: { en: 'Dread Pulse', ru: 'Импульс ужаса' },
                         noAttack: true,
-                        addStress: 4,
+                        weaken: { amount: 1, turns: 2 },
                     },
                     {
                         id: 'heavy',
@@ -366,7 +359,7 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
             },
             {
                 enterAtHpRatio: 0.5,
-                onEnter: { addStress: 12, atkBoost: 1 },
+                onEnter: { atkBoost: 1 },
                 label: { en: 'The Maw widens.', ru: 'Пасть распахивается шире.' },
                 actions: [
                     {
@@ -378,7 +371,7 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                         id: 'dread_pulse',
                         intent: { en: 'Dread Pulse', ru: 'Импульс ужаса' },
                         noAttack: true,
-                        addStress: 6,
+                        weaken: { amount: 1, turns: 3 },
                     },
                     {
                         id: 'attack',
@@ -404,13 +397,13 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
             },
             {
                 enterAtHpRatio: 0.66,
-                onEnter: { addStress: 10, atkBoost: 1 },
+                onEnter: { atkBoost: 1 },
                 label: { en: 'The Wound refuses to close.', ru: 'Рана отказывается закрыться.' },
                 actions: [A.hollowStrike, A.breakVow, A.wishTax5, A.falseMercy],
             },
             {
                 enterAtHpRatio: 0.34,
-                onEnter: { addStress: 15, atkBoost: 1, capLight: 3 },
+                onEnter: { atkBoost: 1, capLight: 3 },
                 label: { en: 'The wish takes everything.', ru: 'Желание забирает всё.' },
                 actions: [A.finalHunger, A.dreadSilence, A.exposedDream3, A.hollowStrike],
             },

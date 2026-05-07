@@ -6,7 +6,6 @@ import {
     RELIC_CAP_CONFIG,
     ROOM_CONFIG,
     RUPTURE_CONFIG,
-    STRESS_CONFIG,
     STUN_RESIST_CONFIG,
 } from '../data/GameConfig';
 import type { EnemyDef, EnemyProfile } from '../data/GameConfig';
@@ -37,7 +36,6 @@ import {
     tickTurn,
 } from './StatusEffects';
 import type { StatusState } from './StatusEffects';
-import type { StressManager } from './Stress';
 import { defaultRng, randomInt, type Rng } from './Rng';
 
 export type CombatAction =
@@ -85,7 +83,6 @@ export interface ActiveEnemy {
     turnsAlive: number;
     status: StatusState;
     inflictBleed?: { stacks: number; turns: number; chance: number };
-    stressAura?: number;
     firstHitEvaded?: boolean;
     firstStunResisted?: boolean;
     /** [FIX-10] Phase blueprint runtime state, only set on bosses. */
@@ -129,7 +126,6 @@ export interface EnemyUpdatePayload {
 export class CombatManager {
     private player: PlayerManager;
     private log: EventLog;
-    private stress: StressManager | null;
     private loc: Localization;
     private rng: Rng;
 
@@ -170,13 +166,11 @@ export class CombatManager {
     constructor(
         player: PlayerManager,
         log: EventLog,
-        stress: StressManager | null = null,
         loc: Localization = new Localization(),
         rng: Rng = defaultRng
     ) {
         this.player = player;
         this.log = log;
-        this.stress = stress;
         this.loc = loc;
         this.rng = rng;
     }
@@ -234,7 +228,6 @@ export class CombatManager {
             turnsAlive: 0,
             status: emptyStatusState(),
             inflictBleed: definition.inflictBleed,
-            stressAura: definition.stressAura,
             bleedCap: blueprint?.bleedCap,
             bossPhase: blueprint
                 ? {
@@ -265,16 +258,10 @@ export class CombatManager {
 
         if (kind === 'boss') {
             this.log.addMessage(narrate('enter_boss', this.loc.language), '#c4a35a');
-            this.stress?.add(STRESS_CONFIG.onBossStart, this.player.aggregate.stressReductionPct);
         } else if (kind === 'elite') {
             this.log.addMessage(narrate('enter_elite', this.loc.language), '#c4a35a');
-            this.stress?.add(STRESS_CONFIG.onEliteStart, this.player.aggregate.stressReductionPct);
         } else if (depth > 0 && this.rng.next() < 0.25) {
             this.log.addMessage(narrate('enter_combat', this.loc.language), '#7a7a7a');
-        }
-
-        if (this.enemy.stressAura) {
-            this.stress?.add(this.enemy.stressAura * 2, this.player.aggregate.stressReductionPct);
         }
 
         // Relics: start-of-combat setup.
@@ -289,10 +276,6 @@ export class CombatManager {
         if (agg.resistFirstStun) {
             this.enemy.firstStunResisted = true;
         }
-
-        // Vigorous virtue resolve boost handled by StressManager.
-        const virtueResolve = this.stress?.combatStartResolve() ?? 0;
-        if (virtueResolve > 0) this.player.gainResolve(virtueResolve);
 
         this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
         this.playerStatusChange.emit();
@@ -444,8 +427,7 @@ export class CombatManager {
             );
             return false;
         }
-        const stressMod = this.stress?.resolveCostMod() ?? 0;
-        const cost = Math.max(1, skill.resolveCost + stressMod);
+        const cost = Math.max(1, skill.resolveCost);
         if (!this.player.spendResolve(cost)) {
             this.log.addMessage(
                 this.loc.t('combatNeedResolveForSkill', { cost, value: this.skillName(skillId) }),
@@ -687,7 +669,6 @@ export class CombatManager {
     }
 
     private effectiveDamageMod(): number {
-        const stress = this.stress?.damageDealtMod() ?? 0;
         const focus = this.player.status.focus.turns > 0 ? this.player.status.focus.amount : 0;
         // [FIX-13] Ember Vow's low-HP damage bonus is hard-capped at
         // RELIC_CAP_CONFIG.emberVowLowHpBonusCap (default 0.50).
@@ -700,7 +681,7 @@ export class CombatManager {
             this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * this.player.aggregate.lowHpThreshold)
                 ? Math.round(this.player.getAttackPower() * lowHpFraction)
                 : 0;
-        return stress + focus + lowHp;
+        return focus + lowHp;
     }
 
     private resolveEnemyTurn(playerAction: 'attack' | 'defend' | 'skill' | 'potion') {
@@ -764,7 +745,6 @@ export class CombatManager {
                     this.loc.t('combatEnemyEnrage', { name: this.enemy.name }),
                     '#ff9944'
                 );
-                this.stress?.add(STRESS_CONFIG.onEnemyEnrage, this.player.aggregate.stressReductionPct);
             }
         } else if (this.enemy.profile === 'stalker') {
             if (this.rng.next() < 0.3) {
@@ -817,12 +797,6 @@ export class CombatManager {
                     '#8b5fc7'
                 );
             }
-            if (this.enemy.stressAura) {
-                this.stress?.add(
-                    this.enemy.stressAura,
-                    this.player.aggregate.stressReductionPct
-                );
-            }
         }
 
         const takenDamage = this.applyEnemyHitToPlayer(attackPower, flatBlock);
@@ -841,7 +815,6 @@ export class CombatManager {
         }
 
         if (this.player.stats.hp > 0 && this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * 0.25)) {
-            this.stress?.add(STRESS_CONFIG.onLowHp, this.player.aggregate.stressReductionPct);
             if (this.rng.next() < 0.25) this.log.addMessage(narrate('low_hp', this.loc.language), '#c4a35a');
         }
 
@@ -850,8 +823,7 @@ export class CombatManager {
 
     private applyEnemyHitToPlayer(rawAttack: number, flatBlock: number): number {
         if (!this.enemy) return 0;
-        const stressAdd = this.stress?.damageTakenMod() ?? 0;
-        let amount = Math.max(1, rawAttack + stressAdd);
+        let amount = Math.max(1, rawAttack);
 
         // Guard (from Parry Stance etc.) also blocks damage.
         amount = consumeGuardBlock(this.player.status, amount);
@@ -865,10 +837,6 @@ export class CombatManager {
 
         const taken = this.player.takeDamage(amount, flatBlock, 'combat');
         if (taken > 0) {
-            this.stress?.add(
-                STRESS_CONFIG.onPlayerHit + (crit ? STRESS_CONFIG.onCritReceived : 0),
-                this.player.aggregate.stressReductionPct
-            );
             if (crit) this.log.addMessage(narrate('crit_received', this.loc.language), '#c4a35a');
             this.playerHit.emit({ damage: taken });
 
@@ -900,10 +868,6 @@ export class CombatManager {
         // Lifesteal on kill.
         const agg = this.player.aggregate;
         if (agg.lifestealOnKill > 0) this.player.heal(agg.lifestealOnKill);
-
-        // Stress relief on elite/boss kill.
-        if (this.enemy.kind === 'boss') this.stress?.relieve(STRESS_CONFIG.onBossKill * -1);
-        else if (this.enemy.kind === 'elite') this.stress?.relieve(STRESS_CONFIG.onEliteKill * -1);
 
         // [FIX-2] Light recovery on boss kill is reported back to the
         // GameScene through the payload so the run-level resource
@@ -995,9 +959,6 @@ export class CombatManager {
         }
         const onEnter = phaseDef.onEnter;
         if (onEnter) {
-            if (onEnter.addStress && this.stress) {
-                this.stress.add(onEnter.addStress, this.player.aggregate.stressReductionPct);
-            }
             if (onEnter.atkBoost) {
                 this.enemy.attack += onEnter.atkBoost;
             }
@@ -1050,9 +1011,6 @@ export class CombatManager {
         if (action.drainLight && action.drainLight > 0) {
             this.player.spendLight(action.drainLight);
         }
-        if (action.addStress && action.addStress > 0 && this.stress) {
-            this.stress.add(action.addStress, this.player.aggregate.stressReductionPct);
-        }
         if (action.weaken) {
             applyWeaken(this.player.status, action.weaken.amount, action.weaken.turns);
         }
@@ -1070,12 +1028,6 @@ export class CombatManager {
         }
         if (action.selfAtkBoost) {
             this.enemy.attack += action.selfAtkBoost;
-        }
-
-        // Stress aura passive (Maw): every 3rd boss turn ticks stress.
-        if (passives.includes('maw_aura') && this.enemy.turnsAlive > 0 && this.enemy.turnsAlive % 3 === 0) {
-            const tick = this.player.hasLowLight ? 6 : 4;
-            this.stress?.add(tick, this.player.aggregate.stressReductionPct);
         }
 
         // Damage-dealing actions hit the player.
@@ -1122,9 +1074,6 @@ export class CombatManager {
         if (this.player.stats.hp <= 0) {
             this.logDeath();
             return;
-        }
-        if (this.player.stats.hp > 0 && this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * 0.25)) {
-            this.stress?.add(STRESS_CONFIG.onLowHp, this.player.aggregate.stressReductionPct);
         }
 
         // Advance to next action and update the intent shown to the player.

@@ -15,8 +15,6 @@ export type NarrationEvent =
     | 'rest'
     | 'relic_found'
     | 'stun_landed'
-    | 'affliction'
-    | 'virtue'
     | 'revive'
     | 'death';
 
@@ -75,14 +73,6 @@ const LINES: Record<NarrationEvent, string[]> = {
     ],
     stun_landed: [
         'Its rhythm breaks. Strike while it remembers its name.',
-    ],
-    affliction: [
-        'Something in you gives way.',
-        'A quiet part of the mind starts screaming.',
-    ],
-    virtue: [
-        'In the hollow hours, your spine finds itself.',
-        'Resolve hardens where it was not.',
     ],
     revive: [
         'Not yet. The expedition is not over.',
@@ -150,14 +140,6 @@ const RU_LINES: Record<NarrationEvent, string[]> = {
     ],
     stun_landed: [
         'Ритм сломан. Бей, пока он ищет равновесие.',
-    ],
-    affliction: [
-        'Внутри что-то дало трещину.',
-        'Тихая мысль сорвалась на крик.',
-    ],
-    virtue: [
-        'Спина выпрямляется раньше мысли.',
-        'Опора нашлась там, где её не было.',
     ],
     revive: [
         'Ещё нет. Ноги снова под тобой.',

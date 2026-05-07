@@ -29,7 +29,6 @@ import { HUD_FONT, HUD_STROKE, HudHex } from './HudTheme';
  */
 export const IconFrame = {
     heart: 0,
-    skull: 1,
     star: 2,
     xpArrow: 3,
     sword: 4,
@@ -55,7 +54,6 @@ export type IconKey = keyof typeof IconFrame;
 /** Unicode glyph + tint used when the spritesheet is unavailable. */
 const ICON_FALLBACK: Record<IconKey, { glyph: string; color: string }> = {
     heart: { glyph: '\u2665', color: HudHex.accentBlood },
-    skull: { glyph: '\u2620\uFE0E', color: HudHex.accentStress },
     star: { glyph: '\u2605', color: HudHex.accentExp },
     xpArrow: { glyph: '\u2191', color: HudHex.accentExp },
     sword: { glyph: '\u2694\uFE0E', color: HudHex.accentBlood },

@@ -22,8 +22,6 @@ export interface RunStats {
     levelReached: number;
     relicsFound: number;
     bleedDamageDealt: number;
-    stressResolutions: number;
-    peakStress: number;
 }
 
 export class RunTracker {
@@ -49,8 +47,6 @@ export class RunTracker {
         levelReached: 1,
         relicsFound: 0,
         bleedDamageDealt: 0,
-        stressResolutions: 0,
-        peakStress: 0,
     };
 
     record(key: keyof RunStats, amount: number = 1) {
@@ -85,8 +81,6 @@ export class RunTracker {
             lines.push(`Уровень: ${s.levelReached}`);
             if (s.relicsFound > 0) lines.push(`Реликвий найдено: ${s.relicsFound}`);
             if (s.bleedDamageDealt > 0) lines.push(`Урон кровотечением: ${s.bleedDamageDealt}`);
-            if (s.peakStress > 0) lines.push(`Пик стресса: ${s.peakStress}`);
-            if (s.stressResolutions > 0) lines.push(`Срывов/доблестей: ${s.stressResolutions}`);
             return lines;
         }
 
@@ -103,8 +97,6 @@ export class RunTracker {
         lines.push(`Level reached: ${s.levelReached}`);
         if (s.relicsFound > 0) lines.push(`Relics acquired: ${s.relicsFound}`);
         if (s.bleedDamageDealt > 0) lines.push(`Bleed damage: ${s.bleedDamageDealt}`);
-        if (s.peakStress > 0) lines.push(`Peak stress: ${s.peakStress}`);
-        if (s.stressResolutions > 0) lines.push(`Afflictions/virtues: ${s.stressResolutions}`);
         return lines;
     }
 

@@ -1,6 +1,6 @@
 // Minimal RNG abstraction so balance-sensitive systems (map generation,
-// stress resolution, relic rolls) can be made deterministic for tests
-// without changing run-time behavior when no seed is supplied.
+// relic rolls) can be made deterministic for tests without changing
+// run-time behavior when no seed is supplied.
 
 export interface Rng {
     /** Uniform random in [0, 1). */

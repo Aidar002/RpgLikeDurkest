@@ -1,4 +1,4 @@
-import { MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG, STRESS_CONFIG } from '../data/GameConfig';
+import { MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG } from '../data/GameConfig';
 import { RoomType } from '../systems/MapGenerator';
 import { isLightWarning, shouldDecayLight } from '../systems/Light';
 import type { MapNode } from '../systems/MapGenerator';
@@ -57,13 +57,9 @@ export class RoomFlowController {
         }
 
         if (scene.player.hasLowLight && node.type !== RoomType.START) {
-            scene.stress.add(STRESS_CONFIG.onLowLightRoom, scene.player.aggregate.stressReductionPct);
             if (Math.random() < 0.3) {
                 scene.log.addMessage(narrate('low_light', scene.loc.language), '#c4a35a');
             }
-        }
-        if (scene.player.hasHighLight && node.type === RoomType.EMPTY) {
-            scene.stress.add(STRESS_CONFIG.onEmptyRoomHighLight, scene.player.aggregate.stressReductionPct);
         }
 
         scene.log.addDivider(`${scene.loc.t('depth')} ${scene.dungeon.currentDepth}`);
@@ -223,7 +219,6 @@ export class RoomFlowController {
         scene.log.addMessage(scene.loc.t('treasureSecured', { parts: rewardParts.join(', ') }), '#f7d46b');
         scene.sfx.play('treasure');
         scene.maybeDropRelic('treasure');
-        scene.stress.relieve(STRESS_CONFIG.onTreasure);
         scene.showReturnButton();
     }
 
@@ -349,19 +344,6 @@ export class RoomFlowController {
                 },
                 fill: 0x1b335b,
             },
-            {
-                label: scene.loc.t('restMeditateLabel'),
-                callback: () => {
-                    scene.stress.relieve(ROOM_CONFIG.rest.meditateStressRelief);
-                    scene.log.addMessage(
-                        scene.loc.t('restMeditateApplied', { meditateStressRelief: ROOM_CONFIG.rest.meditateStressRelief }),
-                        '#d6b8ff'
-                    );
-                    scene.enemyIntelText.setText(scene.loc.t('restMeditateAfter'));
-                    scene.showReturnButton();
-                },
-                fill: 0x3e2260,
-            },
         ]);
     }
 
@@ -370,12 +352,9 @@ export class RoomFlowController {
         const hpFrac = scene.player.stats.maxHp > 0
             ? scene.player.stats.hp / scene.player.stats.maxHp
             : 1;
-        const r = scene.stress.resolution;
         return {
             depth: scene.dungeon.currentDepth,
             hpFrac,
-            stress: scene.stress.value,
-            resolution: r ? r.kind : 'none',
             bleedDamageDealt: scene.tracker.current.bleedDamageDealt,
             relicsFound: scene.tracker.current.relicsFound,
             bossesKilledEver: scene.meta.bossesKilledEver,
@@ -438,7 +417,7 @@ export class RoomFlowController {
             case 'veth_challenge':
                 return scene.player.stats.hp > cost + 1;
             case 'veth_lesson':
-                return scene.stress.value < 100;
+                return true;
             case 'hollow_potion_for_gold':
                 return scene.player.resources.potions > 0;
             case 'veth_strop':
@@ -635,7 +614,7 @@ export class RoomFlowController {
                 break;
             }
             case 'veth_lesson':
-                scene.stress.add(cost);
+                scene.player.takeDamage(Math.max(1, Math.floor(cost / 5)), 0, 'true');
                 scene.player.addAttackBonus(2);
                 scene.log.addMessage(scene.loc.t('npcVethThirdCut'), '#ffb084');
                 affinityDelta = 2;
@@ -650,37 +629,16 @@ export class RoomFlowController {
                 break;
 
             // -- Chorister -------------------------------------------------------
-            case 'chorister_relieve':
-                if (!scene.player.spendGold(cost)) { consumed = false; break; }
-                scene.tracker.record('goldSpent', cost);
-                scene.stress.relieve(20);
-                scene.log.addMessage(scene.loc.t('npcChoristerSong'), '#d6b8ff');
-                affinityDelta = 2;
-                break;
             case 'chorister_resolve':
                 if (!scene.player.spendGold(cost)) { consumed = false; break; }
                 scene.tracker.record('goldSpent', cost);
                 scene.player.gainResolve(2);
                 scene.log.addMessage(scene.loc.t('npcChoristerSteady'), '#9bc8ff');
                 break;
-            case 'chorister_unbind':
-                if (!scene.player.spendRelicShard(cost)) { consumed = false; break; }
-                if (scene.stress.resolution && scene.stress.resolution.kind === 'affliction') {
-                    scene.stress.resolution = null;
-                    scene.updateStressUI();
-                    scene.log.addMessage(scene.loc.t('npcChoristerUnbind'), '#ffd9f7');
-                    affinityDelta = 3;
-                } else {
-                    scene.player.gainResolve(3);
-                    scene.log.addMessage(scene.loc.t('npcChoristerCarry'), '#ffd9f7');
-                    affinityDelta = 1;
-                }
-                break;
 
             // -- Kessa -----------------------------------------------------------
             case 'kessa_tea':
-                scene.player.heal(4);
-                scene.stress.relieve(10);
+                scene.player.heal(6);
                 scene.log.addMessage(scene.loc.t('npcKessaCup'), '#9be0a7');
                 affinityDelta = 2;
                 break;

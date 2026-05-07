@@ -5,8 +5,8 @@ import { lt } from './LocalizedText';
 //  - identity (id, name, title, color, glyph)
 //  - a voice palette (small repertoire of barks)
 //  - an arc of narrative beats keyed by `stage`. Stage advances with metCount.
-//  - condition tags so the picker can react to player state (stress, virtue,
-//    affliction, depth, has-bleed, low-hp, etc.).
+//  - condition tags so the picker can react to player state (depth,
+//    has-bleed, low-hp, etc.).
 
 export type NpcId =
     | 'mira'
@@ -33,9 +33,6 @@ export type NpcStateTag =
     | 'wary'         // affinity <= -2
     // player condition
     | 'low-hp'       // hp <= 30%
-    | 'high-stress'  // stress >= 60
-    | 'afflicted'    // stress resolution = affliction
-    | 'virtuous'     // stress resolution = virtue
     | 'bleeder'      // bleedDamageDealt >= 8 this run
     | 'relic-rich'   // relicsFound >= 3 this run
     | 'deep-run'     // depth >= 6
@@ -138,14 +135,6 @@ export const NPCS: Record<NpcId, NpcProfile> = {
                 text: lt(
                     'Мира: "Снова ты. Значит, выход ещё помнишь." Она стучит ногтем по фонарю. "Сегодня дешевле. Я веду счёт."',
                     'Mira: "You again. The dark spat you back. That happens - for a while." She taps a lantern. "Cheaper this time. I keep tabs."'
-                ),
-            },
-            {
-                stage: 'return',
-                tags: ['high-stress'],
-                text: lt(
-                    'Мира: "Ты звенишь по краям. Я знаю этот звук. Сядь. Ничего не покупай." Она отворачивается, пока ты дышишь.',
-                    'Mira: "You\'re humming at the edges. I\'ve seen that. Sit. Buy nothing. Just sit." She doesn\'t look at you while you breathe.'
                 ),
             },
             {
@@ -264,34 +253,10 @@ export const NPCS: Record<NpcId, NpcProfile> = {
                 ),
             },
             {
-                stage: 'first',
-                tags: ['high-stress'],
-                text: lt(
-                    'Казимир: "Ты дрожишь. Хорошо. Это единственная честная поза здесь." Он велит тебе опуститься на колени.',
-                    'Casimir: "You arrive trembling. Good. Trembling is the only honest posture in this place." He gestures you to kneel without ceremony.'
-                ),
-            },
-            {
                 stage: 'return',
                 text: lt(
                     'Казимир: "Вернулся. Алтарь любит возвращающихся. Они уже знают цену." Его улыбка выглядит украденной.',
                     'Casimir: "Back, then. The altar likes returners. They have committed." He smiles like a man who has lost the right to.'
-                ),
-            },
-            {
-                stage: 'return',
-                tags: ['afflicted'],
-                text: lt(
-                    'Казимир наклоняется ближе. "Трещина раскрылась? Не закрывай. Свет входит через плохие места."',
-                    'Casimir leans closer. "The crack has opened, hasn\'t it. Don\'t close it. Closed cracks are how light is denied entry. Pray into the wound."'
-                ),
-            },
-            {
-                stage: 'return',
-                tags: ['virtuous'],
-                text: lt(
-                    'Казимир вздрагивает. "Сегодня ты держишься. Сломленный ты честнее, но и это можно благословить."',
-                    'Casimir flinches almost imperceptibly. "You are radiant today. I prefer you broken - it is more theologically honest. But: bless what you can."'
                 ),
             },
             {
@@ -601,7 +566,7 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             },
             {
                 id: 'veth_lesson',
-                label: lt('[{index}] Взять её урок ({cost} стресса)', '[{index}] Take her lesson ({cost} stress)'),
+                label: lt('[{index}] Взять её урок ({cost} ОЗ)', '[{index}] Take her lesson ({cost} HP)'),
                 flavor: lt(
                     'Ты запоминаешь третий разрез. Предплечье зудит ещё неделю.',
                     'You learn the third cut. Your forearm itches for a week.'
@@ -671,34 +636,10 @@ export const NPCS: Record<NpcId, NpcProfile> = {
                 ),
             },
             {
-                stage: 'first',
-                tags: ['high-stress'],
-                text: lt(
-                    'Хорист обрывает ноту. "Ты пришёл слишком громким. Сядь." Он начинает заново, тише.',
-                    'The Chorister stops mid-note. "Oh. Oh. You arrived loud. Sit. I have a tune for that." They begin again, softer.'
-                ),
-            },
-            {
                 stage: 'return',
                 text: lt(
                     'Хорист улыбается. "Ты вернулся легче и тяжелее сразу. Обычное дело."',
                     'The Chorister smiles. "I remember your weight in the air. You\'ve come back lighter and heavier at once. The usual."'
-                ),
-            },
-            {
-                stage: 'return',
-                tags: ['afflicted'],
-                text: lt(
-                    'Хорист коротко гудит. Нота ложится тебе на плечи. "Ослабить можно. Убрать нельзя. Всё равно сядь."',
-                    'The Chorister hums sharply, and a held note settles on your shoulders. "It can be loosened. It cannot be unmade. Sit anyway."'
-                ),
-            },
-            {
-                stage: 'return',
-                tags: ['virtuous'],
-                text: lt(
-                    'Хорист поднимает руки. "Сегодня ты звучишь даже молча. Я только подстрою тон."',
-                    'The Chorister lifts both hands. "You sing, today, even when silent. I will only harmonise. It is cheaper that way."'
                 ),
             },
             {
@@ -726,19 +667,9 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             },
         ],
         offers: [
-            { id: 'chorister_relieve', label: lt('[{index}] Послушать песнь ({cost}з) - снять стресс', '[{index}] Be sung to ({cost}g) - relieve stress') },
             {
                 id: 'chorister_resolve',
                 label: lt('[{index}] Укрепить руки ({cost}з) - получить волю', '[{index}] Steady your hands ({cost}g) - gain resolve'),
-            },
-            {
-                id: 'chorister_unbind',
-                label: lt('[{index}] Убаюкать порчу ({cost} оск.)', '[{index}] Soothe the affliction ({cost} shards)'),
-                flavor: lt(
-                    'Песня держит треснувшую часть тебя. Не лечит, но не даёт распасться.',
-                    'The song cradles the cracked thing in you. It does not heal. It carries.'
-                ),
-                requiresAffinity: 1,
             },
         ],
     },
@@ -815,14 +746,6 @@ export const NPCS: Record<NpcId, NpcProfile> = {
                 text: lt(
                     'Она медленно кивает. "Глубоко зашёл. Сера тоже дошла далеко. Не считай это советом."',
                     'She nods slowly. "Deep. Most don\'t make it this far on a second try. Sera did. Sera also didn\'t come back. Don\'t take that as advice."'
-                ),
-            },
-            {
-                stage: 'return',
-                tags: ['high-stress'],
-                text: lt(
-                    'Она ставит кружку на пол. "Ты распускаешься по нитям. Я знаю этот взгляд. Садись." Она освобождает место.',
-                    'She sets her cup down. "You\'re unspooling. I know that look. There\'s nothing to do for it but sit. Sit." She makes room.'
                 ),
             },
             {

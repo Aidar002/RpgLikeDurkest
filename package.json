@@ -11,8 +11,7 @@
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest",
-    "sim": "tsx scripts/simulateRuns.ts"
+    "test:watch": "vitest"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
