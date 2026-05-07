@@ -192,7 +192,14 @@ export const RUN_CONFIG = {
      */
     bossPressure: {
         windowStartFactor: 0.10,
-        windowStartFloor: 4,
+        // Pressure-window floor was bumped from 4 to 6 when the
+        // generator switched to the grid-cell layout: the START
+        // room now hands out four 90° exits, so the lookahead now
+        // reaches depth 5 deterministically. Holding the boss
+        // window back one extra layer keeps the initial map
+        // boss-free regardless of seed and aligns with
+        // {@link MAP_CONFIG.initialLookahead}.
+        windowStartFloor: 6,
         windowEndFactor: 0.20,
         windowEndFloor: 8,
         targetMajorFactor: 18,

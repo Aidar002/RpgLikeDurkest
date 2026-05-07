@@ -486,12 +486,19 @@ describe('MapGenerator', () => {
                 // Cap on extra minis the seal pass may add — at
                 // most one per `requiredSeals` "cut" through the
                 // map plus a slack. The slack scales with the
-                // typical layer width (now up to 4 wide after the
-                // 3-4 fanout shift) since each additional parallel
-                // path through a "cut" can require its own dedicated
+                // typical layer width: the grid-cell generator
+                // hands the player a 4-way hub at the START room
+                // and then up to {@link MAX_LAYER_WIDTH} cells per
+                // mid-run layer, so each additional parallel path
+                // through a seal "cut" can require its own dedicated
                 // seal-bearing mini. Empirically the 75-depth runs
-                // peak at ~20 minis, so the slack must absorb that.
-                const sealCoverageSlack = 14;
+                // peak at ~25 minis with the new layout (the
+                // 4-wide START hub plus up to MAX_LAYER_WIDTH=4
+                // mid-run cells means each requiredSeals "cut" can
+                // need up to 4 dedicated seal-bearers, and the
+                // greedy seal pass may add a couple more), so the
+                // slack must absorb that.
+                const sealCoverageSlack = 20;
                 for (let seed = 0; seed < 20; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
                     const report = validateMap(nodes, runLength);
