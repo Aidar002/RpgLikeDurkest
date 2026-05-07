@@ -24,7 +24,6 @@ export class DungeonManager {
         const start = nodes.find(n => n.depth === 0)!;
         this.currentNode = start;
         start.visited = true;
-        this.ensureMinimumChoices();
     }
 
     addNodes(newNodes: MapNode[]) {
@@ -70,39 +69,6 @@ export class DungeonManager {
             this.onNeedNodes(this.getMaxDepth());
         }
 
-        this.ensureMinimumChoices();
-
         this.onMove(target, prev);
-    }
-
-    /**
-     * Guarantee the player always has at least 2 forward rooms to
-     * choose from. If the current node has fewer than 2 forward
-     * edges, pick the closest unconnected node at the next depth
-     * and wire it up. This prevents long single-path corridors
-     * without violating map-generation invariants.
-     */
-    private ensureMinimumChoices(): void {
-        const nextDepth = this.currentDepth + 1;
-        const forwardEdges = this.currentNode.edges.filter(id => {
-            const n = this.nodes.find(node => node.id === id);
-            return n != null && n.depth === nextDepth;
-        });
-
-        if (forwardEdges.length >= 2) return;
-
-        const connectedIds = new Set(this.currentNode.edges);
-        const candidates = this.nodes
-            .filter(n => n.depth === nextDepth && !connectedIds.has(n.id))
-            .sort((a, b) => {
-                const da = (a.x - this.currentNode.x) ** 2 + (a.y - this.currentNode.y) ** 2;
-                const db = (b.x - this.currentNode.x) ** 2 + (b.y - this.currentNode.y) ** 2;
-                return da - db;
-            });
-
-        const need = 2 - forwardEdges.length;
-        for (let i = 0; i < need && i < candidates.length; i++) {
-            this.currentNode.edges.push(candidates[i].id);
-        }
     }
 }
