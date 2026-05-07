@@ -220,16 +220,20 @@ export const MAP_CONFIG = {
      * layer width is `max(rolledCount, parents)` so a layer never
      * shrinks under what's needed to keep every parent connected.
      *
-     * Capped at 3 wide because the forced PRE-BOSS convergence
-     * step can't reliably collapse 4 spread-out parents into a
-     * single child without producing crossing edges. Player-facing
-     * "1–4 next rooms" comes from {@link fanoutRolls} (per-room
-     * outgoing edges), which is a separate axis.
+     * Now includes 4-wide layers (PR map-gen branch fanout): the
+     * old "capped at 3" justification was tied to the legacy
+     * forced PRE-BOSS convergence which PR-1 removed. With the
+     * boss-pressure model every layer is plain fan-out routing,
+     * so 4 spread-out parents can fan onto 4 children without
+     * forced collapse. Distribution biased toward 3-4 (avg ~3.05)
+     * so the player feels meaningful directional choice instead
+     * of being funneled.
      */
     branchRolls: {
-        one: 0.15,
-        two: 0.40,
-        three: 0.45,
+        one: 0.05,
+        two: 0.20,
+        three: 0.40,
+        four: 0.35,
     },
     roomTypeWeights: {
         ENEMY: 0.34,
@@ -246,14 +250,22 @@ export const MAP_CONFIG = {
      * many of the next layer's rooms a player can pick from this
      * room). The actual count is clamped against the number of
      * available children in the next layer and capped at
-     * {@link MAX_EDGES_PER_NODE}, so dense parts of the run get
-     * 1–4 paths and bottlenecks (PRE-BOSS / BOSS) stay at 1.
+     * {@link maxEdgesPerNode}, so dense parts of the run get 1–4
+     * paths. Bottleneck rooms (final-boss layer) collapse to 1
+     * naturally because their target layer has fewer slots.
+     *
+     * Distribution biased toward 3-4 outgoing (avg ~3.05) so most
+     * non-boss rooms feel branchy instead of corridor-like. The
+     * START room overrides this and always rolls 4 — see
+     * {@link MapGenerator.rollFanout} / {@link
+     * MapGenerator.buildLayer} for the depth-1 width override that
+     * makes the START 4-fanout actually realisable.
      */
     fanoutRolls: {
-        one: 0.20,
-        two: 0.35,
-        three: 0.30,
-        four: 0.15,
+        one: 0.05,
+        two: 0.20,
+        three: 0.40,
+        four: 0.35,
     },
     /**
      * Hard cap on outgoing edges per non-bottleneck room. Keeps
