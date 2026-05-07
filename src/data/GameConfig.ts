@@ -137,6 +137,21 @@ export const COMBAT_CONFIG = {
     eliteAttackMultiplier: 1.25,
     eliteRewardMultiplier: 1.7,
     bossRewardMultiplier: 2.1,
+    /**
+     * Boss-only XP "piñata" multiplier. Stacks on top of
+     * {@link bossRewardMultiplier} for `kind === 'boss'` encounters
+     * (mid-run majors AND final boss). Tuned so a depth-tier boss
+     * dumps ~10–20 levels' worth of XP in one kill at the legacy
+     * runLength=25 / levelCap=10 calibration.
+     *
+     * Examples (xpPerLevel=12, after bossRewardMultiplier=2.1):
+     *   depth  5 (24 base xp): 24 * 2.1 * 4 ≈ 202 xp ≈ 17 levels
+     *   depth 10 (30 base xp): 30 * 2.1 * 4 ≈ 252 xp ≈ 21 levels
+     *   depth 15 (36 base xp): 36 * 2.1 * 4 ≈ 302 xp ≈ 25 levels
+     *   depth 20 (40 base xp): 40 * 2.1 * 4 ≈ 336 xp ≈ 28 levels
+     *   depth 25 (50 base xp): 50 * 2.1 * 4 ≈ 420 xp ≈ 35 levels
+     */
+    bossXpMultiplier: 4,
 } as const;
 
 /**
