@@ -105,6 +105,18 @@ export class MapView {
     public readonly fireMap: Map<string, { destroy: () => void }> = new Map();
     private edgeGfx!: Phaser.GameObjects.Graphics;
 
+    /**
+     * Tracks which node IDs were "fog-of-war visible" on the previous
+     * {@link refresh} call. Nodes appearing in the new set but not the
+     * old one fade in; nodes disappearing fade out. Avoids the abrupt
+     * pop-in / pop-out when the player advances and the visible
+     * window shifts forward.
+     */
+    private lastVisibleIds = new Set<string>();
+
+    /** Duration (ms) of the per-node reveal/hide fade. */
+    private readonly REVEAL_DURATION = 380;
+
     constructor(deps: MapViewDeps) {
         this.scene = deps.scene;
         this.container = deps.container;
@@ -439,6 +451,21 @@ export class MapView {
      */
     redrawEdges(): void {
         this.edgeGfx.clear();
+
+        // Fade the freshly-redrawn edge graphics in. Edges always
+        // re-render as a whole layer (only the current room's
+        // outgoing fan is drawn — see the fog-of-war filter below),
+        // so a single alpha tween on `edgeGfx` is enough to make the
+        // new lines glide in instead of popping.
+        this.scene.tweens.killTweensOf(this.edgeGfx);
+        this.edgeGfx.setAlpha(0);
+        this.scene.tweens.add({
+            targets: this.edgeGfx,
+            alpha: 1,
+            duration: this.REVEAL_DURATION,
+            ease: 'Quad.out',
+        });
+
         const currentDepth = this.dungeon.currentDepth;
         const forwardIds = new Set(
             this.dungeon.getForwardNodes().map((node) => node.id),
@@ -522,6 +549,11 @@ export class MapView {
         );
         const allNodes = this.dungeon.getAllNodes();
 
+        // Fog-of-war reveal/hide animation needs to know which nodes
+        // were visible last frame so it can fade newcomers in and
+        // ex-visible cleared/out-of-window nodes out smoothly.
+        const newVisibleIds = new Set<string>();
+
         this.visuals.forEach((visual, id) => {
             const node = allNodes.find((candidate) => candidate.id === id);
             if (!node) {
@@ -532,28 +564,59 @@ export class MapView {
             const isCurrent = id === currentId;
             const isForward = forwardIds.has(id);
 
-            // Kill any in-flight pulse on the rect (fallback render
-            // path) before re-deriving its alpha/stroke. Without this
-            // a node that loses its forward status — or gets cleared
-            // — would keep yoyo-ing alpha from `startNodePulse` and
-            // override the setAlpha calls below.
+            // Kill any in-flight tween on every visual element before
+            // re-deriving state. A residual fade or yoyo-pulse would
+            // otherwise overwrite the alpha/visibility we set below
+            // and the tweens we're about to schedule.
             this.scene.tweens.killTweensOf(visual.rect);
+            this.scene.tweens.killTweensOf(visual.icon);
+            if (visual.sprite) this.scene.tweens.killTweensOf(visual.sprite);
+            if (visual.frame) this.scene.tweens.killTweensOf(visual.frame);
 
             // Fog-of-war: only the current room and its directly
             // reachable forward options are rendered. Cleared
             // (already-walked) rooms and not-yet-reachable future
             // rooms stay hidden until the player advances toward them.
             const visible = !node.cleared && (isCurrent || isForward);
+            const wasVisible = this.lastVisibleIds.has(id);
+
             if (!visible) {
-                visual.rect.setVisible(false);
-                visual.icon.setVisible(false);
-                if (visual.sprite) visual.sprite.setVisible(false);
-                if (visual.frame) {
-                    this.scene.tweens.killTweensOf(visual.frame);
-                    visual.frame.setVisible(false);
+                if (wasVisible) {
+                    // Smoothly fade out a node that just left the
+                    // visible window (current room got cleared, or a
+                    // forward option was abandoned), then hide it.
+                    const fadeTargets: Phaser.GameObjects.GameObject[] = [
+                        visual.rect,
+                        visual.icon,
+                    ];
+                    if (visual.sprite && visual.sprite.visible) {
+                        fadeTargets.push(visual.sprite);
+                    }
+                    if (visual.frame && visual.frame.visible) {
+                        fadeTargets.push(visual.frame);
+                    }
+                    this.scene.tweens.add({
+                        targets: fadeTargets,
+                        alpha: 0,
+                        duration: this.REVEAL_DURATION,
+                        ease: 'Quad.in',
+                        onComplete: () => {
+                            visual.rect.setVisible(false);
+                            visual.icon.setVisible(false);
+                            if (visual.sprite)
+                                visual.sprite.setVisible(false);
+                            if (visual.frame) visual.frame.setVisible(false);
+                        },
+                    });
+                } else {
+                    visual.rect.setVisible(false);
+                    visual.icon.setVisible(false);
+                    if (visual.sprite) visual.sprite.setVisible(false);
+                    if (visual.frame) visual.frame.setVisible(false);
                 }
                 return;
             }
+            newVisibleIds.add(id);
             visual.rect.setVisible(true);
 
             const revealed = isCurrent || isForward || node.visited;
@@ -650,7 +713,38 @@ export class MapView {
             // to remove the dull grey halo; the pulse sits inside
             // the existing frame palette so it never clashes with
             // the room-type tint.
-            if (isForward && !node.cleared) {
+            const startPulse = isForward && !node.cleared;
+
+            if (!wasVisible) {
+                // Newly visible (just came into the fog-of-war
+                // window). Fade every visual element in from alpha
+                // 0 over REVEAL_DURATION and only kick the pulse
+                // off once the reveal settles, otherwise the pulse
+                // yoyo would fight the fade-in tween.
+                const fadeTargets: Phaser.GameObjects.GameObject[] = [
+                    visual.rect,
+                    visual.icon,
+                ];
+                visual.rect.setAlpha(0);
+                visual.icon.setAlpha(0);
+                if (visual.sprite && visual.sprite.visible) {
+                    visual.sprite.setAlpha(0);
+                    fadeTargets.push(visual.sprite);
+                }
+                if (visual.frame && visual.frame.visible) {
+                    visual.frame.setAlpha(0);
+                    fadeTargets.push(visual.frame);
+                }
+                this.scene.tweens.add({
+                    targets: fadeTargets,
+                    alpha: 1,
+                    duration: this.REVEAL_DURATION,
+                    ease: 'Quad.out',
+                    onComplete: () => {
+                        if (startPulse) this.startNodePulse(visual);
+                    },
+                });
+            } else if (startPulse) {
                 this.startNodePulse(visual);
             }
 
@@ -667,6 +761,8 @@ export class MapView {
                 this.fireMap.set(id, fire);
             }
         });
+
+        this.lastVisibleIds = newVisibleIds;
     }
 
     /**
