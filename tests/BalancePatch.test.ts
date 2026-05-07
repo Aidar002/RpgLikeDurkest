@@ -83,17 +83,15 @@ describe('[FIX-3] Starting resolve and clamps', () => {
 });
 
 describe('[FIX-2] Light economy', () => {
-    it('decays every N rooms, not every room', () => {
-        // First room should not decay (counter = 1, not divisible by 2).
+    it('decays every N rooms (default runLength), not every room', () => {
+        // At default runLength=25 the derived interval is 2.
         expect(shouldDecayLight(1)).toBe(false);
-        // Second room triggers a decay.
         expect(shouldDecayLight(2)).toBe(true);
-        // Third doesn't, fourth does.
         expect(shouldDecayLight(3)).toBe(false);
         expect(shouldDecayLight(4)).toBe(true);
     });
 
-    it('LIGHT_CONFIG.decayEveryNRooms is 2 (FIX-2 mandate)', () => {
+    it('legacy LIGHT_CONFIG.decayEveryNRooms still reports the short-run baseline', () => {
         expect(LIGHT_CONFIG.decayEveryNRooms).toBe(2);
     });
 });
