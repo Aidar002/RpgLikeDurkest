@@ -1,6 +1,7 @@
 import {
     COMBAT_CONFIG,
     EXPEDITION_CONFIG,
+    FEATURES,
     LEVEL_UP_CONFIG,
     PLAYER_CONFIG,
     RELIC_CAP_CONFIG,
@@ -120,12 +121,12 @@ export class PlayerManager {
     }
 
     getAttackPower(): number {
-        const light = this.hasHighLight ? COMBAT_CONFIG.highLightAttackBonus : 0;
+        const light = FEATURES.light && this.hasHighLight ? COMBAT_CONFIG.highLightAttackBonus : 0;
         return this.stats.attack + light + this.relicAggregate.bonusAttack;
     }
 
     getCritChance(): number {
-        const light = this.hasHighLight ? COMBAT_CONFIG.criticalChanceFromHighLight : 0;
+        const light = FEATURES.light && this.hasHighLight ? COMBAT_CONFIG.criticalChanceFromHighLight : 0;
         const raw = COMBAT_CONFIG.baseCritChance + light + this.relicAggregate.critChanceBonus;
         // [FIX-13] Hard cap on crit chance so Gambler's Knuckle plus
         // High Light can't push the build past 45%.
@@ -133,6 +134,7 @@ export class PlayerManager {
     }
 
     getEnemyAttackBonusFromLight(): number {
+        if (!FEATURES.light) return 0;
         if (!this.hasLowLight) return 0;
         return Math.round(
             COMBAT_CONFIG.lowLightEnemyAttackBonus * this.relicAggregate.lowLightPenaltyMult
@@ -140,6 +142,7 @@ export class PlayerManager {
     }
 
     getRewardMultiplierFromLowLight(): number {
+        if (!FEATURES.light) return 1;
         return this.hasLowLight ? COMBAT_CONFIG.lowLightRewardMultiplier : 1;
     }
 

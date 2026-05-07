@@ -1,4 +1,4 @@
-import { MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG } from '../data/GameConfig';
+import { FEATURES, MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG } from '../data/GameConfig';
 import { RoomType } from '../systems/MapGenerator';
 import { isLightWarning, shouldDecayLight } from '../systems/Light';
 import type { MapNode } from '../systems/MapGenerator';
@@ -39,26 +39,28 @@ export class RoomFlowController {
         // flat 2 per room before the runLength refactor). Empty rooms
         // spared by relic and the START room never tick the counter so
         // the relic effect stays meaningful.
-        const sparesLight =
-            scene.player.aggregate.emptyRoomsSpareLight && node.type === RoomType.EMPTY;
-        if (scene.skipLightSpendThisRoom) {
-            scene.skipLightSpendThisRoom = false;
-        } else if (!sparesLight && node.type !== RoomType.START) {
-            scene.roomsVisitedForLight += 1;
-            if (shouldDecayLight(scene.roomsVisitedForLight, RUN_CONFIG.runLength)) {
-                const spent = scene.player.spendLight(1);
-                if (spent > 0) {
-                    scene.log.addMessage(scene.loc.t('lightLower', { count: spent }), '#e0c873');
+        if (FEATURES.light) {
+            const sparesLight =
+                scene.player.aggregate.emptyRoomsSpareLight && node.type === RoomType.EMPTY;
+            if (scene.skipLightSpendThisRoom) {
+                scene.skipLightSpendThisRoom = false;
+            } else if (!sparesLight && node.type !== RoomType.START) {
+                scene.roomsVisitedForLight += 1;
+                if (shouldDecayLight(scene.roomsVisitedForLight, RUN_CONFIG.runLength)) {
+                    const spent = scene.player.spendLight(1);
+                    if (spent > 0) {
+                        scene.log.addMessage(scene.loc.t('lightLower', { count: spent }), '#e0c873');
+                    }
+                }
+                if (isLightWarning(scene.player.resources.light)) {
+                    scene.log.addMessage(scene.loc.t('lightWarning'), '#c4a35a');
                 }
             }
-            if (isLightWarning(scene.player.resources.light)) {
-                scene.log.addMessage(scene.loc.t('lightWarning'), '#c4a35a');
-            }
-        }
 
-        if (scene.player.hasLowLight && node.type !== RoomType.START) {
-            if (Math.random() < 0.3) {
-                scene.log.addMessage(narrate('low_light', scene.loc.language), '#c4a35a');
+            if (scene.player.hasLowLight && node.type !== RoomType.START) {
+                if (Math.random() < 0.3) {
+                    scene.log.addMessage(narrate('low_light', scene.loc.language), '#c4a35a');
+                }
             }
         }
 
@@ -323,7 +325,9 @@ export class RoomFlowController {
                             scene.player.aggregate.restHealBonus
                     );
                     if (healed > 0) scene.tracker.record('healingDone', healed);
-                    const lightGained = scene.player.gainLight(ROOM_CONFIG.rest.recoverLight);
+                    const lightGained = FEATURES.light
+                        ? scene.player.gainLight(ROOM_CONFIG.rest.recoverLight)
+                        : 0;
                     const summary = [`${healed} ${scene.loc.t('hp')}`];
                     if (lightGained > 0) {
                         summary.push(`${lightGained} ${scene.loc.t('unitLight')}`);
@@ -760,7 +764,7 @@ export class RoomFlowController {
             },
         ];
 
-        if (scene.player.isLightUnlocked) {
+        if (FEATURES.light && scene.player.isLightUnlocked) {
             actions.push({
                 label: scene.loc.t('actionLantern', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.lanternCost }),
                 callback: () => {

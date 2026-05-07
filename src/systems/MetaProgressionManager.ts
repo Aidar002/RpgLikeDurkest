@@ -1,3 +1,4 @@
+import { FEATURES } from '../data/GameConfig';
 import { lt, pickLocalized } from './LocalizedText';
 import type { LocalizedText } from './LocalizedText';
 import type { SkillId } from './Skills';
@@ -480,11 +481,11 @@ export class MetaProgressionManager {
             showGold: true,
             showPotions: true,
             showResolve: true,
-            showLight: true,
+            showLight: FEATURES.light,
             showEnemyHp: true,
             showRunMetrics: true,
             showKillCounter: true,
-            showRelicShards: true,
+            showRelicShards: FEATURES.shards,
             showPrestigeForecast: true,
         };
     }
