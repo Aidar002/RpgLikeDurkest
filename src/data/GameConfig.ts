@@ -251,7 +251,15 @@ export const RUN_CONFIG = {
 } as const;
 
 export const MAP_CONFIG = {
-    initialLookahead: 5,
+    /**
+     * Number of map layers built up-front by `generateInitialMap`.
+     * Set deliberately low so the dungeon is *streamed* — the rest
+     * of the run is materialised one layer at a time as the player
+     * approaches (see `DungeonManager.lookaheadBuffer`). Keep this
+     * ≥ 2 so the player can always see at least the next two
+     * choice-layers from the START hub.
+     */
+    initialLookahead: 2,
     lookaheadBuffer: 3,
     /**
      * The depth of the final-boss layer. Every node at this depth
