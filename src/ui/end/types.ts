@@ -20,6 +20,12 @@ export interface RunEndState {
     runBossKills: number;
     prestigeAwarded: boolean;
     prestigeReward: number;
+    /**
+     * True when the player invoked the HUD escape button instead of
+     * dying or finishing the run. The end screen swaps in escape
+     * copy; prestige is awarded as usual on top of any in-run gains.
+     */
+    escaped: boolean;
 }
 
 /**

@@ -35,8 +35,11 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     const panel = scene.add.rectangle(CENTER_X, CENTER_Y, 700, 500, 0x0a0a18).setDepth(Depths.EndScreenPanel);
     panel.setStrokeStyle(2, 0x6a8fcc);
 
+    const titleKey = runState.escaped ? 'escapeScreenTitle' : 'victoryScreenTitle';
+    const summaryKey = runState.escaped ? 'escapeScreenSummary' : 'victoryScreenSummary';
+
     const title = scene.add
-        .text(CENTER_X, 150, loc.t('victoryScreenTitle'), {
+        .text(CENTER_X, 150, loc.t(titleKey), {
             fontFamily: 'Courier New',
             fontSize: '32px',
             color: '#ffd36e',
@@ -65,7 +68,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         ease: 'Sine.inOut',
     });
 
-    const summaryBody = loc.t('victoryScreenSummary', {
+    const summaryBody = loc.t(summaryKey, {
         depth: runState.runBestDepth,
         bosses: runState.runBossKills,
     });
