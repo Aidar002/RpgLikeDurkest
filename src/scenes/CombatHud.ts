@@ -200,16 +200,6 @@ export class CombatHudController {
             hints.push(scene.loc.t('hudHintCharging'));
         }
 
-        // [FIX-15] Surface Rupture's remaining cooldown next to the skill
-        // hint so the player isn't surprised when the button is disabled.
-        const ruptureCd = scene.combat.skillCooldowns.rupture ?? 0;
-        if (ruptureCd > 0) {
-            hints.push(scene.loc.t('skillCooldownBadge', { value: ruptureCd }));
-        }
-        if (scene.combat.adrenalineUsedThisCombat) {
-            hints.push(scene.loc.t('adrenalineUsedBadge'));
-        }
-
         if (scene.meta.isUnlocked('action_skill')) {
             hints.push(
                 scene.loc.t('hudHintSkillCost', { skillCost: COMBAT_CONFIG.skillCost })

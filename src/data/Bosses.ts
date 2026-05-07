@@ -35,17 +35,9 @@ export type BossActionId =
     | 'expose_self'
     | 'self_heal_if_safe'
     | 'self_buff_atk'
-    // Resource pressure.
-    | 'wish_tax'
-    | 'dim_flame'
-    | 'dread_pulse'
-    | 'dread_silence'
-    | 'grave_chill'
-    // Effects.
-    | 'cinder_curse'
-    | 'prophecy_mark'
-    | 'surgical_cut'
-    | 'splinter_vision';
+    // Death Knight specifics.
+    | 'death_shield'
+    | 'death_touch';
 
 export interface BossActionDef {
     id: BossActionId;
@@ -104,308 +96,59 @@ export interface BossBlueprint {
 export type BossPassiveId = 'cinderlight' | 'prophecy_crit' | 'maw_aura';
 
 // ---------------------------------------------------------------------------
-// Action shorthands
-// ---------------------------------------------------------------------------
-
-const A = {
-    hollowStrike: {
-        id: 'attack' as const,
-        intent: { en: 'Hollow Strike', ru: 'Полый удар' },
-    },
-    breakVow: {
-        id: 'heavy' as const,
-        intent: { en: 'Break Vow', ru: 'Разбитый обет' },
-        damageBonus: 3,
-    },
-    finalHunger: {
-        id: 'heavy' as const,
-        intent: { en: 'Final Hunger', ru: 'Последний голод' },
-        damageBonus: 4,
-    },
-    wishTax4: {
-        id: 'wish_tax' as const,
-        intent: { en: 'Wish Tax', ru: 'Налог желания' },
-        noAttack: true,
-        drainLight: 1,
-    },
-    wishTax5: {
-        id: 'wish_tax' as const,
-        intent: { en: 'Wish Tax', ru: 'Налог желания' },
-        noAttack: true,
-        drainLight: 1,
-    },
-    exposedDream2: {
-        id: 'expose_self' as const,
-        intent: { en: 'Exposed Dream', ru: 'Обнажённый сон' },
-        noAttack: true,
-        exposedExtraDamage: 2,
-    },
-    exposedDream3: {
-        id: 'expose_self' as const,
-        intent: { en: 'Exposed Dream', ru: 'Обнажённый сон' },
-        noAttack: true,
-        exposedExtraDamage: 3,
-    },
-    falseMercy: {
-        id: 'self_heal_if_safe' as const,
-        intent: { en: 'False Mercy', ru: 'Ложная милость' },
-        noAttack: true,
-        selfHealIfNoDamageTaken: 6,
-    },
-    dreadSilence: {
-        id: 'dread_silence' as const,
-        intent: { en: 'Dread Silence', ru: 'Гнетущая тишина' },
-        noAttack: true,
-        selfBlock: 2,
-    },
-} as const;
-
-// ---------------------------------------------------------------------------
-// FIX-10: Boss blueprints for depth 5 / 10 / 15 / 20.
-// FIX-1:  Boss blueprint for depth 25 (final boss).
+// Death Knight boss blueprint.
 // ---------------------------------------------------------------------------
 
 export const BOSS_BLUEPRINTS: BossBlueprint[] = [
     {
-        name: 'Necromancer Regent',
+        name: 'Death Knight',
         phases: [
             {
                 enterAtHpRatio: 1.0,
                 actions: [
                     {
                         id: 'attack',
-                        intent: { en: 'Bone Command', ru: 'Костяной приказ' },
+                        intent: { en: 'Dark Slash', ru: 'Тёмный удар' },
                     },
                     {
-                        id: 'grave_chill',
-                        intent: { en: 'Grave Chill', ru: 'Могильный холод' },
+                        id: 'death_shield',
+                        intent: { en: 'Death Shield', ru: 'Щит смерти' },
                         noAttack: true,
-                        weaken: { amount: 1, turns: 2 },
+                        selfBlock: 15,
                     },
                     {
-                        id: 'expose_self',
-                        intent: { en: 'Exposed', ru: 'Обнажённый' },
-                        noAttack: true,
-                        exposedExtraDamage: 1,
+                        id: 'death_touch',
+                        intent: { en: 'Death Touch', ru: 'Касание смерти' },
+                        damageBonus: 0,
                     },
                 ],
             },
             {
                 enterAtHpRatio: 0.5,
-                onEnter: { atkBoost: 1 },
-                label: { en: 'The Regent rises in fury.', ru: 'Регент поднимается в ярости.' },
+                onEnter: { atkBoost: 2 },
+                label: { en: 'The Death Knight raises his blade.', ru: 'Рыцарь смерти поднимает клинок.' },
                 actions: [
                     {
                         id: 'heavy',
-                        intent: { en: 'Royal Decree', ru: 'Королевский указ' },
-                        damageBonus: 2,
-                    },
-                    {
-                        id: 'guard',
-                        intent: { en: 'Bone Shield', ru: 'Костяной щит' },
-                        noAttack: true,
-                        selfBlock: 3,
-                    },
-                    {
-                        id: 'grave_chill',
-                        intent: { en: 'Grave Chill', ru: 'Могильный холод' },
-                        noAttack: true,
-                        weaken: { amount: 1, turns: 3 },
-                    },
-                    {
-                        id: 'expose_self',
-                        intent: { en: 'Exposed', ru: 'Обнажённый' },
-                        noAttack: true,
-                        exposedExtraDamage: 1,
-                    },
-                ],
-            },
-        ],
-    },
-    {
-        name: 'The Lich of Cinders',
-        passives: ['cinderlight'],
-        phases: [
-            {
-                enterAtHpRatio: 1.0,
-                actions: [
-                    {
-                        id: 'attack',
-                        intent: { en: 'Ash Bolt', ru: 'Пепельная стрела' },
-                    },
-                    {
-                        id: 'dim_flame',
-                        intent: { en: 'Dim Flame', ru: 'Тушит пламя' },
-                        noAttack: true,
-                        drainLight: 1,
-                    },
-                    {
-                        id: 'cinder_curse',
-                        intent: { en: 'Cinder Curse', ru: 'Пепельное проклятие' },
-                        noAttack: true,
-                        weaken: { amount: 1, turns: 2 },
-                    },
-                ],
-            },
-            {
-                enterAtHpRatio: 0.5,
-                onEnter: { drainLight: 1 },
-                label: { en: 'Embers rise — the Lich draws on the dark.', ru: 'Угли вспыхивают — Лич черпает из тьмы.' },
-                actions: [
-                    {
-                        id: 'attack',
-                        intent: { en: 'Ash Bolt', ru: 'Пепельная стрела' },
-                    },
-                    {
-                        id: 'heavy',
-                        intent: { en: 'Cinderstorm', ru: 'Пепельная буря' },
-                        damageBonus: 2,
-                    },
-                    {
-                        id: 'dim_flame',
-                        intent: { en: 'Dim Flame', ru: 'Тушит пламя' },
-                        noAttack: true,
-                        drainLight: 1,
-                    },
-                    {
-                        id: 'recover',
-                        intent: { en: 'Recover', ru: 'Восстанавливается' },
-                        noAttack: true,
-                        exposedExtraDamage: 2,
-                    },
-                ],
-            },
-        ],
-    },
-    {
-        name: 'Splintered Oracle',
-        passives: ['prophecy_crit'],
-        phases: [
-            {
-                enterAtHpRatio: 1.0,
-                actions: [
-                    {
-                        id: 'prophecy_mark',
-                        intent: { en: 'Prophecy Mark', ru: 'Метка пророчества' },
-                        noAttack: true,
-                        markPlayer: 2,
-                    },
-                    {
-                        id: 'surgical_cut',
-                        intent: { en: 'Surgical Cut', ru: 'Точный разрез' },
-                        bleed: { stacks: 2, turns: 3, onlyIfMarked: true },
-                    },
-                    {
-                        id: 'attack',
-                        intent: { en: 'Whispered Future', ru: 'Шёпот будущего' },
-                        damageBonus: 1,
-                    },
-                ],
-            },
-            {
-                enterAtHpRatio: 0.5,
-                onEnter: { markPlayer: 2 },
-                label: { en: 'The Oracle foresees your fall.', ru: 'Оракул видит твоё падение.' },
-                actions: [
-                    {
-                        id: 'surgical_cut',
-                        intent: { en: 'Surgical Cut', ru: 'Точный разрез' },
-                        bleed: { stacks: 3, turns: 3, alwaysIfHit: true },
-                    },
-                    {
-                        id: 'prophecy_mark',
-                        intent: { en: 'Prophecy Mark', ru: 'Метка пророчества' },
-                        noAttack: true,
-                        markPlayer: 2,
-                    },
-                    {
-                        id: 'splinter_vision',
-                        intent: { en: 'Splinter Vision', ru: 'Расщеплённое зрение' },
+                        intent: { en: 'Grave Strike', ru: 'Могильный удар' },
                         damageBonus: 3,
                     },
                     {
-                        id: 'recover',
-                        intent: { en: 'Recover', ru: 'Восстанавливается' },
+                        id: 'death_shield',
+                        intent: { en: 'Death Shield', ru: 'Щит смерти' },
                         noAttack: true,
-                        exposedExtraDamage: 1,
-                    },
-                ],
-            },
-        ],
-    },
-    {
-        name: 'Nameless Maw',
-        passives: ['maw_aura'],
-        phases: [
-            {
-                enterAtHpRatio: 1.0,
-                actions: [
-                    {
-                        id: 'attack',
-                        intent: { en: 'Gnaw', ru: 'Грызёт' },
+                        selfBlock: 15,
                     },
                     {
-                        id: 'dread_pulse',
-                        intent: { en: 'Dread Pulse', ru: 'Импульс ужаса' },
-                        noAttack: true,
-                        weaken: { amount: 1, turns: 2 },
-                    },
-                    {
-                        id: 'heavy',
-                        intent: { en: 'Hunger', ru: 'Голод' },
-                        damageBonus: 2,
-                    },
-                ],
-            },
-            {
-                enterAtHpRatio: 0.5,
-                onEnter: { atkBoost: 1 },
-                label: { en: 'The Maw widens.', ru: 'Пасть распахивается шире.' },
-                actions: [
-                    {
-                        id: 'heavy',
-                        intent: { en: 'Devour Hope', ru: 'Пожирает надежду' },
-                        damageBonus: 3,
-                    },
-                    {
-                        id: 'dread_pulse',
-                        intent: { en: 'Dread Pulse', ru: 'Импульс ужаса' },
-                        noAttack: true,
-                        weaken: { amount: 1, turns: 3 },
+                        id: 'death_touch',
+                        intent: { en: 'Death Touch', ru: 'Касание смерти' },
+                        damageBonus: 0,
                     },
                     {
                         id: 'attack',
-                        intent: { en: 'Gnaw', ru: 'Грызёт' },
-                    },
-                    {
-                        id: 'expose_self',
-                        intent: { en: 'Exposed Maw', ru: 'Открытая пасть' },
-                        noAttack: true,
-                        exposedExtraDamage: 2,
+                        intent: { en: 'Dark Slash', ru: 'Тёмный удар' },
                     },
                 ],
-            },
-        ],
-    },
-    {
-        name: 'The Undying Wound',
-        bleedCap: 4,
-        phases: [
-            {
-                enterAtHpRatio: 1.0,
-                actions: [A.hollowStrike, A.wishTax4, A.exposedDream2],
-            },
-            {
-                enterAtHpRatio: 0.66,
-                onEnter: { atkBoost: 1 },
-                label: { en: 'The Wound refuses to close.', ru: 'Рана отказывается закрыться.' },
-                actions: [A.hollowStrike, A.breakVow, A.wishTax5, A.falseMercy],
-            },
-            {
-                enterAtHpRatio: 0.34,
-                onEnter: { atkBoost: 1, capLight: 3 },
-                label: { en: 'The wish takes everything.', ru: 'Желание забирает всё.' },
-                actions: [A.finalHunger, A.dreadSilence, A.exposedDream3, A.hollowStrike],
             },
         ],
     },

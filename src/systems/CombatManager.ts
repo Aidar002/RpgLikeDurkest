@@ -1,11 +1,9 @@
 import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
 import {
-    ADRENALINE_CONFIG,
     COMBAT_CONFIG,
     LIGHT_CONFIG,
     RELIC_CAP_CONFIG,
     ROOM_CONFIG,
-    RUPTURE_CONFIG,
     STUN_RESIST_CONFIG,
 } from '../data/GameConfig';
 import type { EnemyDef, EnemyProfile } from '../data/GameConfig';
@@ -149,11 +147,10 @@ export class CombatManager {
     public readonly playerHit = new Emitter<{ damage: number }>();
     public readonly combatEnd = new Emitter<CombatEndPayload>();
 
-    /** [FIX-5] Per-combat skill cooldowns keyed by SkillId; only Rupture uses
-     *  this for now, but the table is generic. */
+    /** [FIX-5] Per-combat skill cooldowns keyed by SkillId. */
     public skillCooldowns: Partial<Record<SkillId, number>> = {};
-    /** [FIX-6] One-shot adrenaline guard. Reset every startCombat. */
-    public adrenalineUsedThisCombat = false;
+    /** Preparation buff: next attack +1 damage, next defend +1 defense. */
+    public preparationActive = false;
     /**
      * [FIX-13] Per-turn relic guards. Reset at the top of every player
      * turn so Vampiric Sigil / Gambler's Knuckle resolve gain can fire
@@ -180,10 +177,9 @@ export class CombatManager {
     }
 
     startCombat(depth: number, kind: EncounterKind) {
-        // [FIX-5, FIX-6] Reset per-combat state. Cooldowns & adrenaline
-        // tracking start fresh for every fight.
+        // Reset per-combat state.
         this.skillCooldowns = {};
-        this.adrenalineUsedThisCombat = false;
+        this.preparationActive = false;
         const definition = kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth);
         this.setupEnemy(depth, kind, definition);
     }
@@ -391,11 +387,17 @@ export class CombatManager {
         if (!this.enemy) return;
         this.player.gainResolve(COMBAT_CONFIG.resolveFromAttack);
         const result = this.rollPlayerAttack();
-        this.applyPlayerDamage(result.damage, result.critical);
+        let damage = result.damage;
+        if (this.preparationActive) {
+            damage += 1;
+            this.preparationActive = false;
+            this.log.addMessage(this.loc.t('combatPreparationAttack'), '#9bc8ff');
+        }
+        this.applyPlayerDamage(damage, result.critical);
         this.log.addMessage(
             result.critical
-                ? this.loc.t('strikeCrit', { damage: result.damage })
-                : this.loc.t('strike', { damage: result.damage }),
+                ? this.loc.t('strikeCrit', { damage })
+                : this.loc.t('strike', { damage }),
             result.critical ? '#ffe08a' : '#dddddd'
         );
         if (result.critical && this.rng.next() < 0.35) {
@@ -407,29 +409,23 @@ export class CombatManager {
     private handlePlayerDefend() {
         if (!this.enemy) return;
         this.player.gainResolve(COMBAT_CONFIG.resolveFromGuard);
+        if (this.preparationActive) {
+            this.player.addDefenseBonus(1);
+            this.preparationActive = false;
+            this.log.addMessage(this.loc.t('combatPreparationDefend'), '#9bc8ff');
+        }
         this.log.addMessage(this.loc.t('brace'), '#66aaff');
     }
 
     private handlePlayerSkill(skillId: SkillId): boolean {
         if (!this.enemy) return false;
         const skill = SKILLS[skillId];
-        // [FIX-5] Cooldown gate. Currently only Rupture sets a cooldown,
-        // but the gate is generic so future skills can adopt it.
         if (this.isSkillOnCooldown(skillId)) {
             this.log.addMessage(
                 this.loc.t('combatSkillOnCooldown', {
                     value: this.skillName(skillId),
                     turns: this.getSkillCooldown(skillId),
                 }),
-                '#8899aa'
-            );
-            return false;
-        }
-        // [FIX-6] Adrenaline hard cap: 1 use per combat. Refuse to even
-        // pay the resolve cost if it has already been used.
-        if (skillId === 'adrenaline' && this.adrenalineUsedThisCombat) {
-            this.log.addMessage(
-                this.loc.t('combatAdrenalineSpent'),
                 '#8899aa'
             );
             return false;
@@ -445,10 +441,9 @@ export class CombatManager {
 
         switch (skillId) {
             case 'cleave': {
-                const dmg = Math.max(
-                    1,
-                    Math.ceil(this.player.getAttackPower() * 1.8) + 2 + this.effectiveDamageMod()
-                );
+                const base = this.player.getAttackPower() + this.effectiveDamageMod();
+                const bonus = Math.max(1, Math.floor(base * 0.5));
+                const dmg = Math.max(1, base + bonus);
                 this.applyPlayerDamage(dmg, false);
                 this.log.addMessage(this.loc.t('combatSkillCleave', { dmg }), '#b893ff');
                 this.applyOnAttackRelics();
@@ -457,15 +452,16 @@ export class CombatManager {
             case 'bleed_strike': {
                 const dmg = Math.max(
                     1,
-                    Math.ceil(this.player.getAttackPower() * 1.1) + this.effectiveDamageMod()
+                    this.player.getAttackPower() + this.effectiveDamageMod()
                 );
                 this.applyPlayerDamage(dmg, false);
+                const bleedPerTick = Math.max(1, Math.floor(this.player.getAttackPower() * 0.2));
                 const agg = this.player.aggregate;
                 applyBleed(
                     this.enemy.status,
-                    2 + agg.bleedStackBonus,
+                    bleedPerTick + agg.bleedStackBonus,
                     3 + agg.bleedTurnBonus,
-                    this.enemy.bleedCap // [FIX-1] respects final-boss cap
+                    this.enemy.bleedCap
                 );
                 this.log.addMessage(
                     this.loc.t('combatSkillBleedStrike', { dmg }),
@@ -474,72 +470,12 @@ export class CombatManager {
                 this.applyOnAttackRelics();
                 break;
             }
-            case 'parry_stance': {
-                applyGuard(this.player.status, 2, 4);
-                if (this.tryStun(1)) {
-                    this.log.addMessage(this.loc.t('combatSkillParryBreak'), '#7fa9ff');
-                    this.log.addMessage(narrate('stun_landed', this.loc.language), '#c4a35a');
-                } else {
-                    this.log.addMessage(this.loc.t('combatSkillParrySteady'), '#7fa9ff');
-                }
-                this.player.gainResolve(1);
-                break;
-            }
-            case 'focused_strike': {
-                const dmg = Math.max(
-                    1,
-                    Math.ceil(this.player.getAttackPower() * 0.9) + this.effectiveDamageMod()
-                );
-                this.applyPlayerDamage(dmg, false);
-                applyMark(this.enemy.status, 2);
+            case 'preparation': {
+                this.preparationActive = true;
                 this.log.addMessage(
-                    this.loc.t('combatSkillFocusedStrike', { dmg }),
-                    '#d6c260'
+                    this.loc.t('combatSkillPreparation'),
+                    '#7fa9ff'
                 );
-                this.applyOnAttackRelics();
-                break;
-            }
-            case 'rupture': {
-                // [FIX-5] Per-target % cap. Bosses & final boss take a
-                // tighter slice so Rupture can't 3-shot them.
-                const cap = this.ruptureCapForEnemy(this.enemy);
-                const pct = Math.ceil(this.enemy.maxHp * cap);
-                const dmg = Math.max(this.player.getAttackPower(), pct) + this.effectiveDamageMod();
-                this.applyPlayerDamage(dmg, false);
-                this.skillCooldowns.rupture = RUPTURE_CONFIG.cooldownTurns + 1;
-                this.log.addMessage(this.loc.t('combatSkillRupture', { dmg }), '#c048a0');
-                this.applyOnAttackRelics();
-                break;
-            }
-            case 'adrenaline': {
-                // [FIX-6] Mark adrenaline as used so the gate at the top
-                // of this method blocks any further attempts.
-                this.adrenalineUsedThisCombat = true;
-                const healed = this.player.heal(ADRENALINE_CONFIG.heal);
-                this.player.gainResolve(ADRENALINE_CONFIG.resolveGain);
-                applyFocus(
-                    this.player.status,
-                    ADRENALINE_CONFIG.focusAmount,
-                    ADRENALINE_CONFIG.focusTurns
-                );
-                this.log.addMessage(
-                    this.loc.t('combatSkillRally', { healed }),
-                    '#66dd88'
-                );
-                break;
-            }
-            case 'crushing_blow': {
-                const dmg = Math.max(
-                    1,
-                    Math.ceil(this.player.getAttackPower() * 2.4) + 3 + this.effectiveDamageMod()
-                );
-                this.applyPlayerDamage(dmg, false);
-                this.player.takeDamage(3, 0, 'true');
-                this.log.addMessage(
-                    this.loc.t('combatSkillCrushingBlow', { dmg }),
-                    '#e06040'
-                );
-                this.applyOnAttackRelics();
                 break;
             }
         }
@@ -630,16 +566,6 @@ export class CombatManager {
         }
     }
 
-    /**
-     * [FIX-5] Per-target Rupture cap: 15% for boss/final_boss, 18% for
-     * elites, 22% otherwise. Sourced from RUPTURE_CONFIG.
-     */
-    private ruptureCapForEnemy(enemy: ActiveEnemy): number {
-        if (enemy.profile === 'final_boss') return RUPTURE_CONFIG.capByKind.final_boss;
-        if (enemy.profile === 'boss' || enemy.kind === 'boss') return RUPTURE_CONFIG.capByKind.boss;
-        if (enemy.kind === 'elite') return RUPTURE_CONFIG.capByKind.elite;
-        return RUPTURE_CONFIG.capByKind.normal;
-    }
 
     /**
      * [FIX-11] Stun resistance keyed by enemy profile / boss name. The
