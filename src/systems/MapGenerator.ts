@@ -115,6 +115,17 @@ const FINAL_APPROACH_POOL: RoomType[] = [
 const FINAL_APPROACH_MIN_WIDTH = 2;
 
 /**
+ * Forced number of children in the START room's child layer
+ * (depth = 1) AND the START room's outgoing-edge fanout. The player
+ * should always see 4 directional choices from the very first step
+ * so the run feels open right away, instead of starting on what
+ * could otherwise be a 1-2 wide corridor on unlucky rng. Capped at
+ * {@link MAP_CONFIG.maxEdgesPerNode} so we never overshoot the
+ * global outgoing-edge cap.
+ */
+const START_FANOUT_WIDTH = 4;
+
+/**
  * Recovery / reward room types forced as the **direct child** of a
  * mid-run major boss (`bossKind === 'major'`). Mini-bosses do *not*
  * trigger this — only major bosses interrupt the run hard enough
@@ -176,7 +187,19 @@ const MAX_EDGE_LENGTH = 240;
  * that broke the Darkest-Dungeon look.
  */
 const FALLBACK_EDGE_LENGTH = 360;
-const FALLBACK_EDGE_LENGTH_SQ = FALLBACK_EDGE_LENGTH * FALLBACK_EDGE_LENGTH;
+/**
+ * Reach for the bonus-edge pass — bonus edges may stretch farther
+ * than primary edges because they connect a parent to a sibling of
+ * a different parent (i.e. across the layer's lateral spread).
+ * Calibrated so wide (3-4) layers actually reach a meaningful
+ * subset of cross-parent siblings without throwing the
+ * preferred-edge-length distribution off the visual rails — the
+ * test "keeps most edges close to the preferred length" caps the
+ * over-cap rate at 25 %, which constrains how aggressive this can
+ * get without a layout-engine rewrite.
+ */
+const BONUS_EDGE_REACH = 420;
+const BONUS_EDGE_REACH_SQ = BONUS_EDGE_REACH * BONUS_EDGE_REACH;
 /**
  * Pathological last-resort radius used only when even
  * {@link FALLBACK_EDGE_LENGTH} can't find a clean spot — we
@@ -599,16 +622,35 @@ export class MapGenerator {
         const isFinalApproach = depth === this.runLength - 1;
 
         const branchRoll = this.rng.next();
-        const { one, two } = MAP_CONFIG.branchRolls;
+        const { one, two, three } = MAP_CONFIG.branchRolls;
         const rolledCount =
-            branchRoll < one ? 1 : branchRoll < one + two ? 2 : 3;
+            branchRoll < one
+                ? 1
+                : branchRoll < one + two
+                  ? 2
+                  : branchRoll < one + two + three
+                    ? 3
+                    : 4;
+        // depth=1 is the START's child layer. The START room is a
+        // hub: the player should always see 4 directional choices
+        // there so the run feels open from the first step. We
+        // pin layer width to START_FANOUT_WIDTH so the rng can
+        // never collapse it to 1-3 children, and the per-parent
+        // fanout pass (see rollFanoutForParent) forces START's
+        // outgoing edges to the same width so all 4 children
+        // actually wire up.
+        const isStartChildLayer = depth === 1;
         // Final-approach layer always offers ≥ FINAL_APPROACH_MIN_WIDTH
         // recovery rooms so the player has a real choice of which
         // final-boss node to head into. Open layers require at least
         // one new node per previous-layer parent so every parent
         // keeps a forward edge (multidirectional placement can't
         // fan many parents into a single child without crossings).
-        const minWidth = isFinalApproach ? FINAL_APPROACH_MIN_WIDTH : 1;
+        const minWidth = isStartChildLayer
+            ? START_FANOUT_WIDTH
+            : isFinalApproach
+              ? FINAL_APPROACH_MIN_WIDTH
+              : 1;
         const count = Math.max(rolledCount, previousLayer.length, minWidth);
         const newLayer: MapNode[] = [];
 
@@ -757,10 +799,19 @@ export class MapGenerator {
         // no-clipping / no-boss-adjacency invariants so we never
         // trade visual clarity (or PR-2's adjacency rule) for
         // extra paths.
+        //
+        // The START room overrides the rolled fanout and always
+        // targets {@link START_FANOUT_WIDTH} — the player should
+        // see all 4 directional choices on entry. Pairs with the
+        // depth=1 layer-width override above so the 4 children
+        // exist for these edges to reach.
         previousLayer.forEach((parent) => {
             if (newLayer.length <= 1) return;
 
-            const targetFanout = this.rollFanout();
+            const targetFanout =
+                parent.type === RoomType.START
+                    ? START_FANOUT_WIDTH
+                    : this.rollFanout();
             const cap = Math.min(MAP_CONFIG.maxEdgesPerNode, newLayer.length);
             let need = Math.min(targetFanout, cap) - parent.edges.length;
             if (need <= 0) return;
@@ -777,7 +828,7 @@ export class MapGenerator {
 
             for (const cand of candidates) {
                 if (need <= 0) break;
-                if (squaredDistance(parent, cand) > FALLBACK_EDGE_LENGTH_SQ) {
+                if (squaredDistance(parent, cand) > BONUS_EDGE_REACH_SQ) {
                     // Sorted nearest-first, so subsequent siblings
                     // are even farther — stop scanning.
                     break;

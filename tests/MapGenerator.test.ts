@@ -155,11 +155,15 @@ describe('MapGenerator', () => {
         // PR-1 removed the legacy PRE-BOSS / BOSS bottleneck so
         // the only forced fan-in pattern that remains is the
         // final-approach layer (still wide enough to fan onto
-        // multiple final-boss nodes). Crossings should be even
-        // rarer than before; we keep the same 5% budget so the
-        // test isn't fragile across RNG churn.
+        // multiple final-boss nodes). The 3-4 layer-width shift
+        // (PR fanout-bias) widened layers further, which gives
+        // the slot-rotation a few more chances to lay primary
+        // edges that cross — `edgeIsClear` still rejects those at
+        // placement time, but the safety-net fallback can still
+        // accept a crossing rather than orphan a node. Budget is
+        // 8 % so the test isn't fragile across RNG churn.
         const SEED_COUNT = 200;
-        const MAX_FAILURE_RATE = 0.05;
+        const MAX_FAILURE_RATE = 0.08;
         let failingSeeds = 0;
 
         for (let seed = 0; seed < SEED_COUNT; seed++) {
@@ -290,6 +294,29 @@ describe('MapGenerator', () => {
                     );
                     expect(hasParent).toBe(true);
                 }
+            }
+        }
+    });
+
+    it('START always offers four directional choices on entry', () => {
+        // The START room is a hub — the very first step should
+        // always present 4 paths so the run feels open from move
+        // one (a tighter spec than the global 1-4 fanout that
+        // applies to every other room). Pinned to a wide range of
+        // seeds because the layer-width override and the bonus-
+        // edge START-fanout override must both kick in even on
+        // unlucky rng.
+        for (let seed = 0; seed < 50; seed++) {
+            const gen = new MapGenerator(undefined, new Mulberry32(seed));
+            const nodes = gen.generateInitialMap(5);
+            const start = nodes.find((n) => n.depth === 0);
+            expect(start).toBeDefined();
+            expect(start!.edges.length).toBe(4);
+            const depthOne = nodes.filter((n) => n.depth === 1);
+            expect(depthOne.length).toBe(4);
+            // Every depth-1 node is reached by START.
+            for (const child of depthOne) {
+                expect(start!.edges).toContain(child.id);
             }
         }
     });
@@ -458,8 +485,13 @@ describe('MapGenerator', () => {
                 );
                 // Cap on extra minis the seal pass may add — at
                 // most one per `requiredSeals` "cut" through the
-                // map plus a small slack.
-                const sealCoverageSlack = 6;
+                // map plus a slack. The slack scales with the
+                // typical layer width (now up to 4 wide after the
+                // 3-4 fanout shift) since each additional parallel
+                // path through a "cut" can require its own dedicated
+                // seal-bearing mini. Empirically the 75-depth runs
+                // peak at ~20 minis, so the slack must absorb that.
+                const sealCoverageSlack = 14;
                 for (let seed = 0; seed < 20; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
                     const report = validateMap(nodes, runLength);
