@@ -199,6 +199,13 @@ export class CombatManager {
         const lowLightRewardMultiplier =
             kind !== 'normal' ? this.player.getRewardMultiplierFromLowLight() : 1;
 
+        // Boss "piñata" XP bump — bosses dump 10–20 levels worth of XP in
+        // one kill so the player visibly powers up after every depth-tier
+        // fight. Stacks on top of bossRewardMultiplier and is XP-only
+        // (gold still uses the legacy reward multiplier).
+        const xpBossBonus =
+            kind === 'boss' ? COMBAT_CONFIG.bossXpMultiplier : 1;
+
         const baseHp = kind === 'elite'
             ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
             : definition.hp;
@@ -220,7 +227,7 @@ export class CombatManager {
             maxHp: baseHp,
             attack: baseAtk,
             color: definition.color,
-            xp: Math.max(1, Math.round(definition.xp * rewardMultiplier * lowLightRewardMultiplier)),
+            xp: Math.max(1, Math.round(definition.xp * rewardMultiplier * lowLightRewardMultiplier * xpBossBonus)),
             gold: Math.max(1, Math.round(definition.gold * rewardMultiplier * lowLightRewardMultiplier)),
             profile: definition.profile,
             enraged: false,
