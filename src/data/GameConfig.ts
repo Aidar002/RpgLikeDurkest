@@ -317,10 +317,10 @@ export const MAP_CONFIG = {
      * makes the START 4-fanout actually realisable.
      */
     fanoutRolls: {
-        one: 0.05,
-        two: 0.20,
-        three: 0.40,
-        four: 0.35,
+        one: 0.10,
+        two: 0.30,
+        three: 0.30,
+        four: 0.30,
     },
     /**
      * Hard cap on outgoing edges per non-bottleneck room. Keeps

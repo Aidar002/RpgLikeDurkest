@@ -1,4 +1,4 @@
-import { MAP_CONFIG, RUN_CONFIG } from '../data/GameConfig';
+import { FEATURES, MAP_CONFIG, RUN_CONFIG } from '../data/GameConfig';
 import { defaultRng, type Rng } from './Rng';
 
 export const RoomType = {
@@ -128,8 +128,15 @@ function clamp(value: number, lo: number, hi: number): number {
 
 /**
  * Compute the `requiredSeals` budget for a given run length.
+ *
+ * When the seal feature is disabled (see {@link FEATURES.seals}) we
+ * return 0 so the generator skips the seal-coverage promotion pass —
+ * promoting plain rooms into mini-bosses for an invisible system
+ * would just inflate the boss count and slow generation on long
+ * runs.
  */
 export function getRequiredSeals(runLength: number): number {
+    if (!FEATURES.seals) return 0;
     const cfg = RUN_CONFIG.seals;
     return clamp(
         Math.round(runLength / cfg.requiredSealsFactor),
@@ -174,8 +181,13 @@ const MAX_LAYER_WIDTH = 4;
  * The forced-min rule in {@link MapGenerator.buildLayer} additionally
  * guarantees no two single-fanout nodes appear back-to-back on any
  * path.
+ *
+ * Distribution is biased toward 2-4 (10/30/30/30) so corridor cells
+ * stay rare (~10%) while branching, three-way and four-way splits
+ * each get equal weight — keeps the run feeling "branchy" without
+ * over-favouring max fanout.
  */
-const FANOUT_WEIGHTS: readonly number[] = [0.1, 0.65, 0.2, 0.05];
+const FANOUT_WEIGHTS: readonly number[] = [0.1, 0.3, 0.3, 0.3];
 
 const GRID_DIRS: ReadonlyArray<{ dx: number; dy: number }> = [
     { dx: 1, dy: 0 },
@@ -484,35 +496,92 @@ export class MapGenerator {
         }
 
         // Pass C: cap the layer width so the diamond doesn't blow
-        // up on long runs. We keep the cells with the most claims
-        // (shared / diagonal cells) so the graph consolidates into
-        // a "main road plus side streets". Any parent left with no
-        // surviving cell after the cap gets one of its dropped cells
-        // restored, even if that nudges the layer slightly over the
-        // cap — every parent must have ≥ 1 forward edge.
+        // up on long runs. We pick cells via coverage-greedy: each
+        // pick favours cells whose claimers still need to satisfy
+        // their forced-min ("no two corridors in a row"), then
+        // breaks ties by total claim count so the graph consolidates
+        // into shared diagonals. A small overage above MAX_LAYER_WIDTH
+        // is permitted only when a parent would otherwise be left
+        // with fewer cells than their forced-min target — without
+        // that escape hatch the no-corridor rule could not always
+        // hold.
         if (claimOrder.length > MAX_LAYER_WIDTH) {
-            const ranked = [...claimOrder].sort((a, b) => {
-                const ca = claims.get(a)!.length;
-                const cb = claims.get(b)!.length;
-                if (cb !== ca) return cb - ca;
-                return a.localeCompare(b);
-            });
-            const kept = new Set(ranked.slice(0, MAX_LAYER_WIDTH));
+            const claimCount = (k: string) => claims.get(k)!.length;
+            const need = new Map<string, number>();
+            for (const p of sortedParents) {
+                need.set(p.id, forcedMin.get(p.id) ?? 1);
+            }
+            const remaining = new Set(claimOrder);
+            const kept = new Set<string>();
+
+            const pickBest = (): string | null => {
+                let bestKey: string | null = null;
+                let bestUnmet = -1;
+                let bestClaims = -1;
+                for (const k of remaining) {
+                    const claimers = claims.get(k)!;
+                    let unmetCovered = 0;
+                    for (const p of claimers) {
+                        if ((need.get(p.id) ?? 0) > 0) unmetCovered++;
+                    }
+                    const total = claimers.length;
+                    const better =
+                        unmetCovered > bestUnmet ||
+                        (unmetCovered === bestUnmet && total > bestClaims) ||
+                        (unmetCovered === bestUnmet &&
+                            total === bestClaims &&
+                            (bestKey === null || k < bestKey));
+                    if (better) {
+                        bestKey = k;
+                        bestUnmet = unmetCovered;
+                        bestClaims = total;
+                    }
+                }
+                return bestKey;
+            };
+
+            // Phase 1: fill up to the cap with coverage-greedy picks.
+            while (kept.size < MAX_LAYER_WIDTH && remaining.size > 0) {
+                const k = pickBest();
+                if (k === null) break;
+                kept.add(k);
+                remaining.delete(k);
+                for (const p of claims.get(k)!) {
+                    const cur = need.get(p.id) ?? 0;
+                    if (cur > 0) need.set(p.id, cur - 1);
+                }
+            }
+
+            // Phase 2: ensure every parent meets
+            // min(forcedMin, theirClaimedCellCount). Any cell added
+            // here pushes the layer slightly over MAX_LAYER_WIDTH —
+            // this is the trade-off that lets us guarantee no two
+            // single-fanout corridors in a row.
             for (const parent of sortedParents) {
                 const myKeys = claimOrder.filter((k) =>
                     claims.get(k)!.includes(parent),
                 );
                 if (myKeys.length === 0) continue;
-                if (myKeys.some((k) => kept.has(k))) continue;
-                // Restore the parent's most-shared dropped cell.
-                const restored = [...myKeys].sort((a, b) => {
-                    const ca = claims.get(a)!.length;
-                    const cb = claims.get(b)!.length;
-                    if (cb !== ca) return cb - ca;
-                    return a.localeCompare(b);
-                })[0];
-                kept.add(restored);
+                const target = Math.min(
+                    forcedMin.get(parent.id) ?? 1,
+                    myKeys.length,
+                );
+                const myKept = myKeys.filter((k) => kept.has(k));
+                if (myKept.length >= target) continue;
+                const myDropped = myKeys
+                    .filter((k) => !kept.has(k))
+                    .sort((a, b) => {
+                        const diff = claimCount(b) - claimCount(a);
+                        return diff !== 0 ? diff : a.localeCompare(b);
+                    });
+                let restored = myKept.length;
+                for (const k of myDropped) {
+                    if (restored >= target) break;
+                    kept.add(k);
+                    restored++;
+                }
             }
+
             for (const k of [...claims.keys()]) {
                 if (!kept.has(k)) claims.delete(k);
             }
