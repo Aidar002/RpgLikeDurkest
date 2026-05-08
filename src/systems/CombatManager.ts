@@ -148,6 +148,28 @@ export interface EnemyUpdatePayload {
     icon: string;
 }
 
+// =============================================================================
+// CombatManager routing map (see docs/ARCH_MAP.md + docs/EVENTS.md)
+// -----------------------------------------------------------------------------
+// Type/payload exports (CombatAction, BossPhaseState, ActiveEnemy,
+//   CombatRewards, CombatEndPayload, EnemyUpdatePayload) . . . . . .   40 - 149
+// Field declarations + Emitter channels . . . . . . . . . . . . . . 152 - 188
+// constructor / skillName . . . . . . . . . . . . . . . . . . . . . 190 - 204
+// startCombat / setupEnemy (encounter init, scaling, intent rolls). 206 - 311
+// getSkillCooldown / isSkillOnCooldown . . . . . . . . . . . . . .  313 - 320
+// processTurn (top-level player-action dispatcher) . . . . . . . .  322 - 428
+// handlePlayerAttack / Defend / Skill / Potion . . . . . . . . . .  430 - 564
+// applyPlayerDamage (crit, mark, weaken, status, kill check) . . .  566 - 670
+// applyOnAttackRelics / tryVampireBlessingOnAttack /
+//   tryHealOnAttack / effectiveDamageMod . . . . . . . . . . . . .  672 - 721
+// resolveEnemyTurn (non-boss intent execution) . . . . . . . . . .  723 - 900
+// applyEnemyHitToPlayer / finishCombat / logDeath /
+//   rollPlayerAttack / buildRewards . . . . . . . . . . . . . . . . 902 - 1001
+// Boss machinery: intentLabel*, prepareName, resolvePrepare,
+//   maybeAdvancePhase, runBossTurn, resolveBossWindupAction,
+//   tickBossBlockAtTurnEnd, breakBossBlockOnSkillDamage . . . . .  1003 - 1478
+// enemyStatusText / playerStatusText / randomBetween . . . . . . . 1481 - end
+// =============================================================================
 export class CombatManager {
     private player: PlayerManager;
     private log: EventLog;

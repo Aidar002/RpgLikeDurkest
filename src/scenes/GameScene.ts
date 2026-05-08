@@ -73,6 +73,28 @@ import { CombatHudController } from './CombatHud';
 // CombatHud / RoomFlow.
 export type { RoomButtonAction, RoomButtonVariant } from '../ui/RoomButtons';
 
+// =============================================================================
+// GameScene routing map (see docs/ARCH_MAP.md for the cross-file picture)
+// -----------------------------------------------------------------------------
+// Field declarations . . . . . . . . . . . . . . . . . . . . . .  ~99 - 215
+// constructor / init / small i18n helpers (skillShort, etc.) . . . 217 - 248
+// create() — bootstraps managers, containers, MapView, combat . .  250 - 367
+// setupKeyboardShortcuts / triggerActionButton . . . . . . . . . . 369 - 391
+// setupGlobalUI (HUD bars, stat cells, escape/restart buttons) . . 393 - 858
+// refreshUI (re-pulls every HUD widget after any state change) . . 860 - 957
+// updatePlayerStatusUI / updateEnemyStatusUI / relicSummary  . . . 959 - 978
+// maybeDropRelic (relic roll on combat reward) . . . . . . . . . . 980 - 1036
+// setupRoomUI (per-room widgets shared between flow + combat) . . 1038 - 1116
+// setRoomButtons / afterMove / updateRunProgress . . . . . . . . 1123 - 1176
+// handleMilestoneUnlocks / appendLayer / room-pool helpers . . . 1178 - 1222
+// fadeToRoom / animateTorchlightSweep / room tint . . . . . . .  1224 - 1312
+// startCombatEncounter / applyTrapDamage . . . . . . . . . . . . 1314 - 1320
+// showRoomCard / showReturnButton / returnToMap / advanceToNode  1322 - 1410
+// updateEnemyUI / endScreenContext / show{Victory,Death}Screen . 1412 - 1460
+// safeRestart / handleRestartClick / buildRestartConfirmModal .  1462 - 1567
+// confirmRestart . . . . . . . . . . . . . . . . . . . . . . . . 1568 - 1584
+// handleEscapeClick (two-tap escape → DeathScreen with shop)  .  1586 - end
+// =============================================================================
 export class GameScene extends Phaser.Scene {
     public meta!: MetaProgressionManager;
     public mapGen!: MapGenerator;
