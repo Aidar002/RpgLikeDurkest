@@ -538,6 +538,7 @@ export class CombatManager {
                     '#d06060'
                 );
                 this.applyOnAttackRelics();
+                this.breakBossBlockOnSkillDamage();
                 break;
             }
             case 'preparation': {
@@ -1330,7 +1331,9 @@ export class CombatManager {
 
         if (action.id === 'death_shield' && action.pendingBlock && action.pendingBlockTurns) {
             state.pendingBlock = action.pendingBlock;
-            state.pendingBlockTurns = action.pendingBlockTurns;
+            // +1 so the shield survives the tick at the END of this
+            // same boss turn and lasts the full N subsequent turns.
+            state.pendingBlockTurns = action.pendingBlockTurns + 1;
             this.log.addMessage(
                 this.loc.t('combatBossDeathShieldRaised', {
                     name: this.enemy.name,
