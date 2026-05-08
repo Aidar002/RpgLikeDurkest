@@ -326,7 +326,7 @@ export class CombatHudController {
         scene.log.addMessage(scene.loc.t('victoryRewards', { parts: rewardLines.join(', ') }), '#9be0a7');
 
         if (payload.kind === 'boss') {
-            scene.maybeDropRelic('boss');
+            scene.maybeDropRelic('boss', payload.enemyCanonicalName);
             const intro = scene.npcs.pickBossIntro(scene.loc.language);
             if (intro) {
                 const farewells = intro.npc.voice.farewell;
@@ -339,9 +339,12 @@ export class CombatHudController {
                 return;
             }
         } else if (payload.kind === 'elite') {
-            scene.maybeDropRelic('elite');
-        } else if (Math.random() < 0.07) {
-            scene.maybeDropRelic('normal');
+            scene.maybeDropRelic('elite', payload.enemyCanonicalName);
+        } else {
+            // Normal kills route through the per-enemy drop table
+            // directly: each item rolls its own chance, so no extra
+            // top-level gate is needed.
+            scene.maybeDropRelic('normal', payload.enemyCanonicalName);
         }
 
         scene.enemyIntelText.setText(scene.loc.t('pathOpen'));

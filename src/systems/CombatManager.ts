@@ -4,7 +4,11 @@ import {
     LIGHT_CONFIG,
     ROOM_CONFIG,
 } from '../data/GameConfig';
-import type { EnemyDef, EnemyProfile } from '../data/GameConfig';
+import type {
+    EnemyDef,
+    EnemyPassive,
+    EnemyProfile,
+} from '../data/GameConfig';
 import {
     BOSS_BLUEPRINT_BY_NAME,
     pickLine,
@@ -60,7 +64,10 @@ export interface BossPhaseState {
 
 export interface ActiveEnemy {
     kind: EncounterKind;
+    /** Localised display name (used for log lines and UI). */
     name: string;
+    /** Canonical English name from EnemyDef — stable key for drop tables. */
+    canonicalName: string;
     description: string;
     icon: string;
     hp: number;
@@ -77,6 +84,8 @@ export interface ActiveEnemy {
     inflictBleed?: { stacks: number; turns: number; chance: number };
     firstHitEvaded?: boolean;
     firstStunResisted?: boolean;
+    /** Per-spec passive trigger copied from EnemyDef at combat start. */
+    passive?: EnemyPassive;
     /** [FIX-10] Phase blueprint runtime state, only set on bosses. */
     bossPhase?: BossPhaseState;
     /**
@@ -98,6 +107,8 @@ export interface CombatRewards {
 
 export interface CombatEndPayload {
     enemyName: string;
+    /** Canonical English name — used by drop tables (rollRelicForEnemy). */
+    enemyCanonicalName: string;
     kind: EncounterKind;
     rewards: CombatRewards;
     killedByBleed: boolean;
@@ -211,6 +222,7 @@ export class CombatManager {
         this.enemy = {
             kind,
             name: this.loc.enemyName(definition.name),
+            canonicalName: definition.name,
             description: this.loc.enemyDescription(definition.name, definition.description),
             icon: definition.icon,
             hp: baseHp,
@@ -225,6 +237,7 @@ export class CombatManager {
             turnsAlive: 0,
             status: emptyStatusState(),
             inflictBleed: definition.inflictBleed,
+            passive: definition.passive,
             bossPhase: blueprint
                 ? {
                       blueprint,
@@ -384,6 +397,7 @@ export class CombatManager {
             this.log.addMessage(narrate('crit_landed', this.loc.language), '#c4a35a');
         }
         this.applyOnAttackRelics();
+        this.tryHealOnAttack();
     }
 
     private handlePlayerDefend() {
@@ -498,12 +512,54 @@ export class CombatManager {
             this.enemy.bossPhase.pendingBlock -= blocked;
         }
 
+        // Skeleton-style passive: on a successful hit, the enemy may
+        // shrug off N points of damage. Mirrored as a chance-gated
+        // flat reduction so it interacts cleanly with crits/expose.
+        if (
+            damage > 0 &&
+            this.enemy.passive?.kind === 'damageReduction' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            const before = damage;
+            damage = Math.max(0, damage - this.enemy.passive.reduction);
+            if (damage < before) {
+                this.log.addMessage(
+                    this.loc.t('combatEnemyDamageReduction', {
+                        name: this.enemy.name,
+                        amount: before - damage,
+                    }),
+                    '#9aa6b3'
+                );
+            }
+        }
+
         if (damage > 0) {
             this.enemy.hp = Math.max(0, this.enemy.hp - damage);
             if (this.enemy.bossPhase) this.enemy.bossPhase.damagedThisTurn = true;
         }
         this.lastActionResult.critical = this.lastActionResult.critical || critical;
         this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
+
+        // Slime-style thorns: when struck, the enemy may reflect a
+        // small fixed amount back to the player as untyped damage.
+        if (
+            damage > 0 &&
+            this.enemy.passive?.kind === 'thornsOnTakeHit' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            const reflect = this.enemy.passive.damage;
+            const taken = this.player.takeDamage(reflect, 0, 'true');
+            if (taken > 0) {
+                this.log.addMessage(
+                    this.loc.t('combatEnemyThorns', {
+                        name: this.enemy.name,
+                        thorns: taken,
+                    }),
+                    '#7fbf6a'
+                );
+                this.playerHit.emit({ damage: taken });
+            }
+        }
 
         if (critical) {
             // Crit-based relic effects are deferred to a follow-up PR.
@@ -515,6 +571,25 @@ export class CombatManager {
     private applyOnAttackRelics() {
         // On-attack relic triggers are deferred to a follow-up PR.
         if (!this.enemy) return;
+    }
+
+    /**
+     * Cracked Amulet (and similar): a small chance to recover HP after
+     * any attack action. Uses the player's `aggregate.healOnAttackChance`
+     * so multiple sources stack via max() in {@link aggregateRelics}.
+     */
+    private tryHealOnAttack() {
+        if (!this.enemy) return;
+        const agg = this.player.aggregate;
+        if (agg.healOnAttackChance <= 0) return;
+        if (this.rng.next() >= agg.healOnAttackChance) return;
+        const healed = this.player.heal(agg.healOnAttackAmount);
+        if (healed > 0) {
+            this.log.addMessage(
+                this.loc.t('combatRelicHealOnAttack', { healed }),
+                '#8be0a7'
+            );
+        }
     }
 
 
@@ -569,6 +644,20 @@ export class CombatManager {
             this.player.getEnemyAttackBonusFromLight() -
             weakenReduction;
         if (attackPower < 1) attackPower = 1;
+        // Rat-style passive: chance for the basic attack to land for +N.
+        if (
+            this.enemy.passive?.kind === 'extraDamageOnHit' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            attackPower += this.enemy.passive.bonus;
+            this.log.addMessage(
+                this.loc.t('combatEnemyExtraDamage', {
+                    name: this.enemy.name,
+                    bonus: this.enemy.passive.bonus,
+                }),
+                '#d09a4f'
+            );
+        }
         let extraMessage = '';
         let multiStrikeFirstDamage = 0;
 
@@ -672,7 +761,19 @@ export class CombatManager {
             amount = Math.max(1, Math.round(amount * 1.5));
         }
 
-        const taken = this.player.takeDamage(amount, flatBlock, 'combat');
+        // Holey Chestplate (and similar): a chance to soak a fixed
+        // amount of damage before defense / HP loss is computed.
+        const agg = this.player.aggregate;
+        let extraBlock = 0;
+        if (agg.blockOnHitChance > 0 && this.rng.next() < agg.blockOnHitChance) {
+            extraBlock = agg.blockOnHitAmount;
+            this.log.addMessage(
+                this.loc.t('combatRelicBlockOnHit', { amount: extraBlock }),
+                '#9fc4f0'
+            );
+        }
+
+        const taken = this.player.takeDamage(amount, flatBlock + extraBlock, 'combat');
         if (taken > 0) {
             if (crit) this.log.addMessage(narrate('crit_received', this.loc.language), '#c4a35a');
             this.playerHit.emit({ damage: taken });
@@ -723,6 +824,7 @@ export class CombatManager {
             enemy.kind === 'boss' && !finalBoss ? LIGHT_CONFIG.onBossKill : 0;
         return {
             enemyName: enemy.name,
+            enemyCanonicalName: enemy.canonicalName,
             kind: enemy.kind,
             killedByBleed,
             finalBossDefeated: finalBoss,

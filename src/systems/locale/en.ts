@@ -201,6 +201,13 @@ export const EN_STRINGS = {
     combatSkillPreparation: 'Preparation: next attack +1 dmg, next defend +1 def.',
     combatPreparationAttack: 'Preparation lands: +1 damage on this attack.',
     combatPreparationDefend: 'Preparation steadies you: +1 defense on this guard.',
+    // Per-enemy passive triggers (rat / slime / skeleton).
+    combatEnemyExtraDamage: '{name} lunges for an extra +{bonus} damage.',
+    combatEnemyThorns: '{name} retaliates for {thorns} damage.',
+    combatEnemyDamageReduction: '{name} shrugs off {amount} damage.',
+    // Item triggers (cracked_amulet, holey_chestplate).
+    combatRelicHealOnAttack: 'Cracked Amulet flares: +{healed} HP recovered.',
+    combatRelicBlockOnHit: 'Holey Chestplate soaks {amount} damage.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */
