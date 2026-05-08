@@ -2,8 +2,19 @@
 
 RpgLikeDurkest is a small Phaser 3 / Vite / TypeScript roguelike. The player moves through a procedural room graph, resolves rooms through text-heavy choices and turn combat, then upgrades **skill-points** meta progression after escaping the dungeon.
 
-> If you only read one file before changing code, it's this one (overview) plus
-> `docs/ARCH_MAP.md` (file map) and `docs/EVENTS.md` (Emitter catalog).
+> **Reading order for AI agents (cheapest plan path).**
+>
+> 1. **This file** — project overview + conventions.
+> 2. **`docs/RECIPES.md`** — copy-paste walkthroughs for the 13 most
+>    common edits ("add a new room / enemy / boss / skill / relic /
+>    NPC / locale string / HUD cell / Emitter channel / unlock /
+>    button / status effect / meta upgrade"). If your task is on
+>    that list, **start here, not in the source.**
+> 3. **`docs/ARCH_MAP.md`** — one-pager: file → role / emits /
+>    depends on / owns. Use to find the right module.
+> 4. **`docs/EVENTS.md`** — Emitter producer → payload → consumer
+>    table. Use when wiring a new event or chasing one across files.
+>
 > Skip `docs/CONFIG_GUIDE.md` unless you're touching `src/data/`.
 
 ## Run Commands
