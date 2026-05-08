@@ -102,7 +102,7 @@ export const PLAYER_CONFIG = {
 } as const;
 
 export const LEVEL_UP_CONFIG = {
-    xpPerLevel: 12,
+    xpPerLevel: 10,
     hpGainPerLevel: 4,
     attackGainPerLevel: 1,
     defenseEveryNLevels: 3,
@@ -197,12 +197,8 @@ export const COMBAT_CONFIG = {
      * dumps ~10–20 levels' worth of XP in one kill at the legacy
      * runLength=25 / levelCap=10 calibration.
      *
-     * Examples (xpPerLevel=12, after bossRewardMultiplier=2.1):
-     *   depth  5 (24 base xp): 24 * 2.1 * 4 ≈ 202 xp ≈ 17 levels
-     *   depth 10 (30 base xp): 30 * 2.1 * 4 ≈ 252 xp ≈ 21 levels
-     *   depth 15 (36 base xp): 36 * 2.1 * 4 ≈ 302 xp ≈ 25 levels
-     *   depth 20 (40 base xp): 40 * 2.1 * 4 ≈ 336 xp ≈ 28 levels
-     *   depth 25 (50 base xp): 50 * 2.1 * 4 ≈ 420 xp ≈ 35 levels
+     * Examples (xpPerLevel=10, after bossRewardMultiplier=2.1):
+     *   depth 25 (Death Knight, 20 base xp): 20 * 2.1 * 4 ≈ 168 xp ≈ 17 levels
      */
     bossXpMultiplier: 4,
 } as const;
@@ -465,7 +461,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 icon: 'R',
                 hp: 5,
                 attack: 1,
-                xp: 3,
+                xp: 2,
                 gold: 3,
                 color: 0x5a5040,
                 profile: 'stalker',
@@ -477,7 +473,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 icon: 'S',
                 hp: 3,
                 attack: 2,
-                xp: 3,
+                xp: 2,
                 gold: 3,
                 color: 0x3e6636,
                 profile: 'brute',
@@ -489,7 +485,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 icon: 'K',
                 hp: 6,
                 attack: 2,
-                xp: 4,
+                xp: 3,
                 gold: 4,
                 color: 0x888070,
                 profile: 'brute',
@@ -501,7 +497,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 icon: 'B',
                 hp: 5,
                 attack: 1,
-                xp: 3,
+                xp: 2,
                 gold: 4,
                 color: 0x36463f,
                 profile: 'stalker',
@@ -520,7 +516,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 icon: 'G',
                 hp: 10,
                 attack: 1,
-                xp: 5,
+                xp: 3,
                 gold: 5,
                 color: 0x455544,
                 profile: 'bleeder',
@@ -547,7 +543,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 icon: 'L',
                 hp: 10,
                 attack: 6,
-                xp: 10,
+                xp: 5,
                 gold: 10,
                 color: 0x6a6a7a,
                 profile: 'bleeder',
@@ -566,7 +562,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 icon: 'W',
                 hp: 15,
                 attack: 3,
-                xp: 8,
+                xp: 5,
                 gold: 8,
                 color: 0x888070,
                 profile: 'brute',
@@ -595,7 +591,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             icon: '\u2620',
             hp: 45,
             attack: 8,
-            xp: 50,
+            xp: 20,
             gold: 40,
             color: 0x2a0814,
             profile: 'boss',
