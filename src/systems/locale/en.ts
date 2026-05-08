@@ -222,6 +222,12 @@ export const EN_STRINGS = {
     // Non-boss prepare intent shown in the HUD.
     hudPrepareWindupLabel: '{action} ({turns}t)',
     hudPrepareReadyLabel: '{action} (NOW)',
+    // Cursed gear procs (cursed_amulet miss, cursed_ring skill->basic).
+    combatRelicCursedMiss: 'The Cursed Amulet jerks your arm — the strike whiffs.',
+    combatRelicCursedSkillBasic: 'The Cursed Ring chokes the skill into a basic strike.',
+    // Minor Cursed set coin flip on attack.
+    combatRelicCursedDouble: 'Minor Cursed set surges — damage doubled to {damage}.',
+    combatRelicCursedSelfHit: 'Minor Cursed set lashes back — you take {damage}.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */
