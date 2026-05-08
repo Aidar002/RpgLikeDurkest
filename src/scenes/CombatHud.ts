@@ -1,6 +1,7 @@
 import * as Phaser from 'phaser';
 import { COMBAT_CONFIG, MAP_CONFIG } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
+import { chance, defaultRng, pick } from '../systems/Rng';
 import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
@@ -330,7 +331,7 @@ export class CombatHudController {
             const intro = scene.npcs.pickBossIntro(scene.loc.language);
             if (intro) {
                 const farewells = intro.npc.voice.farewell;
-                const line = scene.loc.pick(farewells[Math.floor(Math.random() * farewells.length)]);
+                const line = scene.loc.pick(pick(defaultRng, farewells));
                 scene.log.addMessage(line, '#cdb8ff');
             }
 
@@ -370,7 +371,7 @@ export class CombatHudController {
         if (
             scene.player.stats.maxHp > 0 &&
             scene.player.stats.hp / scene.player.stats.maxHp <= 0.25 &&
-            Math.random() < 0.4
+            chance(defaultRng, 0.4)
         ) {
             const recall = scene.npcs.pickLowHpRecall(scene.loc.language);
             if (recall) scene.log.addMessage(recall, '#a89dc4');

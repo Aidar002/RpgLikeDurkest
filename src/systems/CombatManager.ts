@@ -229,7 +229,7 @@ export class CombatManager {
         // Reset per-combat state.
         this.skillCooldowns = {};
         this.preparationActive = false;
-        const definition = kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth);
+        const definition = kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth, this.rng);
         this.setupEnemy(depth, kind, definition);
     }
 

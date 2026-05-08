@@ -16,6 +16,7 @@ import { PlayerManager } from '../systems/PlayerManager';
 import { RunTracker } from '../systems/RunTracker';
 import { RELICS, rollRelicFor, rollRelicForEnemy } from '../systems/Relics';
 import type { RelicRarity } from '../systems/Relics';
+import { defaultRng } from '../systems/Rng';
 import { SKILLS, STARTER_LOADOUT } from '../systems/Skills';
 import type { SkillId } from '../systems/Skills';
 import { statusSummary } from '../systems/StatusEffects';
@@ -995,7 +996,7 @@ export class GameScene extends Phaser.Scene {
                     : kind === 'shrine'
                       ? ROOM_CONFIG.shrine.relicChance
                       : 0;
-            if (Math.random() > chance) return false;
+            if (defaultRng.next() > chance) return false;
 
             const rollKind = kind === 'treasure' || kind === 'shrine'
                 ? 'normal'
