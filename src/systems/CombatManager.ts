@@ -315,13 +315,16 @@ export class CombatManager {
             this.enemy.currentIntent = intentLabelForPrepare(this.enemy.pendingPrepare, this.loc);
         }
 
-        const header =
+        const encounterKey =
             kind === 'boss'
-            ? this.loc.t('combatBossEncounter')
-            : kind === 'elite'
-              ? this.loc.t('combatEliteEncounter')
-                  : this.loc.t('combatHostileContact');
-        this.log.addMessage(`${header} ${this.enemy.name} ${definition.icon}`, '#ff6666');
+                ? 'combatBossEncounter'
+                : kind === 'elite'
+                  ? 'combatEliteEncounter'
+                  : 'combatHostileContact';
+        this.log.addMessage(
+            this.loc.t(encounterKey, { name: this.enemy.name }),
+            '#ff6666',
+        );
 
         if (kind === 'boss') {
             this.log.addMessage(narrate('enter_boss', this.loc.language), '#c4a35a');
