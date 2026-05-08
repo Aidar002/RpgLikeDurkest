@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { EXPEDITION_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
+import { EXPEDITION_CONFIG } from '../data/GameConfig';
 import { DungeonManager } from '../systems/DungeonManager';
 import {
     MapGenerator,
@@ -14,9 +14,6 @@ import {
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { RunTracker } from '../systems/RunTracker';
-import { RELICS, rollRelicFor, rollRelicForEnemy } from '../systems/Relics';
-import type { RelicRarity } from '../systems/Relics';
-import { defaultRng } from '../systems/Rng';
 import { SKILLS, STARTER_LOADOUT } from '../systems/Skills';
 import type { SkillId } from '../systems/Skills';
 import { statusSummary } from '../systems/StatusEffects';
@@ -67,6 +64,11 @@ import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
 import { RestartConfirmModal } from '../ui/RestartConfirmModal';
+import {
+    maybeDropRelic as maybeDropRelicImpl,
+    relicSummary as relicSummaryImpl,
+    type RelicDropKind,
+} from '../systems/RelicDrops';
 
 // Map layout / node-visual types moved to ../ui/MapView.ts.
 
@@ -1063,68 +1065,29 @@ export class GameScene extends Phaser.Scene {
     }
 
     public relicSummary(): string {
-        if (this.player.relics.length === 0) return '';
-        return this.loc.t('relicsLabel') + this.player.relics
-            .map((id) => this.loc.pick(RELICS[id].short))
-            .join(', ');
+        return relicSummaryImpl(this.player, this.loc);
     }
 
-    public maybeDropRelic(
-        kind: 'normal' | 'elite' | 'boss' | 'treasure' | 'shrine',
-        enemyName?: string
-    ): boolean {
-        const allowedRarities = this.meta.getRelicRarityPool();
-
-        // Combat drops with a known enemy name use the per-enemy drop
-        // table directly: each item rolls its own chance, so the legacy
-        // kind-level chance gate is bypassed.
-        let relicId: ReturnType<typeof rollRelicFor> = null;
-        if (enemyName && (kind === 'normal' || kind === 'elite' || kind === 'boss')) {
-            relicId = rollRelicForEnemy(enemyName, this.player.relics);
-            if (!relicId) return false;
-        } else {
-            const chance = kind === 'boss'
-                ? 1
-                : kind === 'elite'
-                  ? ROOM_CONFIG.elite.relicChance
-                  : kind === 'treasure'
-                    ? ROOM_CONFIG.treasure.relicChance
-                    : kind === 'shrine'
-                      ? ROOM_CONFIG.shrine.relicChance
-                      : 0;
-            if (defaultRng.next() > chance) return false;
-
-            const rollKind = kind === 'treasure' || kind === 'shrine'
-                ? 'normal'
-                : kind;
-            relicId = rollRelicFor(this.player.relics, rollKind as 'normal' | 'elite' | 'boss');
-            if (!relicId) return false;
-        }
-
-        // Filter by unlocked rarity pool.
-        const relic = RELICS[relicId];
-        if (!allowedRarities.includes(relic.rarity as RelicRarity)) {
-            // downgrade to common alt.
-            const fallback = rollRelicFor(this.player.relics, 'normal');
-            if (!fallback) return false;
-            this.player.addRelic(fallback);
-            this.tracker.record('relicsFound');
-            this.sfx.play('relicDrop');
-            this.log.addMessage(
-                this.loc.t('relicObtained', { value: this.loc.pick(RELICS[fallback].name), value2: this.loc.pick(RELICS[fallback].description) }),
-                '#ffcc99'
-            );
-            return true;
-        }
-
-        this.player.addRelic(relicId);
-        this.tracker.record('relicsFound');
-        this.sfx.play('relicDrop');
-        this.log.addMessage(
-            this.loc.t('relicObtained', { value: this.loc.pick(relic.name), value2: this.loc.pick(relic.description) }),
-            relic.rarity === 'unique' ? '#f0a8ff' : relic.rarity === 'rare' ? '#ffd36e' : '#ffcc99'
+    /**
+     * Roll-and-grant a relic for a reward `kind`. Thin wrapper around
+     * {@link maybeDropRelicImpl} (in `../systems/RelicDrops`) — exists
+     * here only so external callers (`CombatHud`, `RoomFlow`) can keep
+     * using the familiar `scene.maybeDropRelic(...)` shape. Returns
+     * `true` if the player picked up a new relic.
+     */
+    public maybeDropRelic(kind: RelicDropKind, enemyName?: string): boolean {
+        return maybeDropRelicImpl(
+            {
+                meta: this.meta,
+                player: this.player,
+                tracker: this.tracker,
+                sfx: this.sfx,
+                log: this.log,
+                loc: this.loc,
+            },
+            kind,
+            enemyName
         );
-        return true;
     }
 
     private setupRoomUI() {
