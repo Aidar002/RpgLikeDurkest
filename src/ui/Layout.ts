@@ -21,8 +21,11 @@ export const CENTER_Y = GAME_HEIGHT / 2;
  */
 export const HudLayout = {
     topHud: {
-        /** X anchor for the АТАКА/ЗАЩИТА stat column. */
-        statsX: 700,
+        /** X anchor for the АТАКА/ЗАЩИТА stat column. Anchored just
+         *  left of the canvas midline so the combat stat block reads
+         *  as the centre group of the top bar (left = HP+XP, centre =
+         *  ATK/DEF + revives, right = resource cells). */
+        statsX: 408,
         /** Horizontal offset between an inline slot's icon and value. */
         statsValueOffset: 96,
         /** Y of the АТАКА row in the carved top bar. */
@@ -35,6 +38,18 @@ export const HudLayout = {
         torchIconY: 56,
         /** X offset (from `statsX`) of the second column. */
         secondColumnDx: 130,
+        /** X anchor for the ЗОЛОТО / ЭЛИК. / ВОЛЯ resource column.
+         *  Lives in the right third of the top bar, between the
+         *  combat stat block and the chrome icon row. */
+        resourcesX: 700,
+        /** Y of the topmost resource row (ЗОЛОТО). */
+        resourceRow1Y: 14,
+        /** Y of the middle resource row (ЭЛИК.). */
+        resourceRow2Y: 38,
+        /** Y of the bottom resource row (ВОЛЯ). */
+        resourceRow3Y: 62,
+        /** Horizontal offset between a resource slot's icon and value. */
+        resourceValueOffset: 124,
     },
     chrome: {
         /** Y of the music/settings/language icon row. */
