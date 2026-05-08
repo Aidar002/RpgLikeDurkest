@@ -216,4 +216,6 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     // Подбрасывание монеты малого проклятого сета на атаку.
     combatRelicCursedDouble: 'Малый проклятый сет: удар удвоен до {damage}.',
     combatRelicCursedSelfHit: 'Малый проклятый сет бьёт в ответ: получаешь {damage}.',
+    // Прок благословения вампиров от Сары на ударе игрока.
+    combatVampireBlessingHeal: 'Благословение вампиров пьёт рану: восстановлено {healed} ОЗ.',
 };

@@ -228,6 +228,8 @@ export const EN_STRINGS = {
     // Minor Cursed set coin flip on attack.
     combatRelicCursedDouble: 'Minor Cursed set surges — damage doubled to {damage}.',
     combatRelicCursedSelfHit: 'Minor Cursed set lashes back — you take {damage}.',
+    // Sara's Vampire Blessing on-attack heal proc.
+    combatVampireBlessingHeal: 'Vampire Blessing drinks the wound — recover {healed} HP.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */

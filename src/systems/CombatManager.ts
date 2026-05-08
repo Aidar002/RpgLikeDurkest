@@ -656,8 +656,28 @@ export class CombatManager {
     }
 
     private applyOnAttackRelics() {
-        // On-attack relic triggers are deferred to a follow-up PR.
         if (!this.enemy) return;
+        this.tryVampireBlessingOnAttack();
+    }
+
+    /**
+     * Sara's Vampire Blessing: while active, every damaging player
+     * action has an aggregate-defined chance (25%) to restore a fixed
+     * amount (2) of HP. Stored on the relic aggregate so the combat
+     * pipeline reads it through the same hook as relic on-attack
+     * effects; granted via {@link PlayerManager.setVampireBlessing}.
+     */
+    private tryVampireBlessingOnAttack() {
+        const agg = this.player.aggregate;
+        if (agg.vampireBlessingChance <= 0 || agg.vampireBlessingAmount <= 0) return;
+        if (this.rng.next() >= agg.vampireBlessingChance) return;
+        const healed = this.player.heal(agg.vampireBlessingAmount);
+        if (healed > 0) {
+            this.log.addMessage(
+                this.loc.t('combatVampireBlessingHeal', { healed }),
+                '#d7b6ff'
+            );
+        }
     }
 
     /**
