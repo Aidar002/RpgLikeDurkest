@@ -5,7 +5,7 @@ import { lt } from './LocalizedText';
 
 export type NpcId = 'sara' | 'gogi';
 
-export type NpcRole = 'merchant' | 'shrine' | 'wanderer';
+export type NpcRole = 'merchant' | 'wanderer';
 
 export interface NpcDialogBeat {
     stage: 'first' | 'return' | 'deep' | 'farewell';

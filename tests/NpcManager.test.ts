@@ -127,9 +127,10 @@ describe('NpcManager mutators', () => {
 describe('NpcManager.pickForRole', () => {
     it('returns null when no NPC matches the requested role', () => {
         const manager = new NpcManager(makeDefaultNpcMemoryMap(), () => {});
-        // 'shrine' is declared in NpcRole but the casting NPCs only carry
-        // 'merchant' and 'wanderer', so this exercises the empty-candidates branch.
-        expect(manager.pickForRole('shrine', 1)).toBeNull();
+        // Exercise the empty-candidates branch with a role string no NPC owns.
+        // The casting NPCs only carry 'merchant' and 'wanderer'.
+        const unknownRole = 'shrine' as unknown as Parameters<typeof manager.pickForRole>[0];
+        expect(manager.pickForRole(unknownRole, 1)).toBeNull();
     });
 
     it('returns an NPC whose role matches the request', () => {

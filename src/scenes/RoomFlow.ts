@@ -1,4 +1,4 @@
-import { FEATURES, MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG } from '../data/GameConfig';
+import { ALTAR_EFFECTS, FEATURES, MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG } from '../data/GameConfig';
 import { RoomType } from '../systems/MapGenerator';
 import { isLightWarning, shouldDecayLight } from '../systems/Light';
 import type { MapNode } from '../systems/MapGenerator';
@@ -593,29 +593,25 @@ export class RoomFlowController {
         ]);
     }
 
+    // Altar room. Four canonical actions per the design table — values
+    // configured in ALTAR_EFFECTS. No NPC variant: Sara and Gogi are
+    // wanderer / merchant respectively, neither owns the shrine slot.
     private showShrineOptions(): void {
         const scene = this.scene;
         scene.sfx.play('shrine');
         scene.tracker.record('shrinesVisited');
-        const npcId = scene.npcs.pickForRole('shrine', scene.dungeon.currentDepth);
-        if (npcId) {
-            this.presentNpcRoom(npcId, scene.loc.t('shrine'));
-        } else {
-            this.showGenericShrineOptions();
-        }
-    }
-
-    private showGenericShrineOptions(): void {
-        const scene = this.scene;
+        const ru = scene.loc.language === 'ru';
         const actions: RoomButtonAction[] = [
             {
-                label: scene.loc.language === 'ru' ? '[1] \u0411\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u0435\u043d\u0438\u0435 (+1 \u0443\u0440\u043e\u043d)' : '[1] Blessing (+1 attack)',
+                label: ru
+                    ? `[1] \u0411\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u0435\u043d\u0438\u0435 (+${ALTAR_EFFECTS.blessingAttack} \u0443\u0440\u043e\u043d)`
+                    : `[1] Blessing (+${ALTAR_EFFECTS.blessingAttack} attack)`,
                 callback: () => {
-                    scene.player.addAttackBonus(1);
+                    scene.player.addAttackBonus(ALTAR_EFFECTS.blessingAttack);
                     scene.log.addMessage(
-                        scene.loc.language === 'ru'
-                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u0431\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u043b\u044f\u0435\u0442 \u043e\u0440\u0443\u0436\u0438\u0435: +1 \u0443\u0440\u043e\u043d.'
-                            : 'The altar blesses your weapon: +1 attack.',
+                        ru
+                            ? `\u0410\u043b\u0442\u0430\u0440\u044c \u0431\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u043b\u044f\u0435\u0442 \u043e\u0440\u0443\u0436\u0438\u0435: +${ALTAR_EFFECTS.blessingAttack} \u0443\u0440\u043e\u043d.`
+                            : `The altar blesses your weapon: +${ALTAR_EFFECTS.blessingAttack} attack.`,
                         '#d7b6ff'
                     );
                     scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
@@ -624,13 +620,15 @@ export class RoomFlowController {
                 fill: 0x5f4e8a,
             },
             {
-                label: scene.loc.language === 'ru' ? '[2] \u041c\u043e\u043b\u0438\u0442\u0432\u0430 (+5 \u041e\u0417)' : '[2] Prayer (+5 HP)',
+                label: ru
+                    ? `[2] \u041c\u043e\u043b\u0438\u0442\u0432\u0430 (+${ALTAR_EFFECTS.prayerMaxHp} \u041e\u0417)`
+                    : `[2] Prayer (+${ALTAR_EFFECTS.prayerMaxHp} HP)`,
                 callback: () => {
-                    scene.player.addMaxHpBonus(5, 5);
+                    scene.player.addMaxHpBonus(ALTAR_EFFECTS.prayerMaxHp, ALTAR_EFFECTS.prayerHeal);
                     scene.log.addMessage(
-                        scene.loc.language === 'ru'
-                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u0443\u043a\u0440\u0435\u043f\u043b\u044f\u0435\u0442 \u0442\u0435\u043b\u043e: +5 \u0436\u0438\u0437\u043d\u0438.'
-                            : 'The altar strengthens your body: +5 HP.',
+                        ru
+                            ? `\u0410\u043b\u0442\u0430\u0440\u044c \u0443\u043a\u0440\u0435\u043f\u043b\u044f\u0435\u0442 \u0442\u0435\u043b\u043e: +${ALTAR_EFFECTS.prayerMaxHp} \u0436\u0438\u0437\u043d\u0438.`
+                            : `The altar strengthens your body: +${ALTAR_EFFECTS.prayerMaxHp} HP.`,
                         '#79e28f'
                     );
                     scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
@@ -639,13 +637,15 @@ export class RoomFlowController {
                 fill: 0x2f8b4b,
             },
             {
-                label: scene.loc.language === 'ru' ? '[3] \u0420\u0435\u0447\u044c (+3 \u0432\u043e\u043b\u0438)' : '[3] Speech (+3 resolve)',
+                label: ru
+                    ? `[3] \u0420\u0435\u0447\u044c (+${ALTAR_EFFECTS.speechResolve} \u0432\u043e\u043b\u0438)`
+                    : `[3] Speech (+${ALTAR_EFFECTS.speechResolve} resolve)`,
                 callback: () => {
-                    scene.player.gainResolve(3);
+                    scene.player.gainResolve(ALTAR_EFFECTS.speechResolve);
                     scene.log.addMessage(
-                        scene.loc.language === 'ru'
-                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u043d\u0430\u043f\u043e\u043b\u043d\u044f\u0435\u0442 \u0440\u0435\u0448\u0438\u043c\u043e\u0441\u0442\u044c\u044e: +3 \u0432\u043e\u043b\u0438.'
-                            : 'The altar fills you with resolve: +3 resolve.',
+                        ru
+                            ? `\u0410\u043b\u0442\u0430\u0440\u044c \u043d\u0430\u043f\u043e\u043b\u043d\u044f\u0435\u0442 \u0440\u0435\u0448\u0438\u043c\u043e\u0441\u0442\u044c\u044e: +${ALTAR_EFFECTS.speechResolve} \u0432\u043e\u043b\u0438.`
+                            : `The altar fills you with resolve: +${ALTAR_EFFECTS.speechResolve} resolve.`,
                         '#9bc8ff'
                     );
                     scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
@@ -654,13 +654,15 @@ export class RoomFlowController {
                 fill: 0x1b335b,
             },
             {
-                label: scene.loc.language === 'ru' ? '[4] \u0421\u043e\u0432\u0435\u0442 (+1 \u0437\u0430\u0449\u0438\u0442\u0430)' : '[4] Counsel (+1 defense)',
+                label: ru
+                    ? `[4] \u0421\u043e\u0432\u0435\u0442 (+${ALTAR_EFFECTS.counselDefense} \u0437\u0430\u0449\u0438\u0442\u0430)`
+                    : `[4] Counsel (+${ALTAR_EFFECTS.counselDefense} defense)`,
                 callback: () => {
-                    scene.player.addDefenseBonus(1);
+                    scene.player.addDefenseBonus(ALTAR_EFFECTS.counselDefense);
                     scene.log.addMessage(
-                        scene.loc.language === 'ru'
-                            ? '\u0410\u043b\u0442\u0430\u0440\u044c \u0443\u043a\u0440\u0435\u043f\u043b\u044f\u0435\u0442 \u0437\u0430\u0449\u0438\u0442\u0443: +1 \u0437\u0430\u0449\u0438\u0442\u0430.'
-                            : 'The altar fortifies your guard: +1 defense.',
+                        ru
+                            ? `\u0410\u043b\u0442\u0430\u0440\u044c \u0443\u043a\u0440\u0435\u043f\u043b\u044f\u0435\u0442 \u0437\u0430\u0449\u0438\u0442\u0443: +${ALTAR_EFFECTS.counselDefense} \u0437\u0430\u0449\u0438\u0442\u0430.`
+                            : `The altar fortifies your guard: +${ALTAR_EFFECTS.counselDefense} defense.`,
                         '#b8d3ff'
                     );
                     scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));

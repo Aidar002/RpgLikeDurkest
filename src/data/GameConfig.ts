@@ -405,15 +405,7 @@ export const ROOM_CONFIG = {
         focusXp: 4,
     },
     shrine: {
-        prayBlessChance: 0.7,
-        prayAttackBonus: 1,
-        prayDamage: 4,
-        prayResolveGain: 2,
-        offerGoldCost: 20,
-        offerMaxHpBonus: 4,
-        premiumShardCost: 1,
-        premiumMaxHpBonus: 6,
-        premiumResolveBonus: 1,
+        // Used by RelicDrops when a shrine grants a relic.
         relicChance: 0.3,
     },
     merchant: {
@@ -446,6 +438,22 @@ export const ROOM_CONFIG = {
         shardReward: 2,
         relicChance: 1,
     },
+} as const;
+
+// ---------------------------------------------------------------------------
+// Altar (shrine room) effects. The four canonical actions per design table:
+//   blessing → +1 attack (run)
+//   prayer   → +5 max HP (run, also heals 5)
+//   speech   → +3 resolve (combat resource)
+//   counsel  → +1 defense (run)
+// All numbers are per-run buffs that drop on death; tweak here.
+// ---------------------------------------------------------------------------
+export const ALTAR_EFFECTS = {
+    blessingAttack: 1,
+    prayerMaxHp: 5,
+    prayerHeal: 5,
+    speechResolve: 3,
+    counselDefense: 1,
 } as const;
 
 // Enemy roster (per-spec). Stats and special mechanics taken directly
