@@ -61,12 +61,15 @@ describe('PlayerManager — construction', () => {
 
 describe('PlayerManager — damage and death', () => {
     it('reduces hp by amount minus defense, clamped to minDamage', () => {
-        const player = new PlayerManager(); // defense = 1
+        const player = new PlayerManager();
         const before = player.stats.hp;
+        const def = PLAYER_CONFIG.defense;
 
         player.takeDamage(5);
 
-        expect(player.stats.hp).toBe(before - (5 - 1));
+        expect(player.stats.hp).toBe(
+            before - Math.max(COMBAT_CONFIG.minDamage, 5 - def),
+        );
     });
 
     it('emits hpChange with the new hp/max when damaged', () => {
@@ -110,7 +113,7 @@ describe('PlayerManager — damage and death', () => {
     });
 
     it('treats source="true" damage as ignoring defense and forcing minimum 1', () => {
-        const player = new PlayerManager(); // defense = 1
+        const player = new PlayerManager();
         const before = player.stats.hp;
 
         // amount=2, flatBlock=0, source=true → defense ignored.
@@ -121,14 +124,15 @@ describe('PlayerManager — damage and death', () => {
     });
 
     it('respects flatBlock (e.g. defend stance) before defense reduction', () => {
-        const player = new PlayerManager(); // defense=1
+        const player = new PlayerManager();
         const before = player.stats.hp;
+        const def = PLAYER_CONFIG.defense;
 
-        // 5 raw - 3 block - 1 defense = 1, but minDamage clamp forces ≥1.
+        // 5 raw - 3 block - def, with the minDamage clamp on the floor.
         player.takeDamage(5, 3);
 
         expect(player.stats.hp).toBe(
-            before - Math.max(COMBAT_CONFIG.minDamage, 5 - 3 - 1),
+            before - Math.max(COMBAT_CONFIG.minDamage, 5 - 3 - def),
         );
     });
 });
