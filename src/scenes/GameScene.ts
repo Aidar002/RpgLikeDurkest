@@ -157,6 +157,9 @@ export class GameScene extends Phaser.Scene {
     private escapeButtonLabel!: Phaser.GameObjects.Text;
     private restartButtonBg!: Phaser.GameObjects.Rectangle;
     private restartButtonLabel!: Phaser.GameObjects.Text;
+    /** Restart-confirm modal widgets. Built once in setupGlobalUI and
+     *  toggled via setRestartConfirmVisible(). */
+    private restartConfirmWidgets: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [];
     private hintText!: Phaser.GameObjects.Text;
     // mapDepthText was the small "ГЛУБИНА N" pill below the bottom bar —
     // removed because the dedicated ГЛУБИНА cell in the bottom HUD now
@@ -741,6 +744,12 @@ export class GameScene extends Phaser.Scene {
             this.restartButtonBg.setStrokeStyle(1, HudColors.panelHi);
         });
         this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
+
+        // ── RESTART CONFIRM MODAL ───────────────────────────────
+        // Built once and hidden until the player clicks the HUD
+        // restart button. Confirming wipes meta progression and
+        // returns the player to the boot/title scene.
+        this.buildRestartConfirmModal();
 
         const topWidgets: Phaser.GameObjects.GameObject[] = [
             topFrame,
@@ -1442,27 +1451,121 @@ export class GameScene extends Phaser.Scene {
     }
 
     /**
-     * HUD restart button. Bails on the current run instantly with no
-     * prestige award and no end screen — unlike Escape, this is a
-     * "give-up-and-try-again" shortcut. Guarded the same way as
-     * Escape (no-op during combat / death sequence) so the visibility
-     * logic in refreshUI() and this guard stay in sync.
+     * HUD restart button. Opens a confirmation modal — the player must
+     * accept before the run is wiped. Guarded the same way as Escape
+     * (no-op during combat / death sequence) so the visibility logic
+     * in refreshUI() and this guard stay in sync.
      */
     private handleRestartClick() {
         if (this.combat?.enemy || this.dead || this.deathSequenceStarted) {
             return;
         }
-        this.safeRestart();
+        this.setRestartConfirmVisible(true);
+    }
+
+    /**
+     * Build the restart-confirm modal once and stash its widgets in
+     * {@link restartConfirmWidgets} so they can be toggled together.
+     * Mirrors the look of the death-screen reset modal but commits to
+     * a full meta-progression wipe + return to the boot scene rather
+     * than just restarting the current run.
+     */
+    private buildRestartConfirmModal() {
+        const overlay = this.add
+            .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
+            .setDepth(Depths.ConfirmOverlay)
+            .setInteractive();
+        const panel = this.add
+            .rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818)
+            .setDepth(Depths.ConfirmPanel);
+        panel.setStrokeStyle(2, 0x8a4d4d);
+        const title = this.add
+            .text(CENTER_X, CENTER_Y - 50, this.loc.t('confirmRestartTitle'), {
+                fontFamily: 'Courier New',
+                fontSize: '22px',
+                color: '#ffd2d2',
+            })
+            .setOrigin(0.5)
+            .setDepth(Depths.ConfirmContent);
+        const body = this.add
+            .text(CENTER_X, CENTER_Y, this.loc.t('confirmRestartBody'), {
+                fontFamily: 'Courier New',
+                fontSize: '14px',
+                color: '#d6d6d6',
+                align: 'center',
+                lineSpacing: 8,
+                wordWrap: { width: 360 },
+            })
+            .setOrigin(0.5)
+            .setDepth(Depths.ConfirmContent);
+        const yesBtn = this.add
+            .rectangle(CENTER_X - 90, CENTER_Y + 66, 170, 38, 0x5a1d1d)
+            .setDepth(Depths.ConfirmContent);
+        yesBtn.setStrokeStyle(1, 0xc57d7d);
+        yesBtn.setInteractive({ useHandCursor: true });
+        const yesText = this.add
+            .text(CENTER_X - 90, CENTER_Y + 66, this.loc.t('confirmRestartYes'), {
+                fontFamily: 'Courier New',
+                fontSize: '14px',
+                color: '#ffe8e8',
+            })
+            .setOrigin(0.5)
+            .setDepth(Depths.ConfirmForeground);
+        const noBtn = this.add
+            .rectangle(CENTER_X + 90, CENTER_Y + 66, 170, 38, 0x252525)
+            .setDepth(Depths.ConfirmContent);
+        noBtn.setStrokeStyle(1, 0x8a8a8a);
+        noBtn.setInteractive({ useHandCursor: true });
+        const noText = this.add
+            .text(CENTER_X + 90, CENTER_Y + 66, this.loc.t('cancel'), {
+                fontFamily: 'Courier New',
+                fontSize: '14px',
+                color: '#f0f0f0',
+            })
+            .setOrigin(0.5)
+            .setDepth(Depths.ConfirmForeground);
+
+        yesBtn.on('pointerover', () => yesBtn.setStrokeStyle(2, 0xffd7d7));
+        yesBtn.on('pointerout', () => yesBtn.setStrokeStyle(1, 0xc57d7d));
+        yesBtn.on('pointerdown', () => this.confirmRestart());
+
+        noBtn.on('pointerover', () => noBtn.setStrokeStyle(2, 0xffffff));
+        noBtn.on('pointerout', () => noBtn.setStrokeStyle(1, 0x8a8a8a));
+        noBtn.on('pointerdown', () => this.setRestartConfirmVisible(false));
+        overlay.on('pointerdown', () => this.setRestartConfirmVisible(false));
+
+        this.restartConfirmWidgets = [overlay, panel, title, body, yesBtn, yesText, noBtn, noText];
+        this.setRestartConfirmVisible(false);
+    }
+
+    private setRestartConfirmVisible(visible: boolean) {
+        this.restartConfirmWidgets.forEach((widget) => widget.setVisible(visible));
+    }
+
+    /**
+     * Apply the restart confirmation: wipe meta progression to
+     * defaults and return to the boot/title scene so the next run
+     * starts from a fresh profile. Carries the existing
+     * locale/audio managers across so language and volume settings
+     * survive.
+     */
+    private confirmRestart() {
+        this.setRestartConfirmVisible(false);
+        this.meta.resetProgress();
+        this.tweens.killAll();
+        this.time.removeAllEvents();
+        this.input.removeAllListeners();
+        this.scene.start('BootScene', { loc: this.loc, sfx: this.sfx, music: this.music });
     }
 
     /**
      * HUD escape button. First click arms a confirm window; second
      * click within {@link ESCAPE_CONFIRM_MS} commits the escape and
-     * hands off to the end screen (which awards prestige and routes
-     * the player back to the hub via safeRestart). Pressing the
-     * button while combat is active or while the player is dead is
-     * a no-op — the visibility logic in refreshUI() also hides it in
-     * those cases, this guard is belt-and-braces.
+     * hands off to the meta-progression end screen (which awards
+     * prestige and lets the player spend it before starting the next
+     * run). Pressing the button while combat is active or while the
+     * player is dead is a no-op — the visibility logic in refreshUI()
+     * also hides it in those cases, this guard is belt-and-braces.
      */
     private handleEscapeClick() {
         if (this.combat?.enemy || this.dead || this.deathSequenceStarted) {
@@ -1475,7 +1578,7 @@ export class GameScene extends Phaser.Scene {
             this.escapeConfirmAt = -1;
             this.escaped = true;
             this.dead = true;
-            this.showVictoryScreen();
+            this.showDeathScreen();
             return;
         }
         // First click — arm the confirm window and update the label.

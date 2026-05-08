@@ -68,11 +68,18 @@ export function showDeathScreen(ctx: EndScreenContext) {
     panel.setDepth(Depths.EndScreenPanel);
 
     // ── Title ────────────────────────────────────────────────
+    // The HUD escape button reuses this layout for the meta-progression
+    // screen, so swap in the escape headline (and a calmer accent) when
+    // the run was bailed on instead of lost.
+    const titleText = runState.escaped
+        ? loc.t('escapeScreenTitle')
+        : tracker.getRunTitle(loc.language);
+    const titleColor = runState.escaped ? '#c9a050' : '#d65a5a';
     const title = scene.add
-        .text(CENTER_X, panelTop + 40, tracker.getRunTitle(loc.language), {
+        .text(CENTER_X, panelTop + 40, titleText, {
             fontFamily: 'Courier New',
             fontSize: '28px',
-            color: '#d65a5a',
+            color: titleColor,
         })
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
