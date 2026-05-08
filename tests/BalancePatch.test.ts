@@ -33,9 +33,11 @@ describe('[FIX-4] Boss mapping (canonical depth -> name)', () => {
     });
 });
 
-describe('[FIX-3] Starting resolve and clamps', () => {
-    it('starting resolve = 2', () => {
-        expect(EXPEDITION_CONFIG.startingResolve).toBe(2);
+describe('Starting resolve and clamps', () => {
+    // Per design (post-FIX-3): runs begin resourceless. Gold, potions
+    // and resolve all start at 0 — players earn them in-run.
+    it('starting resolve = 0', () => {
+        expect(EXPEDITION_CONFIG.startingResolve).toBe(0);
     });
 
     it('player.gainResolve clamps at maxResolve', () => {

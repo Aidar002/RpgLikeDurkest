@@ -1013,18 +1013,11 @@ export class GameScene extends Phaser.Scene {
         this.bossStat.setValue(`${this.runState.runBossKills}`);
         this.bossStat.setVisible(showProgress && unlocks.showRunMetrics);
 
-        const nextUnlock = this.meta.getNextContentUnlock();
-        // The hint now floats centred above the bar with no chrome
-        // buttons crowding it, so we can afford a longer label
-        // (≈ 60 chars fits comfortably at fontSize 12 in the play area).
-        this.hintText.setText(
-            nextUnlock
-                ? compactText(
-                    `${this.loc.t('nextUnlockLabel')}: ${this.milestoneRequirement(nextUnlock)}`,
-                    60
-                )
-                : ''
-        );
+        // The "next unlock" milestone hint ("Дальше: Достигни глубины N")
+        // is intentionally hidden from the in-game HUD per design — meta
+        // unlocks still apply silently in the background; the player just
+        // doesn't get a depth-goal nag in the play area.
+        this.hintText.setText('');
 
         this.hpValueText.setVisible(unlocks.showHpNumbers);
         this.xpBarFrame.setVisible(unlocks.showLevelPanel);
@@ -1032,8 +1025,7 @@ export class GameScene extends Phaser.Scene {
         this.xpBar.setVisible(unlocks.showLevelPanel);
         this.levelText.setVisible(unlocks.showLevelPanel);
         this.xpValueText.setVisible(unlocks.showLevelPanel);
-        const hintVisible = !!nextUnlock && this.mapContainer.visible;
-        this.hintText.setVisible(hintVisible);
+        this.hintText.setVisible(false);
 
         this.relicText.setText(this.relicSummary());
         this.updatePlayerStatusUI();
