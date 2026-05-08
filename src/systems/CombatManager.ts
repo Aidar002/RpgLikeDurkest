@@ -13,6 +13,7 @@ import type {
 import {
     BOSS_BLUEPRINT_BY_NAME,
     pickLine,
+    type BossActionDef,
     type BossBlueprint,
 } from '../data/Bosses';
 import type { EventLog } from '../ui/EventLog';
@@ -56,12 +57,24 @@ export interface BossPhaseState {
     actionIndex: number;
     /** Boss takes +N extra damage on the player's next hit. */
     pendingExposeBonus: number;
-    /** Block remaining on the boss (e.g. Bone Shield). */
+    /** Block remaining on the boss (e.g. Bone Shield, Death Shield). */
     pendingBlock: number;
+    /** Boss turns the active block buff still has before it expires. */
+    pendingBlockTurns: number;
     /** Pending False Mercy heal if the player did no damage this turn. */
     pendingHealOnSafe: number;
     /** Whether the player damaged the boss during the just-finished player turn. */
     damagedThisTurn: boolean;
+    /**
+     * Active windup for an action with `windupTurns`. While set, the
+     * boss takes no other action; the player sees a "{action} (Nt)"
+     * intent badge and can react. When `turnsRemaining` reaches 0 the
+     * action's resolution effect fires on the boss's next turn.
+     */
+    pendingWindup?: {
+        actionDef: BossActionDef;
+        turnsRemaining: number;
+    };
 }
 
 export interface ActiveEnemy {
@@ -257,6 +270,7 @@ export class CombatManager {
                       actionIndex: 0,
                       pendingExposeBonus: 0,
                       pendingBlock: 0,
+                      pendingBlockTurns: 0,
                       pendingHealOnSafe: 0,
                       damagedThisTurn: false,
                   }
@@ -503,6 +517,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 this.log.addMessage(this.loc.t('combatSkillCleave', { dmg }), '#b893ff');
                 this.applyOnAttackRelics();
+                this.breakBossBlockOnSkillDamage();
                 break;
             }
             case 'bleed_strike': {
@@ -984,9 +999,28 @@ export class CombatManager {
     // [FIX-10] Boss phase / intent runner.
     // -----------------------------------------------------------------
 
-    private intentLabelForPhase(phase: { blueprint: BossBlueprint; phaseIndex: number; actionIndex: number }): string {
+    private intentLabelForPhase(phase: BossPhaseState): string {
+        // Active windup: surface the remaining countdown so the player
+        // knows how many turns they have to react before resolution.
+        if (phase.pendingWindup) {
+            const action = pickLine(phase.pendingWindup.actionDef.intent, this.loc.language);
+            const turns = phase.pendingWindup.turnsRemaining;
+            if (turns <= 0) {
+                return this.loc.t('hudPrepareReadyLabel', { action });
+            }
+            return this.loc.t('hudPrepareWindupLabel', { action, turns });
+        }
         const phaseDef = phase.blueprint.phases[phase.phaseIndex];
         const action = phaseDef.actions[phase.actionIndex % phaseDef.actions.length];
+        // For actions that will themselves declare a windup next turn,
+        // hint at the windup length up-front so the badge does not jump
+        // from a bare label to "(Nt)" the moment the windup begins.
+        if (action.windupTurns && action.windupTurns > 0) {
+            return this.loc.t('hudPrepareWindupLabel', {
+                action: pickLine(action.intent, this.loc.language),
+                turns: action.windupTurns,
+            });
+        }
         return pickLine(action.intent, this.loc.language);
     }
 
@@ -1149,7 +1183,79 @@ export class CombatManager {
         this.maybeAdvancePhase();
 
         const phaseDef = state.blueprint.phases[state.phaseIndex];
+
+        // Resolve a windup that has already counted down, OR continue
+        // ticking an in-progress windup. While the boss is winding up
+        // it does no other action; the player has already seen the
+        // intent badge for this turn.
+        if (state.pendingWindup) {
+            const wind = state.pendingWindup;
+            wind.turnsRemaining -= 1;
+            if (wind.turnsRemaining > 0) {
+                // Still preparing — log the countdown and update intent.
+                this.log.addMessage(
+                    this.loc.t('combatBossWindupTick', {
+                        name: this.enemy.name,
+                        action: pickLine(wind.actionDef.intent, this.loc.language),
+                        turns: wind.turnsRemaining,
+                    }),
+                    '#c4a35a'
+                );
+                this.tickBossBlockAtTurnEnd();
+                if (this.player.stats.hp <= 0) {
+                    this.logDeath();
+                    return;
+                }
+                this.enemy.currentIntent = this.intentLabelForPhase(state);
+                this.playerStatusChange.emit();
+                this.enemyStatusChange.emit();
+                return;
+            }
+            // Windup expired — resolve the action effect now.
+            const resolveDef = wind.actionDef;
+            state.pendingWindup = undefined;
+            this.resolveBossWindupAction(resolveDef, playerAction);
+            this.tickBossBlockAtTurnEnd();
+            if (this.player.stats.hp <= 0) {
+                this.logDeath();
+                return;
+            }
+            // Advance to the next action in the rotation.
+            state.actionIndex = (state.actionIndex + 1) % phaseDef.actions.length;
+            this.enemy.currentIntent = this.intentLabelForPhase(state);
+            this.playerStatusChange.emit();
+            this.enemyStatusChange.emit();
+            return;
+        }
+
         const action = phaseDef.actions[state.actionIndex % phaseDef.actions.length];
+
+        // Multi-turn windup actions: declare the windup and stop. The
+        // resolution happens once turnsRemaining decrements to 0 on a
+        // subsequent boss turn.
+        if (action.windupTurns && action.windupTurns > 0) {
+            state.pendingWindup = {
+                actionDef: action,
+                turnsRemaining: action.windupTurns,
+            };
+            this.log.addMessage(
+                this.loc.t('combatBossWindupStart', {
+                    name: this.enemy.name,
+                    action: pickLine(action.intent, this.loc.language),
+                    turns: action.windupTurns,
+                }),
+                '#c4a35a'
+            );
+            this.tickBossBlockAtTurnEnd();
+            if (this.player.stats.hp <= 0) {
+                this.logDeath();
+                return;
+            }
+            this.enemy.currentIntent = this.intentLabelForPhase(state);
+            this.playerStatusChange.emit();
+            this.enemyStatusChange.emit();
+            return;
+        }
 
         const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
         const flatBlock = flatBlockBase;
@@ -1193,6 +1299,8 @@ export class CombatManager {
         }
         state.pendingHealOnSafe = 0;
 
+        this.tickBossBlockAtTurnEnd();
+
         if (this.player.stats.hp <= 0) {
             this.logDeath();
             return;
@@ -1203,6 +1311,130 @@ export class CombatManager {
         this.enemy.currentIntent = this.intentLabelForPhase(state);
         this.playerStatusChange.emit();
         this.enemyStatusChange.emit();
+    }
+
+    /**
+     * Apply the resolution effect of a boss windup action whose
+     * `turnsRemaining` just hit zero. Currently covers Death Knight's
+     * `death_shield` (raise a 15-block buff for 3 turns) and
+     * `death_touch` (instant-kill, softened to a flat 8-damage hit if
+     * the player Defends on the resolution turn).
+     */
+    private resolveBossWindupAction(
+        action: BossActionDef,
+        playerAction: 'attack' | 'defend' | 'skill' | 'potion'
+    ) {
+        if (!this.enemy || !this.enemy.bossPhase) return;
+        const state = this.enemy.bossPhase;
+        const actionLabel = pickLine(action.intent, this.loc.language);
+
+        if (action.id === 'death_shield' && action.pendingBlock && action.pendingBlockTurns) {
+            state.pendingBlock = action.pendingBlock;
+            state.pendingBlockTurns = action.pendingBlockTurns;
+            this.log.addMessage(
+                this.loc.t('combatBossDeathShieldRaised', {
+                    name: this.enemy.name,
+                    block: action.pendingBlock,
+                    turns: action.pendingBlockTurns,
+                }),
+                '#c4a35a'
+            );
+            return;
+        }
+
+        if (action.id === 'death_touch' && action.oneShot) {
+            if (playerAction === 'defend') {
+                const dmg = action.oneShotDefendDamage ?? 0;
+                const taken = this.applyEnemyHitToPlayer(dmg, COMBAT_CONFIG.defendBlock);
+                this.log.addMessage(
+                    this.loc.t('combatBossDeathTouchDefended', {
+                        name: this.enemy.name,
+                        action: actionLabel,
+                        damage: taken,
+                    }),
+                    '#9bc8ff'
+                );
+            } else {
+                // OHKO: drop the player's HP to zero directly so any
+                // flat block / temporary defence buff can't soak it.
+                const lethal = Math.max(this.player.stats.hp, 1);
+                this.player.takeDamage(lethal, 0, 'true');
+                this.log.addMessage(
+                    this.loc.t('combatBossDeathTouchOhko', {
+                        name: this.enemy.name,
+                        action: actionLabel,
+                    }),
+                    '#ff6666'
+                );
+                this.playerHit.emit({ damage: lethal });
+            }
+            return;
+        }
+
+        // Fallback: a generic windup with no special effect just runs
+        // its `attack`/`damageBonus` like a normal boss action so we
+        // never silently swallow new windup definitions.
+        const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
+        const weakenReduction =
+            this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
+        let attackPower =
+            this.enemy.attack +
+            this.player.getEnemyAttackBonusFromLight() -
+            weakenReduction;
+        if (action.damageBonus) attackPower += action.damageBonus;
+        if (attackPower < 1) attackPower = 1;
+        if (!action.noAttack) {
+            const taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
+            if (taken > 0) {
+                this.log.addMessage(
+                    this.loc.t('combatEnemyHit', {
+                        name: this.enemy.name,
+                        takenDamage: taken,
+                        extraMessage: '',
+                    }),
+                    '#ff6666'
+                );
+            } else {
+                this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
+            }
+        }
+    }
+
+    /**
+     * Decrement the boss's active block buff timer at the end of every
+     * boss turn. When the timer hits zero we drop any leftover block
+     * pool and log expiry so the player understands the shield is gone.
+     */
+    private tickBossBlockAtTurnEnd() {
+        if (!this.enemy || !this.enemy.bossPhase) return;
+        const state = this.enemy.bossPhase;
+        if (state.pendingBlockTurns <= 0) return;
+        state.pendingBlockTurns -= 1;
+        if (state.pendingBlockTurns <= 0 && state.pendingBlock > 0) {
+            state.pendingBlock = 0;
+            this.log.addMessage(
+                this.loc.t('combatBossDeathShieldExpired', { name: this.enemy.name }),
+                '#9aa6b3'
+            );
+        }
+    }
+
+    /**
+     * Knock off the boss's active block buff (Death Shield) when the
+     * player lands a damaging Will-spent skill. Called from
+     * {@link handlePlayerSkill} after the damage roll resolves so the
+     * shield only breaks when actual damage is delivered.
+     */
+    private breakBossBlockOnSkillDamage() {
+        if (!this.enemy || !this.enemy.bossPhase) return;
+        const state = this.enemy.bossPhase;
+        if (state.pendingBlock <= 0) return;
+        state.pendingBlock = 0;
+        state.pendingBlockTurns = 0;
+        this.log.addMessage(
+            this.loc.t('combatBossDeathShieldBroken', { name: this.enemy.name }),
+            '#b893ff'
+        );
     }
 
     /** Returns a human-readable line of enemy statuses. */

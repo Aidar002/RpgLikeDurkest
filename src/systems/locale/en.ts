@@ -230,6 +230,14 @@ export const EN_STRINGS = {
     combatRelicCursedSelfHit: 'Minor Cursed Set effect triggered — {damage} damage backfire.',
     // Sara's Vampire Blessing on-attack heal proc.
     combatVampireBlessingHeal: 'Vampire Blessing effect triggered — recovered {healed} HP.',
+    // Boss windups: Death Knight (Death Shield / Death Touch).
+    combatBossWindupStart: '{name} starts winding up {action} ({turns}t).',
+    combatBossWindupTick: '{name} keeps winding up {action} ({turns}t left).',
+    combatBossDeathShieldRaised: '{name} raises a Death Shield: {block} block for {turns}t.',
+    combatBossDeathShieldExpired: "{name}'s Death Shield fades.",
+    combatBossDeathShieldBroken: "Your Will-skill shatters {name}'s Death Shield.",
+    combatBossDeathTouchOhko: "{name}'s {action} lands — you fall.",
+    combatBossDeathTouchDefended: "You brace through {name}'s {action} for {damage} damage.",
 } as const;
 
 /** All localisable string keys. Defined by the English table. */

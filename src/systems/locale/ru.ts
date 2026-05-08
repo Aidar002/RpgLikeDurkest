@@ -218,4 +218,12 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatRelicCursedSelfHit: 'Сработал эффект предмета «Малый проклятый сет» — отдача {damage} урона.',
     // Прок благословения вампиров от Сары на ударе игрока.
     combatVampireBlessingHeal: 'Сработал эффект предмета «Благословение вампиров» — восстановлено {healed} ОЗ.',
+    // Замах боссов: Рыцарь Смерти (Щит смерти / Касание смерти).
+    combatBossWindupStart: '{name} готовится: {action} ({turns}х).',
+    combatBossWindupTick: '{name} продолжает готовить {action} (осталось {turns}х).',
+    combatBossDeathShieldRaised: 'Над {name} поднимается Щит смерти: {block} блока на {turns}х.',
+    combatBossDeathShieldExpired: 'Щит смерти {name} истаивает.',
+    combatBossDeathShieldBroken: 'Удар по Воле сбивает Щит смерти {name}.',
+    combatBossDeathTouchOhko: '{action} {name} касается тебя — ты повержен.',
+    combatBossDeathTouchDefended: 'Ты ставишь блок и переживаешь {action} {name}: {damage} урона.',
 };
