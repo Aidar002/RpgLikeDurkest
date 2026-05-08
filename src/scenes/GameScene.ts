@@ -66,6 +66,7 @@ import {
 import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
+import { RestartConfirmModal } from '../ui/RestartConfirmModal';
 
 // Map layout / node-visual types moved to ../ui/MapView.ts.
 
@@ -93,7 +94,7 @@ export type { RoomButtonAction, RoomButtonVariant } from '../ui/RoomButtons';
 // startCombatEncounter / applyTrapDamage . . . . . . . . . . . . 1314 - 1320
 // showRoomCard / showReturnButton / returnToMap / advanceToNode  1322 - 1410
 // updateEnemyUI / endScreenContext / show{Victory,Death}Screen . 1412 - 1460
-// safeRestart / handleRestartClick / buildRestartConfirmModal .  1462 - 1567
+// safeRestart / handleRestartClick / RestartConfirmModal      .  1462 - 1567
 // confirmRestart . . . . . . . . . . . . . . . . . . . . . . . . 1568 - 1584
 // handleEscapeClick (two-tap escape → DeathScreen with shop)  .  1586 - end
 // =============================================================================
@@ -204,9 +205,9 @@ export class GameScene extends Phaser.Scene {
     private escapeButtonLabel!: Phaser.GameObjects.Text;
     private restartButtonBg!: Phaser.GameObjects.Rectangle;
     private restartButtonLabel!: Phaser.GameObjects.Text;
-    /** Restart-confirm modal widgets. Built once in setupGlobalUI and
-     *  toggled via setRestartConfirmVisible(). */
-    private restartConfirmWidgets: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [];
+    /** Restart-confirm modal. Built once in setupGlobalUI and toggled
+     *  via {@link RestartConfirmModal.show} / `.hide()`. */
+    private restartConfirmModal!: RestartConfirmModal;
     private hintText!: Phaser.GameObjects.Text;
     public tooltipText!: Phaser.GameObjects.Text;
 
@@ -1556,86 +1557,22 @@ export class GameScene extends Phaser.Scene {
         if (this.combat?.enemy || this.dead || this.deathSequenceStarted) {
             return;
         }
-        this.setRestartConfirmVisible(true);
+        this.restartConfirmModal.show();
     }
 
     /**
-     * Build the restart-confirm modal once and stash its widgets in
-     * {@link restartConfirmWidgets} so they can be toggled together.
-     * Mirrors the look of the death-screen reset modal but commits to
-     * a full meta-progression wipe + return to the boot scene rather
-     * than just restarting the current run.
+     * Build the restart-confirm modal once and stash the handle on
+     * {@link restartConfirmModal} so it can be toggled from
+     * {@link handleRestartClick}. Mirrors the look of the
+     * death-screen reset modal but commits to a full
+     * meta-progression wipe + return to the boot scene rather than
+     * just restarting the current run.
      */
     private buildRestartConfirmModal() {
-        const overlay = this.add
-            .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
-            .setDepth(Depths.ConfirmOverlay)
-            .setInteractive();
-        const panel = this.add
-            .rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818)
-            .setDepth(Depths.ConfirmPanel);
-        panel.setStrokeStyle(2, 0x8a4d4d);
-        const title = this.add
-            .text(CENTER_X, CENTER_Y - 50, this.loc.t('confirmRestartTitle'), {
-                fontFamily: 'Courier New',
-                fontSize: '22px',
-                color: '#ffd2d2',
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmContent);
-        const body = this.add
-            .text(CENTER_X, CENTER_Y, this.loc.t('confirmRestartBody'), {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#d6d6d6',
-                align: 'center',
-                lineSpacing: 8,
-                wordWrap: { width: 360 },
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmContent);
-        const yesBtn = this.add
-            .rectangle(CENTER_X - 90, CENTER_Y + 66, 170, 38, 0x5a1d1d)
-            .setDepth(Depths.ConfirmContent);
-        yesBtn.setStrokeStyle(1, 0xc57d7d);
-        yesBtn.setInteractive({ useHandCursor: true });
-        const yesText = this.add
-            .text(CENTER_X - 90, CENTER_Y + 66, this.loc.t('confirmRestartYes'), {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#ffe8e8',
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmForeground);
-        const noBtn = this.add
-            .rectangle(CENTER_X + 90, CENTER_Y + 66, 170, 38, 0x252525)
-            .setDepth(Depths.ConfirmContent);
-        noBtn.setStrokeStyle(1, 0x8a8a8a);
-        noBtn.setInteractive({ useHandCursor: true });
-        const noText = this.add
-            .text(CENTER_X + 90, CENTER_Y + 66, this.loc.t('cancel'), {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#f0f0f0',
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmForeground);
-
-        yesBtn.on('pointerover', () => yesBtn.setStrokeStyle(2, 0xffd7d7));
-        yesBtn.on('pointerout', () => yesBtn.setStrokeStyle(1, 0xc57d7d));
-        yesBtn.on('pointerdown', () => this.confirmRestart());
-
-        noBtn.on('pointerover', () => noBtn.setStrokeStyle(2, 0xffffff));
-        noBtn.on('pointerout', () => noBtn.setStrokeStyle(1, 0x8a8a8a));
-        noBtn.on('pointerdown', () => this.setRestartConfirmVisible(false));
-        overlay.on('pointerdown', () => this.setRestartConfirmVisible(false));
-
-        this.restartConfirmWidgets = [overlay, panel, title, body, yesBtn, yesText, noBtn, noText];
-        this.setRestartConfirmVisible(false);
-    }
-
-    private setRestartConfirmVisible(visible: boolean) {
-        this.restartConfirmWidgets.forEach((widget) => widget.setVisible(visible));
+        this.restartConfirmModal = new RestartConfirmModal(this, {
+            loc: this.loc,
+            onConfirm: () => this.confirmRestart(),
+        });
     }
 
     /**
@@ -1646,7 +1583,6 @@ export class GameScene extends Phaser.Scene {
      * survive.
      */
     private confirmRestart() {
-        this.setRestartConfirmVisible(false);
         this.meta.resetProgress();
         this.tweens.killAll();
         this.time.removeAllEvents();
