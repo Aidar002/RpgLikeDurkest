@@ -14,7 +14,7 @@ import {
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { RunTracker } from '../systems/RunTracker';
-import { RELICS, rollRelicFor } from '../systems/Relics';
+import { RELICS, rollRelicFor, rollRelicForEnemy } from '../systems/Relics';
 import type { RelicRarity } from '../systems/Relics';
 import { SKILLS, STARTER_LOADOUT } from '../systems/Skills';
 import type { SkillId } from '../systems/Skills';
@@ -911,24 +911,37 @@ export class GameScene extends Phaser.Scene {
             .join(', ');
     }
 
-    public maybeDropRelic(kind: 'normal' | 'elite' | 'boss' | 'treasure' | 'shrine'): boolean {
+    public maybeDropRelic(
+        kind: 'normal' | 'elite' | 'boss' | 'treasure' | 'shrine',
+        enemyName?: string
+    ): boolean {
         const allowedRarities = this.meta.getRelicRarityPool();
-        const chance = kind === 'boss'
-            ? 1
-            : kind === 'elite'
-              ? ROOM_CONFIG.elite.relicChance
-              : kind === 'treasure'
-                ? ROOM_CONFIG.treasure.relicChance
-                : kind === 'shrine'
-                  ? ROOM_CONFIG.shrine.relicChance
-                  : 0;
-        if (Math.random() > chance) return false;
 
-        const rollKind = kind === 'treasure' || kind === 'shrine'
-            ? 'normal'
-            : kind;
-        const relicId = rollRelicFor(this.player.relics, rollKind as 'normal' | 'elite' | 'boss');
-        if (!relicId) return false;
+        // Combat drops with a known enemy name use the per-enemy drop
+        // table directly: each item rolls its own chance, so the legacy
+        // kind-level chance gate is bypassed.
+        let relicId: ReturnType<typeof rollRelicFor> = null;
+        if (enemyName && (kind === 'normal' || kind === 'elite' || kind === 'boss')) {
+            relicId = rollRelicForEnemy(enemyName, this.player.relics);
+            if (!relicId) return false;
+        } else {
+            const chance = kind === 'boss'
+                ? 1
+                : kind === 'elite'
+                  ? ROOM_CONFIG.elite.relicChance
+                  : kind === 'treasure'
+                    ? ROOM_CONFIG.treasure.relicChance
+                    : kind === 'shrine'
+                      ? ROOM_CONFIG.shrine.relicChance
+                      : 0;
+            if (Math.random() > chance) return false;
+
+            const rollKind = kind === 'treasure' || kind === 'shrine'
+                ? 'normal'
+                : kind;
+            relicId = rollRelicFor(this.player.relics, rollKind as 'normal' | 'elite' | 'boss');
+            if (!relicId) return false;
+        }
 
         // Filter by unlocked rarity pool.
         const relic = RELICS[relicId];

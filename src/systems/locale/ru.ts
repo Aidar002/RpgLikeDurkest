@@ -189,4 +189,11 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatSkillPreparation: 'Подготовка: следующий удар +1 урона, следующая защита +1.',
     combatPreparationAttack: 'Подготовка срабатывает: +1 урона на этой атаке.',
     combatPreparationDefend: 'Подготовка укрепляет защиту: +1 защиты на этом блоке.',
+    // Сработавшие пассивки врагов (крыса / слизень / скелет).
+    combatEnemyExtraDamage: '{name} рвётся в атаку: +{bonus} урона.',
+    combatEnemyThorns: '{name} жалит в ответ на {thorns} урона.',
+    combatEnemyDamageReduction: '{name} стряхивает {amount} урона.',
+    // Срабатывания предметов (треснутый амулет, дырявый нагрудник).
+    combatRelicHealOnAttack: 'Треснутый амулет: восстановлено {healed} ОЗ.',
+    combatRelicBlockOnHit: 'Дырявый нагрудник поглощает {amount} урона.',
 };
