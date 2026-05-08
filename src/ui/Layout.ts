@@ -13,7 +13,7 @@ export const CENTER_Y = GAME_HEIGHT / 2;
  * `GameScene.ts`/`SceneChrome.ts`. Section groups:
  *
  * - `topHud.*`: stat slots in the carved top bar (АТАКА/ЗАЩИТА column,
- *   возрождения/факел column).
+ *   torch column).
  * - `chrome.*`: bottom-left audio/language toggle row anchored to the
  *   top-right corner of the canvas.
  *
@@ -24,7 +24,7 @@ export const HudLayout = {
         /** X anchor for the АТАКА/ЗАЩИТА stat column. Anchored just
          *  left of the canvas midline so the combat stat block reads
          *  as the centre group of the top bar (left = HP+XP, centre =
-         *  ATK/DEF + revives, right = resource cells). */
+         *  ATK/DEF, right = resource cells). */
         statsX: 408,
         /** Horizontal offset between an inline slot's icon and value. */
         statsValueOffset: 96,
@@ -32,8 +32,6 @@ export const HudLayout = {
         atkY: 26,
         /** Y of the ЗАЩИТА row, sits one row below `atkY`. */
         defY: 54,
-        /** Y of the ВОЗР. row in the second top-bar column. */
-        revivesY: 28,
         /** Y of the high/low-light icon (sun/moon glyph). */
         torchIconY: 56,
         /** X offset (from `statsX`) of the second column. */

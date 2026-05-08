@@ -15,7 +15,6 @@ export type NarrationEvent =
     | 'rest'
     | 'relic_found'
     | 'stun_landed'
-    | 'revive'
     | 'death';
 
 const LINES: Record<NarrationEvent, string[]> = {
@@ -73,10 +72,6 @@ const LINES: Record<NarrationEvent, string[]> = {
     ],
     stun_landed: [
         'Its rhythm breaks. Strike while it remembers its name.',
-    ],
-    revive: [
-        'Not yet. The expedition is not over.',
-        'Against all reason, you rise.',
     ],
     death: [
         'Overconfidence is a slow and insidious killer.',
@@ -140,10 +135,6 @@ const RU_LINES: Record<NarrationEvent, string[]> = {
     ],
     stun_landed: [
         'Ритм сломан. Бей, пока он ищет равновесие.',
-    ],
-    revive: [
-        'Ещё нет. Ноги снова под тобой.',
-        'Вопреки телу ты поднимаешься.',
     ],
     death: [
         'Самоуверенность убивает медленно. Подземелье умеет ждать.',

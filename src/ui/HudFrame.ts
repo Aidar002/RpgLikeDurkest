@@ -133,7 +133,7 @@ export function drawCarvedPanel(
  * Draw a sub-panel using the `hud_top_bar` PNG via nine-slice.
  *
  * Used for inner sections on the death/victory screen (e.g. summary
- * panel, prestige upgrade panel). Falls back to the same procedural
+ * panel, skill-points sub-panel). Falls back to the same procedural
  * panel used by `drawCarvedPanel` when the texture is missing.
  */
 export function drawTopBarPanel(
