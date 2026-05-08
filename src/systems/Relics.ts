@@ -1,36 +1,83 @@
 import type { LocalizedText } from './LocalizedText';
 import { lt } from './LocalizedText';
 import { defaultRng, type Rng } from './Rng';
-import { RELIC_CAP_CONFIG } from '../data/GameConfig';
 
-// Relic catalog. Relics are permanent modifiers for the current run.
-// They stack additively. Relics are acquired from boss rooms, elite rooms,
-// treasure rooms (small chance), merchants (via shards), and shrines.
+// Relic catalog. Items are permanent run modifiers that mostly bump
+// stats with a few chance-based on-hit effects. They are grouped into
+// four sets; owning every item in a set unlocks a SET BONUS that is
+// evaluated per attack so HP-conditional bonuses can swap mid-combat.
 //
-// All effects are evaluated via accumulated "aggregate" at combat time so
-// the math stays centralized in CombatManager / PlayerManager.
+// Numeric effects are folded into a single RelicAggregate at combat
+// time so PlayerManager / CombatManager have one source of truth.
 
 export type RelicId =
-    | 'bloodied_fang'
-    | 'iron_will'
-    | 'embervow'
-    | 'lanterns_oath'
-    | 'gamblers_knuckle'
-    | 'shade_mask'
-    | 'thorned_mail'
-    | 'vampiric_sigil'
-    | 'stoneheart'
-    | 'rally_standard'
-    | 'cursed_coin'
-    | 'witchglass'
-    | 'pyre_ash'
-    | 'silent_boots'
-    | 'warden_oath'
-    | 'revenants_spite'
-    | 'herbalist_kit'
-    | 'mercy_token';
+    | 'worn_ring'
+    | 'cracked_shield'
+    | 'tattered_cloak'
+    | 'cracked_amulet'
+    | 'holey_chestplate'
+    | 'simple_sword'
+    | 'simple_chestplate'
+    | 'simple_helmet'
+    | 'cursed_amulet'
+    | 'cursed_ring';
 
 export type RelicRarity = 'common' | 'rare' | 'unique';
+
+export type RelicSetId =
+    | 'wanderer'
+    | 'flesh'
+    | 'recruit'
+    | 'minor_cursed';
+
+export interface RelicSetDef {
+    id: RelicSetId;
+    name: LocalizedText;
+    bonus: LocalizedText;
+}
+
+export const RELIC_SETS: Record<RelicSetId, RelicSetDef> = {
+    wanderer: {
+        id: 'wanderer',
+        name: lt('Сет странника', "Wanderer's Set"),
+        bonus: lt(
+            '+1 урон, +1 жизнь, когда собран весь сет.',
+            '+1 attack, +1 max HP when the set is complete.'
+        ),
+    },
+    flesh: {
+        id: 'flesh',
+        name: lt('Сет плоти', 'Flesh Set'),
+        bonus: lt(
+            '+2 урона при ОЗ < 50%, +1 защита при ОЗ > 50%.',
+            '+2 attack while HP < 50%, +1 defense while HP > 50%.'
+        ),
+    },
+    recruit: {
+        id: 'recruit',
+        name: lt('Сет новобранца', "Recruit's Set"),
+        bonus: lt(
+            '+2 защита, +2 жизни, +2 урон, когда собран весь сет.',
+            '+2 defense, +2 max HP, +2 attack when the set is complete.'
+        ),
+    },
+    minor_cursed: {
+        id: 'minor_cursed',
+        name: lt('Малый проклятый сет', 'Minor Cursed Set'),
+        bonus: lt(
+            'При атаке: 50% удвоить урон или 50% получить 2 урона.',
+            'On attack: 50% deal double damage or 50% take 2 damage.'
+        ),
+    },
+};
+
+/** Drop table entry: which enemy drops this item with what chance (0..1). */
+export interface RelicDropEntry {
+    /** Canonical English enemy `name` (matches GameConfig.ENEMY_TIERS / BOSSES). */
+    enemyName: string;
+    /** Probability the item drops on that enemy's death. */
+    chance: number;
+}
 
 export interface RelicDef {
     id: RelicId;
@@ -38,188 +85,116 @@ export interface RelicDef {
     short: LocalizedText;
     rarity: RelicRarity;
     description: LocalizedText;
+    set?: RelicSetId;
+    /** Drop table — one entry per spec'd source enemy. */
+    drops: RelicDropEntry[];
 }
 
 export const RELICS: Record<RelicId, RelicDef> = {
-    bloodied_fang: {
-        id: 'bloodied_fang',
-        name: lt('Окровавленный клык', 'Bloodied Fang'),
-        short: lt('Клык', 'Fang'),
+    worn_ring: {
+        id: 'worn_ring',
+        name: lt('Потёртое кольцо', 'Worn Ring'),
+        short: lt('Кольцо', 'Ring'),
         rarity: 'common',
-        description: lt(
-            'Обычные атаки накладывают Кровотечение 1 на 2 хода.',
-            'Basic attacks also inflict Bleed 1 for 2 turns.'
-        ),
+        description: lt('+1 урон.', '+1 attack.'),
+        set: 'wanderer',
+        drops: [
+            { enemyName: 'Rat', chance: 0.2 },
+            { enemyName: 'Slime', chance: 0.2 },
+        ],
     },
-    iron_will: {
-        id: 'iron_will',
-        name: lt('Железная воля', 'Iron Will'),
-        short: lt('Воля', 'Iron'),
+    cracked_shield: {
+        id: 'cracked_shield',
+        name: lt('Треснутый щит', 'Cracked Shield'),
+        short: lt('Щит', 'Shield'),
         rarity: 'common',
-        description: lt(
-            '+1 к защите. Первое Оглушение в каждом бою не срабатывает.',
-            '+1 Defense. You resist the first stun each combat.'
-        ),
+        description: lt('+1 защита.', '+1 defense.'),
+        set: 'wanderer',
+        drops: [{ enemyName: 'Skeleton', chance: 0.2 }],
     },
-    embervow: {
-        id: 'embervow',
-        name: lt('Угольный обет', 'Ember Vow'),
-        short: lt('Уголь', 'Ember'),
-        rarity: 'rare',
-        description: lt(
-            '+25% к урону, пока у тебя не больше 33% ОЗ.',
-            '+25% damage while at or below 33% HP.'
-        ),
-    },
-    lanterns_oath: {
-        id: 'lanterns_oath',
-        name: lt('Обет фонаря', "Lantern's Oath"),
-        short: lt('Обет', 'Oath'),
+    tattered_cloak: {
+        id: 'tattered_cloak',
+        name: lt('Потрёпанный плащ', 'Tattered Cloak'),
+        short: lt('Плащ', 'Cloak'),
         rarity: 'common',
-        description: lt(
-            'Пустые комнаты не гасят фонарь.',
-            'Empty rooms do not drain your light.'
-        ),
+        description: lt('+1 жизнь.', '+1 max HP.'),
+        set: 'wanderer',
+        drops: [{ enemyName: 'Skeleton', chance: 0.2 }],
     },
-    gamblers_knuckle: {
-        id: 'gamblers_knuckle',
-        name: lt('Костяшка игрока', "Gambler's Knuckle"),
-        short: lt('Кость', 'Knuck'),
+    cracked_amulet: {
+        id: 'cracked_amulet',
+        name: lt('Треснутый амулет', 'Cracked Amulet'),
+        short: lt('Амулет', 'Amulet'),
         rarity: 'rare',
         description: lt(
-            '+12% к шансу крита. Криты возвращают 1 волю.',
-            '+12% crit chance. Your crits restore 1 resolve.'
+            '+1 жизнь. Шанс 15% восстановить 1 ОЗ при ударе.',
+            '+1 max HP. 15% chance to restore 1 HP on attack.'
         ),
+        set: 'flesh',
+        drops: [{ enemyName: 'Bat', chance: 0.2 }],
     },
-    shade_mask: {
-        id: 'shade_mask',
-        name: lt('Маска тени', 'Shade Mask'),
-        short: lt('Маска', 'Mask'),
+    holey_chestplate: {
+        id: 'holey_chestplate',
+        name: lt('Дырявый нагрудник', 'Holey Chestplate'),
+        short: lt('Нагрудник', 'Chest'),
         rarity: 'rare',
         description: lt(
-            'Первая атака врага в каждом бою проходит мимо.',
-            'First enemy action each combat is evaded.'
+            '+1 жизнь. Шанс 15% заблокировать 2 урона.',
+            '+1 max HP. 15% chance to block 2 damage.'
         ),
+        set: 'flesh',
+        drops: [{ enemyName: 'Ghoul', chance: 0.3 }],
     },
-    thorned_mail: {
-        id: 'thorned_mail',
-        name: lt('Шипастая кольчуга', 'Thorned Mail'),
-        short: lt('Шипы', 'Thorns'),
+    simple_sword: {
+        id: 'simple_sword',
+        name: lt('Обычный меч', 'Simple Sword'),
+        short: lt('Меч', 'Sword'),
         rarity: 'common',
-        description: lt(
-            'Враги получают 2 урона каждый раз, когда попадают по тебе.',
-            'Enemies take 2 damage whenever they hit you.'
-        ),
+        description: lt('+3 урон.', '+3 attack.'),
+        set: 'recruit',
+        drops: [{ enemyName: 'Skeleton Swordsman', chance: 0.3 }],
     },
-    vampiric_sigil: {
-        id: 'vampiric_sigil',
-        name: lt('Вампирская печать', 'Vampiric Sigil'),
-        short: lt('Печать', 'Sigil'),
-        rarity: 'rare',
-        description: lt(
-            'Убийство или крит восстанавливают 2 ОЗ.',
-            'Heal 2 HP each time you kill an enemy or crit.'
-        ),
-    },
-    stoneheart: {
-        id: 'stoneheart',
-        name: lt('Каменное сердце', 'Stoneheart'),
-        short: lt('Камень', 'Stone'),
+    simple_chestplate: {
+        id: 'simple_chestplate',
+        name: lt('Обычный нагрудник', 'Simple Chestplate'),
+        short: lt('Бронь', 'Plate'),
         rarity: 'common',
-        description: lt(
-            '+8 к макс. ОЗ. Отдых лечит ещё на 3.',
-            '+8 Max HP. Heal +3 at every Rest.'
-        ),
+        description: lt('+3 защита.', '+3 defense.'),
+        set: 'recruit',
+        drops: [{ enemyName: 'Steel Lynx', chance: 0.3 }],
     },
-    rally_standard: {
-        id: 'rally_standard',
-        name: lt('Стяг сбора', 'Rally Standard'),
-        short: lt('Стяг', 'Rally'),
-        rarity: 'rare',
-        description: lt(
-            'В начале боя: Фокус +1 на 3 хода.',
-            'Start combat with Focus +1 for 3 turns.'
-        ),
-    },
-    cursed_coin: {
-        id: 'cursed_coin',
-        name: lt('Проклятая монета', 'Cursed Coin'),
-        short: lt('Монета', 'Coin'),
+    simple_helmet: {
+        id: 'simple_helmet',
+        name: lt('Обычный шлем', 'Simple Helmet'),
+        short: lt('Шлем', 'Helm'),
         rarity: 'common',
-        description: lt(
-            '+50% к золоту. Ловушки наносят тебе +1 урона.',
-            '+50% gold gain. You take +1 damage from traps.'
-        ),
+        description: lt('+5 жизней.', '+5 max HP.'),
+        set: 'recruit',
+        drops: [{ enemyName: 'Skeleton Swordsman', chance: 0.3 }],
     },
-    witchglass: {
-        id: 'witchglass',
-        name: lt('Ведьмино стекло', 'Witchglass'),
-        short: lt('Стекло', 'Glass'),
-        rarity: 'rare',
-        description: lt(
-            'Показывает два следующих слоя комнат.',
-            'Always see the next TWO layers of rooms.'
-        ),
-    },
-    pyre_ash: {
-        id: 'pyre_ash',
-        name: lt('Пепел костра', 'Pyre Ash'),
-        short: lt('Пепел', 'Pyre'),
-        rarity: 'rare',
-        description: lt(
-            'Твоё Кровотечение длится на 1 ход дольше и получает +1 заряд.',
-            'Bleed you apply lasts +1 turn and has +1 stack.'
-        ),
-    },
-    silent_boots: {
-        id: 'silent_boots',
-        name: lt('Тихие сапоги', 'Silent Boots'),
-        short: lt('Сапоги', 'Boots'),
-        rarity: 'common',
-        description: lt(
-            'Ты всегда ходишь первым. +5% к шансу крита.',
-            'Always act first. +5% crit chance.'
-        ),
-    },
-    warden_oath: {
-        id: 'warden_oath',
-        name: lt('Обет стража', "Warden's Oath"),
-        short: lt('Страж', 'Warden'),
-        rarity: 'rare',
-        description: lt(
-            'Защита блокирует ещё 3 урона.',
-            'Defending blocks +3 extra damage.'
-        ),
-    },
-    revenants_spite: {
-        id: 'revenants_spite',
-        name: lt('Злоба ревенанта', "Revenant's Spite"),
-        short: lt('Злоба', 'Spite'),
+    cursed_amulet: {
+        id: 'cursed_amulet',
+        name: lt('Проклятый амулет', 'Cursed Amulet'),
+        short: lt('Прокл. амул.', 'Curs. Amul.'),
         rarity: 'unique',
         description: lt(
-            'Смертельный удар вместо смерти восстанавливает 10 ОЗ. Один раз за забег.',
-            'When you would die, instead heal 10 HP. Once per run.'
+            '+6 урон. Шанс 10% промахнуться при атаке.',
+            '+6 attack. 10% chance to miss on attack.'
         ),
+        set: 'minor_cursed',
+        drops: [{ enemyName: 'Death Knight', chance: 0.5 }],
     },
-    herbalist_kit: {
-        id: 'herbalist_kit',
-        name: lt('Набор травника', "Herbalist's Kit"),
-        short: lt('Травы', 'Herbs'),
-        rarity: 'common',
-        description: lt(
-            'Эликсиры лечат ещё на 4 ОЗ и дают Регенерацию 1 на 3 хода.',
-            'Potions heal +4 HP and grant Regen 1 for 3 turns.'
-        ),
-    },
-    mercy_token: {
-        id: 'mercy_token',
-        name: lt('Жетон милости', 'Mercy Token'),
-        short: lt('Милость', 'Mercy'),
+    cursed_ring: {
+        id: 'cursed_ring',
+        name: lt('Проклятое кольцо', 'Cursed Ring'),
+        short: lt('Прокл. кольцо', 'Curs. Ring'),
         rarity: 'unique',
         description: lt(
-            'Штрафы от слабого света вдвое меньше. +1 стартовый свет.',
-            'Low-light penalties are halved. +1 starting light.'
+            '+3 защита, +3 жизни. Шанс 10% применить обычный удар вместо способности.',
+            '+3 defense, +3 max HP. 10% chance a skill becomes a basic attack.'
         ),
+        set: 'minor_cursed',
+        drops: [{ enemyName: 'Death Knight', chance: 0.5 }],
     },
 };
 
@@ -227,166 +202,170 @@ export const RELIC_ORDER: RelicId[] = Object.keys(RELICS) as RelicId[];
 
 /** Aggregate numeric effect bag, built by summing relic contributions. */
 export interface RelicAggregate {
+    bonusAttack: number;
     bonusDefense: number;
     bonusMaxHp: number;
-    bonusStartingLight: number;
-    bonusAttack: number;
-    critChanceBonus: number;
-    thornsDamage: number;
-    lowHpDamageBonus: number; // fraction, e.g. 0.25
-    lowHpThreshold: number; // fraction of maxHp
-    lifestealOnKill: number;
-    lifestealOnCrit: number;
-    goldMultiplier: number;
-    trapDamageMod: number;
-    bleedOnAttackStacks: number;
-    bleedOnAttackTurns: number;
-    bleedStackBonus: number;
-    bleedTurnBonus: number;
-    defendExtraBlock: number;
-    startCombatFocus: number; // turns of focus+1 at combat start
-    evadeFirstHit: boolean;
-    emptyRoomsSpareLight: boolean;
-    resistFirstStun: boolean;
-    reviveOnce: boolean;
-    alwaysActFirst: boolean;
-    mapRevealLayers: number; // additional layers to reveal
-    potionHealBonus: number;
-    potionRegenTurns: number;
-    lowLightPenaltyMult: number; // 1 = normal, 0.5 = halved
-    restHealBonus: number;
-    critResolveGain: number; // resolve restored per crit
+    /** [item: cracked_amulet] Chance 0..1 to restore HP on a basic attack. */
+    healOnAttackChance: number;
+    healOnAttackAmount: number;
+    /** [item: holey_chestplate] Chance 0..1 to block N damage on incoming hit. */
+    blockOnHitChance: number;
+    blockOnHitAmount: number;
+    /** [item: cursed_amulet] Chance 0..1 to whiff a basic attack. */
+    missChance: number;
+    /** [item: cursed_ring] Chance 0..1 a Will-skill resolves as a basic strike. */
+    skillToBasicChance: number;
+    /** [npc Sara: vampire blessing] 25% chance to restore 2 HP on attack. */
+    vampireBlessingChance: number;
+    vampireBlessingAmount: number;
+    /** Set membership. Used for set-bonus evaluation. */
+    sets: {
+        wanderer: boolean;
+        flesh: boolean;
+        recruit: boolean;
+        minor_cursed: boolean;
+    };
 }
 
 export function emptyAggregate(): RelicAggregate {
     return {
+        bonusAttack: 0,
         bonusDefense: 0,
         bonusMaxHp: 0,
-        bonusStartingLight: 0,
-        bonusAttack: 0,
-        critChanceBonus: 0,
-        thornsDamage: 0,
-        lowHpDamageBonus: 0,
-        lowHpThreshold: 0,
-        lifestealOnKill: 0,
-        lifestealOnCrit: 0,
-        goldMultiplier: 1,
-        trapDamageMod: 0,
-        bleedOnAttackStacks: 0,
-        bleedOnAttackTurns: 0,
-        bleedStackBonus: 0,
-        bleedTurnBonus: 0,
-        defendExtraBlock: 0,
-        startCombatFocus: 0,
-        evadeFirstHit: false,
-        emptyRoomsSpareLight: false,
-        resistFirstStun: false,
-        reviveOnce: false,
-        alwaysActFirst: false,
-        mapRevealLayers: 1,
-        potionHealBonus: 0,
-        potionRegenTurns: 0,
-        lowLightPenaltyMult: 1,
-        restHealBonus: 0,
-        critResolveGain: 0,
+        healOnAttackChance: 0,
+        healOnAttackAmount: 0,
+        blockOnHitChance: 0,
+        blockOnHitAmount: 0,
+        missChance: 0,
+        skillToBasicChance: 0,
+        vampireBlessingChance: 0,
+        vampireBlessingAmount: 0,
+        sets: {
+            wanderer: false,
+            flesh: false,
+            recruit: false,
+            minor_cursed: false,
+        },
     };
 }
 
+/**
+ * Build the per-run aggregate from a list of owned relics. Stat bumps
+ * add additively; chance effects pick the max so the addRelic guard
+ * (which already blocks duplicates) keeps stacking sane.
+ *
+ * Set bonuses are folded in here for the unconditional pieces. The
+ * conditional pieces (flesh "below 50% HP", minor-cursed coin flip
+ * on every attack) live in CombatManager so they can react to live
+ * combat state.
+ */
 export function aggregateRelics(ids: RelicId[]): RelicAggregate {
     const agg = emptyAggregate();
     ids.forEach((id) => applyRelic(agg, id));
-    // [FIX-13] Final safety caps. Per-instance Math.min calls also live
-    // at the call sites (PlayerManager.gainGold, CombatManager.thorns,
-    // etc.) so the headless simulator and direct readers see the
-    // capped values regardless of entry point.
-    if (agg.bleedStackBonus > RELIC_CAP_CONFIG.pyreAshBleedStacksCap) {
-        agg.bleedStackBonus = RELIC_CAP_CONFIG.pyreAshBleedStacksCap;
-    }
-    if (agg.bleedTurnBonus > RELIC_CAP_CONFIG.pyreAshBleedTurnsCap) {
-        agg.bleedTurnBonus = RELIC_CAP_CONFIG.pyreAshBleedTurnsCap;
-    }
-    if (agg.goldMultiplier > RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap) {
-        agg.goldMultiplier = RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap;
-    }
-    if (agg.thornsDamage > RELIC_CAP_CONFIG.thornedMailReflectionCap) {
-        agg.thornsDamage = RELIC_CAP_CONFIG.thornedMailReflectionCap;
-    }
-    if (agg.lowHpDamageBonus > RELIC_CAP_CONFIG.emberVowLowHpBonusCap) {
-        agg.lowHpDamageBonus = RELIC_CAP_CONFIG.emberVowLowHpBonusCap;
-    }
+    applyUnconditionalSetBonuses(agg, ids);
     return agg;
 }
 
 function applyRelic(agg: RelicAggregate, id: RelicId) {
     switch (id) {
-        case 'bloodied_fang':
-            agg.bleedOnAttackStacks = Math.max(agg.bleedOnAttackStacks, 1);
-            agg.bleedOnAttackTurns = Math.max(agg.bleedOnAttackTurns, 2);
+        case 'worn_ring':
+            agg.bonusAttack += 1;
             break;
-        case 'iron_will':
+        case 'cracked_shield':
             agg.bonusDefense += 1;
-            agg.resistFirstStun = true;
             break;
-        case 'embervow':
-            agg.lowHpDamageBonus += 0.25;
-            agg.lowHpThreshold = Math.max(agg.lowHpThreshold, 0.33);
+        case 'tattered_cloak':
+            agg.bonusMaxHp += 1;
             break;
-        case 'lanterns_oath':
-            agg.emptyRoomsSpareLight = true;
+        case 'cracked_amulet':
+            agg.bonusMaxHp += 1;
+            agg.healOnAttackChance = Math.max(agg.healOnAttackChance, 0.15);
+            agg.healOnAttackAmount = Math.max(agg.healOnAttackAmount, 1);
             break;
-        case 'gamblers_knuckle':
-            agg.critChanceBonus += 0.12;
-            agg.critResolveGain += 1;
+        case 'holey_chestplate':
+            agg.bonusMaxHp += 1;
+            agg.blockOnHitChance = Math.max(agg.blockOnHitChance, 0.15);
+            agg.blockOnHitAmount = Math.max(agg.blockOnHitAmount, 2);
             break;
-        case 'shade_mask':
-            agg.evadeFirstHit = true;
+        case 'simple_sword':
+            agg.bonusAttack += 3;
             break;
-        case 'thorned_mail':
-            agg.thornsDamage += 2;
+        case 'simple_chestplate':
+            agg.bonusDefense += 3;
             break;
-        case 'vampiric_sigil':
-            agg.lifestealOnKill += 2;
-            agg.lifestealOnCrit += 2;
+        case 'simple_helmet':
+            agg.bonusMaxHp += 5;
             break;
-        case 'stoneheart':
-            agg.bonusMaxHp += 8;
-            agg.restHealBonus += 3;
+        case 'cursed_amulet':
+            agg.bonusAttack += 6;
+            agg.missChance = Math.max(agg.missChance, 0.1);
             break;
-        case 'rally_standard':
-            agg.startCombatFocus = Math.max(agg.startCombatFocus, 3);
-            break;
-        case 'cursed_coin':
-            agg.goldMultiplier *= 1.5;
-            agg.trapDamageMod += 1;
-            break;
-        case 'witchglass':
-            agg.mapRevealLayers = Math.max(agg.mapRevealLayers, 2);
-            break;
-        case 'pyre_ash':
-            agg.bleedStackBonus += 1;
-            agg.bleedTurnBonus += 1;
-            break;
-        case 'silent_boots':
-            agg.alwaysActFirst = true;
-            agg.critChanceBonus += 0.05;
-            break;
-        case 'warden_oath':
-            agg.defendExtraBlock += 3;
-            break;
-        case 'revenants_spite':
-            agg.reviveOnce = true;
-            break;
-        case 'herbalist_kit':
-            agg.potionHealBonus += 4;
-            agg.potionRegenTurns = Math.max(agg.potionRegenTurns, 3);
-            break;
-        case 'mercy_token':
-            agg.lowLightPenaltyMult = Math.min(agg.lowLightPenaltyMult, 0.5);
-            agg.bonusStartingLight += 1;
+        case 'cursed_ring':
+            agg.bonusDefense += 3;
+            agg.bonusMaxHp += 3;
+            agg.skillToBasicChance = Math.max(agg.skillToBasicChance, 0.1);
             break;
     }
 }
 
+function applyUnconditionalSetBonuses(agg: RelicAggregate, ids: RelicId[]) {
+    const owned = new Set(ids);
+    const isFullSet = (set: RelicSetId): boolean =>
+        RELIC_ORDER
+            .filter((rid) => RELICS[rid].set === set)
+            .every((rid) => owned.has(rid));
+
+    agg.sets.wanderer = isFullSet('wanderer');
+    agg.sets.flesh = isFullSet('flesh');
+    agg.sets.recruit = isFullSet('recruit');
+    agg.sets.minor_cursed = isFullSet('minor_cursed');
+
+    if (agg.sets.wanderer) {
+        agg.bonusAttack += 1;
+        agg.bonusMaxHp += 1;
+    }
+    if (agg.sets.recruit) {
+        agg.bonusDefense += 2;
+        agg.bonusMaxHp += 2;
+        agg.bonusAttack += 2;
+    }
+    // Flesh and minor_cursed bonuses are evaluated per turn / per
+    // attack in CombatManager and intentionally do not land here.
+}
+
+/**
+ * Roll a relic drop for the slain enemy. Each entry in the enemy's
+ * drop table is rolled independently; if multiple succeed, one is
+ * picked uniformly. Returns null when nothing drops or every match
+ * is already owned.
+ */
+export function rollRelicForEnemy(
+    enemyName: string,
+    owned: RelicId[],
+    rng: Rng = defaultRng
+): RelicId | null {
+    const ownedSet = new Set(owned);
+    const candidates: RelicId[] = [];
+    for (const rid of RELIC_ORDER) {
+        if (ownedSet.has(rid)) continue;
+        const def = RELICS[rid];
+        for (const drop of def.drops) {
+            if (drop.enemyName !== enemyName) continue;
+            if (rng.next() < drop.chance) {
+                candidates.push(rid);
+                break;
+            }
+        }
+    }
+    if (candidates.length === 0) return null;
+    return candidates[Math.floor(rng.next() * candidates.length)];
+}
+
+/**
+ * Generic fallback drop used by treasure / shrine rooms which are not
+ * tied to a specific enemy. Prefers the requested rarity but falls
+ * back to any unowned item.
+ */
 export function rollRelic(
     owned: RelicId[],
     rarityHint: RelicRarity = 'common',
@@ -394,7 +373,6 @@ export function rollRelic(
 ): RelicId | null {
     const pool = RELIC_ORDER.filter((id) => !owned.includes(id));
     if (pool.length === 0) return null;
-
     const preferred = pool.filter((id) => RELICS[id].rarity === rarityHint);
     const target = preferred.length > 0 ? preferred : pool;
     return target[Math.floor(rng.next() * target.length)];
@@ -405,11 +383,7 @@ export function rollRelicFor(
     kind: 'normal' | 'elite' | 'boss',
     rng: Rng = defaultRng
 ): RelicId | null {
-    if (kind === 'boss') return rollRelic(owned, 'rare', rng);
-    if (kind === 'elite') {
-        return rng.next() < 0.3
-            ? rollRelic(owned, 'rare', rng)
-            : rollRelic(owned, 'common', rng);
-    }
+    if (kind === 'boss') return rollRelic(owned, 'unique', rng);
+    if (kind === 'elite') return rollRelic(owned, 'rare', rng);
     return rollRelic(owned, 'common', rng);
 }

@@ -22,6 +22,38 @@ export type EnemyProfile =
     | 'bleeder'
     | 'disruptor';
 
+/**
+ * "Prepare" mechanic: enemy telegraphs an action for `turns` turns,
+ * then resolves it on the matching player turn. If the player chose
+ * Defend on the resolution turn, the special instead either does
+ * `defenseBackDamage` (rebound) or just lets the raw damage through
+ * with no rider effect, depending on `defenseRule`.
+ *
+ * Spec mapping:
+ *  - bat:   1-turn windup -> 3 dmg, Defense -> bat takes 1 dmg back
+ *  - ghoul: 2-turn windup -> 2 dmg + poison, Defense -> ghoul takes 1
+ *           dmg back and the poison is cancelled
+ *  - lynx:  1-turn windup -> 3 dmg + bleed, Defense -> the damage
+ *           still lands but the bleed is cancelled
+ */
+export interface EnemyPrepareDef {
+    /** Localisation key used to look up the windup intent line. */
+    nameEn: string;
+    nameRu: string;
+    /** Turns the enemy spends winding up (1 = next turn, 2 = +2 turns). */
+    turns: number;
+    /** Damage delivered on resolution. */
+    damage: number;
+    /** Bleed rider added when not defended. */
+    bleed?: { stacks: number; turns: number };
+    /** Poison rider added when not defended. */
+    poison?: { damage: number; turns: number };
+    /** What the player's Defend action does to this prepared hit. */
+    defenseRule: 'damageBack' | 'cancelRiders';
+    /** Damage the enemy takes when defenseRule === 'damageBack'. */
+    defenseBackDamage?: number;
+}
+
 export interface EnemyDef {
     name: string;
     description: string;
@@ -34,7 +66,21 @@ export interface EnemyDef {
     profile: EnemyProfile;
     /** Optional inherent per-turn bleed application on basic attack. */
     inflictBleed?: { stacks: number; turns: number; chance: number };
+    /**
+     * Optional per-turn passive trigger.
+     *  - kind: 'extraDamageOnHit' (rat — 20% deal +1 dmg)
+     *  - kind: 'thornsOnTakeHit'  (slime — 30% deal 1 dmg back when hit)
+     *  - kind: 'damageReduction'  (skeleton — 10% take −1 incoming dmg)
+     */
+    passive?: EnemyPassive;
+    /** Mid-combat windup ability the enemy resolves after N turns. */
+    prepare?: EnemyPrepareDef;
 }
+
+export type EnemyPassive =
+    | { kind: 'extraDamageOnHit'; chance: number; bonus: number }
+    | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
+    | { kind: 'damageReduction'; chance: number; reduction: number };
 
 export const PLAYER_CONFIG = {
     maxHp: 24,
@@ -399,6 +445,9 @@ export const ROOM_CONFIG = {
     },
 } as const;
 
+// Enemy roster (per-spec). Stats and special mechanics taken directly
+// from the design table; passives and prepare blocks are interpreted
+// by CombatManager.
 export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
     {
         minDepth: 0,
@@ -413,6 +462,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0x5a5040,
                 profile: 'stalker',
+                passive: { kind: 'extraDamageOnHit', chance: 0.2, bonus: 1 },
             },
             {
                 name: 'Slime',
@@ -424,6 +474,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0x3e6636,
                 profile: 'brute',
+                passive: { kind: 'thornsOnTakeHit', chance: 0.3, damage: 1 },
             },
             {
                 name: 'Skeleton',
@@ -435,6 +486,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 4,
                 color: 0x888070,
                 profile: 'brute',
+                passive: { kind: 'damageReduction', chance: 0.1, reduction: 1 },
             },
             {
                 name: 'Bat',
@@ -446,6 +498,14 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 4,
                 color: 0x36463f,
                 profile: 'stalker',
+                prepare: {
+                    nameEn: 'Bite',
+                    nameRu: 'Укус',
+                    turns: 1,
+                    damage: 3,
+                    defenseRule: 'damageBack',
+                    defenseBackDamage: 1,
+                },
             },
             {
                 name: 'Ghoul',
@@ -457,6 +517,15 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x455544,
                 profile: 'bleeder',
+                prepare: {
+                    nameEn: 'Decay',
+                    nameRu: 'Разложение',
+                    turns: 2,
+                    damage: 2,
+                    poison: { damage: 1, turns: 3 },
+                    defenseRule: 'damageBack',
+                    defenseBackDamage: 1,
+                },
             },
         ],
     },
@@ -473,6 +542,14 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x6a6a7a,
                 profile: 'bleeder',
+                prepare: {
+                    nameEn: 'Claws',
+                    nameRu: 'Когти',
+                    turns: 1,
+                    damage: 3,
+                    bleed: { stacks: 3, turns: 3 },
+                    defenseRule: 'cancelRiders',
+                },
             },
             {
                 name: 'Skeleton Swordsman',
@@ -518,41 +595,9 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
 ];
 
 // ---------------------------------------------------------------------------
-// FIX-5: Rupture skill — cooldown + per-target damage cap. The cap is
-// applied after `max(playerATK, percentDamage)` is computed so the skill
-// stays useful against weak elites but stops one-shotting bosses.
-// ---------------------------------------------------------------------------
-export const RUPTURE_CONFIG = {
-    cooldownTurns: 2,
-    /** Fraction of enemy maxHP. Applied per encounter kind. */
-    capByKind: {
-        normal: 0.22,
-        elite: 0.18,
-        boss: 0.15,
-        final_boss: 0.15,
-    },
-} as const;
-
-// ---------------------------------------------------------------------------
-// FIX-6: Adrenaline can fire at most once per combat. Tracked on
-// CombatManager and reset in setupEnemy().
-// ---------------------------------------------------------------------------
-export const ADRENALINE_CONFIG = {
-    maxUsesPerCombat: 1,
-    /** HP healed when Adrenaline fires. */
-    heal: 6,
-    /** Resolve restored alongside the heal. */
-    resolveGain: 1,
-    /** Focus stack amount applied. */
-    focusAmount: 1,
-    /** Turns the Focus stack persists. */
-    focusTurns: 3,
-} as const;
-
-// ---------------------------------------------------------------------------
-// FIX-11: Stun resistance percentages by enemy class. The higher the
-// pct, the more often a stun is fully resisted (instead of half-duration
-// like the v0.1 boss handling).
+// Stun resistance percentages by enemy class. The higher the pct, the
+// more often a stun is fully resisted (instead of half-duration like
+// the v0.1 boss handling).
 // ---------------------------------------------------------------------------
 export const STUN_RESIST_CONFIG = {
     normal: 0,
@@ -566,23 +611,18 @@ export const STUN_RESIST_CONFIG = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// FIX-13: Relic safety caps. CombatManager / PlayerManager read these
-// to prevent runaway compounding interactions.
+// Death Knight prepare timings. Pulled into a config object so combat
+// code, intents, and tests share one source of truth.
 // ---------------------------------------------------------------------------
-export const RELIC_CAP_CONFIG = {
-    /** Total crit chance can never exceed 45% even with stacking. */
-    gamblersCritCap: 0.45,
-    /** Per-turn resolve refund from Gambler's Knuckle. */
-    gamblersResolvePerTurn: 1,
-    /** Per-turn heal triggers from Vampiric Sigil (kill OR crit). */
-    vampiricHealPerTurn: 1,
-    /** Hard cap on Thorned Mail reflection per incoming hit. */
-    thornedMailReflectionCap: 6,
-    /** Ember Vow low-HP damage bonus is hard-capped here (fraction). */
-    emberVowLowHpBonusCap: 0.5,
-    /** Pyre Ash bleed stack/turn boosts can never exceed these caps. */
-    pyreAshBleedStacksCap: 2,
-    pyreAshBleedTurnsCap: 2,
-    /** Cursed Coin's stacking gold multiplier hard ceiling. */
-    cursedCoinGoldMultiplierCap: 2.0,
+export const DEATH_KNIGHT_CONFIG = {
+    /** death_shield: turns of windup before the block lands. */
+    shieldPrepareTurns: 1,
+    /** Block amount granted by death_shield when it resolves. */
+    shieldBlock: 15,
+    /** Turns the death_shield block persists if not broken first. */
+    shieldDuration: 3,
+    /** death_touch: turns of windup before the OHKO lands. */
+    touchPrepareTurns: 3,
+    /** Damage taken if the player Defends on the death_touch resolution turn. */
+    touchDefendDamage: 8,
 } as const;

@@ -649,11 +649,6 @@ export function migrateLegacyProfile(legacy: Record<string, unknown>): MetaProfi
             migrated.contentUnlocks[id] = true;
         });
     }
-    if (bossesKilledEver >= 3) {
-        SECOND_BOSS_MILESTONE.unlocks.forEach((id) => {
-            migrated.contentUnlocks[id] = true;
-        });
-    }
 
     return migrated;
 }

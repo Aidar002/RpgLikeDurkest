@@ -186,4 +186,7 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     adrenalineUsedBadge: 'Использован',
     deathSaveConsumedBadge: 'Истрачено',
     deathSaveLockedTooltip: 'Спасение от смерти уже потрачено в этом забеге.',
+    combatSkillPreparation: 'Подготовка: следующий удар +1 урона, следующая защита +1.',
+    combatPreparationAttack: 'Подготовка срабатывает: +1 урона на этой атаке.',
+    combatPreparationDefend: 'Подготовка укрепляет защиту: +1 защиты на этом блоке.',
 };

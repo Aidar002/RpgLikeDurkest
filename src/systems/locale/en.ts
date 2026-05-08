@@ -198,6 +198,9 @@ export const EN_STRINGS = {
     adrenalineUsedBadge: 'Used',
     deathSaveConsumedBadge: 'Consumed',
     deathSaveLockedTooltip: 'Death-save already consumed this run.',
+    combatSkillPreparation: 'Preparation: next attack +1 dmg, next defend +1 def.',
+    combatPreparationAttack: 'Preparation lands: +1 damage on this attack.',
+    combatPreparationDefend: 'Preparation steadies you: +1 defense on this guard.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */
