@@ -42,7 +42,6 @@ export const ALL_UNLOCK_IDS = [
     'currency_relic_shards',
     'merchant_premium',
     'shrine_premium',
-    'ui_prestige_forecast',
     'skill_cleave',
     'skill_bleed_strike',
     'skill_preparation',
@@ -53,24 +52,16 @@ export const ALL_UNLOCK_IDS = [
 export type UnlockId = (typeof ALL_UNLOCK_IDS)[number];
 
 export type UpgradeId =
-    | 'vitality'
-    | 'might'
-    | 'wisdom'
-    | 'recovery'
-    | 'preparation'
-    | 'lastStand';
+    | 'damage'
+    | 'hp'
+    | 'defense'
+    | 'goldGain';
 
 export interface PlayerMetaBonuses {
     maxHp: number;
     attack: number;
-    xpMultiplier: number;
-    reviveCharges: number;
-    startingLightBonus: number;
-}
-
-export interface RoomMetaBonuses {
-    restHealBonus: number;
-    trapDamageReduction: number;
+    defenseBonus: number;
+    goldGainMult: number;
 }
 
 export interface UiUnlockState {
@@ -87,14 +78,13 @@ export interface UiUnlockState {
     showRunMetrics: boolean;
     showKillCounter: boolean;
     showRelicShards: boolean;
-    showPrestigeForecast: boolean;
 }
 
 export type ContentUnlockState = Record<UnlockId, boolean>;
 
 export interface MetaProfile {
-    prestigePoints: number;
-    totalPrestigeEarned: number;
+    skillPoints: number;
+    totalSkillPointsBanked: number;
     highestDepthEver: number;
     bossesKilledEver: number;
     upgrades: Record<UpgradeId, number>;
@@ -129,8 +119,12 @@ interface MetaUpgradeDefinition {
     description: (nextLevel: number) => LocalizedText;
 }
 
-const STORAGE_KEY = 'rpglikedurkest-meta-v3';
-const LEGACY_STORAGE_KEYS = ['rpglikedurkest-meta-v2', 'rpglikedurkest-meta-v1'];
+const STORAGE_KEY = 'rpglikedurkest-meta-v4';
+const LEGACY_STORAGE_KEYS = [
+    'rpglikedurkest-meta-v3',
+    'rpglikedurkest-meta-v2',
+    'rpglikedurkest-meta-v1',
+];
 
 const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     room_enemy: true,
@@ -161,7 +155,6 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     currency_relic_shards: true,
     merchant_premium: true,
     shrine_premium: true,
-    ui_prestige_forecast: true,
     skill_cleave: false,
     skill_bleed_strike: false,
     skill_preparation: false,
@@ -170,17 +163,15 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
 };
 
 const DEFAULT_PROFILE: MetaProfile = {
-    prestigePoints: 0,
-    totalPrestigeEarned: 0,
+    skillPoints: 0,
+    totalSkillPointsBanked: 0,
     highestDepthEver: 0,
     bossesKilledEver: 0,
     upgrades: {
-        vitality: 0,
-        might: 0,
-        wisdom: 0,
-        recovery: 0,
-        preparation: 0,
-        lastStand: 0,
+        damage: 0,
+        hp: 0,
+        defense: 0,
+        goldGain: 0,
     },
     contentUnlocks: { ...DEFAULT_CONTENT_UNLOCKS },
     npcMemory: makeDefaultNpcMemoryMap(),
@@ -225,63 +216,43 @@ const ALL_MILESTONES: ContentUnlockMilestone[] = [
 
 const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
     {
-        id: 'vitality',
-        title: lt('Живучесть', 'Vitality'),
-        maxLevel: 5,
-        costs: [2, 4, 7, 10, 14],
-        description: (nextLevel) => lt(
-            `Каждый забег начинается с +${nextLevel * 3} к максимуму ОЗ.`,
-            `Start each run with +${nextLevel * 3} max HP.`
-        ),
-    },
-    {
-        id: 'might',
-        title: lt('Сила', 'Might'),
-        maxLevel: 3,
-        costs: [3, 6, 10],
+        id: 'damage',
+        title: lt('Урон', 'Damage'),
+        maxLevel: 10,
+        costs: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
         description: (nextLevel) => lt(
             `Каждый забег начинается с +${nextLevel} к атаке.`,
             `Start each run with +${nextLevel} attack.`
         ),
     },
     {
-        id: 'wisdom',
-        title: lt('Память', 'Wisdom'),
+        id: 'hp',
+        title: lt('ОЗ', 'Max HP'),
+        maxLevel: 10,
+        costs: [1, 2, 4, 5, 8, 9, 16, 17, 32, 33],
+        description: (nextLevel) => lt(
+            `Каждый забег начинается с +${nextLevel} к максимуму ОЗ.`,
+            `Start each run with +${nextLevel} max HP.`
+        ),
+    },
+    {
+        id: 'defense',
+        title: lt('Защита', 'Defense'),
         maxLevel: 4,
-        costs: [2, 4, 7, 11],
+        costs: [5, 10, 20, 40],
         description: (nextLevel) => lt(
-            `Получай +${nextLevel * 15}% опыта из любых источников.`,
-            `Gain +${nextLevel * 15}% XP from every source.`
+            `Каждый забег начинается с +${nextLevel} к защите.`,
+            `Start each run with +${nextLevel} defense.`
         ),
     },
     {
-        id: 'recovery',
-        title: lt('Передышка', 'Recovery'),
+        id: 'goldGain',
+        title: lt('Получаемое золото', 'Gold gain'),
         maxLevel: 4,
-        costs: [2, 4, 7, 10],
+        costs: [5, 10, 20, 40],
         description: (nextLevel) => lt(
-            `Отдых лечит ещё на ${nextLevel * 2}, а ловушки наносят на ${nextLevel} меньше урона.`,
-            `Rest heals +${nextLevel * 2}; traps deal -${nextLevel}.`
-        ),
-    },
-    {
-        id: 'preparation',
-        title: lt('Подготовка', 'Preparation'),
-        maxLevel: 3,
-        costs: [2, 5, 9],
-        description: (nextLevel) => lt(
-            `Начинай забег с +${nextLevel} света.`,
-            `Start with +${nextLevel} light.`
-        ),
-    },
-    {
-        id: 'lastStand',
-        title: lt('Последний шанс', 'Last Stand'),
-        maxLevel: 1,
-        costs: [10],
-        description: () => lt(
-            'Даёт 1 заряд воскрешения на каждый забег.',
-            'Gain 1 revive charge per run.'
+            `Получаемое золото увеличено на +${nextLevel * 5}%.`,
+            `Gold gained from any source increased by +${nextLevel * 5}%.`
         ),
     },
 ];
@@ -299,8 +270,12 @@ export class MetaProgressionManager {
         return this.npcManager;
     }
 
-    get availablePrestige(): number {
-        return this.profile.prestigePoints;
+    get availableSkillPoints(): number {
+        return this.profile.skillPoints;
+    }
+
+    get totalSkillPointsBanked(): number {
+        return this.profile.totalSkillPointsBanked;
     }
 
     get highestDepthEver(): number {
@@ -320,25 +295,18 @@ export class MetaProgressionManager {
     }
 
     getBonuses() {
-        const vitality = this.getUpgradeLevel('vitality');
-        const might = this.getUpgradeLevel('might');
-        const wisdom = this.getUpgradeLevel('wisdom');
-        const recovery = this.getUpgradeLevel('recovery');
-        const preparation = this.getUpgradeLevel('preparation');
-        const lastStand = this.getUpgradeLevel('lastStand');
+        const damage = this.getUpgradeLevel('damage');
+        const hp = this.getUpgradeLevel('hp');
+        const defense = this.getUpgradeLevel('defense');
+        const goldGain = this.getUpgradeLevel('goldGain');
 
         return {
             player: {
-                maxHp: vitality * 3,
-                attack: might,
-                xpMultiplier: 1 + wisdom * 0.15,
-                reviveCharges: lastStand,
-                startingLightBonus: preparation,
+                maxHp: hp,
+                attack: damage,
+                defenseBonus: defense,
+                goldGainMult: 1 + goldGain * 0.05,
             } satisfies PlayerMetaBonuses,
-            rooms: {
-                restHealBonus: recovery * 2,
-                trapDamageReduction: recovery,
-            } satisfies RoomMetaBonuses,
         };
     }
 
@@ -461,14 +429,19 @@ export class MetaProgressionManager {
             showRunMetrics: true,
             showKillCounter: true,
             showRelicShards: FEATURES.shards,
-            showPrestigeForecast: true,
         };
     }
 
-    awardPrestigeForRun(runDepth: number, bossesKilled: number): number {
-        const reward = Math.max(0, runDepth) + Math.max(0, bossesKilled) * 2;
-        this.profile.prestigePoints += reward;
-        this.profile.totalPrestigeEarned += reward;
+    /**
+     * Bank skill points earned during a successful escape. Each level-up
+     * during a run grants one pending skill point; on escape, the
+     * pending total is added to the persistent bank. Death never banks
+     * — `resetProgress` wipes the entire profile instead.
+     */
+    bankSkillPoints(points: number, runDepth: number = 0): number {
+        const reward = Math.max(0, Math.floor(points));
+        this.profile.skillPoints += reward;
+        this.profile.totalSkillPointsBanked += reward;
         this.profile.highestDepthEver = Math.max(this.profile.highestDepthEver, runDepth);
         this.saveProfile();
         return reward;
@@ -486,11 +459,11 @@ export class MetaProgressionManager {
         }
 
         const cost = definition.costs[level];
-        if (this.profile.prestigePoints < cost) {
+        if (this.profile.skillPoints < cost) {
             return false;
         }
 
-        this.profile.prestigePoints -= cost;
+        this.profile.skillPoints -= cost;
         this.profile.upgrades[id] = level + 1;
         this.saveProfile();
         return true;
@@ -508,11 +481,17 @@ export class MetaProgressionManager {
                 level,
                 maxLevel: definition.maxLevel,
                 cost,
-                canPurchase: cost !== null && cost <= this.profile.prestigePoints,
+                canPurchase: cost !== null && cost <= this.profile.skillPoints,
             };
         });
     }
 
+    /**
+     * Wipe the entire profile back to defaults. Triggered on death (so
+     * the bank + every purchased upgrade is lost) and from the HUD
+     * "Restart from scratch" confirmation. Also nukes any legacy
+     * localStorage entries so the next save uses the v4 schema.
+     */
     resetProgress() {
         this.profile = this.cloneDefaultProfile();
         this.npcManager = new NpcManager(this.profile.npcMemory, () => this.saveProfile());
@@ -532,15 +511,21 @@ export class MetaProgressionManager {
                 return this.sanitizeProfile(JSON.parse(currentRaw) as Partial<MetaProfile>);
             }
 
+            // First launch under the v4 schema (or migrating from any
+            // earlier version): drop legacy snapshots without
+            // converting them. The user explicitly wants pre-v4
+            // saves zeroed out so the new economy starts clean.
+            let hadLegacy = false;
             for (const key of LEGACY_STORAGE_KEYS) {
-                const legacyRaw = window.localStorage.getItem(key);
-                if (legacyRaw) {
-                    const migrated = this.migrateLegacyProfile(
-                        JSON.parse(legacyRaw) as Record<string, unknown>
-                    );
-                    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(migrated));
-                    return migrated;
+                if (window.localStorage.getItem(key) !== null) {
+                    hadLegacy = true;
+                    window.localStorage.removeItem(key);
                 }
+            }
+            if (hadLegacy) {
+                const fresh = cloneDefaultProfile();
+                window.localStorage.setItem(STORAGE_KEY, JSON.stringify(fresh));
+                return fresh;
             }
         } catch {
             // fall through
@@ -551,10 +536,6 @@ export class MetaProgressionManager {
 
     private sanitizeProfile(profile: Partial<MetaProfile>): MetaProfile {
         return sanitizeProfile(profile);
-    }
-
-    private migrateLegacyProfile(legacy: Record<string, unknown>): MetaProfile {
-        return migrateLegacyProfile(legacy);
     }
 
     private saveProfile() {
@@ -570,8 +551,8 @@ export class MetaProgressionManager {
     }
 }
 
-// Exported pure helpers so tests can exercise sanitization and legacy
-// migration without touching the singleton / localStorage.
+// Exported pure helpers so tests can exercise sanitization without
+// touching the singleton / localStorage.
 export function cloneDefaultProfile(): MetaProfile {
     return {
         ...DEFAULT_PROFILE,
@@ -590,10 +571,10 @@ export function sanitizeProfile(profile: Partial<MetaProfile>): MetaProfile {
     }
 
     return {
-        prestigePoints: Math.max(0, profile.prestigePoints ?? DEFAULT_PROFILE.prestigePoints),
-        totalPrestigeEarned: Math.max(
+        skillPoints: Math.max(0, profile.skillPoints ?? DEFAULT_PROFILE.skillPoints),
+        totalSkillPointsBanked: Math.max(
             0,
-            profile.totalPrestigeEarned ?? DEFAULT_PROFILE.totalPrestigeEarned
+            profile.totalSkillPointsBanked ?? DEFAULT_PROFILE.totalSkillPointsBanked
         ),
         highestDepthEver: Math.max(0, profile.highestDepthEver ?? DEFAULT_PROFILE.highestDepthEver),
         bossesKilledEver: Math.max(0, profile.bossesKilledEver ?? DEFAULT_PROFILE.bossesKilledEver),
@@ -604,51 +585,4 @@ export function sanitizeProfile(profile: Partial<MetaProfile>): MetaProfile {
         },
         npcMemory: sanitizeNpcMemoryMap(profile.npcMemory),
     };
-}
-
-export function migrateLegacyProfile(legacy: Record<string, unknown>): MetaProfile {
-    const highestDepthEver = Math.max(
-        0,
-        typeof legacy.highestDepthEver === 'number' ? legacy.highestDepthEver : 0
-    );
-    const bossesKilledEver =
-        typeof legacy.bossesKilledEver === 'number'
-            ? legacy.bossesKilledEver
-            : [8, 16, 24].filter((d) => highestDepthEver > d).length;
-    const legacyUpgrades =
-        typeof legacy.upgrades === 'object' && legacy.upgrades !== null
-            ? (legacy.upgrades as Record<string, number>)
-            : {};
-
-    const migrated = sanitizeProfile({
-        prestigePoints: typeof legacy.prestigePoints === 'number' ? legacy.prestigePoints : 0,
-        totalPrestigeEarned:
-            typeof legacy.totalPrestigeEarned === 'number' ? legacy.totalPrestigeEarned : 0,
-        highestDepthEver,
-        bossesKilledEver,
-        upgrades: {
-            vitality: legacyUpgrades.vitality ?? 0,
-            might: legacyUpgrades.might ?? 0,
-            wisdom: legacyUpgrades.wisdom ?? 0,
-            recovery: legacyUpgrades.recovery ?? 0,
-            preparation: legacyUpgrades.foresight ?? legacyUpgrades.preparation ?? 0,
-            lastStand: legacyUpgrades.lastStand ?? 0,
-        },
-    });
-
-    DEPTH_MILESTONES.forEach((milestone) => {
-        if (milestone.depth !== undefined && highestDepthEver >= milestone.depth) {
-            milestone.unlocks.forEach((id) => {
-                migrated.contentUnlocks[id] = true;
-            });
-        }
-    });
-
-    if (bossesKilledEver > 0) {
-        FIRST_BOSS_MILESTONE.unlocks.forEach((id) => {
-            migrated.contentUnlocks[id] = true;
-        });
-    }
-
-    return migrated;
 }

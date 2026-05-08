@@ -1,13 +1,13 @@
 /**
  * Victory overlay shown after the player defeats the final boss and
  * collects the artifact. Single-screen modal: title, animated artifact
- * glyph, summary stats, restart button. Awards prestige (idempotent
- * via `awardPrestigeOnce`) and tracks per-run max stats before the
- * scene resets.
+ * glyph, summary stats, restart button. Banks any pending skill points
+ * exactly once (escape-only, idempotent via `bankSkillPointsOnce`) and
+ * tracks per-run max stats before the scene resets.
  */
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
-import { awardPrestigeOnce, hideLiveContainers } from './shared';
+import { bankSkillPointsOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
 export function showVictoryScreen(ctx: EndScreenContext) {
@@ -16,7 +16,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     sfx.play('victory');
     sfx.stopAmbient();
     hideLiveContainers(ctx);
-    awardPrestigeOnce(ctx);
+    bankSkillPointsOnce(ctx);
 
     tracker.trackMax('bestDepth', runState.runBestDepth);
     tracker.trackMax('levelReached', player.stats.level);

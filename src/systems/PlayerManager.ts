@@ -37,35 +37,27 @@ export class PlayerManager {
     public killCount = 0;
     public status: StatusState = emptyStatusState();
     public relics: RelicId[] = [];
-    /**
-     * [FIX-8] One-time death-save flag for the run. Once any revive
-     * source (Last Stand or Revenant's Spite) has fired, no further
-     * revive may consume a charge.
-     */
-    public deathSaveConsumed = false;
 
     public readonly hpChange = new Emitter<{ hp: number; max: number }>();
     public readonly death = new Emitter<void>();
     public readonly levelUp = new Emitter<{ level: number }>();
     public readonly statsChange = new Emitter<void>();
     public readonly resourcesChange = new Emitter<void>();
-    public readonly revive = new Emitter<{ remaining: number }>();
     public readonly relicsChange = new Emitter<void>();
 
-    private xpMultiplier: number;
-    private reviveCharges: number;
+    private goldGainMult: number;
     private relicAggregate: RelicAggregate = emptyAggregate();
 
     constructor(bonuses: Partial<PlayerMetaBonuses> = {}) {
         const maxHpBonus = bonuses.maxHp ?? 0;
         const attackBonus = bonuses.attack ?? 0;
-        const startingLightBonus = bonuses.startingLightBonus ?? 0;
+        const defenseBonus = bonuses.defenseBonus ?? 0;
 
         this.stats = {
             maxHp: PLAYER_CONFIG.maxHp + maxHpBonus,
             hp: PLAYER_CONFIG.hp + maxHpBonus,
             attack: PLAYER_CONFIG.attack + attackBonus,
-            defense: PLAYER_CONFIG.defense,
+            defense: PLAYER_CONFIG.defense + defenseBonus,
             level: PLAYER_CONFIG.level,
             xp: PLAYER_CONFIG.xp,
         };
@@ -73,25 +65,17 @@ export class PlayerManager {
         this.resources = {
             gold: EXPEDITION_CONFIG.startingGold,
             potions: EXPEDITION_CONFIG.startingPotions,
-            light: Math.min(
-                EXPEDITION_CONFIG.maxLight,
-                EXPEDITION_CONFIG.startingLight + startingLightBonus
-            ),
+            light: EXPEDITION_CONFIG.startingLight,
             resolve: EXPEDITION_CONFIG.startingResolve,
             maxResolve: PLAYER_CONFIG.maxResolve,
             relicShards: 0,
         };
 
-        this.xpMultiplier = bonuses.xpMultiplier ?? 1;
-        this.reviveCharges = bonuses.reviveCharges ?? 0;
+        this.goldGainMult = bonuses.goldGainMult ?? 1;
     }
 
     get xpToNextLevel(): number {
         return this.stats.level * LEVEL_UP_CONFIG.xpPerLevel;
-    }
-
-    get remainingRevives(): number {
-        return this.reviveCharges;
     }
 
     // Kept for historical call sites; resources are always available now.
@@ -163,20 +147,6 @@ export class PlayerManager {
 
         this.stats.hp = Math.max(0, this.stats.hp - actual);
 
-        if (this.stats.hp === 0) {
-            // [FIX-8] Meta-progression Last Stand still grants a
-            // one-time revive on death. The retired relic-based revive
-            // path was removed when Relics.ts was rebuilt.
-            if (!this.deathSaveConsumed && this.reviveCharges > 0) {
-                this.reviveCharges--;
-                this.deathSaveConsumed = true;
-                this.stats.hp = Math.max(1, Math.ceil(this.stats.maxHp * 0.4));
-                this.emitAllChanges();
-                this.revive.emit({ remaining: this.reviveCharges });
-                return actual;
-            }
-        }
-
         this.emitAllChanges();
 
         if (this.stats.hp === 0) {
@@ -195,19 +165,13 @@ export class PlayerManager {
 
     gainXp(amount: number): number {
         // [FIX-9] Hard level cap. Past the cap, no further XP is awarded
-        // and no level-up loop can fire. Wisdom XP multiplier also stops
-        // applying once we are past `wisdomXpBonusUpToLevel` so the late-
-        // run reward curve flattens.
+        // and no level-up loop can fire.
         if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
             this.stats.xp = 0;
             this.emitStats();
             return 0;
         }
-        const effectiveMult =
-            this.stats.level > LEVEL_UP_CONFIG.wisdomXpBonusUpToLevel
-                ? 1
-                : this.xpMultiplier;
-        const scaledAmount = Math.max(1, Math.round(amount * effectiveMult));
+        const scaledAmount = Math.max(1, Math.round(amount));
         this.stats.xp += scaledAmount;
 
         while (
@@ -238,9 +202,11 @@ export class PlayerManager {
 
     gainGold(amount: number): number {
         if (amount <= 0) return 0;
-        this.resources.gold += amount;
+        const scaled = Math.max(0, Math.round(amount * this.goldGainMult));
+        if (scaled <= 0) return 0;
+        this.resources.gold += scaled;
         this.emitResources();
-        return amount;
+        return scaled;
     }
 
     spendGold(amount: number): boolean {

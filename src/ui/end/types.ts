@@ -3,7 +3,7 @@
  *
  * The screens are simple terminal overlays that hide the live scene
  * containers and only need read access to the run-scoped subsystems
- * plus a `runState` reference for prestige awarding bookkeeping.
+ * plus a `runState` reference for skill-point banking bookkeeping.
  */
 import type * as Phaser from 'phaser';
 
@@ -18,12 +18,20 @@ import type { SoundManager } from '../../systems/SoundManager';
 export interface RunEndState {
     runBestDepth: number;
     runBossKills: number;
-    prestigeAwarded: boolean;
-    prestigeReward: number;
+    /** Skill points the player accumulated during the current run
+     *  (one per level-up). Only banked when `escaped` is true. */
+    pendingSkillPoints: number;
+    /** Number of pending points actually banked at end-of-run. Set by
+     *  `bankSkillPointsOnce` so the end screen can render the exact
+     *  banked total even on later re-renders. */
+    skillPointsBanked: number;
+    /** Re-entry guard so `bankSkillPointsOnce` only commits once per
+     *  end screen instance. */
+    skillPointsBankedFlag: boolean;
     /**
      * True when the player invoked the HUD escape button instead of
-     * dying or finishing the run. The end screen swaps in escape
-     * copy; prestige is awarded as usual on top of any in-run gains.
+     * dying. Banking happens only on escape; on death the entire
+     * profile (bank + every purchased upgrade) is wiped instead.
      */
     escaped: boolean;
 }

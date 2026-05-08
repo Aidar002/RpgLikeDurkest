@@ -1,24 +1,34 @@
 /**
  * Helpers shared by `VictoryScreen` and `DeathScreen`. Both screens
- * need to (a) award prestige exactly once for the current run,
- * (b) hide the live gameplay containers behind the modal overlay.
+ * need to (a) bank pending skill points exactly once per run when the
+ * player escaped, (b) hide the live gameplay containers behind the
+ * modal overlay.
  */
 import type { EndScreenContext } from './types';
 
 /**
- * Prestige is awarded once per run regardless of which end screen
- * fired (player can technically reach victory after a near-death,
- * etc.). The first call records the reward into `runState`; later
- * calls are no-ops.
+ * Skill points are banked exactly once per run, and only when the
+ * player escaped successfully. Death wipes everything elsewhere
+ * (`GameScene` calls `meta.resetProgress()` on the death event), so
+ * this helper is a no-op for non-escape end screens. The first call
+ * commits the points and records the banked total into `runState`;
+ * later calls are no-ops.
  */
-export function awardPrestigeOnce(ctx: EndScreenContext): void {
-    if (!ctx.runState.prestigeAwarded) {
-        ctx.runState.prestigeReward = ctx.meta.awardPrestigeForRun(
-            ctx.runState.runBestDepth,
-            ctx.runState.runBossKills,
-        );
-        ctx.runState.prestigeAwarded = true;
+export function bankSkillPointsOnce(ctx: EndScreenContext): void {
+    if (ctx.runState.skillPointsBankedFlag) {
+        return;
     }
+    if (!ctx.runState.escaped) {
+        ctx.runState.skillPointsBankedFlag = true;
+        ctx.runState.skillPointsBanked = 0;
+        return;
+    }
+    const banked = ctx.meta.bankSkillPoints(
+        ctx.runState.pendingSkillPoints,
+        ctx.runState.runBestDepth,
+    );
+    ctx.runState.skillPointsBanked = banked;
+    ctx.runState.skillPointsBankedFlag = true;
 }
 
 /**

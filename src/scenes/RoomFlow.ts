@@ -317,10 +317,7 @@ export class RoomFlowController {
             {
                 label: scene.loc.t('actionRecover'),
                 callback: () => {
-                    const healed = scene.player.heal(
-                        ROOM_CONFIG.rest.recoverHeal +
-                            scene.meta.getBonuses().rooms.restHealBonus
-                    );
+                    const healed = scene.player.heal(ROOM_CONFIG.rest.recoverHeal);
                     if (healed > 0) scene.tracker.record('healingDone', healed);
                     const lightGained = FEATURES.light
                         ? scene.player.gainLight(ROOM_CONFIG.rest.recoverLight)
