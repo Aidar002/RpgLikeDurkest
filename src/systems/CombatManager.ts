@@ -17,6 +17,14 @@ import {
     type BossBlueprint,
 } from '../data/Bosses';
 import type { EventLog } from '../ui/EventLog';
+import {
+    breakBossBlockOnSkillDamage,
+    intentLabelForPhase,
+    intentLabelForPrepare,
+    maybeAdvancePhase,
+    prepareName,
+    tickBossBlockAtTurnEnd,
+} from './BossRuntime';
 import { Emitter } from './Emitter';
 import { narrate } from './Narrator';
 import { Localization } from './Localization';
@@ -302,9 +310,9 @@ export class CombatManager {
         // Compute the initial intent so the UI can show what the enemy
         // is about to do BEFORE the first player turn.
         if (this.enemy.bossPhase) {
-            this.enemy.currentIntent = this.intentLabelForPhase(this.enemy.bossPhase);
+            this.enemy.currentIntent = intentLabelForPhase(this.enemy.bossPhase, this.loc);
         } else if (this.enemy.pendingPrepare) {
-            this.enemy.currentIntent = this.intentLabelForPrepare(this.enemy.pendingPrepare);
+            this.enemy.currentIntent = intentLabelForPrepare(this.enemy.pendingPrepare, this.loc);
         }
 
         const header =
@@ -539,7 +547,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 this.log.addMessage(this.loc.t('combatSkillCleave', { dmg }), '#b893ff');
                 this.applyOnAttackRelics();
-                this.breakBossBlockOnSkillDamage();
+                breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
                 break;
             }
             case 'bleed_strike': {
@@ -560,7 +568,7 @@ export class CombatManager {
                     '#d06060'
                 );
                 this.applyOnAttackRelics();
-                this.breakBossBlockOnSkillDamage();
+                breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
                 break;
             }
             case 'preparation': {
@@ -754,7 +762,7 @@ export class CombatManager {
             // [FIX-10] Recompute next intent so the UI reflects what the
             // boss will do AFTER recovering from stun.
             if (this.enemy.bossPhase) {
-                this.enemy.currentIntent = this.intentLabelForPhase(this.enemy.bossPhase);
+                this.enemy.currentIntent = intentLabelForPhase(this.enemy.bossPhase, this.loc);
             }
             this.enemyStatusChange.emit();
             return;
@@ -790,11 +798,11 @@ export class CombatManager {
                 this.log.addMessage(
                     this.loc.t('combatEnemyPrepareWindup', {
                         name: this.enemy.name,
-                        action: this.prepareName(pp.def),
+                        action: prepareName(pp.def, this.loc),
                     }),
                     '#c4a35a'
                 );
-                this.enemy.currentIntent = this.intentLabelForPrepare(pp);
+                this.enemy.currentIntent = intentLabelForPrepare(pp, this.loc);
                 this.playerStatusChange.emit();
                 this.enemyStatusChange.emit();
                 return;
@@ -803,7 +811,7 @@ export class CombatManager {
             // Re-arm for the next windup cycle (enemies repeat their
             // prepare every `turns + 1` turns).
             pp.turnsRemaining = pp.def.turns;
-            this.enemy.currentIntent = this.intentLabelForPrepare(pp);
+            this.enemy.currentIntent = intentLabelForPrepare(pp, this.loc);
             this.playerStatusChange.emit();
             this.enemyStatusChange.emit();
             return;
@@ -1019,47 +1027,11 @@ export class CombatManager {
     }
 
     // -----------------------------------------------------------------
-    // [FIX-10] Boss phase / intent runner.
+    // [FIX-10] Boss phase / intent runner. Pure helpers
+    // (intentLabelForPhase / intentLabelForPrepare / prepareName /
+    // maybeAdvancePhase / tickBossBlockAtTurnEnd /
+    // breakBossBlockOnSkillDamage) live in ./BossRuntime.ts.
     // -----------------------------------------------------------------
-
-    private intentLabelForPhase(phase: BossPhaseState): string {
-        // Active windup: surface the remaining countdown so the player
-        // knows how many turns they have to react before resolution.
-        if (phase.pendingWindup) {
-            const action = pickLine(phase.pendingWindup.actionDef.intent, this.loc.language);
-            const turns = phase.pendingWindup.turnsRemaining;
-            if (turns <= 0) {
-                return this.loc.t('hudPrepareReadyLabel', { action });
-            }
-            return this.loc.t('hudPrepareWindupLabel', { action, turns });
-        }
-        const phaseDef = phase.blueprint.phases[phase.phaseIndex];
-        const action = phaseDef.actions[phase.actionIndex % phaseDef.actions.length];
-        // For actions that will themselves declare a windup next turn,
-        // hint at the windup length up-front so the badge does not jump
-        // from a bare label to "(Nt)" the moment the windup begins.
-        if (action.windupTurns && action.windupTurns > 0) {
-            return this.loc.t('hudPrepareWindupLabel', {
-                action: pickLine(action.intent, this.loc.language),
-                turns: action.windupTurns,
-            });
-        }
-        return pickLine(action.intent, this.loc.language);
-    }
-
-    /** Localised "{Action} ({turns}t)" badge for non-boss prepare windups. */
-    private intentLabelForPrepare(pp: { def: EnemyPrepareDef; turnsRemaining: number }): string {
-        const action = this.prepareName(pp.def);
-        if (pp.turnsRemaining <= 0) {
-            return this.loc.t('hudPrepareReadyLabel', { action });
-        }
-        return this.loc.t('hudPrepareWindupLabel', { action, turns: pp.turnsRemaining });
-    }
-
-    /** Returns the localised name of the prepare action (e.g. "Bite" / "Укус"). */
-    private prepareName(def: EnemyPrepareDef): string {
-        return this.loc.language === 'ru' ? def.nameRu : def.nameEn;
-    }
 
     /**
      * Resolve a prepared enemy action. Damage and rider effects depend
@@ -1080,7 +1052,7 @@ export class CombatManager {
     ) {
         if (!this.enemy) return;
         const defended = playerAction === 'defend';
-        const action = this.prepareName(def);
+        const action = prepareName(def, this.loc);
 
         if (defended && def.defenseRule === 'damageBack') {
             const back = def.defenseBackDamage ?? 0;
@@ -1208,31 +1180,6 @@ export class CombatManager {
         }
     }
 
-    /**
-     * Re-evaluates the boss's HP-driven phase. Called at the start of
-     * the boss's turn so phase-entry effects fire after the player has
-     * just damaged it. Returns `true` when a phase change happened.
-     */
-    private maybeAdvancePhase(): boolean {
-        if (!this.enemy || !this.enemy.bossPhase) return false;
-        const state = this.enemy.bossPhase;
-        const ratio = this.enemy.hp / Math.max(1, this.enemy.maxHp);
-        let newIndex = state.phaseIndex;
-        for (let i = state.phaseIndex + 1; i < state.blueprint.phases.length; i++) {
-            if (ratio <= state.blueprint.phases[i].enterAtHpRatio) {
-                newIndex = i;
-            }
-        }
-        if (newIndex === state.phaseIndex) return false;
-        state.phaseIndex = newIndex;
-        state.actionIndex = 0;
-        const phaseDef = state.blueprint.phases[newIndex];
-        if (phaseDef.label) {
-            this.log.addMessage(pickLine(phaseDef.label, this.loc.language), '#c4a35a');
-        }
-        return true;
-    }
-
     private runBossTurn(playerAction: 'attack' | 'defend' | 'skill' | 'potion') {
         if (!this.enemy || !this.enemy.bossPhase) return;
         const state = this.enemy.bossPhase;
@@ -1240,7 +1187,7 @@ export class CombatManager {
         // Phase advancement is HP-driven and happens BEFORE picking an
         // action so the very next attack reflects the new phase's
         // pattern.
-        this.maybeAdvancePhase();
+        maybeAdvancePhase(this.enemy, this.log, this.loc);
 
         const phaseDef = state.blueprint.phases[state.phaseIndex];
 
@@ -1261,12 +1208,12 @@ export class CombatManager {
                     }),
                     '#c4a35a'
                 );
-                this.tickBossBlockAtTurnEnd();
+                tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
                 if (this.player.stats.hp <= 0) {
                     this.logDeath();
                     return;
                 }
-                this.enemy.currentIntent = this.intentLabelForPhase(state);
+                this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
                 this.playerStatusChange.emit();
                 this.enemyStatusChange.emit();
                 return;
@@ -1275,14 +1222,14 @@ export class CombatManager {
             const resolveDef = wind.actionDef;
             state.pendingWindup = undefined;
             this.resolveBossWindupAction(resolveDef, playerAction);
-            this.tickBossBlockAtTurnEnd();
+            tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
             if (this.player.stats.hp <= 0) {
                 this.logDeath();
                 return;
             }
             // Advance to the next action in the rotation.
             state.actionIndex = (state.actionIndex + 1) % phaseDef.actions.length;
-            this.enemy.currentIntent = this.intentLabelForPhase(state);
+            this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
             this.playerStatusChange.emit();
             this.enemyStatusChange.emit();
             return;
@@ -1306,12 +1253,12 @@ export class CombatManager {
                 }),
                 '#c4a35a'
             );
-            this.tickBossBlockAtTurnEnd();
+            tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
             if (this.player.stats.hp <= 0) {
                 this.logDeath();
                 return;
             }
-            this.enemy.currentIntent = this.intentLabelForPhase(state);
+            this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
             this.playerStatusChange.emit();
             this.enemyStatusChange.emit();
             return;
@@ -1359,7 +1306,7 @@ export class CombatManager {
         }
         state.pendingHealOnSafe = 0;
 
-        this.tickBossBlockAtTurnEnd();
+        tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
 
         if (this.player.stats.hp <= 0) {
             this.logDeath();
@@ -1368,7 +1315,7 @@ export class CombatManager {
 
         // Advance to next action and update the intent shown to the player.
         state.actionIndex = (state.actionIndex + 1) % phaseDef.actions.length;
-        this.enemy.currentIntent = this.intentLabelForPhase(state);
+        this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
         this.playerStatusChange.emit();
         this.enemyStatusChange.emit();
     }
@@ -1460,43 +1407,6 @@ export class CombatManager {
                 this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
             }
         }
-    }
-
-    /**
-     * Decrement the boss's active block buff timer at the end of every
-     * boss turn. When the timer hits zero we drop any leftover block
-     * pool and log expiry so the player understands the shield is gone.
-     */
-    private tickBossBlockAtTurnEnd() {
-        if (!this.enemy || !this.enemy.bossPhase) return;
-        const state = this.enemy.bossPhase;
-        if (state.pendingBlockTurns <= 0) return;
-        state.pendingBlockTurns -= 1;
-        if (state.pendingBlockTurns <= 0 && state.pendingBlock > 0) {
-            state.pendingBlock = 0;
-            this.log.addMessage(
-                this.loc.t('combatBossDeathShieldExpired', { name: this.enemy.name }),
-                '#9aa6b3'
-            );
-        }
-    }
-
-    /**
-     * Knock off the boss's active block buff (Death Shield) when the
-     * player lands a damaging Will-spent skill. Called from
-     * {@link handlePlayerSkill} after the damage roll resolves so the
-     * shield only breaks when actual damage is delivered.
-     */
-    private breakBossBlockOnSkillDamage() {
-        if (!this.enemy || !this.enemy.bossPhase) return;
-        const state = this.enemy.bossPhase;
-        if (state.pendingBlock <= 0) return;
-        state.pendingBlock = 0;
-        state.pendingBlockTurns = 0;
-        this.log.addMessage(
-            this.loc.t('combatBossDeathShieldBroken', { name: this.enemy.name }),
-            '#b893ff'
-        );
     }
 
     /** Returns a human-readable line of enemy statuses. */
