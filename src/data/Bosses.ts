@@ -39,6 +39,21 @@ export interface BossActionDef {
     damageBonus?: number;
     /** True when this action does no attack damage on resolution. */
     noAttack?: boolean;
+    /**
+     * Number of full boss turns the action spends "winding up" before
+     * its effect resolves. While the windup ticks down, the boss takes
+     * no other action; the player sees a "{action} (Nt)" intent badge
+     * and can react accordingly.
+     */
+    windupTurns?: number;
+    /** Block pool granted to the boss when the action resolves (Death Shield). */
+    pendingBlock?: number;
+    /** How many boss turns the granted block stays up unless knocked off. */
+    pendingBlockTurns?: number;
+    /** True when resolution is a one-shot kill (Death Touch). */
+    oneShot?: boolean;
+    /** Damage dealt instead of the OHKO when the player Defends on resolution. */
+    oneShotDefendDamage?: number;
 }
 
 export interface BossPhaseDef {
@@ -79,8 +94,11 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                     },
                     {
                         id: 'death_shield',
-                        intent: { en: 'Death Shield (prep)', ru: 'Щит смерти (готовит)' },
+                        intent: { en: 'Death Shield', ru: 'Щит смерти' },
                         noAttack: true,
+                        windupTurns: 1,
+                        pendingBlock: 15,
+                        pendingBlockTurns: 3,
                     },
                     {
                         id: 'attack',
@@ -88,8 +106,11 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                     },
                     {
                         id: 'death_touch',
-                        intent: { en: 'Death Touch (prep)', ru: 'Касание смерти (готовит)' },
+                        intent: { en: 'Death Touch', ru: 'Касание смерти' },
                         noAttack: true,
+                        windupTurns: 3,
+                        oneShot: true,
+                        oneShotDefendDamage: 8,
                     },
                 ],
             },
