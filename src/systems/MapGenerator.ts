@@ -229,6 +229,28 @@ function forwardNeighbours(gx: number, gy: number): GridPos[] {
     return out;
 }
 
+// =============================================================================
+// MapGenerator routing map (see docs/ARCH_MAP.md for the cross-file picture)
+// -----------------------------------------------------------------------------
+// RoomType enum + MapNode + room pools (BASE / FINAL_APPROACH /
+//   POST_MAJOR_RECOVERY) . . . . . . . . . . . . . . . . . . . . .   4 - 123
+// Pure helpers: clamp, getRequiredSeals, GRID_DIRS, gridKey,
+//   manhattan, forwardNeighbours . . . . . . . . . . . . . . . . . 125 - 230
+// MapGenerator class:
+//   Field declarations . . . . . . . . . . . . . . . . . . . . . . 232 - 258
+//   constructor / getRunLength / pressure-window helpers . . . . . 260 - 313
+//   setAvailableRoomTypes / generateInitialMap / generateNextLayer  315 - 379
+//   enforceSealCoverage (post-build seal/promotion pass) . . . . . 381 - 426
+//   buildLayer (the heavy "for each parent → place children" core)  428 - 720
+//   buildStartChildLayer / rollFanout / decideBossKind . . . . . . 722 - 845
+//   resolveRoomType / boss adjacency / parent-child blocking . . . 847 - 886
+//   getAllowedRoomTypes / pickRecoveryType / pickWeightedRoom /
+//     getWeight / shuffle / makeNode . . . . . . . . . . . . . . . 888 - 980
+// validateMap (post-build invariant report) . . . . . . . . . . .  985 - 1173
+// formatMapDebug (human-readable dump for tests/console) . . . . 1178 - 1198
+// computeMinSealsPerPath / pickBestSealPromotion /
+//   pickRegularNodeToPromoteToMini / computePerPathStat . . . . . 1200 - end
+// =============================================================================
 export class MapGenerator {
     private counter = 0;
     private availableRooms = new Set<RoomType>(BASE_ROOM_POOL);
