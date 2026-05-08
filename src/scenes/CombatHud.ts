@@ -186,13 +186,6 @@ export class CombatHudController {
             );
         }
 
-        if (enemy.enraged) {
-            hints.push(scene.loc.t('hudHintEnraged'));
-        }
-        if (enemy.charging) {
-            hints.push(scene.loc.t('hudHintCharging'));
-        }
-
         return hints.filter(Boolean).join(' ');
     }
 
