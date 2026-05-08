@@ -116,11 +116,13 @@ export const LEVEL_UP_CONFIG = {
 } as const;
 
 export const EXPEDITION_CONFIG = {
-    startingGold: 20,
-    startingPotions: 2,
-    // [FIX-3] startingResolve raised 1 -> 2 so a 2-cost skill is available
-    // on turn 1.
-    startingResolve: 2,
+    // Per design: every run begins resourceless. Gold, potions and
+    // resolve all reset to zero on a fresh PlayerManager so the player
+    // earns them in-run rather than starting with a kit. Light still
+    // starts full because the lantern economy is decay-driven.
+    startingGold: 0,
+    startingPotions: 0,
+    startingResolve: 0,
     startingLight: 7,
     maxLight: 10,
     /** @deprecated kept for legacy call sites; light decay is now driven by
