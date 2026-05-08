@@ -408,23 +408,112 @@ export class GameScene extends Phaser.Scene {
         this.roomButtons.trigger(index);
     }
 
+    /**
+     * Slim orchestrator for the global HUD.
+     *
+     * Each HUD region (top-bar vitals, top-bar combat stats, top-bar
+     * resources, bottom-bar cells, below-bar text, chrome buttons) has
+     * its own `build*` helper that owns its construction details and
+     * stores its widget refs back on `this`. The orchestrator only
+     * wires the local-only widgets (frames, bar segments, divider
+     * pillar) into the `topWidgets` / `bottomWidgets` arrays for final
+     * `uiContainer.add`, then hooks up the player-event listeners.
+     *
+     * The previous monolithic version was ~460 lines; splitting it
+     * makes each region grep-able and lets future agents touch one
+     * cell without re-reading the rest.
+     */
     private setupGlobalUI() {
         const PAD = HUD_PAD;
         const TOP_H = TOP_BAR_H;
         const BOT_H = BOTTOM_BAR_H;
         const BOT_Y = GAME_HEIGHT - BOT_H - HUD_BOTTOM_OFFSET;
 
-        // ── PLAY-AREA BACKDROP ───────────────────────────────────
-        // Optional carved-stone wall texture between the two HUD bars.
-        // Drops out gracefully when the asset is missing.
-        const playAreaH = GAME_HEIGHT - TOP_H - BOT_H;
-        const stoneWall = drawStoneBackdrop(this, TOP_H, GAME_WIDTH, playAreaH);
-        // Torchlight: a radial darkening overlay that keeps the centre
-        // (where the room panel sits) readable and fades the rest of the
-        // wall toward black so the dungeon feels lit by a single lamp.
-        // The texture is oversized by TORCH_MARGIN on every side so the
-        // overlay can slide during room transitions without exposing an
-        // un-dimmed strip of stone at the trailing edge.
+        const stoneWall = this.buildBackdrop(TOP_H, BOT_H);
+
+        // ── TOP BAR ─────────────────────────────────────────────
+        // Carved-stone frame (PNG when available, layered fallback otherwise).
+        const topFrame = drawTopFrame(this, GAME_WIDTH, TOP_H);
+        const vitals = this.buildTopVitals(PAD);
+        this.buildTopCombatStats(TOP_H);
+        this.buildTopResources();
+
+        // ── BOTTOM BAR ──────────────────────────────────────────
+        const bottom = this.buildBottomBar(BOT_Y, BOT_H);
+        this.buildBelowBarText(BOT_Y, PAD);
+
+        // ── CHROME BUTTONS + CONFIRM MODAL ──────────────────────
+        this.buildHudButtons(TOP_H, PAD);
+        // Built once and hidden until the player clicks the HUD
+        // restart button. Confirming wipes meta progression and
+        // returns the player to the boot/title scene.
+        this.buildRestartConfirmModal();
+
+        const topWidgets: Phaser.GameObjects.GameObject[] = [
+            topFrame,
+            vitals.hpIcon,
+            vitals.hpLabel,
+            // bar frame must sit beneath the track so its rim hugs the bar
+            vitals.hpBarFrame,
+            vitals.hpBarBg,
+            this.hpBar,
+            vitals.hpSegments,
+            this.hpValueText,
+            this.levelText,
+            this.xpBarFrame,
+            this.xpBarBg,
+            this.xpBar,
+            this.xpValueText,
+            this.atkStat.root,
+            this.defStat.root,
+            this.lightTorchIcon,
+            this.goldStat.root,
+            this.potionStat.root,
+            this.resolveStat.root,
+            this.playerStatusText,
+        ];
+
+        const bottomWidgets: Phaser.GameObjects.GameObject[] = [
+            bottom.botFrame,
+            this.lightResStat.root,
+            this.shardStat.root,
+            bottom.pillarG,
+            this.depthStat.root,
+            this.killsStat.root,
+            this.bossStat.root,
+            this.relicText,
+            this.hintText,
+            this.escapeButtonBg,
+            this.escapeButtonLabel,
+            this.restartButtonBg,
+            this.restartButtonLabel,
+        ];
+
+        // Stone wall must sit below the room content. Inside a Container
+        // setDepth has no effect, so keep it scene-level and pin it under
+        // every Depths.* tier (Background = 0).
+        stoneWall.setDepth(Depths.Background - 1);
+        this.uiContainer.add([...topWidgets, ...bottomWidgets]);
+
+        this.roomContainer.add(this.enemyStatusText);
+
+        this.wireHudEvents();
+    }
+
+    /**
+     * Backdrop layer for the play area: optional carved-stone wall
+     * texture (drops out gracefully when the asset is missing) plus a
+     * radial torchlight overlay that keeps the centre of the wall
+     * readable and fades the edges to black so the dungeon feels lit
+     * by a single lamp.
+     */
+    private buildBackdrop(topH: number, botH: number): Phaser.GameObjects.Image {
+        const playAreaH = GAME_HEIGHT - topH - botH;
+        const stoneWall = drawStoneBackdrop(this, topH, GAME_WIDTH, playAreaH);
+        // The torchlight texture is oversized by TORCH_MARGIN on every
+        // side so the overlay can slide during room transitions
+        // without exposing an un-dimmed strip of stone at the trailing
+        // edge.
         const TORCH_MARGIN = 256;
         const torchW = GAME_WIDTH + TORCH_MARGIN * 2;
         const torchH = playAreaH + TORCH_MARGIN * 2;
@@ -435,23 +524,34 @@ export class GameScene extends Phaser.Scene {
             edgeAlpha: 0.94,
         });
         this.torchlightHomeX = GAME_WIDTH / 2;
-        this.torchlightHomeY = TOP_H + playAreaH / 2;
+        this.torchlightHomeY = topH + playAreaH / 2;
         torchlight
             .setOrigin(0.5, 0.5)
             .setPosition(this.torchlightHomeX, this.torchlightHomeY)
             .setDepth(Depths.Background - 0.5);
         this.torchlight = torchlight;
+        return stoneWall;
+    }
 
-        // ── TOP BAR ─────────────────────────────────────────────
-        // Carved-stone frame (PNG when available, layered fallback otherwise).
-        const topFrame = drawTopFrame(this, GAME_WIDTH, TOP_H);
-
-        // Group A — Vitals (HP bar) on the left ~third.
+    /**
+     * Top-bar vitals column (Group A + B): HP bar with segment
+     * markers and Level + XP stacked underneath. Returns the local
+     * widgets the orchestrator needs for `uiContainer.add` ordering;
+     * the bar fills (`hpBar`, `xpBar`, etc.) and the value labels
+     * stay on `this` so `refreshUI` can scale them.
+     */
+    private buildTopVitals(pad: number): {
+        hpIcon: Phaser.GameObjects.GameObject;
+        hpLabel: Phaser.GameObjects.Text;
+        hpBarFrame: Phaser.GameObjects.GameObject;
+        hpBarBg: Phaser.GameObjects.Rectangle;
+        hpSegments: Phaser.GameObjects.GameObject;
+    } {
         // The 96px panel has a 52px interior (y=22..74 after the carved
         // gold rim).
-        const VITALS_LABEL_X = PAD + 22;
-        const VITALS_BAR_X = PAD + 22 + 64 + 12;
-        const hpIcon = createHudIcon(this, PAD + 8, 36, 'heart', { pixelSize: 16 });
+        const VITALS_LABEL_X = pad + 22;
+        const VITALS_BAR_X = pad + 22 + 64 + 12;
+        const hpIcon = createHudIcon(this, pad + 8, 36, 'heart', { pixelSize: 16 });
         const hpLabel = this.add.text(VITALS_LABEL_X, 29, this.loc.t('hp').toUpperCase(), {
             fontFamily: HUD_FONT,
             fontSize: '11px',
@@ -516,12 +616,17 @@ export class GameScene extends Phaser.Scene {
             .setOrigin(0, 0.5);
         this.xpBar.setDisplaySize(0, this.xpBarHeight);
 
-        // Group C — Combat stats in the centre, stacked vertically:
-        // sword "АТАКА N" on top, shield "ЗАЩИТА N" below it. The
-        // block sits between the left vitals/XP column and the right
-        // resource column. valueOffsetX forces both rows to share a
-        // single value column so the numbers line up vertically even
-        // though "АТАКА" is shorter than "ЗАЩИТА".
+        return { hpIcon, hpLabel, hpBarFrame, hpBarBg, hpSegments };
+    }
+
+    /**
+     * Top-bar combat stats (Group C): atk/def stacked column, the
+     * light-status torch icon, and the centred "player status"
+     * floating text just below the bar. valueOffsetX forces atk/def
+     * rows to share a numeric column so the values line up vertically
+     * even though "АТАКА" is shorter than "ЗАЩИТА".
+     */
+    private buildTopCombatStats(topH: number) {
         const { topHud } = HudLayout;
         const secondColX = topHud.statsX + topHud.secondColumnDx;
         this.atkStat = createHudInlineSlot(this, topHud.statsX, topHud.atkY, {
@@ -549,21 +654,25 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        this.playerStatusText = this.add.text(CENTER_X, TOP_H + 14, '', {
+        this.playerStatusText = this.add.text(CENTER_X, topH + 14, '', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
             color: HudHex.accentResolve,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         }).setOrigin(0.5, 0);
+    }
 
-        // Group D — Resource slots in the top-right, stacked
-        // vertically as inline `icon | label | value` rows. ЗОЛОТО /
-        // ЭЛИК. / ВОЛЯ used to live in the bottom carved bar but were
-        // promoted to the top so the player can keep their core
-        // resources in the same eye-line as HP/XP/АТАКА during combat.
-        // valueOffsetX keeps the numeric column aligned even though the
-        // labels are different lengths.
+    /**
+     * Top-bar resources (Group D): gold / potion / resolve stacked as
+     * inline icon|label|value rows. They used to live in the bottom
+     * carved bar but were promoted to the top so the player can keep
+     * core resources in the same eye-line as HP/XP/АТАКА during
+     * combat. valueOffsetX keeps the numeric column aligned even
+     * though the labels are different lengths.
+     */
+    private buildTopResources() {
+        const { topHud } = HudLayout;
         this.goldStat = createHudInlineSlot(this, topHud.resourcesX, topHud.resourceRow1Y, {
             icon: 'coin',
             label: this.loc.t('goldShort').toUpperCase(),
@@ -585,29 +694,34 @@ export class GameScene extends Phaser.Scene {
             valueFontSize: '15px',
             valueOffsetX: topHud.resourceValueOffset,
         });
+    }
 
-        // ── BOTTOM BAR ──────────────────────────────────────────
-        // Carved frame + remaining cells: 2 resource cells (light /
-        // shard, both gated behind unlocks), divider pillar, 3
-        // progress cells (depth / kills / bosses).
-        // The 3 resources moved to the top bar have left the left
-        // half of the bottom bar mostly empty in the early game; once
-        // the light/shard unlocks fire the cells fill in.
-        const botFrame = drawBottomFrame(this, BOT_Y, GAME_WIDTH, BOT_H);
+    /**
+     * Bottom carved bar: 2 resource cells (light / shard, both gated
+     * behind unlocks), divider pillar, 3 progress cells (depth /
+     * kills / bosses). The 3 resources moved to the top bar have left
+     * the left half of the bottom bar mostly empty in the early game;
+     * once the light/shard unlocks fire the cells fill in.
+     *
+     * cellH grew 70 → 110 so the resource icons can render at ~2×
+     * their old pixel size (18 → 36) without crowding the
+     * label/value rows. Stat label / value font sizes are bumped a
+     * tier to keep visual hierarchy consistent with the chunkier
+     * icons.
+     */
+    private buildBottomBar(botY: number, botH: number): {
+        botFrame: Phaser.GameObjects.GameObject;
+        pillarG: Phaser.GameObjects.Graphics;
+    } {
+        const botFrame = drawBottomFrame(this, botY, GAME_WIDTH, botH);
 
         // Bottom-bar PNG carved corners eat ~32 px on each side; cells
         // are sized so the row sits comfortably inside that safe area
         // (left margin 36, right margin ~36 to the carved frame).
         // Cells are vertically centred inside the bar so they don't
         // crowd the top gold rim and leave a dead strip at the bottom.
-        //
-        // cellH grew 70 → 110 so the resource icons can render at
-        // ~2× their old pixel size (18 → 36) without crowding the
-        // label/value rows. Stat label / value font sizes are bumped
-        // a tier to keep visual hierarchy consistent with the chunkier
-        // icons.
         const cellH = 110;
-        const cellTop = BOT_Y + Math.round((BOT_H - cellH) / 2);
+        const cellTop = botY + Math.round((botH - cellH) / 2);
         const resW = 112;
         const resStart = 36;
         const progW = 88;
@@ -666,23 +780,29 @@ export class GameScene extends Phaser.Scene {
             valueFontSize: STAT_VALUE_FONT,
         });
 
-        // Hint text ("дальше: достигни глубины N") and relic summary
-        // both float in the play area immediately above the carved
-        // bottom bar instead of inside it. Anchoring them to BOT_Y −
-        // small offset means a future change to BOTTOM_BAR_H carries
-        // them along, and the carved bar interior is left entirely to
-        // the resource cells (so the milestone hint no longer sits on
-        // top of the bottom rim where it gets visually clipped).
-        //
-        // The two are stacked vertically — hint sits on the bottom
-        // line just above the bar (centred so it reads as a deliberate
-        // goal reminder), relic summary sits one line up on the left
-        // — because their horizontal extents (centred + 540 px word
-        // wrap) would otherwise collide whenever the player has both
-        // relics and an outstanding milestone simultaneously.
-        const HINT_LINE_Y = BOT_Y - 8;
-        const RELIC_LINE_Y = BOT_Y - 24;
-        this.relicText = this.add.text(PAD, RELIC_LINE_Y, '', {
+        return { botFrame, pillarG };
+    }
+
+    /**
+     * Floating text rows that sit *above* the bottom bar (relic
+     * summary on the left, milestone hint centred) and the
+     * out-of-bar enemy status text used during combat. Anchored to
+     * `botY − small offset` so a future change to BOTTOM_BAR_H carries
+     * them along, and the carved bar interior is left entirely to
+     * the resource cells (so the milestone hint no longer sits on
+     * top of the bottom rim where it gets visually clipped).
+     *
+     * The two are stacked vertically — hint sits on the bottom line
+     * just above the bar (centred so it reads as a deliberate goal
+     * reminder), relic summary sits one line up on the left —
+     * because their horizontal extents (centred + 540 px word wrap)
+     * would otherwise collide whenever the player has both relics
+     * and an outstanding milestone simultaneously.
+     */
+    private buildBelowBarText(botY: number, pad: number) {
+        const HINT_LINE_Y = botY - 8;
+        const RELIC_LINE_Y = botY - 24;
+        this.relicText = this.add.text(pad, RELIC_LINE_Y, '', {
             fontFamily: HUD_FONT,
             fontSize: '12px',
             color: HudHex.accentGold,
@@ -706,17 +826,21 @@ export class GameScene extends Phaser.Scene {
             stroke: HUD_STROKE,
             strokeThickness: 2,
         }).setOrigin(0.5, 0);
+    }
 
-        // ── ESCAPE BUTTON ───────────────────────────────────────
-        // Out-of-combat escape from the run. Click once to arm,
-        // click again within ~3s to confirm. On confirm: any unspent
-        // skill points are banked, then the scene hands off to the
-        // escape end screen which routes back to the hub via
-        // safeRestart().
+    /**
+     * Top-right HUD chrome: ESCAPE button (out-of-combat run-end with
+     * skill-point banking — first click arms, second click within
+     * ~3s confirms via `handleEscapeClick`) and RESTART button
+     * (instantly scraps the run via `handleRestartClick` →
+     * confirmation modal → meta-progression wipe). The two share
+     * visibility rules in `refreshUI`.
+     */
+    private buildHudButtons(topH: number, pad: number) {
         const ESCAPE_BTN_W = 110;
         const ESCAPE_BTN_H = 26;
-        const ESCAPE_BTN_X = GAME_WIDTH - PAD - ESCAPE_BTN_W / 2;
-        const ESCAPE_BTN_Y = TOP_H + 18;
+        const ESCAPE_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W / 2;
+        const ESCAPE_BTN_Y = topH + 18;
         this.escapeButtonBg = this.add
             .rectangle(ESCAPE_BTN_X, ESCAPE_BTN_Y, ESCAPE_BTN_W, ESCAPE_BTN_H, HudColors.panelBg, 0.92)
             .setStrokeStyle(1, HudColors.panelHi)
@@ -741,15 +865,10 @@ export class GameScene extends Phaser.Scene {
         });
         this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
 
-        // ── RESTART BUTTON ──────────────────────────────
-        // Out-of-combat shortcut: scrap the current run instantly and
-        // restart the scene from scratch. No skill-points are banked,
-        // no end screen — just hands off to safeRestart(). Sits to the
-        // left of the escape button and shares its visibility rules.
         const RESTART_BTN_W = 130;
         const RESTART_BTN_H = 26;
         const RESTART_BTN_X =
-            GAME_WIDTH - PAD - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
+            GAME_WIDTH - pad - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
         const RESTART_BTN_Y = ESCAPE_BTN_Y;
         this.restartButtonBg = this.add
             .rectangle(RESTART_BTN_X, RESTART_BTN_Y, RESTART_BTN_W, RESTART_BTN_H, HudColors.panelBg, 0.92)
@@ -774,61 +893,17 @@ export class GameScene extends Phaser.Scene {
             this.restartButtonBg.setStrokeStyle(1, HudColors.panelHi);
         });
         this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
+    }
 
-        // ── RESTART CONFIRM MODAL ───────────────────────────────
-        // Built once and hidden until the player clicks the HUD
-        // restart button. Confirming wipes meta progression and
-        // returns the player to the boot/title scene.
-        this.buildRestartConfirmModal();
-
-        const topWidgets: Phaser.GameObjects.GameObject[] = [
-            topFrame,
-            hpIcon,
-            hpLabel,
-            // bar frame must sit beneath the track so its rim hugs the bar
-            hpBarFrame,
-            hpBarBg,
-            this.hpBar,
-            hpSegments,
-            this.hpValueText,
-            this.levelText,
-            this.xpBarFrame,
-            this.xpBarBg,
-            this.xpBar,
-            this.xpValueText,
-            this.atkStat.root,
-            this.defStat.root,
-            this.lightTorchIcon,
-            this.goldStat.root,
-            this.potionStat.root,
-            this.resolveStat.root,
-            this.playerStatusText,
-        ];
-
-        const bottomWidgets: Phaser.GameObjects.GameObject[] = [
-            botFrame,
-            this.lightResStat.root,
-            this.shardStat.root,
-            pillarG,
-            this.depthStat.root,
-            this.killsStat.root,
-            this.bossStat.root,
-            this.relicText,
-            this.hintText,
-            this.escapeButtonBg,
-            this.escapeButtonLabel,
-            this.restartButtonBg,
-            this.restartButtonLabel,
-        ];
-
-        // Stone wall must sit below the room content. Inside a Container
-        // setDepth has no effect, so keep it scene-level and pin it under
-        // every Depths.* tier (Background = 0).
-        stoneWall.setDepth(Depths.Background - 1);
-        this.uiContainer.add([...topWidgets, ...bottomWidgets]);
-
-        this.roomContainer.add(this.enemyStatusText);
-
+    /**
+     * Subscribe to the player manager's typed events so the HUD
+     * stays in sync with hp/stat/resource changes, level-ups grant
+     * pending skill points, and death triggers the meta-progression
+     * wipe + death-screen handoff. Pulled out of `setupGlobalUI` so
+     * the orchestrator's intent ("build widgets, then wire them") is
+     * obvious at a glance.
+     */
+    private wireHudEvents() {
         this.player.hpChange.on(() => this.refreshUI());
         this.player.statsChange.on(() => this.refreshUI());
         this.player.resourcesChange.on(() => {
