@@ -78,7 +78,7 @@ src/
 └── data/                   # GameConfig.ts, Enemies.ts, Bosses.ts, EnemyTextConfig.ts (see docs/CONFIG_GUIDE.md)
 ```
 
-For a one-page architectural map (file → role → emits / depends on / owns), see `docs/ARCH_MAP.md`. For the full Emitter producer→payload→consumer table, see `docs/EVENTS.md`.
+For a one-page architectural map (file → role → emits / depends on / owns), see `docs/ARCH_MAP.md`. For the full Emitter producer→payload→consumer table, see `docs/EVENTS.md`. For walkthroughs of common edits ("add a new room / enemy / boss / skill / relic / NPC / locale string / HUD cell / Emitter channel / unlock / button / status effect / meta upgrade"), see `docs/RECIPES.md`.
 
 ## Notes For Contributors
 
