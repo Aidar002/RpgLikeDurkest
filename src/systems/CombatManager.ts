@@ -442,7 +442,6 @@ export class CombatManager {
             this.log.addMessage(narrate('crit_landed', this.loc.language), '#c4a35a');
         }
         this.applyOnAttackRelics();
-        this.tryHealOnAttack();
     }
 
     private handlePlayerDefend() {
@@ -493,7 +492,6 @@ export class CombatManager {
                 result.critical ? '#ffe08a' : '#dddddd'
             );
             this.applyOnAttackRelics();
-            this.tryHealOnAttack();
             return true;
         }
 
@@ -657,6 +655,7 @@ export class CombatManager {
 
     private applyOnAttackRelics() {
         if (!this.enemy) return;
+        this.tryHealOnAttack();
         this.tryVampireBlessingOnAttack();
     }
 
