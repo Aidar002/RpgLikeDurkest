@@ -1,6 +1,7 @@
 // Status effect engine. Runs on both enemy and player sides.
 // Effects:
 //   bleed:  stacks * dmg at end of each turn for N turns
+//   poison: damage at end of each turn for N turns (ghoul rider)
 //   stun:   skips next enemy turn(s)
 //   weaken: enemy attack -X for N turns
 //   mark:   next incoming attack on this target is guaranteed critical
@@ -10,6 +11,7 @@
 
 export type StatusId =
     | 'bleed'
+    | 'poison'
     | 'stun'
     | 'weaken'
     | 'mark'
@@ -19,6 +21,7 @@ export type StatusId =
 
 export interface StatusState {
     bleed: { stacks: number; turns: number };
+    poison: { damage: number; turns: number };
     stun: { turns: number };
     weaken: { turns: number; amount: number };
     mark: { turns: number };
@@ -32,6 +35,7 @@ type StatusLanguage = 'ru' | 'en';
 export function emptyStatusState(): StatusState {
     return {
         bleed: { stacks: 0, turns: 0 },
+        poison: { damage: 0, turns: 0 },
         stun: { turns: 0 },
         weaken: { turns: 0, amount: 0 },
         mark: { turns: 0 },
@@ -50,6 +54,17 @@ export function applyBleed(s: StatusState, stacks: number, turns: number, cap: n
     const ceiling = Math.max(1, cap);
     s.bleed.stacks = Math.min(ceiling, s.bleed.stacks + stacks);
     s.bleed.turns = Math.max(s.bleed.turns, turns);
+}
+
+/**
+ * Apply or refresh a poison stack. Poison ticks {@link StatusState.poison.damage}
+ * at the end of each turn for {@link StatusState.poison.turns} turns. The
+ * highest pending damage wins so a small reapply cannot weaken an existing
+ * heavier poison.
+ */
+export function applyPoison(s: StatusState, damage: number, turns: number) {
+    if (damage > s.poison.damage) s.poison.damage = damage;
+    s.poison.turns = Math.max(s.poison.turns, turns);
 }
 
 export function applyStun(s: StatusState, turns: number) {
@@ -98,9 +113,10 @@ export function consumeMark(s: StatusState): boolean {
     return false;
 }
 
-/** Returns bonus damage at end of a turn (bleed) and ticks statuses. */
+/** Returns bonus damage at end of a turn (bleed/poison) and ticks statuses. */
 export interface TickResult {
     bleedDamage: number;
+    poisonDamage: number;
     expired: StatusId[];
     regenHeal: number;
 }
@@ -108,6 +124,7 @@ export interface TickResult {
 export function tickTurn(s: StatusState): TickResult {
     const expired: StatusId[] = [];
     let bleedDamage = 0;
+    let poisonDamage = 0;
     let regenHeal = 0;
 
     if (s.bleed.turns > 0 && s.bleed.stacks > 0) {
@@ -116,6 +133,15 @@ export function tickTurn(s: StatusState): TickResult {
         if (s.bleed.turns <= 0) {
             s.bleed.stacks = 0;
             expired.push('bleed');
+        }
+    }
+
+    if (s.poison.turns > 0 && s.poison.damage > 0) {
+        poisonDamage = s.poison.damage;
+        s.poison.turns -= 1;
+        if (s.poison.turns <= 0) {
+            s.poison.damage = 0;
+            expired.push('poison');
         }
     }
 
@@ -149,7 +175,7 @@ export function tickTurn(s: StatusState): TickResult {
         }
     }
 
-    return { bleedDamage, expired, regenHeal };
+    return { bleedDamage, poisonDamage, expired, regenHeal };
 }
 
 /** Apply guard block to incoming damage and decrement hit counter. */
@@ -163,6 +189,7 @@ export function consumeGuardBlock(s: StatusState, incoming: number): number {
 
 interface StatusLabels {
     bleed: (stacks: number, turns: number) => string;
+    poison: (damage: number, turns: number) => string;
     stun: (turns: number) => string;
     weaken: (amount: number, turns: number) => string;
     mark: () => string;
@@ -174,6 +201,7 @@ interface StatusLabels {
 const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
     ru: {
         bleed: (stacks, turns) => `Кровотечение x${stacks}/${turns}х`,
+        poison: (damage, turns) => `Яд ${damage}/${turns}х`,
         stun: (turns) => `Оглуш. ${turns}х`,
         weaken: (amount, turns) => `Слаб. -${amount}/${turns}х`,
         mark: () => 'Метка',
@@ -183,6 +211,7 @@ const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
     },
     en: {
         bleed: (stacks, turns) => `Bleed x${stacks}/${turns}t`,
+        poison: (damage, turns) => `Poison ${damage}/${turns}t`,
         stun: (turns) => `Stun ${turns}t`,
         weaken: (amount, turns) => `Weaken -${amount}/${turns}t`,
         mark: () => 'Marked',
@@ -196,6 +225,7 @@ export function statusSummary(s: StatusState, language: StatusLanguage = 'en'): 
     const labels = STATUS_LABELS[language];
     const parts: string[] = [];
     if (s.bleed.turns > 0) parts.push(labels.bleed(s.bleed.stacks, s.bleed.turns));
+    if (s.poison.turns > 0) parts.push(labels.poison(s.poison.damage, s.poison.turns));
     if (s.stun.turns > 0) parts.push(labels.stun(s.stun.turns));
     if (s.weaken.turns > 0) parts.push(labels.weaken(s.weaken.amount, s.weaken.turns));
     if (s.mark.turns > 0) parts.push(labels.mark());

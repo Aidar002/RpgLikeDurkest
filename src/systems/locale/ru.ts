@@ -196,4 +196,18 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     // Срабатывания предметов (треснутый амулет, дырявый нагрудник).
     combatRelicHealOnAttack: 'Треснутый амулет: восстановлено {healed} ОЗ.',
     combatRelicBlockOnHit: 'Дырявый нагрудник поглощает {amount} урона.',
+    // Замах врагов (мышь / упырь / рысь).
+    combatEnemyPrepareWindup: '{name} готовится: {action}.',
+    combatEnemyPrepareResolve: '{name} применяет {action}: {takenDamage} урона.',
+    combatEnemyPrepareDefend: 'Ты ставишь блок и отбиваешь {action} ({name}).',
+    combatEnemyPrepareDamageBack: '{name} получает {back} урона в ответ.',
+    combatEnemyPrepareRidersCancelled: 'Защита снимает доп. эффект {action} ({name}).',
+    combatEnemyPrepareBleed: '{action} ({name}) рвёт рану: кровотечение x{stacks} на {turns}х.',
+    combatEnemyPreparePoison: '{action} ({name}) травит: яд {damage} на {turns}х.',
+    // Тики кровотечения и яда у игрока.
+    combatPlayerBleedTick: 'Кровотечение отнимает {damage} ОЗ.',
+    combatPlayerPoisonTick: 'Яд отнимает {damage} ОЗ.',
+    // Намерение замаха в HUD у обычных врагов.
+    hudPrepareWindupLabel: '{action} (через {turns}х)',
+    hudPrepareReadyLabel: '{action} (СЕЙЧАС)',
 };

@@ -7,6 +7,7 @@ import {
 import type {
     EnemyDef,
     EnemyPassive,
+    EnemyPrepareDef,
     EnemyProfile,
 } from '../data/GameConfig';
 import {
@@ -23,6 +24,7 @@ import { SKILLS } from './Skills';
 import type { SkillId } from './Skills';
 import {
     applyBleed,
+    applyPoison,
     applyWeaken,
     consumeGuardBlock,
     consumeMark,
@@ -86,6 +88,13 @@ export interface ActiveEnemy {
     firstStunResisted?: boolean;
     /** Per-spec passive trigger copied from EnemyDef at combat start. */
     passive?: EnemyPassive;
+    /**
+     * Mid-combat windup state for non-boss enemies that have a `prepare`
+     * block. `turnsRemaining` counts down on every enemy turn; when it
+     * hits 0 the prepare resolves on the *next* enemy turn (so the
+     * player has one turn to react with Defend).
+     */
+    pendingPrepare?: { def: EnemyPrepareDef; turnsRemaining: number };
     /** [FIX-10] Phase blueprint runtime state, only set on bosses. */
     bossPhase?: BossPhaseState;
     /**
@@ -238,6 +247,9 @@ export class CombatManager {
             status: emptyStatusState(),
             inflictBleed: definition.inflictBleed,
             passive: definition.passive,
+            pendingPrepare: definition.prepare
+                ? { def: definition.prepare, turnsRemaining: definition.prepare.turns }
+                : undefined,
             bossPhase: blueprint
                 ? {
                       blueprint,
@@ -251,10 +263,12 @@ export class CombatManager {
                 : undefined,
             currentIntent: null,
         };
-        // Compute the initial intent so the UI can show what the boss
+        // Compute the initial intent so the UI can show what the enemy
         // is about to do BEFORE the first player turn.
         if (this.enemy.bossPhase) {
             this.enemy.currentIntent = this.intentLabelForPhase(this.enemy.bossPhase);
+        } else if (this.enemy.pendingPrepare) {
+            this.enemy.currentIntent = this.intentLabelForPrepare(this.enemy.pendingPrepare);
         }
 
         const header =
@@ -362,7 +376,7 @@ export class CombatManager {
 
         this.resolveEnemyTurn(actionName as Exclude<CombatAction, { kind: 'skill'; id: SkillId }>);
 
-        // Tick player statuses (focus/regen/mark/weaken decay).
+        // Tick player statuses (bleed/poison damage, focus/regen/mark/weaken decay).
         const playerTick = tickTurn(this.player.status);
         if (playerTick.regenHeal > 0) {
             const healed = this.player.heal(playerTick.regenHeal);
@@ -372,6 +386,29 @@ export class CombatManager {
                     '#8be0a7'
                 );
             }
+        }
+        if (playerTick.bleedDamage > 0) {
+            const taken = this.player.takeDamage(playerTick.bleedDamage, 0, 'true');
+            if (taken > 0) {
+                this.log.addMessage(
+                    this.loc.t('combatPlayerBleedTick', { damage: taken }),
+                    '#d06060'
+                );
+                this.playerHit.emit({ damage: taken });
+            }
+        }
+        if (playerTick.poisonDamage > 0 && this.player.stats.hp > 0) {
+            const taken = this.player.takeDamage(playerTick.poisonDamage, 0, 'true');
+            if (taken > 0) {
+                this.log.addMessage(
+                    this.loc.t('combatPlayerPoisonTick', { damage: taken }),
+                    '#7fbf6a'
+                );
+                this.playerHit.emit({ damage: taken });
+            }
+        }
+        if (this.player.stats.hp <= 0) {
+            this.logDeath();
         }
         this.playerStatusChange.emit();
     }
@@ -635,6 +672,36 @@ export class CombatManager {
             return;
         }
 
+        // Mid-combat windups (bat / ghoul / lynx). The enemy spends
+        // `def.turns` turns telegraphing, then resolves on the matching
+        // turn. The enemy does NOT also throw a basic attack on those
+        // turns — the wind-up replaces the regular hit.
+        if (this.enemy.pendingPrepare) {
+            const pp = this.enemy.pendingPrepare;
+            if (pp.turnsRemaining > 0) {
+                pp.turnsRemaining -= 1;
+                this.log.addMessage(
+                    this.loc.t('combatEnemyPrepareWindup', {
+                        name: this.enemy.name,
+                        action: this.prepareName(pp.def),
+                    }),
+                    '#c4a35a'
+                );
+                this.enemy.currentIntent = this.intentLabelForPrepare(pp);
+                this.playerStatusChange.emit();
+                this.enemyStatusChange.emit();
+                return;
+            }
+            this.resolvePrepare(playerAction, pp.def);
+            // Re-arm for the next windup cycle (enemies repeat their
+            // prepare every `turns + 1` turns).
+            pp.turnsRemaining = pp.def.turns;
+            this.enemy.currentIntent = this.intentLabelForPrepare(pp);
+            this.playerStatusChange.emit();
+            this.enemyStatusChange.emit();
+            return;
+        }
+
         const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
         let flatBlock = flatBlockBase;
 
@@ -852,6 +919,130 @@ export class CombatManager {
         const phaseDef = phase.blueprint.phases[phase.phaseIndex];
         const action = phaseDef.actions[phase.actionIndex % phaseDef.actions.length];
         return pickLine(action.intent, this.loc.language);
+    }
+
+    /** Localised "{Action} ({turns}t)" badge for non-boss prepare windups. */
+    private intentLabelForPrepare(pp: { def: EnemyPrepareDef; turnsRemaining: number }): string {
+        const action = this.prepareName(pp.def);
+        if (pp.turnsRemaining <= 0) {
+            return this.loc.t('hudPrepareReadyLabel', { action });
+        }
+        return this.loc.t('hudPrepareWindupLabel', { action, turns: pp.turnsRemaining });
+    }
+
+    /** Returns the localised name of the prepare action (e.g. "Bite" / "Укус"). */
+    private prepareName(def: EnemyPrepareDef): string {
+        return this.loc.language === 'ru' ? def.nameRu : def.nameEn;
+    }
+
+    /**
+     * Resolve a prepared enemy action. Damage and rider effects depend
+     * on whether the player chose Defend on this turn:
+     *  - `damageBack`: Defend cancels the hit and the enemy takes
+     *    {@link EnemyPrepareDef.defenseBackDamage} damage instead. No
+     *    riders are applied.
+     *  - `cancelRiders`: Defend lets the raw damage land (with the
+     *    normal flat block) but skips the bleed/poison rider.
+     * If the player did not Defend, the full damage + rider lands.
+     */
+    private resolvePrepare(
+        playerAction: 'attack' | 'defend' | 'skill' | 'potion',
+        def: EnemyPrepareDef
+    ) {
+        if (!this.enemy) return;
+        const defended = playerAction === 'defend';
+        const action = this.prepareName(def);
+
+        if (defended && def.defenseRule === 'damageBack') {
+            const back = def.defenseBackDamage ?? 0;
+            this.log.addMessage(
+                this.loc.t('combatEnemyPrepareDefend', {
+                    name: this.enemy.name,
+                    action,
+                }),
+                '#9bc8ff'
+            );
+            if (back > 0) {
+                this.enemy.hp = Math.max(0, this.enemy.hp - back);
+                this.log.addMessage(
+                    this.loc.t('combatEnemyPrepareDamageBack', {
+                        name: this.enemy.name,
+                        back,
+                    }),
+                    '#9bc8ff'
+                );
+                this.enemyUpdate.emit({
+                    hp: this.enemy.hp,
+                    maxHp: this.enemy.maxHp,
+                    color: this.enemy.color,
+                    name: this.enemy.name,
+                    icon: this.enemy.icon,
+                });
+            }
+            return;
+        }
+
+        // Either no Defend, or 'cancelRiders' rule. The hit lands
+        // (Defend's flat block applies for cancelRiders).
+        const flatBlock = defended ? COMBAT_CONFIG.defendBlock : 0;
+        const taken = this.applyEnemyHitToPlayer(def.damage, flatBlock);
+        if (taken > 0) {
+            this.log.addMessage(
+                this.loc.t('combatEnemyPrepareResolve', {
+                    name: this.enemy.name,
+                    action,
+                    takenDamage: taken,
+                }),
+                '#ff6666'
+            );
+        } else {
+            this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
+        }
+
+        if (defended) {
+            // cancelRiders: damage went through, but bleed/poison don't.
+            if (def.bleed || def.poison) {
+                this.log.addMessage(
+                    this.loc.t('combatEnemyPrepareRidersCancelled', {
+                        name: this.enemy.name,
+                        action,
+                    }),
+                    '#9bc8ff'
+                );
+            }
+            return;
+        }
+
+        // No Defend: apply rider effects.
+        if (def.bleed) {
+            applyBleed(
+                this.player.status,
+                def.bleed.stacks,
+                def.bleed.turns,
+                this.enemy.bleedCap
+            );
+            this.log.addMessage(
+                this.loc.t('combatEnemyPrepareBleed', {
+                    name: this.enemy.name,
+                    action,
+                    stacks: def.bleed.stacks,
+                    turns: def.bleed.turns,
+                }),
+                '#d06060'
+            );
+        }
+        if (def.poison) {
+            applyPoison(this.player.status, def.poison.damage, def.poison.turns);
+            this.log.addMessage(
+                this.loc.t('combatEnemyPreparePoison', {
+                    name: this.enemy.name,
+                    action,
+                    damage: def.poison.damage,
+                    turns: def.poison.turns,
+                }),
+                '#7fbf6a'
+            );
+        }
     }
 
     /**
