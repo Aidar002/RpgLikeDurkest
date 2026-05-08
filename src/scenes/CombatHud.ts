@@ -287,7 +287,7 @@ export class CombatHudController {
             scene.eliteKillsThisRun += 1;
         }
         if (payload.kind === 'boss') {
-            scene.runBossKills += 1;
+            scene.runState.runBossKills += 1;
             scene.tracker.record('bossesKilled');
             const bossMilestones = scene.meta.registerBossKill();
             scene.handleMilestoneUnlocks(bossMilestones);
