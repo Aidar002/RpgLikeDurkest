@@ -63,6 +63,7 @@ import {
     showVictoryScreen,
     type EndScreenContext,
 } from '../ui/EndScreens';
+import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
 
@@ -132,19 +133,36 @@ export class GameScene extends Phaser.Scene {
     private readonly footstepsFadeMs = 500;
     private deathSequenceStarted = false;
     public lastEnemyHp = 0;
-    private runBestDepth = 0;
-    public runBossKills = 0;
-    /** Pending skill points earned this run (one per level-up). Banked
-     *  on escape, wiped on death. */
-    private runSkillPointsPending = 0;
-    /** How many of `runSkillPointsPending` were actually banked when
-     *  the end screen committed. Used by the end screens to render
-     *  exact "+N banked" copy after the fact. */
-    private skillPointsBanked = 0;
-    /** True once `bankSkillPointsOnce` has fired so re-renders of the
-     *  end screen don't re-bank the same points. */
-    private skillPointsBankedFlag = false;
-    private escaped = false;
+    /**
+     * Single source of truth for run-end-screen flags.
+     *
+     * Used to be 6 separate fields on the scene with a hand-rolled
+     * proxy in `endScreenContext()` mapping each one to the
+     * `RunEndState` shape. Folding them into one object lets us pass
+     * the field straight into the end-screen context (no proxy) and
+     * keeps the death-screen / escape-screen contract anchored on a
+     * single type.
+     *
+     *  - `runBestDepth` / `runBossKills`: per-run telemetry shown on
+     *    the HUD and on the run-summary screens.
+     *  - `pendingSkillPoints`: skill points the player accumulated
+     *    this run (one per level-up). Banked on escape, wiped on
+     *    death.
+     *  - `skillPointsBanked` / `skillPointsBankedFlag`: bookkeeping
+     *    so the end screen renders "+N banked" exactly once even
+     *    on re-renders.
+     *  - `escaped`: true when the player committed to the HUD
+     *    escape button instead of dying. Banking only fires when
+     *    this is true.
+     */
+    public runState: RunEndState = {
+        runBestDepth: 0,
+        runBossKills: 0,
+        pendingSkillPoints: 0,
+        skillPointsBanked: 0,
+        skillPointsBankedFlag: false,
+        escaped: false,
+    };
     /** Two-step confirm timer for the HUD escape button. -1 == idle. */
     private escapeConfirmAt = -1;
     public skipLightSpendThisRoom = false;
@@ -267,12 +285,14 @@ export class GameScene extends Phaser.Scene {
         this.dead = false;
         this.deathSequenceStarted = false;
         this.lastEnemyHp = 0;
-        this.runBestDepth = 0;
-        this.runBossKills = 0;
-        this.runSkillPointsPending = 0;
-        this.skillPointsBanked = 0;
-        this.skillPointsBankedFlag = false;
-        this.escaped = false;
+        this.runState = {
+            runBestDepth: 0,
+            runBossKills: 0,
+            pendingSkillPoints: 0,
+            skillPointsBanked: 0,
+            skillPointsBankedFlag: false,
+            escaped: false,
+        };
         this.escapeConfirmAt = -1;
         this.skipLightSpendThisRoom = false;
 
@@ -822,7 +842,7 @@ export class GameScene extends Phaser.Scene {
             // Each level-up grants a single pending skill point. The
             // bank only commits when the run ends in escape; on death
             // `meta.resetProgress()` wipes everything anyway.
-            this.runSkillPointsPending += 1;
+            this.runState.pendingSkillPoints += 1;
             this.log.addMessage(this.loc.t('levelUp', { level }), '#fff17a');
             this.log.addMessage(this.loc.t('levelUpSkillPoint'), '#a4d8ff');
             VFX.floatText(this, 370, 20, `${this.loc.t('level')} ${level}`, '#fff17a');
@@ -842,9 +862,9 @@ export class GameScene extends Phaser.Scene {
             // every purchased upgrade go back to first-time-player
             // defaults. Pending points are forgotten too since they
             // were never banked.
-            this.runSkillPointsPending = 0;
-            this.skillPointsBanked = 0;
-            this.skillPointsBankedFlag = false;
+            this.runState.pendingSkillPoints = 0;
+            this.runState.skillPointsBanked = 0;
+            this.runState.skillPointsBankedFlag = false;
             this.meta.resetProgress();
             this.sfx.play('death');
             this.sfx.stopAmbient();
@@ -908,11 +928,11 @@ export class GameScene extends Phaser.Scene {
         // PRESTIGE forecast cell was removed when the meta-progression
         // economy switched to skill-points-from-level-ups.
         const showProgress = unlocks.showRunMetrics || unlocks.showKillCounter;
-        this.depthStat.setValue(`${this.runBestDepth}`);
+        this.depthStat.setValue(`${this.runState.runBestDepth}`);
         this.depthStat.setVisible(showProgress);
         this.killsStat.setValue(`${this.player.killCount}`);
         this.killsStat.setVisible(showProgress && unlocks.showKillCounter);
-        this.bossStat.setValue(`${this.runBossKills}`);
+        this.bossStat.setValue(`${this.runState.runBossKills}`);
         this.bossStat.setVisible(showProgress && unlocks.showRunMetrics);
 
         const nextUnlock = this.meta.getNextContentUnlock();
@@ -1162,8 +1182,8 @@ export class GameScene extends Phaser.Scene {
     }
 
     private updateRunProgress(depth: number) {
-        if (depth > this.runBestDepth) {
-            this.runBestDepth = depth;
+        if (depth > this.runState.runBestDepth) {
+            this.runState.runBestDepth = depth;
         }
 
         const milestones = this.meta.unlockDepthMilestones(depth);
@@ -1416,11 +1436,10 @@ export class GameScene extends Phaser.Scene {
     }
 
     private endScreenContext(): EndScreenContext {
-        // runState proxies its fields back onto the scene, so EndScreens
-        // can mutate `skillPointsBanked` / `skillPointsBankedFlag` and
-        // re-entry still sees the flag that guards double-banking.
-        // eslint-disable-next-line @typescript-eslint/no-this-alias
-        const scene = this;
+        // `runState` is the single source of truth for the run-end
+        // flags (see field doc). End screens mutate it in place via
+        // `bankSkillPointsOnce` and read back the banked totals on
+        // re-renders — no proxy needed.
         return {
             scene: this,
             loc: this.loc,
@@ -1433,17 +1452,7 @@ export class GameScene extends Phaser.Scene {
             roomContainer: this.roomContainer,
             uiContainer: this.uiContainer,
             safeRestart: () => this.safeRestart(),
-            runState: {
-                get runBestDepth() { return scene.runBestDepth; },
-                get runBossKills() { return scene.runBossKills; },
-                get pendingSkillPoints() { return scene.runSkillPointsPending; },
-                get skillPointsBanked() { return scene.skillPointsBanked; },
-                set skillPointsBanked(v: number) { scene.skillPointsBanked = v; },
-                get skillPointsBankedFlag() { return scene.skillPointsBankedFlag; },
-                set skillPointsBankedFlag(v: boolean) { scene.skillPointsBankedFlag = v; },
-                get escaped() { return scene.escaped; },
-                set escaped(v: boolean) { scene.escaped = v; },
-            },
+            runState: this.runState,
         };
     }
 
@@ -1588,7 +1597,7 @@ export class GameScene extends Phaser.Scene {
         if (this.escapeConfirmAt > 0 && now - this.escapeConfirmAt <= ESCAPE_CONFIRM_MS) {
             // Confirmed — commit the escape.
             this.escapeConfirmAt = -1;
-            this.escaped = true;
+            this.runState.escaped = true;
             this.dead = true;
             this.showDeathScreen();
             return;
