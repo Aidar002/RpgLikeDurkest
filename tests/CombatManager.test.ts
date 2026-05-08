@@ -164,8 +164,6 @@ function injectGhoulPrepare(
         xp: 0,
         gold: 0,
         profile: 'bleeder',
-        enraged: false,
-        charging: false,
         turnsAlive: 0,
         status: emptyStatusState(),
         pendingPrepare: { def: prepare, turnsRemaining: 0 },

@@ -174,33 +174,6 @@ function drawStalker(): Grid {
     return m;
 }
 
-function drawMage(): Grid {
-    const g = createGrid(16, 16);
-    // hood
-    fillRect(g, 5, 0, 6, 3, P.mageDark);
-    fillRect(g, 6, 1, 4, 2, P.mageBody);
-    // face
-    setPixel(g, 7, 2, P.mageGlow); setPixel(g, 8, 2, P.mageGlow);
-    // robe body
-    fillRect(g, 4, 3, 8, 8, P.mageBody);
-    fillRect(g, 5, 4, 6, 6, P.mageLight);
-    // robe flare at bottom
-    fillRect(g, 3, 11, 10, 2, P.mageBody);
-    fillRect(g, 2, 13, 12, 2, P.mageDark);
-    // sleeves
-    fillRect(g, 2, 4, 2, 4, P.mageBody);
-    fillRect(g, 12, 4, 2, 4, P.mageBody);
-    // hands with glow
-    setPixel(g, 1, 8, P.mageGlow); setPixel(g, 2, 8, P.mageGlow);
-    setPixel(g, 13, 8, P.mageGlow); setPixel(g, 14, 8, P.mageGlow);
-    // staff
-    fillRect(g, 14, 1, 1, 12, P.bone);
-    setPixel(g, 14, 0, P.mageGlow);
-    setPixel(g, 13, 0, P.mageGlow);
-    setPixel(g, 15, 0, P.mageGlow);
-    return g;
-}
-
 function drawBoss(): Grid {
     const g = createGrid(16, 16);
     // crown
@@ -258,34 +231,6 @@ function drawBleeder(): Grid {
     fillRect(g, 4, 14, 3, 1, P.bleederDrip);
     fillRect(g, 9, 14, 3, 1, P.bleederDrip);
     return mirrorH(g);
-}
-
-function drawDisruptor(): Grid {
-    const g = createGrid(16, 16);
-    // ethereal floating body
-    fillRect(g, 5, 1, 6, 4, P.disruptorBody);
-    fillRect(g, 6, 2, 4, 2, P.disruptorLight);
-    // glowing eyes
-    setPixel(g, 6, 2, P.disruptorGlow); setPixel(g, 9, 2, P.disruptorGlow);
-    // floating robe/body
-    fillRect(g, 4, 5, 8, 5, P.disruptorBody);
-    fillRect(g, 5, 6, 6, 3, P.disruptorLight);
-    // arms (ethereal)
-    fillRect(g, 2, 5, 2, 3, P.disruptorDark);
-    fillRect(g, 12, 5, 2, 3, P.disruptorDark);
-    setPixel(g, 1, 7, P.disruptorGlow);
-    setPixel(g, 14, 7, P.disruptorGlow);
-    // robe dissolving at bottom
-    fillRect(g, 3, 10, 10, 2, P.disruptorDark);
-    setPixel(g, 4, 12, P.disruptorDark); setPixel(g, 7, 12, P.disruptorDark);
-    setPixel(g, 9, 12, P.disruptorDark); setPixel(g, 11, 12, P.disruptorDark);
-    setPixel(g, 5, 13, P.disruptorDark); setPixel(g, 8, 13, P.disruptorDark);
-    setPixel(g, 10, 13, P.disruptorDark);
-    // mirror symmetric body, then add asymmetric glow particles
-    const m = mirrorH(g);
-    setPixel(m, 3, 3, P.disruptorGlow); setPixel(m, 12, 1, P.disruptorGlow);
-    setPixel(m, 2, 9, P.disruptorGlow); setPixel(m, 13, 4, P.disruptorGlow);
-    return m;
 }
 
 // ─── room icon generators (12x12, rendered at scale) ────────────
@@ -527,15 +472,8 @@ function drawResolve(): Grid {
 const ENEMY_PROFILE_DRAWERS: Record<EnemyProfile, () => Grid> = {
     brute: drawBrute,
     stalker: drawStalker,
-    mage: drawMage,
-    boss: drawBoss,
-    // [FIX-1] The Undying Wound currently reuses the boss silhouette.
-    // The Undying Wound's mood comes from its colour palette in BOSSES,
-    // not a unique sprite, so we share `drawBoss` rather than ship a
-    // half-finished new sprite.
-    final_boss: drawBoss,
     bleeder: drawBleeder,
-    disruptor: drawDisruptor,
+    boss: drawBoss,
 };
 
 const ROOM_ICON_DRAWERS: Record<string, () => Grid> = {

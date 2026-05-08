@@ -13,14 +13,14 @@ export const FEATURES = {
     shards: false,
 } as const;
 
+// Enemy profile is purely a visual / sprite category. Mob behaviour
+// comes from per-mob `passive` and `prepare` blocks below — there is no
+// extra mechanic attached to the profile field.
 export type EnemyProfile =
     | 'brute'
     | 'stalker'
-    | 'mage'
-    | 'boss'
-    | 'final_boss'
     | 'bleeder'
-    | 'disruptor';
+    | 'boss';
 
 /**
  * "Prepare" mechanic: enemy telegraphs an action for `turns` turns,
@@ -71,8 +71,6 @@ export interface EnemyDef {
     gold: number;
     color: number;
     profile: EnemyProfile;
-    /** Optional inherent per-turn bleed application on basic attack. */
-    inflictBleed?: { stacks: number; turns: number; chance: number };
     /**
      * Optional per-turn passive trigger.
      *  - kind: 'extraDamageOnHit' (rat — 20% deal +1 dmg)
@@ -610,7 +608,6 @@ export const STUN_RESIST_CONFIG = {
     normal: 0,
     elite: 0.5,
     boss: 0.7,
-    finalBoss: 0.95,
     /** Per-boss override map, indexed by EnemyDef.name. */
     bossByName: {
         'Death Knight': 0.7,

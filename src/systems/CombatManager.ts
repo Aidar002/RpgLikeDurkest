@@ -34,7 +34,6 @@ import type { SkillId } from './Skills';
 import {
     applyBleed,
     applyPoison,
-    applyWeaken,
     consumeGuardBlock,
     consumeMark,
     consumeStunForTurn,
@@ -100,11 +99,8 @@ export interface ActiveEnemy {
     xp: number;
     gold: number;
     profile: EnemyProfile;
-    enraged: boolean;
-    charging: boolean;
     turnsAlive: number;
     status: StatusState;
-    inflictBleed?: { stacks: number; turns: number; chance: number };
     firstHitEvaded?: boolean;
     firstStunResisted?: boolean;
     /** Per-spec passive trigger copied from EnemyDef at combat start. */
@@ -187,14 +183,10 @@ export class CombatManager {
     public enemy: ActiveEnemy | null = null;
     public lastActionResult: {
         critical: boolean;
-        enemyCharged: boolean;
-        enemyEnraged: boolean;
         enemyStunned: boolean;
         enemyEvaded: boolean;
     } = {
         critical: false,
-        enemyCharged: false,
-        enemyEnraged: false,
         enemyStunned: false,
         enemyEvaded: false,
     };
@@ -284,11 +276,8 @@ export class CombatManager {
             xp: Math.max(1, Math.round(definition.xp * rewardMultiplier * lowLightRewardMultiplier * xpBossBonus)),
             gold: Math.max(1, Math.round(definition.gold * rewardMultiplier * lowLightRewardMultiplier)),
             profile: definition.profile,
-            enraged: false,
-            charging: false,
             turnsAlive: 0,
             status: emptyStatusState(),
-            inflictBleed: definition.inflictBleed,
             passive: definition.passive,
             pendingPrepare: definition.prepare
                 ? { def: definition.prepare, turnsRemaining: definition.prepare.turns }
@@ -359,8 +348,6 @@ export class CombatManager {
 
         this.lastActionResult = {
             critical: false,
-            enemyCharged: false,
-            enemyEnraged: false,
             enemyStunned: false,
             enemyEvaded: false,
         };
@@ -820,8 +807,7 @@ export class CombatManager {
             return;
         }
 
-        const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
-        let flatBlock = flatBlockBase;
+        const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
 
         const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
         let attackPower =
@@ -843,72 +829,11 @@ export class CombatManager {
                 '#d09a4f'
             );
         }
-        let extraMessage = '';
-        let multiStrikeFirstDamage = 0;
-
-        if (this.enemy.profile === 'brute') {
-            if (!this.enemy.enraged && this.enemy.hp < this.enemy.maxHp * 0.4) {
-                this.enemy.enraged = true;
-                this.lastActionResult.enemyEnraged = true;
-                this.enemy.attack += 2;
-                attackPower += 2;
-                this.log.addMessage(
-                    this.loc.t('combatEnemyEnrage', { name: this.enemy.name }),
-                    '#ff9944'
-                );
-            }
-        } else if (this.enemy.profile === 'stalker') {
-            if (this.rng.next() < 0.3) {
-                const firstHit = this.applyEnemyHitToPlayer(attackPower, flatBlock);
-                multiStrikeFirstDamage = firstHit;
-                if (firstHit > 0) {
-                    this.log.addMessage(
-                this.loc.t('combatEnemyLunge', { name: this.enemy.name, firstHit }),
-                        '#ff6666'
-                    );
-                }
-                if (this.player.stats.hp <= 0) {
-                    this.logDeath();
-                    return;
-                }
-            extraMessage = this.loc.t('combatEnemyDoubleStrike');
-                // After first hit, guard is partially used; refresh flatBlock for consistency.
-                flatBlock = flatBlockBase;
-            }
-        } else if (this.enemy.profile === 'mage') {
-            if (this.enemy.turnsAlive > 0 && this.enemy.turnsAlive % 3 === 0) {
-                this.enemy.charging = true;
-                this.lastActionResult.enemyCharged = true;
-                attackPower = Math.round(attackPower * 1.6);
-                this.log.addMessage(
-                this.loc.t('combatEnemyChannelDark', { name: this.enemy.name }),
-                    '#9966cc'
-                );
-            } else {
-                this.enemy.charging = false;
-            }
-        } else if (this.enemy.profile === 'bleeder') {
-            if (this.enemy.inflictBleed && this.rng.next() < this.enemy.inflictBleed.chance) {
-                applyBleed(
-                    this.player.status,
-                    this.enemy.inflictBleed.stacks,
-                    this.enemy.inflictBleed.turns
-                );
-                this.log.addMessage(
-                this.loc.t('combatEnemyOpenWound', { name: this.enemy.name }),
-                    '#d06060'
-                );
-            }
-        } else if (this.enemy.profile === 'disruptor') {
-            // Disruptors apply weaken instead of raw damage sometimes.
-            if (this.enemy.turnsAlive % 2 === 1 && this.enemy.status.weaken.turns <= 0) {
-                applyWeaken(this.player.status, 1, 2);
-                this.log.addMessage(
-                    this.loc.t('combatEnemyWeakenAttack', { name: this.enemy.name }),
-                    '#8b5fc7'
-                );
-            }
-        }
+        // Profile is purely a sprite/visual category — no profile-driven
+        // mechanics. Per-mob behaviour comes from `passive` (handled
+        // above) and `prepare` blocks (resolved on the dedicated
+        // resolvePrepare path).
+        const extraMessage = '';
 
         const takenDamage = this.applyEnemyHitToPlayer(attackPower, flatBlock);
         if (takenDamage > 0) {
@@ -916,7 +841,7 @@ export class CombatManager {
                 this.loc.t('combatEnemyHit', { name: this.enemy.name, takenDamage, extraMessage }),
                 '#ff6666'
             );
-        } else if (multiStrikeFirstDamage === 0) {
+        } else {
             this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
         }
 
@@ -975,7 +900,7 @@ export class CombatManager {
         // [FIX-2] Light recovery on boss kill is reported back to the
         // GameScene through the payload so the run-level resource
         // model is the single owner of light state.
-        if (this.enemy.kind === 'boss' && this.enemy.profile !== 'final_boss') {
+        if (this.enemy.kind === 'boss') {
             this.player.gainLight(LIGHT_CONFIG.onBossKill);
         }
 
@@ -1004,9 +929,11 @@ export class CombatManager {
     }
 
     private buildRewards(enemy: ActiveEnemy, killedByBleed: boolean): CombatEndPayload {
-        const finalBoss = enemy.profile === 'final_boss';
-        const lightRecovered =
-            enemy.kind === 'boss' && !finalBoss ? LIGHT_CONFIG.onBossKill : 0;
+        // Death Knight is the only boss in the spec, so a boss kill
+        // here is always the final-boss kill. Light recovery and the
+        // victoryWishArtifact log line both fire on that single event.
+        const finalBoss = enemy.kind === 'boss';
+        const lightRecovered = finalBoss ? LIGHT_CONFIG.onBossKill : 0;
         return {
             enemyName: enemy.name,
             enemyCanonicalName: enemy.canonicalName,
