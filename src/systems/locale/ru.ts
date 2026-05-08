@@ -210,4 +210,10 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     // Намерение замаха в HUD у обычных врагов.
     hudPrepareWindupLabel: '{action} (через {turns}х)',
     hudPrepareReadyLabel: '{action} (СЕЙЧАС)',
+    // Прокковые эффекты проклятого снаряжения.
+    combatRelicCursedMiss: 'Проклятый амулет дёрнул руку — удар идёт в пустоту.',
+    combatRelicCursedSkillBasic: 'Проклятое кольцо превращает способность в обычный удар.',
+    // Подбрасывание монеты малого проклятого сета на атаку.
+    combatRelicCursedDouble: 'Малый проклятый сет: удар удвоен до {damage}.',
+    combatRelicCursedSelfHit: 'Малый проклятый сет бьёт в ответ: получаешь {damage}.',
 };

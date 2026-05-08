@@ -121,7 +121,12 @@ export class PlayerManager {
 
     getAttackPower(): number {
         const light = FEATURES.light && this.hasHighLight ? COMBAT_CONFIG.highLightAttackBonus : 0;
-        return this.stats.attack + light + this.relicAggregate.bonusAttack;
+        let setBonus = 0;
+        // Flesh set: +2 attack while HP < 50% (lives/max strictly less).
+        if (this.relicAggregate.sets.flesh && this.stats.hp * 2 < this.stats.maxHp) {
+            setBonus += 2;
+        }
+        return this.stats.attack + light + this.relicAggregate.bonusAttack + setBonus;
     }
 
     getCritChance(): number {
@@ -141,7 +146,12 @@ export class PlayerManager {
     }
 
     getEffectiveDefense(): number {
-        return this.stats.defense + this.relicAggregate.bonusDefense;
+        let setBonus = 0;
+        // Flesh set: +1 defense while HP > 50% (strictly more).
+        if (this.relicAggregate.sets.flesh && this.stats.hp * 2 > this.stats.maxHp) {
+            setBonus += 1;
+        }
+        return this.stats.defense + this.relicAggregate.bonusDefense + setBonus;
     }
 
     takeDamage(amount: number, flatBlock: number = 0, source: 'combat' | 'trap' | 'true' = 'combat'): number {

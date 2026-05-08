@@ -416,6 +416,14 @@ export class CombatManager {
     private handlePlayerAttack() {
         if (!this.enemy) return;
         this.player.gainResolve(COMBAT_CONFIG.resolveFromAttack);
+        // Cursed Amulet (and similar): the curse may make the strike
+        // miss outright. The Resolve gain above is preserved so the
+        // economy is not punished, but no damage / on-hit procs run.
+        const agg = this.player.aggregate;
+        if (agg.missChance > 0 && this.rng.next() < agg.missChance) {
+            this.log.addMessage(this.loc.t('combatRelicCursedMiss'), '#a08070');
+            return;
+        }
         const result = this.rollPlayerAttack();
         let damage = result.damage;
         if (this.preparationActive) {
@@ -468,6 +476,25 @@ export class CombatManager {
                 '#8899aa'
             );
             return false;
+        }
+
+        // Cursed Ring (and similar): the curse may scrub the skill and
+        // resolve it as a basic strike instead. Resolve already paid is
+        // NOT refunded — the curse keeps the cost as a tax.
+        const agg = this.player.aggregate;
+        if (agg.skillToBasicChance > 0 && this.rng.next() < agg.skillToBasicChance) {
+            this.log.addMessage(this.loc.t('combatRelicCursedSkillBasic'), '#a08070');
+            const result = this.rollPlayerAttack();
+            this.applyPlayerDamage(result.damage, result.critical);
+            this.log.addMessage(
+                result.critical
+                    ? this.loc.t('strikeCrit', { damage: result.damage })
+                    : this.loc.t('strike', { damage: result.damage }),
+                result.critical ? '#ffe08a' : '#dddddd'
+            );
+            this.applyOnAttackRelics();
+            this.tryHealOnAttack();
+            return true;
         }
 
         switch (skillId) {
@@ -526,6 +553,29 @@ export class CombatManager {
         if (!this.enemy) return;
         let critical = criticalIn;
         let damage = baseDamage;
+
+        // Minor Cursed set: each player damaging action coin-flips
+        // between doubling the strike OR backfiring 2 untyped damage
+        // onto the player. Resolved BEFORE crit/expose/passives so the
+        // doubled damage can ride the rest of the pipeline.
+        if (this.player.aggregate.sets.minor_cursed) {
+            if (this.rng.next() < 0.5) {
+                damage *= 2;
+                this.log.addMessage(
+                    this.loc.t('combatRelicCursedDouble', { damage }),
+                    '#c98aff'
+                );
+            } else {
+                const taken = this.player.takeDamage(2, 0, 'true');
+                if (taken > 0) {
+                    this.log.addMessage(
+                        this.loc.t('combatRelicCursedSelfHit', { damage: taken }),
+                        '#c98aff'
+                    );
+                    this.playerHit.emit({ damage: taken });
+                }
+            }
+        }
 
         // Consume mark for guaranteed crit.
         if (!critical && consumeMark(this.enemy.status)) {
