@@ -15,11 +15,11 @@ describe('Relics', () => {
         expect(a).toBe(b);
     });
 
-    it('rollRelicFor("boss") returns a rare relic when available', () => {
+    it('rollRelicFor("boss") returns a unique relic when available', () => {
         const chosen = rollRelicFor([], 'boss', new Mulberry32(1));
         expect(chosen).not.toBeNull();
         if (chosen) {
-            expect(RELICS[chosen].rarity).toBe('rare');
+            expect(RELICS[chosen].rarity).toBe('unique');
         }
     });
 

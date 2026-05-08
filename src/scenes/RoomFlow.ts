@@ -40,11 +40,9 @@ export class RoomFlowController {
         // spared by relic and the START room never tick the counter so
         // the relic effect stays meaningful.
         if (FEATURES.light) {
-            const sparesLight =
-                scene.player.aggregate.emptyRoomsSpareLight && node.type === RoomType.EMPTY;
             if (scene.skipLightSpendThisRoom) {
                 scene.skipLightSpendThisRoom = false;
-            } else if (!sparesLight && node.type !== RoomType.START) {
+            } else if (node.type !== RoomType.START) {
                 scene.roomsVisitedForLight += 1;
                 if (shouldDecayLight(scene.roomsVisitedForLight, RUN_CONFIG.runLength)) {
                     const spent = scene.player.spendLight(1);
@@ -321,8 +319,7 @@ export class RoomFlowController {
                 callback: () => {
                     const healed = scene.player.heal(
                         ROOM_CONFIG.rest.recoverHeal +
-                            scene.meta.getBonuses().rooms.restHealBonus +
-                            scene.player.aggregate.restHealBonus
+                            scene.meta.getBonuses().rooms.restHealBonus
                     );
                     if (healed > 0) scene.tracker.record('healingDone', healed);
                     const lightGained = FEATURES.light
@@ -445,7 +442,6 @@ export class RoomFlowController {
 
     private handleNpcOffer(npcId: NpcId, offer: NpcOfferTemplate): void {
         const scene = this.scene;
-        const cost = this.npcOfferCost(offer.id, npcId);
         let consumed = true;
         let affinityDelta = 1;
 

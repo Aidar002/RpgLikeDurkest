@@ -4,7 +4,6 @@ import {
     FEATURES,
     LEVEL_UP_CONFIG,
     PLAYER_CONFIG,
-    RELIC_CAP_CONFIG,
 } from '../data/GameConfig';
 import { Emitter } from './Emitter';
 import type { PlayerMetaBonuses } from './MetaProgressionManager';
@@ -127,18 +126,13 @@ export class PlayerManager {
 
     getCritChance(): number {
         const light = FEATURES.light && this.hasHighLight ? COMBAT_CONFIG.criticalChanceFromHighLight : 0;
-        const raw = COMBAT_CONFIG.baseCritChance + light + this.relicAggregate.critChanceBonus;
-        // [FIX-13] Hard cap on crit chance so Gambler's Knuckle plus
-        // High Light can't push the build past 45%.
-        return Math.min(raw, RELIC_CAP_CONFIG.gamblersCritCap);
+        return COMBAT_CONFIG.baseCritChance + light;
     }
 
     getEnemyAttackBonusFromLight(): number {
         if (!FEATURES.light) return 0;
         if (!this.hasLowLight) return 0;
-        return Math.round(
-            COMBAT_CONFIG.lowLightEnemyAttackBonus * this.relicAggregate.lowLightPenaltyMult
-        );
+        return COMBAT_CONFIG.lowLightEnemyAttackBonus;
     }
 
     getRewardMultiplierFromLowLight(): number {
@@ -160,26 +154,13 @@ export class PlayerManager {
         this.stats.hp = Math.max(0, this.stats.hp - actual);
 
         if (this.stats.hp === 0) {
-            // [FIX-8] Last Stand (meta) takes priority over Revenant's
-            // Spite (relic). Either source can fire, but only once per
-            // run. If the death-save was already consumed earlier in
-            // the run, both are blocked.
+            // [FIX-8] Meta-progression Last Stand still grants a
+            // one-time revive on death. The retired relic-based revive
+            // path was removed when Relics.ts was rebuilt.
             if (!this.deathSaveConsumed && this.reviveCharges > 0) {
                 this.reviveCharges--;
                 this.deathSaveConsumed = true;
-                if (this.relicAggregate.reviveOnce) {
-                    // Block the relic too so the player can't double-dip.
-                    this.relicAggregate.reviveOnce = false;
-                }
                 this.stats.hp = Math.max(1, Math.ceil(this.stats.maxHp * 0.4));
-                this.emitAllChanges();
-                this.revive.emit({ remaining: this.reviveCharges });
-                return actual;
-            }
-            if (!this.deathSaveConsumed && this.relicAggregate.reviveOnce) {
-                this.relicAggregate.reviveOnce = false;
-                this.deathSaveConsumed = true;
-                this.stats.hp = 10;
                 this.emitAllChanges();
                 this.revive.emit({ remaining: this.reviveCharges });
                 return actual;
@@ -247,16 +228,9 @@ export class PlayerManager {
 
     gainGold(amount: number): number {
         if (amount <= 0) return 0;
-        // [FIX-13] Cursed Coin's gold multiplier cannot exceed
-        // RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap (default 2.0).
-        const cappedMult = Math.min(
-            this.relicAggregate.goldMultiplier,
-            RELIC_CAP_CONFIG.cursedCoinGoldMultiplierCap
-        );
-        const scaled = Math.max(1, Math.round(amount * cappedMult));
-        this.resources.gold += scaled;
+        this.resources.gold += amount;
         this.emitResources();
-        return scaled;
+        return amount;
     }
 
     spendGold(amount: number): boolean {
@@ -366,6 +340,16 @@ export class PlayerManager {
         this.emitStats();
     }
 
+    /**
+     * Toggle the Sara "vampire blessing" buff via aggregate. Stored on
+     * the aggregate so combat code can read it through the same hook
+     * relic effects use; no extra plumbing needed.
+     */
+    setVampireBlessing(active: boolean) {
+        this.relicAggregate.vampireBlessingChance = active ? 0.25 : 0;
+        this.relicAggregate.vampireBlessingAmount = active ? 2 : 0;
+    }
+
     private recomputeAggregate() {
         const prev = this.relicAggregate;
         const next = aggregateRelics(this.relics);
@@ -380,14 +364,11 @@ export class PlayerManager {
             this.stats.hp = Math.min(this.stats.hp, this.stats.maxHp);
         }
 
-        // Starting light increase only triggers if we are still on run start.
-        const addedLight = next.bonusStartingLight - prev.bonusStartingLight;
-        if (addedLight > 0) {
-            this.resources.light = Math.min(
-                EXPEDITION_CONFIG.maxLight,
-                this.resources.light + addedLight
-            );
-        }
+        // Preserve the Sara vampire-blessing buff across relic changes.
+        const vampireChance = prev.vampireBlessingChance;
+        const vampireAmount = prev.vampireBlessingAmount;
+        next.vampireBlessingChance = Math.max(next.vampireBlessingChance, vampireChance);
+        next.vampireBlessingAmount = Math.max(next.vampireBlessingAmount, vampireAmount);
 
         this.relicAggregate = next;
         this.emitAllChanges();

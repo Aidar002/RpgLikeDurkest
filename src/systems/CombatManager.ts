@@ -2,9 +2,7 @@ import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
 import {
     COMBAT_CONFIG,
     LIGHT_CONFIG,
-    RELIC_CAP_CONFIG,
     ROOM_CONFIG,
-    STUN_RESIST_CONFIG,
 } from '../data/GameConfig';
 import type { EnemyDef, EnemyProfile } from '../data/GameConfig';
 import {
@@ -21,10 +19,6 @@ import { SKILLS } from './Skills';
 import type { SkillId } from './Skills';
 import {
     applyBleed,
-    applyFocus,
-    applyGuard,
-    applyMark,
-    applyStun,
     applyWeaken,
     consumeGuardBlock,
     consumeMark,
@@ -231,7 +225,6 @@ export class CombatManager {
             turnsAlive: 0,
             status: emptyStatusState(),
             inflictBleed: definition.inflictBleed,
-            bleedCap: blueprint?.bleedCap,
             bossPhase: blueprint
                 ? {
                       blueprint,
@@ -265,19 +258,6 @@ export class CombatManager {
             this.log.addMessage(narrate('enter_elite', this.loc.language), '#c4a35a');
         } else if (depth > 0 && this.rng.next() < 0.25) {
             this.log.addMessage(narrate('enter_combat', this.loc.language), '#7a7a7a');
-        }
-
-        // Relics: start-of-combat setup.
-        const agg = this.player.aggregate;
-        if (agg.startCombatFocus > 0) {
-            applyFocus(this.player.status, 1, agg.startCombatFocus);
-            this.playerStatusChange.emit();
-        }
-        if (agg.evadeFirstHit) {
-            this.enemy.firstHitEvaded = true;
-        }
-        if (agg.resistFirstStun) {
-            this.enemy.firstStunResisted = true;
         }
 
         this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
@@ -456,11 +436,10 @@ export class CombatManager {
                 );
                 this.applyPlayerDamage(dmg, false);
                 const bleedPerTick = Math.max(1, Math.floor(this.player.getAttackPower() * 0.2));
-                const agg = this.player.aggregate;
                 applyBleed(
                     this.enemy.status,
-                    bleedPerTick + agg.bleedStackBonus,
-                    3 + agg.bleedTurnBonus,
+                    bleedPerTick,
+                    3,
                     this.enemy.bleedCap
                 );
                 this.log.addMessage(
@@ -487,17 +466,8 @@ export class CombatManager {
             this.log.addMessage(this.loc.t('noPotions'), '#8899aa');
             return false;
         }
-        const healAmount = COMBAT_CONFIG.potionHeal + this.player.aggregate.potionHealBonus;
-        const healed = this.player.heal(healAmount);
+        const healed = this.player.heal(COMBAT_CONFIG.potionHeal);
         this.log.addMessage(this.loc.t('drinkPotion', { healed }), '#78e496');
-        if (this.player.aggregate.potionRegenTurns > 0) {
-            const regenAmount = 1;
-            const turns = this.player.aggregate.potionRegenTurns;
-            // apply via status state
-            this.player.status.regen.amount = Math.max(this.player.status.regen.amount, regenAmount);
-            this.player.status.regen.turns = Math.max(this.player.status.regen.turns, turns);
-            this.playerStatusChange.emit();
-        }
         return true;
     }
 
@@ -536,85 +506,21 @@ export class CombatManager {
         this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
 
         if (critical) {
-            const agg = this.player.aggregate;
-            // [FIX-13] Vampiric Sigil & Gambler's Knuckle each fire at
-            // most once per player turn.
-            if (agg.lifestealOnCrit > 0 && !this.vampiricHealedThisTurn) {
-                this.player.heal(agg.lifestealOnCrit);
-                this.vampiricHealedThisTurn = true;
-            }
-            if (
-                agg.critResolveGain > 0 &&
-                this.gamblersResolveThisTurn < RELIC_CAP_CONFIG.gamblersResolvePerTurn
-            ) {
-                this.player.gainResolve(agg.critResolveGain);
-                this.gamblersResolveThisTurn += agg.critResolveGain;
-            }
+            // Crit-based relic effects are deferred to a follow-up PR.
+            void this.vampiricHealedThisTurn;
+            void this.gamblersResolveThisTurn;
         }
     }
 
     private applyOnAttackRelics() {
+        // On-attack relic triggers are deferred to a follow-up PR.
         if (!this.enemy) return;
-        const agg = this.player.aggregate;
-        if (agg.bleedOnAttackStacks > 0 && agg.bleedOnAttackTurns > 0) {
-            applyBleed(
-                this.enemy.status,
-                agg.bleedOnAttackStacks + agg.bleedStackBonus,
-                agg.bleedOnAttackTurns + agg.bleedTurnBonus,
-                this.enemy.bleedCap // [FIX-1] respects final-boss cap
-            );
-        }
     }
 
-
-    /**
-     * [FIX-11] Stun resistance keyed by enemy profile / boss name. The
-     * Guard portion of Parry Stance is applied by the caller before
-     * tryStun() — when stun is resisted we just skip the Stun status
-     * and log it. Returns true when the stun stuck.
-     */
-    private tryStun(turns: number): boolean {
-        if (!this.enemy) return false;
-        const resistChance = this.stunResistChance(this.enemy);
-        if (resistChance > 0 && this.rng.next() < resistChance) {
-            this.log.addMessage(
-                this.loc.t('combatEnemyResistStun', { name: this.enemy.name }),
-                '#9aa3b3'
-            );
-            return false;
-        }
-        // Bosses still get a half-duration soft penalty when the stun
-        // does land, preserving the prior "hard to lock" feel.
-        const effective = this.enemy.kind === 'boss' ? Math.max(1, Math.floor(turns / 2)) : turns;
-        applyStun(this.enemy.status, effective);
-        return true;
-    }
-
-    private stunResistChance(enemy: ActiveEnemy): number {
-        const named = STUN_RESIST_CONFIG.bossByName[enemy.name];
-        if (named !== undefined) return named;
-        if (enemy.profile === 'final_boss') {
-            return STUN_RESIST_CONFIG.bossByName['The Undying Wound'] ?? STUN_RESIST_CONFIG.finalBoss;
-        }
-        if (enemy.profile === 'boss' || enemy.kind === 'boss') return STUN_RESIST_CONFIG.boss;
-        if (enemy.kind === 'elite') return STUN_RESIST_CONFIG.elite;
-        return STUN_RESIST_CONFIG.normal;
-    }
 
     private effectiveDamageMod(): number {
         const focus = this.player.status.focus.turns > 0 ? this.player.status.focus.amount : 0;
-        // [FIX-13] Ember Vow's low-HP damage bonus is hard-capped at
-        // RELIC_CAP_CONFIG.emberVowLowHpBonusCap (default 0.50).
-        const lowHpFraction = Math.min(
-            this.player.aggregate.lowHpDamageBonus,
-            RELIC_CAP_CONFIG.emberVowLowHpBonusCap
-        );
-        const lowHp =
-            lowHpFraction > 0 &&
-            this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * this.player.aggregate.lowHpThreshold)
-                ? Math.round(this.player.getAttackPower() * lowHpFraction)
-                : 0;
-        return focus + lowHp;
+        return focus;
     }
 
     private resolveEnemyTurn(playerAction: 'attack' | 'defend' | 'skill' | 'potion') {
@@ -655,9 +561,7 @@ export class CombatManager {
         }
 
         const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
-        const wardenBlock =
-            playerAction === 'defend' ? this.player.aggregate.defendExtraBlock : 0;
-        let flatBlock = flatBlockBase + wardenBlock;
+        let flatBlock = flatBlockBase;
 
         const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
         let attackPower =
@@ -695,7 +599,7 @@ export class CombatManager {
                 }
             extraMessage = this.loc.t('combatEnemyDoubleStrike');
                 // After first hit, guard is partially used; refresh flatBlock for consistency.
-                flatBlock = flatBlockBase + wardenBlock;
+                flatBlock = flatBlockBase;
             }
         } else if (this.enemy.profile === 'mage') {
             if (this.enemy.turnsAlive > 0 && this.enemy.turnsAlive % 3 === 0) {
@@ -772,22 +676,6 @@ export class CombatManager {
         if (taken > 0) {
             if (crit) this.log.addMessage(narrate('crit_received', this.loc.language), '#c4a35a');
             this.playerHit.emit({ damage: taken });
-
-            // Thorns damage back at the attacker.
-            // [FIX-13] Thorned Mail is capped at
-            // RELIC_CAP_CONFIG.thornedMailReflectionCap per hit.
-            const thorns = Math.min(
-                this.player.aggregate.thornsDamage,
-                RELIC_CAP_CONFIG.thornedMailReflectionCap
-            );
-            if (thorns > 0) {
-                this.enemy.hp = Math.max(0, this.enemy.hp - thorns);
-                this.log.addMessage(
-                    this.loc.t('combatThornsRetaliate', { thorns }),
-                    '#88cc88'
-                );
-                this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
-            }
         }
         return taken;
     }
@@ -797,10 +685,6 @@ export class CombatManager {
         const payload = this.buildRewards(this.enemy, killedByBleed);
         this.log.addMessage(this.loc.t('enemyFalls', { name: this.enemy.name }), '#66ff88');
         if (killedByBleed) this.log.addMessage(narrate('bleed_finisher', this.loc.language), '#c4a35a');
-
-        // Lifesteal on kill.
-        const agg = this.player.aggregate;
-        if (agg.lifestealOnKill > 0) this.player.heal(agg.lifestealOnKill);
 
         // [FIX-2] Light recovery on boss kill is reported back to the
         // GameScene through the payload so the run-level resource
@@ -890,22 +774,6 @@ export class CombatManager {
         if (phaseDef.label) {
             this.log.addMessage(pickLine(phaseDef.label, this.loc.language), '#c4a35a');
         }
-        const onEnter = phaseDef.onEnter;
-        if (onEnter) {
-            if (onEnter.atkBoost) {
-                this.enemy.attack += onEnter.atkBoost;
-            }
-            if (onEnter.drainLight) {
-                this.player.spendLight(onEnter.drainLight);
-            }
-            if (onEnter.capLight !== undefined) {
-                const overflow = this.player.resources.light - onEnter.capLight;
-                if (overflow > 0) this.player.spendLight(overflow);
-            }
-            if (onEnter.markPlayer) {
-                applyMark(this.player.status, onEnter.markPlayer);
-            }
-        }
         return true;
     }
 
@@ -922,9 +790,7 @@ export class CombatManager {
         const action = phaseDef.actions[state.actionIndex % phaseDef.actions.length];
 
         const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
-        const wardenBlock =
-            playerAction === 'defend' ? this.player.aggregate.defendExtraBlock : 0;
-        const flatBlock = flatBlockBase + wardenBlock;
+        const flatBlock = flatBlockBase;
 
         const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
         let attackPower =
@@ -933,35 +799,6 @@ export class CombatManager {
             weakenReduction;
         if (action.damageBonus) attackPower += action.damageBonus;
         if (attackPower < 1) attackPower = 1;
-
-        // Lich Cinderlight passive: low light → +1 atk damage on attacks.
-        const passives = state.blueprint.passives ?? [];
-        if (passives.includes('cinderlight') && this.player.hasLowLight) {
-            attackPower += 1;
-        }
-
-        // Resource pressure (always applies).
-        if (action.drainLight && action.drainLight > 0) {
-            this.player.spendLight(action.drainLight);
-        }
-        if (action.weaken) {
-            applyWeaken(this.player.status, action.weaken.amount, action.weaken.turns);
-        }
-        if (action.markPlayer) {
-            applyMark(this.player.status, action.markPlayer);
-        }
-        if (action.selfBlock) {
-            state.pendingBlock += action.selfBlock;
-        }
-        if (action.selfHealIfNoDamageTaken) {
-            state.pendingHealOnSafe = action.selfHealIfNoDamageTaken;
-        }
-        if (action.exposedExtraDamage) {
-            state.pendingExposeBonus = action.exposedExtraDamage;
-        }
-        if (action.selfAtkBoost) {
-            this.enemy.attack += action.selfAtkBoost;
-        }
 
         // Damage-dealing actions hit the player.
         if (!action.noAttack) {
@@ -974,16 +811,6 @@ export class CombatManager {
             } else {
                 this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
             }
-            if (action.bleed) {
-                const marked = this.player.status.mark.turns > 0;
-                const willBleed = action.bleed.alwaysIfHit ? taken > 0 : action.bleed.onlyIfMarked ? marked : true;
-                if (willBleed) applyBleed(this.player.status, action.bleed.stacks, action.bleed.turns);
-            }
-        } else if (action.id === 'expose_self') {
-            this.log.addMessage(
-                this.loc.t('combatEnemyExposed', { name: this.enemy.name }),
-                '#9fb4c4'
-            );
         }
 
         // Resolve False Mercy: heal only if player did no damage.

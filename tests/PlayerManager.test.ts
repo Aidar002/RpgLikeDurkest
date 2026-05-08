@@ -314,34 +314,34 @@ describe('PlayerManager — relics', () => {
         let changes = 0;
         player.relicsChange.on(() => changes++);
 
-        player.addRelic('iron_will');
-        player.addRelic('iron_will');
+        player.addRelic('worn_ring');
+        player.addRelic('worn_ring');
 
-        expect(player.relics).toEqual(['iron_will']);
+        expect(player.relics).toEqual(['worn_ring']);
         expect(changes).toBe(1);
     });
 
     it('removeRelic removes only the matching id and emits change', () => {
         const player = new PlayerManager();
-        player.addRelic('iron_will');
-        player.addRelic('embervow');
+        player.addRelic('worn_ring');
+        player.addRelic('cracked_shield');
 
         let changes = 0;
         player.relicsChange.on(() => changes++);
 
-        player.removeRelic('iron_will');
-        expect(player.relics).toEqual(['embervow']);
+        player.removeRelic('worn_ring');
+        expect(player.relics).toEqual(['cracked_shield']);
         expect(changes).toBe(1);
 
         // Removing a non-present id is a no-op (no event).
-        player.removeRelic('iron_will');
+        player.removeRelic('worn_ring');
         expect(changes).toBe(1);
     });
 
     it('getRelicNames returns one localized name per relic in order', () => {
         const player = new PlayerManager();
-        player.addRelic('iron_will');
-        player.addRelic('embervow');
+        player.addRelic('worn_ring');
+        player.addRelic('cracked_shield');
 
         const names = player.getRelicNames('en');
         expect(names).toHaveLength(2);

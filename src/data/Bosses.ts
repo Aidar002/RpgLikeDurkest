@@ -27,15 +27,7 @@ export function pickLine(line: BossLine, lang: Language): string {
 }
 
 export type BossActionId =
-    // Universal building blocks.
     | 'attack'
-    | 'heavy'
-    | 'guard'
-    | 'recover'
-    | 'expose_self'
-    | 'self_heal_if_safe'
-    | 'self_buff_atk'
-    // Death Knight specifics.
     | 'death_shield'
     | 'death_touch';
 
@@ -45,39 +37,14 @@ export interface BossActionDef {
     intent: BossLine;
     /** Optional flat damage bonus added to base attack on this action. */
     damageBonus?: number;
-    /** True when this action does no attack damage (recover / guard / debuff-only). */
+    /** True when this action does no attack damage on resolution. */
     noAttack?: boolean;
-    /** Self-block gained at the end of the boss's turn. */
-    selfBlock?: number;
-    /** Self-heal gained at the end of the boss's turn. */
-    selfHeal?: number;
-    /** Heal only triggers if the player did NOT damage the boss this turn. */
-    selfHealIfNoDamageTaken?: number;
-    /** Boss takes +N extra damage from the next player hit (decays to 0 after). */
-    exposedExtraDamage?: number;
-    /** Light drained from the player on this action. */
-    drainLight?: number;
-    /** Player atk weaken (amount, turns). */
-    weaken?: { amount: number; turns: number };
-    /** Mark applied to player (turns). Boss next attack while marked deals heavy + bleed. */
-    markPlayer?: number;
-    /** Bleed inflicted on hit (only if Marked unless `bleedAlways`). */
-    bleed?: { stacks: number; turns: number; alwaysIfHit?: boolean; onlyIfMarked?: boolean };
-    /** Permanent +ATK self-buff applied this turn. */
-    selfAtkBoost?: number;
 }
 
 export interface BossPhaseDef {
     /** HP ratio (0..1) at or below which this phase activates. Phases
      *  are evaluated top-down, so list them in descending order. */
     enterAtHpRatio: number;
-    onEnter?: {
-        atkBoost?: number;
-        drainLight?: number;
-        /** Cap the player's light to at most this value. */
-        capLight?: number;
-        markPlayer?: number;
-    };
     actions: BossActionDef[];
     /** Optional name shown in the combat log on phase change. */
     label?: BossLine;
@@ -87,13 +54,7 @@ export interface BossBlueprint {
     /** Must match an EnemyDef.name in BOSSES. */
     name: string;
     phases: BossPhaseDef[];
-    /** Special passive effects keyed by name (e.g. cinderlight). */
-    passives?: BossPassiveId[];
-    /** Bleed cap (for FIX-1 final boss). 0 = no cap (default behaviour). */
-    bleedCap?: number;
 }
-
-export type BossPassiveId = 'cinderlight' | 'prophecy_crit' | 'maw_aura';
 
 // ---------------------------------------------------------------------------
 // Death Knight boss blueprint.
@@ -105,6 +66,12 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
         phases: [
             {
                 enterAtHpRatio: 1.0,
+                // Single-phase rotation per spec: a basic strike, then a
+                // 1-turn windup `death_shield` (block 15 for 3 turns,
+                // breakable by Will-skill damage), another basic strike,
+                // and finally a 3-turn windup `death_touch` OHKO that
+                // softens to 8 dmg if the player Defends on the resolution
+                // turn. CombatManager.runBossTurn interprets these.
                 actions: [
                     {
                         id: 'attack',
@@ -112,41 +79,17 @@ export const BOSS_BLUEPRINTS: BossBlueprint[] = [
                     },
                     {
                         id: 'death_shield',
-                        intent: { en: 'Death Shield', ru: 'Щит смерти' },
+                        intent: { en: 'Death Shield (prep)', ru: 'Щит смерти (готовит)' },
                         noAttack: true,
-                        selfBlock: 15,
-                    },
-                    {
-                        id: 'death_touch',
-                        intent: { en: 'Death Touch', ru: 'Касание смерти' },
-                        damageBonus: 0,
-                    },
-                ],
-            },
-            {
-                enterAtHpRatio: 0.5,
-                onEnter: { atkBoost: 2 },
-                label: { en: 'The Death Knight raises his blade.', ru: 'Рыцарь смерти поднимает клинок.' },
-                actions: [
-                    {
-                        id: 'heavy',
-                        intent: { en: 'Grave Strike', ru: 'Могильный удар' },
-                        damageBonus: 3,
-                    },
-                    {
-                        id: 'death_shield',
-                        intent: { en: 'Death Shield', ru: 'Щит смерти' },
-                        noAttack: true,
-                        selfBlock: 15,
-                    },
-                    {
-                        id: 'death_touch',
-                        intent: { en: 'Death Touch', ru: 'Касание смерти' },
-                        damageBonus: 0,
                     },
                     {
                         id: 'attack',
                         intent: { en: 'Dark Slash', ru: 'Тёмный удар' },
+                    },
+                    {
+                        id: 'death_touch',
+                        intent: { en: 'Death Touch (prep)', ru: 'Касание смерти (готовит)' },
+                        noAttack: true,
                     },
                 ],
             },
