@@ -519,6 +519,7 @@ export class RoomFlowController {
                 callback: () => {
                     scene.npcs.adjustAffinity('sara', 2);
                     scene.npcs.addFlag('sara', 'vampire-blessing');
+                    scene.player.setVampireBlessing(true);
                     scene.log.addMessage(
                         scene.loc.language === 'ru'
                             ? '\u0421\u0430\u0440\u0430 \u0434\u0430\u043b\u0430 \u0431\u043b\u0430\u0433\u043e\u0441\u043b\u043e\u0432\u0435\u043d\u0438\u0435 \u0432\u0430\u043c\u043f\u0438\u0440\u043e\u0432: \u0448\u0430\u043d\u0441 25% \u0432\u043e\u0441\u0441\u0442\u0430\u043d\u043e\u0432\u0438\u0442\u044c 2 \u041e\u0417 \u043f\u0440\u0438 \u0443\u0434\u0430\u0440\u0435.'
