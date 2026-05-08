@@ -1030,16 +1030,16 @@ export class GameScene extends Phaser.Scene {
         this.relicText.setText(this.relicSummary());
         this.updatePlayerStatusUI();
 
-        // Escape button is HUD-only and only meaningful out of combat.
-        // Hide while an enemy is active, while a death sequence is
-        // running, or while we're already on an end screen. The
-        // restart button shares the same visibility rules.
-        const escapeVisible =
-            !this.combat?.enemy && !this.dead && !this.deathSequenceStarted;
-        this.escapeButtonBg.setVisible(escapeVisible);
-        this.escapeButtonLabel.setVisible(escapeVisible);
-        this.restartButtonBg.setVisible(escapeVisible);
-        this.restartButtonLabel.setVisible(escapeVisible);
+        // Escape and Restart buttons live on the map UI only. They
+        // disappear inside any room (combat, treasure, NPC, …) so the
+        // room's own action buttons (#1..#5) own the click area, and
+        // they also hide while a death sequence / end screen is up.
+        const hudButtonsVisible =
+            this.mapContainer.visible && !this.dead && !this.deathSequenceStarted;
+        this.escapeButtonBg.setVisible(hudButtonsVisible);
+        this.escapeButtonLabel.setVisible(hudButtonsVisible);
+        this.restartButtonBg.setVisible(hudButtonsVisible);
+        this.restartButtonLabel.setVisible(hudButtonsVisible);
     }
 
     public updatePlayerStatusUI() {
@@ -1280,6 +1280,11 @@ export class GameScene extends Phaser.Scene {
             onComplete: () => {
                 this.mapContainer.setVisible(false);
                 this.roomContainer.setVisible(true);
+                // Re-evaluate HUD-button visibility now that the map
+                // container is hidden — refreshUI keys off
+                // mapContainer.visible to drop the Escape/Restart
+                // buttons inside rooms.
+                this.refreshUI();
                 this.tweens.add({
                     targets: overlay,
                     alpha: 0,
@@ -1453,6 +1458,7 @@ export class GameScene extends Phaser.Scene {
         this.mapContainer.setVisible(true);
         this.setRoomButtons([]);
         this.clearRoomTint();
+        this.refreshUI();
         this.dungeon.moveTo(node.id);
     }
 

@@ -1,5 +1,5 @@
 import * as Phaser from 'phaser';
-import { COMBAT_CONFIG, MAP_CONFIG } from '../data/GameConfig';
+import { MAP_CONFIG } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
 import { chance, defaultRng, pick } from '../systems/Rng';
 import { SKILLS } from '../systems/Skills';
@@ -170,13 +170,6 @@ export class CombatHudController {
         }
 
         const enemy = scene.combat.enemy;
-        const profileHints: Record<string, string> = {
-            brute: scene.loc.t('hudProfileBrute'),
-            stalker: scene.loc.t('hudProfileStalker'),
-            mage: scene.loc.t('hudProfileMage'),
-            boss: scene.loc.t('hudProfileBoss'),
-        };
-
         const hints: string[] = [];
         // [FIX-10][FIX-15] Show the boss intent + phase first so the player
         // can read what the boss is about to do before deciding their turn.
@@ -192,19 +185,12 @@ export class CombatHudController {
                 })
             );
         }
-        hints.push(profileHints[enemy.profile] ?? '');
 
         if (enemy.enraged) {
             hints.push(scene.loc.t('hudHintEnraged'));
         }
         if (enemy.charging) {
             hints.push(scene.loc.t('hudHintCharging'));
-        }
-
-        if (scene.meta.isUnlocked('action_skill')) {
-            hints.push(
-                scene.loc.t('hudHintSkillCost', { skillCost: COMBAT_CONFIG.skillCost })
-            );
         }
 
         return hints.filter(Boolean).join(' ');
