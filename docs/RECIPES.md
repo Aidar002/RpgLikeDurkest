@@ -267,8 +267,10 @@ flat-stat bumps. Adding a new card:
 3. **Card UI** — `src/ui/end/DeathScreen.ts`
    - The 4-card meta-shop reads from `meta.getUpgradeCards()` so
      no UI change is needed for a 5th card *unless* you're past the
-     hardcoded 4-slot grid layout. In that case, adjust
-     `END_SCREEN_CARD_LAYOUT` in `src/ui/end/types.ts`.
+     hardcoded 4-slot 2x2 grid. The grid is built inline near the
+     `CARD_W` / `CARD_H` / `CARD_GAP_Y` constants and the
+     `positions: { x, y }[]` array — extend the array (or add a
+     row) and the rest of the rendering loop scales.
 4. **Test** — `tests/MetaProgression.test.ts`. Cover the upgrade's
    cost curve and `apply` math.
 
