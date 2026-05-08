@@ -208,6 +208,20 @@ export const EN_STRINGS = {
     // Item triggers (cracked_amulet, holey_chestplate).
     combatRelicHealOnAttack: 'Cracked Amulet flares: +{healed} HP recovered.',
     combatRelicBlockOnHit: 'Holey Chestplate soaks {amount} damage.',
+    // Mid-combat windups (bat / ghoul / lynx).
+    combatEnemyPrepareWindup: '{name} winds up: {action}.',
+    combatEnemyPrepareResolve: '{name} unleashes {action} for {takenDamage}.',
+    combatEnemyPrepareDefend: 'You brace and turn aside {name}\'s {action}.',
+    combatEnemyPrepareDamageBack: '{name} reels for {back} damage.',
+    combatEnemyPrepareRidersCancelled: 'Your guard scrubs off the rider on {name}\'s {action}.',
+    combatEnemyPrepareBleed: '{name}\'s {action} carves a wound: bleed x{stacks} for {turns}t.',
+    combatEnemyPreparePoison: '{name}\'s {action} festers: poison {damage} for {turns}t.',
+    // Player-side bleed/poison ticks.
+    combatPlayerBleedTick: 'Your wound bleeds for {damage}.',
+    combatPlayerPoisonTick: 'Poison eats at you for {damage}.',
+    // Non-boss prepare intent shown in the HUD.
+    hudPrepareWindupLabel: '{action} ({turns}t)',
+    hudPrepareReadyLabel: '{action} (NOW)',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */
