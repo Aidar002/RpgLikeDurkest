@@ -144,9 +144,9 @@ export class GameScene extends Phaser.Scene {
     private defStat!: HudInlineSlotHandle;
     private revivesStat!: HudInlineSlotHandle;
     private lightTorchIcon!: Phaser.GameObjects.Text;
-    private goldStat!: HudCellHandle;
-    private potionStat!: HudCellHandle;
-    private resolveStat!: HudCellHandle;
+    private goldStat!: HudInlineSlotHandle;
+    private potionStat!: HudInlineSlotHandle;
+    private resolveStat!: HudInlineSlotHandle;
     private lightResStat!: HudCellHandle;
     private shardStat!: HudCellHandle;
     private depthStat!: HudCellHandle;
@@ -425,28 +425,28 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         });
 
-        // Group B — Level + XP, centred about the canvas midline. Top
-        // bar reads as a 2-row × 3-column grid: vitals (HP) on the
-        // left, level+XP in the middle, combat (atk/def) on the right.
-        const centreX = GAME_WIDTH / 2;
-        // "УР N" right-anchored, "ОП X/Y" left-anchored, with an 8 px gap
-        // around centre — the row stays centred regardless of value width.
-        this.levelText = this.add.text(centreX - 8, 36, '', {
+        // Group B — Level + XP, stacked directly under the HP bar so
+        // the vitals/progression block reads as a single column on the
+        // left third of the top bar. "УР N" sits at the bar's left
+        // edge and "ОП X/Y" mirrors the HP value text on the right of
+        // the bar — same x as `hpValueText` so both numeric overlays
+        // line up vertically.
+        this.levelText = this.add.text(VITALS_LABEL_X, 64, '', {
             fontFamily: HUD_FONT,
-            fontSize: '15px',
+            fontSize: '13px',
             fontStyle: 'bold',
             color: HudHex.textPrimary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
-        }).setOrigin(1, 0.5);
-        this.xpValueText = this.add.text(centreX + 8, 36, '', {
+        }).setOrigin(0, 0.5);
+        this.xpValueText = this.add.text(hpBarX + this.hpBarWidth + 10, 64, '', {
             fontFamily: HUD_FONT,
-            fontSize: '13px',
+            fontSize: '12px',
             color: HudHex.textSecondary,
             stroke: HUD_STROKE,
             strokeThickness: 2,
         }).setOrigin(0, 0.5);
-        const xpBarX = centreX - this.xpBarWidth / 2;
+        const xpBarX = hpBarX;
         const xpBarY = 64;
         this.xpBarFrame = drawBarFrame(
             this,
@@ -464,16 +464,12 @@ export class GameScene extends Phaser.Scene {
             .setOrigin(0, 0.5);
         this.xpBar.setDisplaySize(0, this.xpBarHeight);
 
-        // Group C — Combat stats on the right, stacked vertically:
-        // sword "АТАКА N" on top, shield "ЗАЩИТА N" below it. The block
-        // sits in the right third of the top bar with breathing room
-        // on either side: ~120 px gap to the centred XP block on the
-        // left, ~90 px gap to the chrome icon row on the right.
-        // valueOffsetX forces both rows to share a single value column
-        // so the numbers line up vertically even though "АТАКА" is
-        // shorter than "ЗАЩИТА". The block was lifted 10 px from its
-        // original 36/64 spec on player request — keeps it tucked
-        // closer to the carved top rim instead of sitting low.
+        // Group C — Combat stats in the centre, stacked vertically:
+        // sword "АТАКА N" on top, shield "ЗАЩИТА N" below it. The
+        // block sits between the left vitals/XP column and the right
+        // resource column. valueOffsetX forces both rows to share a
+        // single value column so the numbers line up vertically even
+        // though "АТАКА" is shorter than "ЗАЩИТА".
         const { topHud } = HudLayout;
         const secondColX = topHud.statsX + topHud.secondColumnDx;
         this.atkStat = createHudInlineSlot(this, topHud.statsX, topHud.atkY, {
@@ -518,9 +514,42 @@ export class GameScene extends Phaser.Scene {
             strokeThickness: 2,
         }).setOrigin(0.5, 0);
 
+        // Group D — Resource slots in the top-right, stacked
+        // vertically as inline `icon | label | value` rows. ЗОЛОТО /
+        // ЭЛИК. / ВОЛЯ used to live in the bottom carved bar but were
+        // promoted to the top so the player can keep their core
+        // resources in the same eye-line as HP/XP/АТАКА during combat.
+        // valueOffsetX keeps the numeric column aligned even though the
+        // labels are different lengths.
+        this.goldStat = createHudInlineSlot(this, topHud.resourcesX, topHud.resourceRow1Y, {
+            icon: 'coin',
+            label: this.loc.t('goldShort').toUpperCase(),
+            valueColor: HudHex.accentGold,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.resourceValueOffset,
+        });
+        this.potionStat = createHudInlineSlot(this, topHud.resourcesX, topHud.resourceRow2Y, {
+            icon: 'potion',
+            label: this.loc.t('potionShort').toUpperCase(),
+            valueColor: HudHex.accentPotion,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.resourceValueOffset,
+        });
+        this.resolveStat = createHudInlineSlot(this, topHud.resourcesX, topHud.resourceRow3Y, {
+            icon: 'quill',
+            label: this.loc.t('resolveShort').toUpperCase(),
+            valueColor: HudHex.accentResolve,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.resourceValueOffset,
+        });
+
         // ── BOTTOM BAR ──────────────────────────────────────────
-        // Carved frame + 9 cells: 5 resource cells, divider pillar,
-        // 4 progress cells (the last cell — PRESTIGE — gets a gold rim).
+        // Carved frame + remaining cells: 2 resource cells (light /
+        // shard, both gated behind unlocks), divider pillar, 4
+        // progress cells (the last cell — PRESTIGE — gets a gold rim).
+        // The 3 resources moved to the top bar have left the left
+        // half of the bottom bar mostly empty in the early game; once
+        // the light/shard unlocks fire the cells fill in.
         const botFrame = drawBottomFrame(this, BOT_Y, GAME_WIDTH, BOT_H);
 
         // Bottom-bar PNG carved corners eat ~32 px on each side; cells
@@ -544,31 +573,7 @@ export class GameScene extends Phaser.Scene {
         const STAT_LABEL_FONT = '12px';
         const STAT_VALUE_FONT = '17px';
 
-        this.goldStat = createHudCell(this, resStart + 0 * resW, cellTop, resW, cellH, {
-            icon: 'coin',
-            label: this.loc.t('goldShort').toUpperCase(),
-            valueColor: HudHex.accentGold,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
-        });
-        this.potionStat = createHudCell(this, resStart + 1 * resW, cellTop, resW, cellH, {
-            icon: 'potion',
-            label: this.loc.t('potionShort').toUpperCase(),
-            valueColor: HudHex.accentPotion,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
-        });
-        this.resolveStat = createHudCell(this, resStart + 2 * resW, cellTop, resW, cellH, {
-            icon: 'quill',
-            label: this.loc.t('resolveShort').toUpperCase(),
-            valueColor: HudHex.accentResolve,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
-        });
-        this.lightResStat = createHudCell(this, resStart + 3 * resW, cellTop, resW, cellH, {
+        this.lightResStat = createHudCell(this, resStart + 0 * resW, cellTop, resW, cellH, {
             icon: 'lantern',
             label: this.loc.t('lightShort').toUpperCase(),
             valueColor: HudHex.accentLight,
@@ -576,7 +581,7 @@ export class GameScene extends Phaser.Scene {
             labelFontSize: STAT_LABEL_FONT,
             valueFontSize: STAT_VALUE_FONT,
         });
-        this.shardStat = createHudCell(this, resStart + 4 * resW, cellTop, resW, cellH, {
+        this.shardStat = createHudCell(this, resStart + 1 * resW, cellTop, resW, cellH, {
             icon: 'shard',
             label: this.loc.t('shardShort').toUpperCase(),
             valueColor: HudHex.accentShard,
@@ -720,14 +725,14 @@ export class GameScene extends Phaser.Scene {
             this.defStat.root,
             this.revivesStat.root,
             this.lightTorchIcon,
+            this.goldStat.root,
+            this.potionStat.root,
+            this.resolveStat.root,
             this.playerStatusText,
         ];
 
         const bottomWidgets: Phaser.GameObjects.GameObject[] = [
             botFrame,
-            this.goldStat.root,
-            this.potionStat.root,
-            this.resolveStat.root,
             this.lightResStat.root,
             this.shardStat.root,
             pillarG,
