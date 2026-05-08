@@ -1,15 +1,18 @@
 /**
- * Death overlay shown after the player loses HP to zero. Multi-section
- * carved-stone panel: title + subtitle + run summary (left column) +
- * NPC roster (right column) + prestige banner + permanent-upgrade
- * shop grid + action buttons (restart / reset memory). Includes an
- * inline reset-confirm modal that can wipe persistent prestige and
- * unlocks.
+ * End-of-run overlay. The same component renders both “you died” and
+ * “you escaped” outcomes — GameScene flips `runState.escaped` before
+ * showing it, and most of the UI is gated on that flag.
+ *
+ * On escape: title + subtitle + run summary (left column) + NPC roster
+ * (right column) + skill-points-bank banner + 4 permanent-upgrade
+ * cards (damage/hp/defense/goldGain) + restart/reset buttons.
+ *
+ * On death: title + minimal copy explaining the wipe, then just a
+ * restart button. No upgrade grid because `meta.resetProgress()` has
+ * already wiped the bank and every upgrade.
  *
  * This module is intentionally kept dense — it's pure layout/wiring
  * with no game-state coupling beyond the {@link EndScreenContext}.
- * Don't move the magic numbers into Layout constants until a second
- * end-screen needs the same offsets; right now they're only used here.
  */
 import * as Phaser from 'phaser';
 
@@ -17,7 +20,7 @@ import type { UpgradeId } from '../../systems/MetaProgressionManager';
 import { drawCarvedPanel, drawTopBarPanel } from '../HudFrame';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
-import { awardPrestigeOnce, hideLiveContainers } from './shared';
+import { bankSkillPointsOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
 interface UpgradeCardVisual {
@@ -34,10 +37,12 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const { scene, loc, meta, tracker, player, npcs, runState } = ctx;
 
     hideLiveContainers(ctx);
-    awardPrestigeOnce(ctx);
+    bankSkillPointsOnce(ctx);
 
     tracker.trackMax('bestDepth', runState.runBestDepth);
     tracker.trackMax('levelReached', player.stats.level);
+
+    const escaped = runState.escaped;
 
     // ── Backdrop + carved panel ─────────────────────────────
     // The new layout uses the same carved-stone nine-slice as the
@@ -71,10 +76,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // The HUD escape button reuses this layout for the meta-progression
     // screen, so swap in the escape headline (and a calmer accent) when
     // the run was bailed on instead of lost.
-    const titleText = runState.escaped
+    const titleText = escaped
         ? loc.t('escapeScreenTitle')
         : tracker.getRunTitle(loc.language);
-    const titleColor = runState.escaped ? '#c9a050' : '#d65a5a';
+    const titleColor = escaped ? '#c9a050' : '#d65a5a';
     const title = scene.add
         .text(CENTER_X, panelTop + 40, titleText, {
             fontFamily: 'Courier New',
@@ -84,22 +89,29 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
 
-    // Subtitle one-liner: depth | bosses | prestige.
+    // Subtitle one-liner.
+    //  - On escape: depth + bosses + skill points banked.
+    //  - On death: a single line warning that the entire profile was
+    //    wiped (the bank and every upgrade are gone, the player starts
+    //    over from scratch on the next run).
+    const subtitleText = escaped
+        ? loc.t('escapeRunLine', {
+              depth: runState.runBestDepth,
+              bosses: runState.runBossKills,
+              points: runState.skillPointsBanked,
+          })
+        : loc.t('deathWipeLine', {
+              depth: runState.runBestDepth,
+              bosses: runState.runBossKills,
+          });
     const subtitle = scene.add
-        .text(
-            CENTER_X,
-            panelTop + 78,
-            loc.t('deathRunLine', {
-                depth: runState.runBestDepth,
-                bosses: runState.runBossKills,
-                prestige: runState.prestigeReward,
-            }),
-            {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#c9a880',
-            },
-        )
+        .text(CENTER_X, panelTop + 78, subtitleText, {
+            fontFamily: 'Courier New',
+            fontSize: '14px',
+            color: '#c9a880',
+            align: 'center',
+            wordWrap: { width: PANEL_W - 96 },
+        })
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
 
@@ -180,16 +192,23 @@ export function showDeathScreen(ctx: EndScreenContext) {
     );
     summaryPanel.setDepth(Depths.EndScreenPanel);
 
-    // ── Prestige banner ──────────────────────────────────────
+    // ── Skill-point banner + upgrade grid (escape only) ─────
+    // On a death run the meta profile has already been wiped, so we
+    // hide the entire shop section and let the player just hit
+    // “start over”. On an escape run we render the bank header, the 4
+    // upgrade cards (damage / hp / defense / goldGain) and the next-
+    // discovery hint.
     const divider2Y = bodyEndY + 20;
     const divider2 = scene.add
         .rectangle(CENTER_X, divider2Y, PANEL_W - 96, 1, 0x6a4f38, 0.6)
-        .setDepth(Depths.EndScreenContent);
+        .setDepth(Depths.EndScreenContent)
+        .setVisible(escaped);
     const bannerY = divider2Y + 24;
-    const prestigeBanner = scene.add
+    const skillPointsBanner = scene.add
         .rectangle(CENTER_X, bannerY, 380, 34, 0x261c10, 0.95)
         .setStrokeStyle(1, 0xc9a050)
-        .setDepth(Depths.EndScreenContent);
+        .setDepth(Depths.EndScreenContent)
+        .setVisible(escaped);
     const pointsText = scene.add
         .text(CENTER_X, bannerY, '', {
             fontFamily: 'Courier New',
@@ -197,7 +216,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
             color: '#ffd36e',
         })
         .setOrigin(0.5)
-        .setDepth(Depths.EndScreenForeground);
+        .setDepth(Depths.EndScreenForeground)
+        .setVisible(escaped);
 
     const unlockText = scene.add
         .text(CENTER_X, bannerY + 28, '', {
@@ -208,13 +228,13 @@ export function showDeathScreen(ctx: EndScreenContext) {
             wordWrap: { width: PANEL_W - 96 },
         })
         .setOrigin(0.5, 0)
-        .setDepth(Depths.EndScreenContent);
+        .setDepth(Depths.EndScreenContent)
+        .setVisible(escaped);
 
-    // ── Prestige sub-panel (top_bar.png) ─────────────────────
-    const prestigePanelPad = 14;
-    const prestigePanelTop = bannerY - 24 - prestigePanelPad;
+    const skillPointsPanelPad = 14;
+    const skillPointsPanelTop = bannerY - 24 - skillPointsPanelPad;
 
-    // ── Upgrade card grid (3 rows × 2 cols) ─────────────────
+    // ── Upgrade card grid (2 rows × 2 cols, 4 cards) ───────
     const cardsStartY = bannerY + 64;
     const CARD_W = 380;
     const CARD_H = 70;
@@ -225,98 +245,103 @@ export function showDeathScreen(ctx: EndScreenContext) {
         { x: CENTER_X + CARD_W / 2 + 12, y: cardsStartY },
         { x: CENTER_X - CARD_W / 2 - 12, y: cardsStartY + (CARD_H + CARD_GAP_Y) },
         { x: CENTER_X + CARD_W / 2 + 12, y: cardsStartY + (CARD_H + CARD_GAP_Y) },
-        { x: CENTER_X - CARD_W / 2 - 12, y: cardsStartY + 2 * (CARD_H + CARD_GAP_Y) },
-        { x: CENTER_X + CARD_W / 2 + 12, y: cardsStartY + 2 * (CARD_H + CARD_GAP_Y) },
     ];
 
-    meta.getUpgradeCards(loc.language).forEach((card, index) => {
-        const position = cardPositions[index];
-
-        const background = scene.add
-            .rectangle(position.x, position.y, CARD_W, CARD_H, 0x1c1c1c)
-            .setStrokeStyle(1, 0x4a4a4a)
-            .setDepth(Depths.EndScreenContent)
-            .setInteractive({ useHandCursor: true });
-
-        const cardTitle = scene.add
-            .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 10, card.title, {
-                fontFamily: 'Courier New',
-                fontSize: '15px',
-                color: '#f0f0f0',
-            })
-            .setDepth(Depths.EndScreenForeground);
-
-        const cardLevel = scene.add
-            .text(position.x + CARD_W / 2 - 14, position.y - CARD_H / 2 + 10, '', {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#a8a8a8',
-            })
-            .setOrigin(1, 0)
-            .setDepth(Depths.EndScreenForeground);
-
-        const cardBody = scene.add
-            .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 30, '', {
-                fontFamily: 'Courier New',
-                fontSize: '12px',
-                color: '#9a9a9a',
-                wordWrap: { width: CARD_W - 110 },
-            })
-            .setDepth(Depths.EndScreenForeground);
-
-        const cardCost = scene.add
-            .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 22, '', {
-                fontFamily: 'Courier New',
-                fontSize: '13px',
-                color: '#ffd36e',
-            })
-            .setOrigin(1, 0)
-            .setDepth(Depths.EndScreenForeground);
-
-        const visual: UpgradeCardVisual = {
-            id: card.id,
-            background,
-            title: cardTitle,
-            level: cardLevel,
-            body: cardBody,
-            cost: cardCost,
-            canPurchase: false,
-        };
-
-        background.on('pointerover', () => {
-            if (visual.canPurchase) {
-                background.setStrokeStyle(2, 0xffffff);
-            }
-        });
-        background.on('pointerout', () => {
-            background.setStrokeStyle(1, visual.canPurchase ? 0x8a8a8a : 0x4a4a4a);
-        });
-        background.on('pointerdown', () => {
-            const info = meta.getUpgradeCards(loc.language).find((upgrade) => upgrade.id === visual.id);
-            if (!info?.canPurchase) {
+    if (escaped) {
+        meta.getUpgradeCards(loc.language).forEach((card, index) => {
+            const position = cardPositions[index];
+            if (!position) {
                 return;
             }
 
-            if (meta.purchaseUpgrade(visual.id)) {
-                refreshShop();
-            }
+            const background = scene.add
+                .rectangle(position.x, position.y, CARD_W, CARD_H, 0x1c1c1c)
+                .setStrokeStyle(1, 0x4a4a4a)
+                .setDepth(Depths.EndScreenContent)
+                .setInteractive({ useHandCursor: true });
+
+            const cardTitle = scene.add
+                .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 10, card.title, {
+                    fontFamily: 'Courier New',
+                    fontSize: '15px',
+                    color: '#f0f0f0',
+                })
+                .setDepth(Depths.EndScreenForeground);
+
+            const cardLevel = scene.add
+                .text(position.x + CARD_W / 2 - 14, position.y - CARD_H / 2 + 10, '', {
+                    fontFamily: 'Courier New',
+                    fontSize: '14px',
+                    color: '#a8a8a8',
+                })
+                .setOrigin(1, 0)
+                .setDepth(Depths.EndScreenForeground);
+
+            const cardBody = scene.add
+                .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 30, '', {
+                    fontFamily: 'Courier New',
+                    fontSize: '12px',
+                    color: '#9a9a9a',
+                    wordWrap: { width: CARD_W - 110 },
+                })
+                .setDepth(Depths.EndScreenForeground);
+
+            const cardCost = scene.add
+                .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 22, '', {
+                    fontFamily: 'Courier New',
+                    fontSize: '13px',
+                    color: '#ffd36e',
+                })
+                .setOrigin(1, 0)
+                .setDepth(Depths.EndScreenForeground);
+
+            const visual: UpgradeCardVisual = {
+                id: card.id,
+                background,
+                title: cardTitle,
+                level: cardLevel,
+                body: cardBody,
+                cost: cardCost,
+                canPurchase: false,
+            };
+
+            background.on('pointerover', () => {
+                if (visual.canPurchase) {
+                    background.setStrokeStyle(2, 0xffffff);
+                }
+            });
+            background.on('pointerout', () => {
+                background.setStrokeStyle(1, visual.canPurchase ? 0x8a8a8a : 0x4a4a4a);
+            });
+            background.on('pointerdown', () => {
+                const info = meta.getUpgradeCards(loc.language).find((upgrade) => upgrade.id === visual.id);
+                if (!info?.canPurchase) {
+                    return;
+                }
+
+                if (meta.purchaseUpgrade(visual.id)) {
+                    refreshShop();
+                }
+            });
+
+            cards.push(visual);
         });
+    }
 
-        cards.push(visual);
-    });
-
-    // Size the prestige panel to span the banner through the last
-    // card row, now that card positions have been laid out.
-    const lastCardY = cardsStartY + 2 * (CARD_H + CARD_GAP_Y) + CARD_H / 2;
-    const prestigePanelH = lastCardY - prestigePanelTop + prestigePanelPad;
-    const prestigePanel = drawTopBarPanel(
+    // Size the skill-point sub-panel so it spans the banner through
+    // the last card row. Hidden entirely on death runs since there
+    // are no cards to frame.
+    const lastCardY = cardsStartY + 1 * (CARD_H + CARD_GAP_Y) + CARD_H / 2;
+    const skillPointsPanelH = lastCardY - skillPointsPanelTop + skillPointsPanelPad;
+    const skillPointsPanel = drawTopBarPanel(
         scene,
         panelLeft + 28,
-        prestigePanelTop,
+        skillPointsPanelTop,
         PANEL_W - 56,
-        prestigePanelH,
+        skillPointsPanelH,
     );
-    prestigePanel.setDepth(Depths.EndScreenPanel);
+    skillPointsPanel.setDepth(Depths.EndScreenPanel);
+    skillPointsPanel.setVisible(escaped);
 
     // ── Action buttons (side-by-side at panel bottom) ───────
     const buttonsY = panelBottom - 40;
@@ -356,7 +381,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
     resetButton.on('pointerout', () => resetButton.setStrokeStyle(1, 0xa35a5a));
 
     const refreshShop = () => {
-        pointsText.setText(`${loc.t('shopPrestigeBank')}: ${meta.availablePrestige}`);
+        if (!escaped) {
+            return;
+        }
+        pointsText.setText(`${loc.t('shopSkillPointsBank')}: ${meta.availableSkillPoints}`);
 
         const nextUnlock = meta.getNextContentUnlock();
         unlockText.setText(
@@ -465,29 +493,34 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     refreshShop();
 
-    scene.tweens.add({
-        targets: [
-            stoneBackdrop,
-            overlay,
-            panel,
-            summaryPanel,
-            prestigePanel,
-            title,
-            subtitle,
-            divider1,
-            leftHeader,
-            rightHeader,
-            leftBody,
-            rightBody,
+    const fadeTargets: Phaser.GameObjects.GameObject[] = [
+        stoneBackdrop,
+        overlay,
+        panel,
+        summaryPanel,
+        title,
+        subtitle,
+        divider1,
+        leftHeader,
+        rightHeader,
+        leftBody,
+        rightBody,
+        restartButton,
+        restartText,
+        resetButton,
+        resetText,
+    ];
+    if (escaped) {
+        fadeTargets.push(
+            skillPointsPanel,
             divider2,
-            prestigeBanner,
+            skillPointsBanner,
             pointsText,
             unlockText,
-            restartButton,
-            restartText,
-            resetButton,
-            resetText,
-        ],
+        );
+    }
+    scene.tweens.add({
+        targets: fadeTargets,
         alpha: { from: 0, to: 1 },
         duration: 280,
         ease: 'Quad.out',

@@ -111,8 +111,16 @@ export class GameScene extends Phaser.Scene {
     public lastEnemyHp = 0;
     private runBestDepth = 0;
     public runBossKills = 0;
-    private prestigeReward = 0;
-    private prestigeAwarded = false;
+    /** Pending skill points earned this run (one per level-up). Banked
+     *  on escape, wiped on death. */
+    private runSkillPointsPending = 0;
+    /** How many of `runSkillPointsPending` were actually banked when
+     *  the end screen committed. Used by the end screens to render
+     *  exact "+N banked" copy after the fact. */
+    private skillPointsBanked = 0;
+    /** True once `bankSkillPointsOnce` has fired so re-renders of the
+     *  end screen don't re-bank the same points. */
+    private skillPointsBankedFlag = false;
     private escaped = false;
     /** Two-step confirm timer for the HUD escape button. -1 == idle. */
     private escapeConfirmAt = -1;
@@ -142,7 +150,6 @@ export class GameScene extends Phaser.Scene {
     private xpValueText!: Phaser.GameObjects.Text;
     private atkStat!: HudInlineSlotHandle;
     private defStat!: HudInlineSlotHandle;
-    private revivesStat!: HudInlineSlotHandle;
     private lightTorchIcon!: Phaser.GameObjects.Text;
     private goldStat!: HudInlineSlotHandle;
     private potionStat!: HudInlineSlotHandle;
@@ -152,7 +159,6 @@ export class GameScene extends Phaser.Scene {
     private depthStat!: HudCellHandle;
     private killsStat!: HudCellHandle;
     private bossStat!: HudCellHandle;
-    private prestigeStat!: HudCellHandle;
     private escapeButtonBg!: Phaser.GameObjects.Rectangle;
     private escapeButtonLabel!: Phaser.GameObjects.Text;
     private restartButtonBg!: Phaser.GameObjects.Rectangle;
@@ -243,8 +249,9 @@ export class GameScene extends Phaser.Scene {
         this.lastEnemyHp = 0;
         this.runBestDepth = 0;
         this.runBossKills = 0;
-        this.prestigeReward = 0;
-        this.prestigeAwarded = false;
+        this.runSkillPointsPending = 0;
+        this.skillPointsBanked = 0;
+        this.skillPointsBankedFlag = false;
         this.escaped = false;
         this.escapeConfirmAt = -1;
         this.skipLightSpendThisRoom = false;
@@ -492,17 +499,10 @@ export class GameScene extends Phaser.Scene {
             valueOffsetX: topHud.statsValueOffset,
         });
 
-        // Optional secondary stats — stacked just to the right of the
-        // primary atk/def block when they're actually relevant. Y
-        // values mirror the atk/def shift above so the rows stay
-        // visually aligned across both columns.
-        this.revivesStat = createHudInlineSlot(this, secondColX, topHud.revivesY, {
-            icon: 'heart',
-            label: this.loc.t('reviveShort').toUpperCase(),
-            valueFontSize: '13px',
-            labelFontSize: '11px',
-            iconSize: 12,
-        });
+        // Light status indicator (torch icon) — sits just to the right
+        // of the atk/def block. The old reviveShort slot used to share
+        // this column but was removed when revive charges were dropped
+        // from the meta-progression system.
         this.lightTorchIcon = this.add.text(secondColX, topHud.torchIconY, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
@@ -623,14 +623,6 @@ export class GameScene extends Phaser.Scene {
             icon: 'boss',
             label: this.loc.t('bossShort').toUpperCase(),
             valueColor: HudHex.accentBoss,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
-        });
-        this.prestigeStat = createHudCell(this, progStart + 3 * progW, cellTop, progW, cellH, {
-            icon: 'star',
-            label: this.loc.t('prestige').toUpperCase(),
-            valueColor: HudHex.accentExp,
             iconPixelSize: STAT_ICON_SIZE,
             labelFontSize: STAT_LABEL_FONT,
             valueFontSize: STAT_VALUE_FONT,
@@ -768,7 +760,6 @@ export class GameScene extends Phaser.Scene {
             this.xpValueText,
             this.atkStat.root,
             this.defStat.root,
-            this.revivesStat.root,
             this.lightTorchIcon,
             this.goldStat.root,
             this.potionStat.root,
@@ -784,7 +775,6 @@ export class GameScene extends Phaser.Scene {
             this.depthStat.root,
             this.killsStat.root,
             this.bossStat.root,
-            this.prestigeStat.root,
             this.relicText,
             this.hintText,
             this.escapeButtonBg,
@@ -811,15 +801,16 @@ export class GameScene extends Phaser.Scene {
         });
         this.player.levelUp.on(({ level }) => {
             this.tracker.trackMax('levelReached', level);
+            // Each level-up grants a single pending skill point. The
+            // bank only commits when the run ends in escape; on death
+            // `meta.resetProgress()` wipes everything anyway.
+            this.runSkillPointsPending += 1;
             this.log.addMessage(this.loc.t('levelUp', { level }), '#fff17a');
+            this.log.addMessage(this.loc.t('levelUpSkillPoint'), '#a4d8ff');
             VFX.floatText(this, 370, 20, `${this.loc.t('level')} ${level}`, '#fff17a');
             this.sfx.play('levelUp');
             const flash = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xfff17a, 0.08).setDepth(Depths.ScreenFlash);
             this.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
-            this.refreshUI();
-        });
-        this.player.revive.on(({ remaining }) => {
-            this.log.addMessage(this.loc.t('revive', { count: remaining }), '#ffcb73');
             this.refreshUI();
         });
         this.player.death.on(() => {
@@ -829,6 +820,14 @@ export class GameScene extends Phaser.Scene {
 
             this.deathSequenceStarted = true;
             this.dead = true;
+            // Death wipes the entire profile — skill point bank AND
+            // every purchased upgrade go back to first-time-player
+            // defaults. Pending points are forgotten too since they
+            // were never banked.
+            this.runSkillPointsPending = 0;
+            this.skillPointsBanked = 0;
+            this.skillPointsBankedFlag = false;
+            this.meta.resetProgress();
             this.sfx.play('death');
             this.sfx.stopAmbient();
             this.cameras.main.shake(650, 0.04);
@@ -865,11 +864,8 @@ export class GameScene extends Phaser.Scene {
         const showStats = unlocks.showPlayerStats;
         this.atkStat.setValue(`${this.player.getAttackPower()}`);
         this.atkStat.setVisible(showStats);
-        this.defStat.setValue(`${stats.defense}`);
+        this.defStat.setValue(`${this.player.getEffectiveDefense()}`);
         this.defStat.setVisible(showStats);
-        const showRevives = showStats && this.player.remainingRevives > 0;
-        this.revivesStat.setValue(`${this.player.remainingRevives}`);
-        this.revivesStat.setVisible(showRevives);
         if (showStats && this.player.hasHighLight) {
             this.lightTorchIcon.setText('\u2600\uFE0E').setColor(HudHex.accentLight).setVisible(true);
         } else if (showStats && this.player.hasLowLight) {
@@ -890,7 +886,9 @@ export class GameScene extends Phaser.Scene {
         this.shardStat.setValue(`${resources.relicShards}`);
         this.shardStat.setVisible(unlocks.showRelicShards);
 
-        // Progress + prestige forecast.
+        // Run progress cells (depth / kills / bosses). The legacy
+        // PRESTIGE forecast cell was removed when the meta-progression
+        // economy switched to skill-points-from-level-ups.
         const showProgress = unlocks.showRunMetrics || unlocks.showKillCounter;
         this.depthStat.setValue(`${this.runBestDepth}`);
         this.depthStat.setVisible(showProgress);
@@ -898,10 +896,6 @@ export class GameScene extends Phaser.Scene {
         this.killsStat.setVisible(showProgress && unlocks.showKillCounter);
         this.bossStat.setValue(`${this.runBossKills}`);
         this.bossStat.setVisible(showProgress && unlocks.showRunMetrics);
-
-        const prestigeForecast = this.runBestDepth + this.runBossKills * 2;
-        this.prestigeStat.setValue(`+${prestigeForecast}`);
-        this.prestigeStat.setVisible(unlocks.showPrestigeForecast);
 
         const nextUnlock = this.meta.getNextContentUnlock();
         // The hint now floats centred above the bar with no chrome
@@ -1300,8 +1294,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     public applyTrapDamage(rawDamage: number): number {
-        const mitigated = Math.max(1, rawDamage - this.meta.getBonuses().rooms.trapDamageReduction);
-        return this.player.takeDamage(mitigated);
+        return this.player.takeDamage(rawDamage, 0, 'trap');
     }
 
     public showRoomCard(
@@ -1405,9 +1398,9 @@ export class GameScene extends Phaser.Scene {
     }
 
     private endScreenContext(): EndScreenContext {
-        // runState proxies its fields back onto the scene, so EndScreens can
-        // mutate prestigeAwarded / prestigeReward and re-entry still sees the
-        // flag that guards double-awarding.
+        // runState proxies its fields back onto the scene, so EndScreens
+        // can mutate `skillPointsBanked` / `skillPointsBankedFlag` and
+        // re-entry still sees the flag that guards double-banking.
         // eslint-disable-next-line @typescript-eslint/no-this-alias
         const scene = this;
         return {
@@ -1425,10 +1418,11 @@ export class GameScene extends Phaser.Scene {
             runState: {
                 get runBestDepth() { return scene.runBestDepth; },
                 get runBossKills() { return scene.runBossKills; },
-                get prestigeAwarded() { return scene.prestigeAwarded; },
-                set prestigeAwarded(v: boolean) { scene.prestigeAwarded = v; },
-                get prestigeReward() { return scene.prestigeReward; },
-                set prestigeReward(v: number) { scene.prestigeReward = v; },
+                get pendingSkillPoints() { return scene.runSkillPointsPending; },
+                get skillPointsBanked() { return scene.skillPointsBanked; },
+                set skillPointsBanked(v: number) { scene.skillPointsBanked = v; },
+                get skillPointsBankedFlag() { return scene.skillPointsBankedFlag; },
+                set skillPointsBankedFlag(v: boolean) { scene.skillPointsBankedFlag = v; },
                 get escaped() { return scene.escaped; },
                 set escaped(v: boolean) { scene.escaped = v; },
             },

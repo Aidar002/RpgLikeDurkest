@@ -1,9 +1,9 @@
 /**
  * Coverage for the player state machine: hp / xp / level / resources /
- * revives / relics. PlayerManager is one of the largest pure-logic
- * systems in the codebase and the audit flagged it as untested. These
- * tests pin down the contract callers (CombatManager, RoomFlow, the
- * scene) rely on so future refactors can move methods around safely.
+ * relics. PlayerManager is one of the largest pure-logic systems in the
+ * codebase. These tests pin down the contract callers (CombatManager,
+ * RoomFlow, the scene) rely on so future refactors can move methods
+ * around safely.
  */
 import { describe, expect, it } from 'vitest';
 
@@ -33,29 +33,20 @@ describe('PlayerManager — construction', () => {
         expect(player.resources.relicShards).toBe(0);
 
         expect(player.killCount).toBe(0);
-        expect(player.remainingRevives).toBe(0);
         expect(player.relics).toEqual([]);
     });
 
-    it('applies meta bonuses (maxHp / attack / starting light / revives / xp mult)', () => {
+    it('applies meta bonuses (maxHp / attack / defense)', () => {
         const player = new PlayerManager({
             maxHp: 6,
             attack: 2,
-            startingLightBonus: 2,
-            reviveCharges: 1,
-            xpMultiplier: 2,
+            defenseBonus: 3,
         });
 
         expect(player.stats.maxHp).toBe(PLAYER_CONFIG.maxHp + 6);
         expect(player.stats.hp).toBe(PLAYER_CONFIG.hp + 6);
         expect(player.stats.attack).toBe(PLAYER_CONFIG.attack + 2);
-        expect(player.resources.light).toBe(EXPEDITION_CONFIG.startingLight + 2);
-        expect(player.remainingRevives).toBe(1);
-    });
-
-    it('caps starting light at maxLight', () => {
-        const player = new PlayerManager({ startingLightBonus: 999 });
-        expect(player.resources.light).toBe(EXPEDITION_CONFIG.maxLight);
+        expect(player.stats.defense).toBe(PLAYER_CONFIG.defense + 3);
     });
 });
 
@@ -95,21 +86,6 @@ describe('PlayerManager — damage and death', () => {
 
         expect(player.stats.hp).toBe(0);
         expect(deaths).toBe(1);
-    });
-
-    it('does NOT die when reviveCharges > 0; restores hp and decrements charges', () => {
-        const player = new PlayerManager({ reviveCharges: 1 });
-        let deaths = 0;
-        let revives = 0;
-        player.death.on(() => deaths++);
-        player.revive.on(() => revives++);
-
-        player.takeDamage(9999);
-
-        expect(deaths).toBe(0);
-        expect(revives).toBe(1);
-        expect(player.remainingRevives).toBe(0);
-        expect(player.stats.hp).toBeGreaterThan(0);
     });
 
     it('treats source="true" damage as ignoring defense and forcing minimum 1', () => {
@@ -248,12 +224,13 @@ describe('PlayerManager — xp and level up', () => {
         }
     });
 
-    it('xpMultiplier scales the awarded xp before applying', () => {
-        const player = new PlayerManager({ xpMultiplier: 3 });
-        const awarded = player.gainXp(2); // 2 * 3 = 6 xp
+    it('goldGainMult scales every gainGold call after rounding', () => {
+        const player = new PlayerManager({ goldGainMult: 1.2 });
+        const startGold = player.resources.gold;
 
-        expect(awarded).toBe(6);
-        expect(player.stats.xp).toBe(6);
+        const gained = player.gainGold(10); // 10 * 1.2 = 12
+        expect(gained).toBe(12);
+        expect(player.resources.gold).toBe(startGold + 12);
     });
 
     it('multiple level-ups happen in one call when xp overflows several thresholds', () => {
