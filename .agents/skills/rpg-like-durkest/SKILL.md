@@ -44,9 +44,11 @@ flat-config rules also forbid unused vars.
 Source lives under `src/`:
 
 - `src/main.ts` — Phaser game bootstrap (canvas size, scenes registry).
-- `src/scenes/` — `BootScene` (asset preload), `MenuScene`, `GameScene`
-  (orchestrator), plus combat/roomflow controllers (`CombatHud`,
-  `RoomFlow`).
+- `src/scenes/` — `BootScene` (asset preload + title/start UI),
+  `GameScene` (orchestrator), plus combat/roomflow controllers
+  (`CombatHud`, `RoomFlow`).
+  - There is **no** separate `MenuScene` — the start screen is built
+    inside `BootScene.create()`. Don't grep for `MenuScene`.
 - `src/systems/` — game-state managers wired to `GameScene` via the
   typed pub/sub `Emitter`:
   - `PlayerManager` (HP, level, light, gold). No revives — the revive
@@ -73,9 +75,13 @@ Source lives under `src/`:
     `PixelSprite.ts`, `VolumePanel.ts`.
 
 Tests live under `tests/` and target pure-logic systems (`Rng`,
-`StressManager`, `MapGenerator`, `MetaProgression`, etc.). They run in
-node without a Phaser context — keep system files headless-friendly
-(no `import phaser` at module top in `src/systems/*`).
+`StatusEffects`, `MapGenerator`, `MetaProgression`, `CombatManager`,
+`PlayerManager`, `Light`, `DungeonManager`, `Relics`, `BalancePatch`).
+They run in node without a Phaser context — keep system files
+headless-friendly (no `import phaser` at module top in `src/systems/*`).
+
+The `StressManager` system was removed in earlier refactors — there is
+no such file or test. Don't grep for it.
 
 ## Coordinate conventions
 

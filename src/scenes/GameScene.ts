@@ -189,9 +189,6 @@ export class GameScene extends Phaser.Scene {
      *  toggled via setRestartConfirmVisible(). */
     private restartConfirmWidgets: Array<Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text> = [];
     private hintText!: Phaser.GameObjects.Text;
-    // mapDepthText was the small "ГЛУБИНА N" pill below the bottom bar —
-    // removed because the dedicated ГЛУБИНА cell in the bottom HUD now
-    // shows the same value with much better legibility.
     public tooltipText!: Phaser.GameObjects.Text;
 
     private relicText!: Phaser.GameObjects.Text;
@@ -570,8 +567,8 @@ export class GameScene extends Phaser.Scene {
 
         // ── BOTTOM BAR ──────────────────────────────────────────
         // Carved frame + remaining cells: 2 resource cells (light /
-        // shard, both gated behind unlocks), divider pillar, 4
-        // progress cells (the last cell — PRESTIGE — gets a gold rim).
+        // shard, both gated behind unlocks), divider pillar, 3
+        // progress cells (depth / kills / bosses).
         // The 3 resources moved to the top bar have left the left
         // half of the bottom bar mostly empty in the early game; once
         // the light/shard unlocks fire the cells fill in.
