@@ -45,7 +45,6 @@ export const HudHex = {
     accentGold: '#d4b070',
     accentShard: '#c4abdf',
     accentPotion: '#86d49a',
-    accentRevive: '#f0d090',
     accentBoss: '#e08a7a',
     accentKills: '#c0a0a0',
     accentDepth: '#b0b8c0',

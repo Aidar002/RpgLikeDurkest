@@ -48,10 +48,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // The new layout uses the same carved-stone nine-slice as the
     // bottom HUD bar so the screen reads as part of the same world,
     // not a flat dialog box. Sections (title, two-column body,
-    // prestige banner, upgrade grid, action buttons) are anchored
+    // skill-points banner, upgrade grid, action buttons) are anchored
     // to fixed offsets from the panel rim, with the body section
     // measured dynamically so a long stat run never overlaps the
-    // prestige banner below.
+    // skill-points banner below.
     const PANEL_W = 940;
     const PANEL_H = 700;
     const panelLeft = CENTER_X - PANEL_W / 2;

@@ -522,9 +522,7 @@ export class GameScene extends Phaser.Scene {
         });
 
         // Light status indicator (torch icon) — sits just to the right
-        // of the atk/def block. The old reviveShort slot used to share
-        // this column but was removed when revive charges were dropped
-        // from the meta-progression system.
+        // of the atk/def block.
         this.lightTorchIcon = this.add.text(secondColX, topHud.torchIconY, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
@@ -693,10 +691,10 @@ export class GameScene extends Phaser.Scene {
 
         // ── ESCAPE BUTTON ───────────────────────────────────────
         // Out-of-combat escape from the run. Click once to arm,
-        // click again within ~3s to confirm. On confirm: prestige
-        // is awarded for current depth + bosses, then the scene
-        // hands off to the victory/escape end screen which routes
-        // back to the hub via safeRestart().
+        // click again within ~3s to confirm. On confirm: any unspent
+        // skill points are banked, then the scene hands off to the
+        // escape end screen which routes back to the hub via
+        // safeRestart().
         const ESCAPE_BTN_W = 110;
         const ESCAPE_BTN_H = 26;
         const ESCAPE_BTN_X = GAME_WIDTH - PAD - ESCAPE_BTN_W / 2;
@@ -727,9 +725,9 @@ export class GameScene extends Phaser.Scene {
 
         // ── RESTART BUTTON ──────────────────────────────
         // Out-of-combat shortcut: scrap the current run instantly and
-        // restart the scene from scratch. No prestige award, no end
-        // screen — just hands off to safeRestart(). Sits to the left of
-        // the escape button and shares its visibility rules.
+        // restart the scene from scratch. No skill-points are banked,
+        // no end screen — just hands off to safeRestart(). Sits to the
+        // left of the escape button and shares its visibility rules.
         const RESTART_BTN_W = 130;
         const RESTART_BTN_H = 26;
         const RESTART_BTN_X =
