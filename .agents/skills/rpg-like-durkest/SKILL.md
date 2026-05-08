@@ -49,12 +49,13 @@ Source lives under `src/`:
   `RoomFlow`).
 - `src/systems/` — game-state managers wired to `GameScene` via the
   typed pub/sub `Emitter`:
-  - `PlayerManager` (HP, level, revives, light)
+  - `PlayerManager` (HP, level, light, gold). No revives — the revive
+    system was removed in PR #110.
   - `DungeonManager` (current floor + node graph)
-  - `CombatManager`, `StressManager`, `NarrativeManager`,
-    `MapGenerator`, `RunTracker`, `MetaProgressionManager`,
-    `MusicManager`, `SoundManager`, `Localization`, `EventLog`,
-    `Rng`, `NpcManager`.
+  - `CombatManager`, `NarrativeManager`, `Narrator`, `MapGenerator`,
+    `RunTracker`, `MetaProgressionManager`, `MusicManager`,
+    `SoundManager`, `Localization`, `EventLog`, `Rng`, `NpcManager`,
+    `Light`, `StatusEffects`.
 - `src/ui/` — pure rendering helpers (no game-state coupling):
   - `Layout.ts` — `GAME_WIDTH/HEIGHT`, `TOP_BAR_H`, `BOTTOM_BAR_H`,
     depth tiers, and `HudLayout` (per-section stat coordinates). Add
@@ -100,16 +101,50 @@ language-agnostic. To add a new string: add it to `en.ts`, then add
 the matching translation in `ru.ts` — TypeScript will block the build
 if you forget the second.
 
+## Meta progression (v4 — skill points)
+
+`src/systems/MetaProgressionManager.ts` owns the persistent profile.
+Storage key: `localStorage["rpglikedurkest-meta-v4"]`. Pre-v4 keys
+(v1/v2/v3, "rpglikedurkest-prestige", etc.) are dropped on load —
+**there is no migration**.
+
+- Currency: **skill points**. `+1` is granted per `levelUp` and held
+  in scene-local `runSkillPointsPending` (NOT in the persistent bank
+  yet).
+- `bankSkillPoints(points, runDepth)` is called **only when the player
+  escapes** (via the escape modal in `GameScene`). On death the scene
+  calls `meta.resetProgress()` instead, which wipes the entire profile
+  (bank + all upgrades + all content unlocks) so the next run starts
+  as a first launch.
+- 4 permanent upgrades, paid out of the bank:
+  - `damage` — 10 levels, costs `1/2/4/8/16/32/64/128/256/512`
+  - `hp` — 10 levels, costs `1/2/4/5/8/9/16/17/32/33`
+  - `defense` — 4 levels, costs `5/10/20/40`
+  - `goldGain` — 4 levels, costs `5/10/20/40`, `+5%` per level
+- `getBonuses()` → `{ player: { maxHp, attack, defenseBonus,
+  goldGainMult } }` is consumed by the `PlayerManager` constructor.
+
 ## End screens
 
 `src/ui/EndScreens.ts` is a re-export barrel; the actual overlays live
 under `src/ui/end/`:
-- `end/DeathScreen.ts` — multi-section death modal with two-column
-  body, prestige banner, upgrade grid, reset-confirm sub-modal.
-- `end/VictoryScreen.ts` — single-screen artifact-collected modal.
-- `end/shared.ts` — `awardPrestigeOnce` (idempotent),
+- `end/DeathScreen.ts` — death modal. Shows the death summary and a
+  **Reset soul progress** button. The 4-card meta-shop only renders
+  when `runState.escaped === true` (the escape flow reuses this
+  screen).
+- `end/VictoryScreen.ts` — single-screen artifact-collected modal
+  (final boss).
+- `end/shared.ts` — `bankSkillPointsOnce` (idempotent — banks ONLY
+  when `runState.escaped === true`; on death it is a no-op),
   `hideLiveContainers`.
-- `end/types.ts` — `EndScreenContext`, `RunEndState`.
+- `end/types.ts` — `EndScreenContext`, `RunEndState`
+  (`pendingSkillPoints`, `skillPointsBanked`, `skillPointsBankedFlag`,
+  `escaped`).
+
+Restart UX (`GameScene`): the **Начать заново / Restart** button
+opens a confirmation modal ("весь прогресс обнулится"). "Yes" calls
+`meta.resetProgress()` and reboots into `BootScene`; "Cancel" closes
+the modal.
 
 ## Common pitfalls
 

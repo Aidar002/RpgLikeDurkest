@@ -1,6 +1,10 @@
 # AI Context
 
-RpgLikeDurkest is a small Phaser 3 / Vite / TypeScript roguelike. The player moves through a procedural room graph, resolves rooms through text-heavy choices and turn combat, then upgrades meta progression after death or victory.
+RpgLikeDurkest is a small Phaser 3 / Vite / TypeScript roguelike. The player moves through a procedural room graph, resolves rooms through text-heavy choices and turn combat, then upgrades **skill-points** meta progression after escaping the dungeon.
+
+> If you only read one file before changing code, it's this one (overview) plus
+> `docs/ARCH_MAP.md` (file map) and `docs/EVENTS.md` (Emitter catalog).
+> Skip `docs/CONFIG_GUIDE.md` unless you're touching `src/data/`.
 
 ## Run Commands
 
@@ -31,7 +35,7 @@ Use `npm.cmd` in PowerShell because `npm.ps1` can be blocked by local execution 
 ### Scenes (`src/scenes/`)
 
 - `BootScene.ts`: Splash + asset boot. Owns the **shared** `Localization` and `SoundManager` instances and passes them into `GameScene` via `scene.start('GameScene', { loc, sfx })`. Restarts preserve language and audio state.
-- `GameScene.ts`: Coordinator only. Wires managers/controllers, owns Phaser containers, top HUD (HP, stress, relics), keyboard shortcuts, and the language/sound toggles. Domain logic lives in the controllers below.
+- `GameScene.ts`: Coordinator only. Wires managers/controllers, owns Phaser containers, top HUD (HP, ATK/DEF, light, gold, depth), keyboard shortcuts, the language/sound toggles, and the restart-confirmation modal. Domain logic lives in the controllers below.
 - `RoomFlow.ts`: `RoomFlowController`. Owns `enter(node)` and every room handler — treasure, trap, rest, shrine (incl. all five NPC altar paths: Mira/Casimir/Hollow Trader/Veth/Chorister/Kessa), merchant, and empty rooms. Also handles the depth-based whispers (3, 10, 15, 20, final-1, final).
 - `CombatHud.ts`: `CombatHudController`. Owns combat UI (action buttons, intel panel, enemy portrait), `refreshButtons`, `performAction`, `handleVictory`, `updateEnemyUI`, `onPlayerHit` (hit flash).
 
@@ -40,43 +44,57 @@ Use `npm.cmd` in PowerShell because `npm.ps1` can be blocked by local execution 
 - `CombatManager.ts`: Turn combat, enemy intent profiles, status effects, combat rewards. Takes an optional seeded `Rng`. Exposes pub/sub emitters: `enemyUpdate`, `playerStatusChange`, `enemyStatusChange`, `playerHit`, `combatEnd`.
 - `DungeonManager.ts`: Current graph position, movement checks, graph mutation.
 - `Emitter.ts`: Tiny typed pub/sub primitive (`on / off / emit / clear`) used by every manager. Snapshots listeners during `emit` and isolates listener exceptions.
-- `Localization.ts`: RU/EN strings, language persistence in `localStorage`. Keys are semantic — e.g. `combatBossEncounter`, `hudReturnHint`, `roomTreasureName`, `npcMiraPotion`, `shopBeginRun`. **Do not** introduce new mechanical prefixes (`cm_001`, etc.).
+- `Light.ts`: Light-economy helpers (decay interval per `runLength`, low/high-light thresholds).
+- `Localization.ts` + `LocalizedText.ts` + `locale/en.ts` / `locale/ru.ts`: RU/EN strings, language persistence in `localStorage`. `en.ts` is canonical (`Record<LocaleKey, string>`) so missing RU keys fail the build. Keys are semantic — e.g. `combatBossEncounter`, `hudReturnHint`, `roomTreasureName`, `npcMiraPotion`, `shopBeginRun`. **Do not** introduce mechanical prefixes (`cm_001`, etc.).
 - `MapGenerator.ts`: Room graph generation, available room type pool. Takes an optional seeded `Rng`.
 - `MapLayout.ts`: Serpentine map coordinates, map centering, edge routing.
-- `MetaProgressionManager.ts`: Persistent upgrades, content unlocks, UI unlock state. Limits come from `UPGRADE_DEFINITIONS.maxLevel`.
+- `MetaProgressionManager.ts`: Persistent skill-points bank + 4 permanent upgrades. Stored in `localStorage["rpglikedurkest-meta-v4"]`. Pre-v4 keys are dropped on load — there is **no migration**.
+  - `+1 skill point` per `levelUp` (held in scene-local `runSkillPointsPending`).
+  - `bankSkillPoints(points, runDepth)` is called **only on escape**; on death the scene calls `resetProgress()` which wipes the entire profile (bank + upgrades + content unlocks) as if it were a first launch.
+  - Upgrades: `damage` (10 levels), `hp` (10 levels), `defense` (4 levels), `goldGain` (4 levels, +5% per level).
+  - `getBonuses()` → `{ player: { maxHp, attack, defenseBonus, goldGainMult } }` consumed by `PlayerManager` constructor.
+- `MusicManager.ts`: Music playback + cross-fade. Shares the persistent mute flag with `SoundManager`.
 - `NarrativeManager.ts`: Run memory, room intro/result text, death/victory narrative.
 - `Narrator.ts`: Short on-the-beat lines emitted by combat/exploration.
-- `PlayerManager.ts`: Player stats, resources, damage, healing, level up, revive state. Exposes pub/sub emitters: `hpChange`, `statsChange`, `resourcesChange`, `levelUp`, `revive`, `death`, `relicsChange`.
-- `Relics.ts`, `Skills.ts`, `Npcs.ts`: Catalogs and aggregation logic.
-- `Rng.ts`: `Rng` interface, seeded `Mulberry32`, `defaultRng = Math.random`, helpers (`randomInt / chance / pick`). Used by `MapGenerator`, `StressManager`, `CombatManager`, and `rollRelicFor` so any subsystem can be made deterministic for tests.
-- `RunTracker.ts`: Per-run stats (peak stress, level reached, …) used by end screens.
-- `SoundManager.ts`: Audio playback + ambient loop, persisted mute flag.
+- `NpcManager.ts` + `Npcs.ts`: NPC altar offers, post-pick state, catalog.
+- `PlayerManager.ts`: Player stats, resources, damage, healing, level-up. Constructor accepts `MetaProgressionManager.getBonuses().player`. Exposes pub/sub emitters: `hpChange`, `statsChange`, `resourcesChange`, `levelUp`, `death`, `relicsChange`. (No `revive` — the revive system was removed in PR #110.)
+- `Relics.ts`, `Skills.ts`: Catalogs and aggregation logic.
+- `Rng.ts`: `Rng` interface, seeded `Mulberry32`, `defaultRng = Math.random`, helpers (`randomInt / chance / pick`). Used by `MapGenerator`, `CombatManager`, and `rollRelicFor` so any subsystem can be made deterministic for tests.
+- `RunTracker.ts`: Per-run stats (peak depth, level reached, kills, …) used by end screens.
+- `SoundManager.ts`: SFX bank + ambient loop, persisted mute flag.
 - `StatusEffects.ts`: Bleed/guard/mark/focus/stun/weaken state, tick logic, `statusSummary` helper.
-- `Stress.ts`: Stress mechanic + Resolve Test. Exposes pub/sub emitters: `valueChange`, `resolutionChange`. Takes an optional seeded `Rng`.
 
 ### UI (`src/ui/`)
 
-- `EndScreens.ts`: Victory and death screens, including the meta-shop and reset-confirmation modal. Reads/writes scene state via `EndScreenContext`.
+- `EndScreens.ts`: Barrel re-export. Actual overlays live in `src/ui/end/`:
+  - `end/DeathScreen.ts` — death modal. Shows the death summary and a **Reset soul progress** button. The 4-card meta-shop only renders when `runState.escaped === true` (i.e. when the screen is reused for the escape flow).
+  - `end/VictoryScreen.ts` — single-screen artifact-collected modal.
+  - `end/shared.ts` — `bankSkillPointsOnce` (idempotent — banks only when escaped), `hideLiveContainers`.
+  - `end/types.ts` — `EndScreenContext`, `RunEndState` (`pendingSkillPoints`, `skillPointsBanked`, `skillPointsBankedFlag`, `escaped`).
 - `EventLog.ts`: Text log component used by both rooms and combat.
-- `Layout.ts`: Single source of truth for canvas size (`GAME_WIDTH / GAME_HEIGHT / CENTER_X / CENTER_Y`) and Z-tiers (`Depths.Background … Depths.Tooltip`). **Do not hardcode 800/600 or depth literals.**
+- `Layout.ts`: Single source of truth for canvas size (`GAME_WIDTH / GAME_HEIGHT / CENTER_X / CENTER_Y`), Z-tiers (`Depths.Background … Depths.Tooltip`), and per-section HUD coordinates (`HudLayout.topHud.*`, `HudLayout.chrome.*`). **Do not hardcode 800/600 or depth literals.**
+- `HudCell.ts`, `HudFrame.ts`, `HudIcons.ts`, `HudTheme.ts`: Bottom-bar resource cells, top/bottom carved bars, spritesheet icons, palette.
+- `MapView.ts`: Map node visuals, node tweens, pointer interactions.
+- `RoomButtons.ts`: Room action button factory + types (`RoomButtonAction`, `RoomButtonVariant`).
 - `RoomVisuals.ts`: Pure room → color/icon/sprite/name lookup tables (`Record<RoomTypeValue, …>`).
 - `SceneChrome.ts`: Bottom-left sound/language toggles + unlock banner.
+- `Torchlight.ts`, `StoneBackdrop.ts`, `VolumePanel.ts`, `PixelSprite.ts`, `VFX.ts`: Atmospheric/visual helpers. `VFX` exposes vignette/scanlines/hit-flash/float-text.
+- `AssetGuard.ts`: `hasTexture(scene, key)` / `withTexture(scene, key, withImage, withFallback)`. Use these instead of inline `scene.textures.exists(...)` so the "real spritesheet vs procedural fallback" branching stays in one place.
 - `TextHelpers.ts`: `compactText` and other small text utilities.
-- `VFX.ts`: Lightweight Phaser visual effects (vignette, scanlines, hit-flash, float text). Default sizes use `Layout` constants.
 
 ### Data (`src/data/`)
 
-`GameConfig.ts`, `Enemies.ts`, `EnemyTextConfig.ts` — see `docs/CONFIG_GUIDE.md` for what to edit.
+`GameConfig.ts`, `Enemies.ts`, `Bosses.ts`, `EnemyTextConfig.ts` — see `docs/CONFIG_GUIDE.md` for what to edit.
 
 ## Current Architecture
 
-`GameScene` is a coordinator: it constructs the player/stress/combat/dungeon managers, wires up subscriptions on their `Emitter` channels, and delegates room flow and combat UI to the `RoomFlowController` and `CombatHudController`. New room types or combat behaviours should land in those controllers (or in their respective `systems/` manager), not in `GameScene`.
+`GameScene` is a coordinator: it constructs the player/combat/dungeon/meta managers, wires up subscriptions on their `Emitter` channels, and delegates room flow and combat UI to the `RoomFlowController` and `CombatHudController`. New room types or combat behaviours should land in those controllers (or in their respective `systems/` manager), not in `GameScene`.
 
 The graph layout is intentionally separated:
 
 - `MapGenerator` decides what nodes and edges exist.
 - `MapLayout` decides where nodes appear and how edges are routed.
-- `GameScene` draws the returned coordinates with Phaser.
+- `MapView` (in `ui/`) draws the returned coordinates with Phaser.
 
 The narrative/language path is also separated:
 
@@ -86,9 +104,10 @@ The narrative/language path is also separated:
 
 The event/notification path is `Emitter`-based:
 
-- Managers expose pub/sub emitters (`hpChange`, `combatEnd`, `valueChange`, …) instead of single mutable callback fields.
+- Managers expose pub/sub emitters (`hpChange`, `combatEnd`, `levelUp`, …) instead of single mutable callback fields.
 - Subscribers register with `emitter.on(payload => …)` and (if needed) unsubscribe with the returned disposer or `emitter.off(listener)`.
 - Multiple subscribers per emitter are supported. Listener exceptions are caught + logged so one bad listener can't break unrelated UI.
+- See `docs/EVENTS.md` for the full producer → payload → consumer table.
 
 ## Conventions For Future Agents
 
@@ -97,9 +116,10 @@ The event/notification path is `Emitter`-based:
 - Prefer small modules over expanding `GameScene` further.
 - Run `npm run lint && npm test && npm run build` before handing off.
 - Localization keys must be semantic (e.g. `combatBossEncounter`), never mechanical (`cm_001`).
-- New depth/canvas literals belong in `src/ui/Layout.ts`, not inline.
+- New depth/canvas/HUD literals belong in `src/ui/Layout.ts`, not inline.
 - Pub/sub: use `Emitter<T>` for any new "something happened" channel, not a mutable `onXxx` callback property.
-- Tests: pure-logic systems (RNG, status effects, map gen, stress, combat formulas, meta progression) get Vitest coverage in `tests/`. Don't import Phaser into a unit test — the existing `EventLog`/`PlayerManager` shims show the pattern.
+- Tests: pure-logic systems (RNG, status effects, map gen, combat formulas, meta progression) get Vitest coverage in `tests/`. Don't import Phaser into a unit test — the existing `EventLog`/`PlayerManager` shims show the pattern.
+- `MetaProgressionManager` mutates `localStorage`. Tests must polyfill `globalThis.window.localStorage` (see `tests/MetaProgression.test.ts` for the in-file `MemoryStorage` shim).
 - Preserve user changes. Do not reset or checkout files unless explicitly asked.
 
 ## Known Tooling Notes
