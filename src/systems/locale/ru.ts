@@ -102,6 +102,7 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     victoryNewRun: 'Спуститься снова',
     escapeButton: 'Сбежать',
     escapeButtonConfirm: 'Точно сбежать?',
+    restartButton: 'Начать заново',
     escapeScreenTitle: 'ТЫ СБЕЖАЛ',
     escapeScreenSummary: 'Ты выбрался с глубины {depth}, оставив позади {bosses} побеждённых хранителей.\nТо, что вынес — твоё; то, что осталось внизу — больше не вернётся.',
     restart: 'Новый забег',
@@ -202,6 +203,7 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatEnemyPrepareDefend: 'Ты ставишь блок и отбиваешь {action} ({name}).',
     combatEnemyPrepareDamageBack: '{name} получает {back} урона в ответ.',
     combatEnemyPrepareRidersCancelled: 'Защита снимает доп. эффект {action} ({name}).',
+    combatEnemyPrepareLeakOnDefend: '{action} ({name}) просачивается сквозь блок: {takenDamage} урона.',
     combatEnemyPrepareBleed: '{action} ({name}) рвёт рану: кровотечение x{stacks} на {turns}х.',
     combatEnemyPreparePoison: '{action} ({name}) травит: яд {damage} на {turns}х.',
     // Тики кровотечения и яда у игрока.

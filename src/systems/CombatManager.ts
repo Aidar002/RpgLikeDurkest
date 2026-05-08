@@ -1045,6 +1045,9 @@ export class CombatManager {
      *  - `damageBack`: Defend cancels the hit and the enemy takes
      *    {@link EnemyPrepareDef.defenseBackDamage} damage instead. No
      *    riders are applied.
+     *  - `leakOnDefend`: Defend mitigates most of the damage but lets
+     *    {@link EnemyPrepareDef.defenseLeakDamage} bleed through as
+     *    true damage. Riders (bleed/poison) are still cancelled.
      *  - `cancelRiders`: Defend lets the raw damage land (with the
      *    normal flat block) but skips the bleed/poison rider.
      * If the player did not Defend, the full damage + rider lands.
@@ -1082,6 +1085,40 @@ export class CombatManager {
                     name: this.enemy.name,
                     icon: this.enemy.icon,
                 });
+            }
+            return;
+        }
+
+        if (defended && def.defenseRule === 'leakOnDefend') {
+            const leak = def.defenseLeakDamage ?? 0;
+            const taken = leak > 0 ? this.player.takeDamage(leak, 0, 'true') : 0;
+            if (taken > 0) {
+                this.playerHit.emit({ damage: taken });
+                this.log.addMessage(
+                    this.loc.t('combatEnemyPrepareLeakOnDefend', {
+                        name: this.enemy.name,
+                        action,
+                        takenDamage: taken,
+                    }),
+                    '#d0a060'
+                );
+            } else {
+                this.log.addMessage(
+                    this.loc.t('combatEnemyPrepareDefend', {
+                        name: this.enemy.name,
+                        action,
+                    }),
+                    '#9bc8ff'
+                );
+            }
+            if (def.bleed || def.poison) {
+                this.log.addMessage(
+                    this.loc.t('combatEnemyPrepareRidersCancelled', {
+                        name: this.enemy.name,
+                        action,
+                    }),
+                    '#9bc8ff'
+                );
             }
             return;
         }

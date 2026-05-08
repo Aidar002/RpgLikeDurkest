@@ -26,13 +26,15 @@ export type EnemyProfile =
  * "Prepare" mechanic: enemy telegraphs an action for `turns` turns,
  * then resolves it on the matching player turn. If the player chose
  * Defend on the resolution turn, the special instead either does
- * `defenseBackDamage` (rebound) or just lets the raw damage through
- * with no rider effect, depending on `defenseRule`.
+ * `defenseBackDamage` (rebound), leaks a small fixed amount through
+ * the guard, or just lets the raw damage through with no rider
+ * effect, depending on `defenseRule`.
  *
  * Spec mapping:
  *  - bat:   1-turn windup -> 3 dmg, Defense -> bat takes 1 dmg back
- *  - ghoul: 2-turn windup -> 2 dmg + poison, Defense -> ghoul takes 1
- *           dmg back and the poison is cancelled
+ *  - ghoul: 2-turn windup -> 2 dmg + poison, Defense -> 1 dmg seeps
+ *           through the guard (poison is still cancelled). Decay
+ *           cannot be fully blocked.
  *  - lynx:  1-turn windup -> 3 dmg + bleed, Defense -> the damage
  *           still lands but the bleed is cancelled
  */
@@ -49,9 +51,14 @@ export interface EnemyPrepareDef {
     /** Poison rider added when not defended. */
     poison?: { damage: number; turns: number };
     /** What the player's Defend action does to this prepared hit. */
-    defenseRule: 'damageBack' | 'cancelRiders';
+    defenseRule: 'damageBack' | 'cancelRiders' | 'leakOnDefend';
     /** Damage the enemy takes when defenseRule === 'damageBack'. */
     defenseBackDamage?: number;
+    /**
+     * Damage the player takes (true damage, bypasses block / defense)
+     * when defenseRule === 'leakOnDefend'. Riders are still cancelled.
+     */
+    defenseLeakDamage?: number;
 }
 
 export interface EnemyDef {
@@ -83,10 +90,10 @@ export type EnemyPassive =
     | { kind: 'damageReduction'; chance: number; reduction: number };
 
 export const PLAYER_CONFIG = {
-    maxHp: 24,
-    hp: 24,
-    attack: 4,
-    defense: 1,
+    maxHp: 5,
+    hp: 5,
+    attack: 1,
+    defense: 0,
     level: 1,
     xp: 0,
     // [FIX-3] Start with 2 resolve so the player can use a starter skill on
@@ -523,8 +530,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                     turns: 2,
                     damage: 2,
                     poison: { damage: 1, turns: 3 },
-                    defenseRule: 'damageBack',
-                    defenseBackDamage: 1,
+                    // Decay cannot be fully blocked. Defense cancels the
+                    // poison, but 1 damage still seeps through the guard.
+                    defenseRule: 'leakOnDefend',
+                    defenseLeakDamage: 1,
                 },
             },
         ],

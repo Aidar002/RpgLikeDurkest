@@ -155,6 +155,8 @@ export class GameScene extends Phaser.Scene {
     private prestigeStat!: HudCellHandle;
     private escapeButtonBg!: Phaser.GameObjects.Rectangle;
     private escapeButtonLabel!: Phaser.GameObjects.Text;
+    private restartButtonBg!: Phaser.GameObjects.Rectangle;
+    private restartButtonLabel!: Phaser.GameObjects.Text;
     private hintText!: Phaser.GameObjects.Text;
     // mapDepthText was the small "ГЛУБИНА N" pill below the bottom bar —
     // removed because the dedicated ГЛУБИНА cell in the bottom HUD now
@@ -706,6 +708,40 @@ export class GameScene extends Phaser.Scene {
         });
         this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
 
+        // ── RESTART BUTTON ──────────────────────────────
+        // Out-of-combat shortcut: scrap the current run instantly and
+        // restart the scene from scratch. No prestige award, no end
+        // screen — just hands off to safeRestart(). Sits to the left of
+        // the escape button and shares its visibility rules.
+        const RESTART_BTN_W = 130;
+        const RESTART_BTN_H = 26;
+        const RESTART_BTN_X =
+            GAME_WIDTH - PAD - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
+        const RESTART_BTN_Y = ESCAPE_BTN_Y;
+        this.restartButtonBg = this.add
+            .rectangle(RESTART_BTN_X, RESTART_BTN_Y, RESTART_BTN_W, RESTART_BTN_H, HudColors.panelBg, 0.92)
+            .setStrokeStyle(1, HudColors.panelHi)
+            .setOrigin(0.5)
+            .setDepth(220)
+            .setInteractive({ useHandCursor: true });
+        this.restartButtonLabel = this.add
+            .text(RESTART_BTN_X, RESTART_BTN_Y - 1, this.loc.t('restartButton'), {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.textSecondary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5)
+            .setDepth(221);
+        this.restartButtonBg.on('pointerover', () => {
+            this.restartButtonBg.setStrokeStyle(2, HudColors.accentExp);
+        });
+        this.restartButtonBg.on('pointerout', () => {
+            this.restartButtonBg.setStrokeStyle(1, HudColors.panelHi);
+        });
+        this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
+
         const topWidgets: Phaser.GameObjects.GameObject[] = [
             topFrame,
             hpIcon,
@@ -744,6 +780,8 @@ export class GameScene extends Phaser.Scene {
             this.hintText,
             this.escapeButtonBg,
             this.escapeButtonLabel,
+            this.restartButtonBg,
+            this.restartButtonLabel,
         ];
 
         // Stone wall must sit below the room content. Inside a Container
@@ -883,11 +921,14 @@ export class GameScene extends Phaser.Scene {
 
         // Escape button is HUD-only and only meaningful out of combat.
         // Hide while an enemy is active, while a death sequence is
-        // running, or while we're already on an end screen.
+        // running, or while we're already on an end screen. The
+        // restart button shares the same visibility rules.
         const escapeVisible =
             !this.combat?.enemy && !this.dead && !this.deathSequenceStarted;
         this.escapeButtonBg.setVisible(escapeVisible);
         this.escapeButtonLabel.setVisible(escapeVisible);
+        this.restartButtonBg.setVisible(escapeVisible);
+        this.restartButtonLabel.setVisible(escapeVisible);
     }
 
     public updatePlayerStatusUI() {
@@ -1398,6 +1439,20 @@ export class GameScene extends Phaser.Scene {
         this.time.removeAllEvents();
         this.input.removeAllListeners();
         this.scene.restart();
+    }
+
+    /**
+     * HUD restart button. Bails on the current run instantly with no
+     * prestige award and no end screen — unlike Escape, this is a
+     * "give-up-and-try-again" shortcut. Guarded the same way as
+     * Escape (no-op during combat / death sequence) so the visibility
+     * logic in refreshUI() and this guard stay in sync.
+     */
+    private handleRestartClick() {
+        if (this.combat?.enemy || this.dead || this.deathSequenceStarted) {
+            return;
+        }
+        this.safeRestart();
     }
 
     /**

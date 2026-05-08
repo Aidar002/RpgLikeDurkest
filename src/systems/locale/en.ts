@@ -108,6 +108,7 @@ export const EN_STRINGS = {
     victoryNewRun: 'Descend Again',
     escapeButton: 'Escape',
     escapeButtonConfirm: 'Confirm escape',
+    restartButton: 'Restart',
     escapeScreenTitle: 'YOU ESCAPED',
     escapeScreenSummary: 'You climbed out from depth {depth} after defeating {bosses} keepers.\nWhat you carried back is yours; what you left below is gone.',
     restart: 'Start New Run',
@@ -214,6 +215,7 @@ export const EN_STRINGS = {
     combatEnemyPrepareDefend: 'You brace and turn aside {name}\'s {action}.',
     combatEnemyPrepareDamageBack: '{name} reels for {back} damage.',
     combatEnemyPrepareRidersCancelled: 'Your guard scrubs off the rider on {name}\'s {action}.',
+    combatEnemyPrepareLeakOnDefend: '{name}\'s {action} seeps through your guard for {takenDamage}.',
     combatEnemyPrepareBleed: '{name}\'s {action} carves a wound: bleed x{stacks} for {turns}t.',
     combatEnemyPreparePoison: '{name}\'s {action} festers: poison {damage} for {turns}t.',
     // Player-side bleed/poison ticks.
