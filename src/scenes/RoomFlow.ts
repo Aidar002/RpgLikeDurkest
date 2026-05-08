@@ -5,7 +5,7 @@ import type { MapNode } from '../systems/MapGenerator';
 import type { NpcEvalContext, PickedDialog } from '../systems/NpcManager';
 import type { NpcId, NpcOfferTemplate } from '../systems/Npcs';
 import { narrate } from '../systems/Narrator';
-import { defaultRng, randomInt } from '../systems/Rng';
+import { chance, defaultRng, pick, randomInt } from '../systems/Rng';
 import { compactText } from '../ui/TextHelpers';
 import type { GameScene, RoomButtonAction } from './GameScene';
 
@@ -56,7 +56,7 @@ export class RoomFlowController {
             }
 
             if (scene.player.hasLowLight && node.type !== RoomType.START) {
-                if (Math.random() < 0.3) {
+                if (chance(defaultRng, 0.3)) {
                     scene.log.addMessage(narrate('low_light', scene.loc.language), '#c4a35a');
                 }
             }
@@ -194,7 +194,7 @@ export class RoomFlowController {
         if (goldUnlocked) {
             goldGained = scene.player.gainGold(randomInt(defaultRng, ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
             if (goldGained > 0) scene.tracker.record('goldEarned', goldGained);
-            if (scene.player.isPotionUnlocked && Math.random() < ROOM_CONFIG.treasure.potionChance) {
+            if (scene.player.isPotionUnlocked && chance(defaultRng, ROOM_CONFIG.treasure.potionChance)) {
                 potionGained = scene.player.gainPotions(1);
             }
         }
@@ -241,7 +241,7 @@ export class RoomFlowController {
                 icon: 'v',
             },
         ];
-        const trap = trapVariants[Math.floor(Math.random() * trapVariants.length)];
+        const trap = pick(defaultRng, trapVariants);
 
         scene.showRoomCard(
             scene.loc.t('trap'),
@@ -273,7 +273,7 @@ export class RoomFlowController {
             {
                 label: scene.loc.t('actionDisarm'),
                 callback: () => {
-                    if (Math.random() < ROOM_CONFIG.trap.disarmChance) {
+                    if (chance(defaultRng, ROOM_CONFIG.trap.disarmChance)) {
                         const gold = scene.player.gainGold(
                             randomInt(defaultRng, ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
                         );
@@ -794,7 +794,7 @@ export class RoomFlowController {
 
     private showEmptyOptions(): void {
         const scene = this.scene;
-        if (Math.random() < 0.35) {
+        if (chance(defaultRng, 0.35)) {
             const npcId = scene.npcs.pickForRole('wanderer', scene.dungeon.currentDepth);
             if (npcId) {
                 this.presentNpcRoom(npcId, scene.loc.t('roomEnemyEncounterTitle'));
@@ -824,7 +824,7 @@ export class RoomFlowController {
                 icon: '\'',
             },
         ];
-        const event = subEvents[Math.floor(Math.random() * subEvents.length)];
+        const event = pick(defaultRng, subEvents);
 
         scene.showRoomCard(
             scene.loc.t('empty'),
@@ -848,7 +848,7 @@ export class RoomFlowController {
 
                     if (
                         scene.player.isGoldUnlocked &&
-                        Math.random() < ROOM_CONFIG.empty.scoutGoldChance
+                        chance(defaultRng, ROOM_CONFIG.empty.scoutGoldChance)
                     ) {
                         const gold = scene.player.gainGold(
                             randomInt(defaultRng, ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
