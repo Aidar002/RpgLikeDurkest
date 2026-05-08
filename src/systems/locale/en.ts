@@ -205,9 +205,9 @@ export const EN_STRINGS = {
     combatEnemyExtraDamage: '{name} lunges for an extra +{bonus} damage.',
     combatEnemyThorns: '{name} retaliates for {thorns} damage.',
     combatEnemyDamageReduction: '{name} shrugs off {amount} damage.',
-    // Item triggers (cracked_amulet, holey_chestplate).
-    combatRelicHealOnAttack: 'Cracked Amulet flares: +{healed} HP recovered.',
-    combatRelicBlockOnHit: 'Holey Chestplate soaks {amount} damage.',
+    // Item triggers — unified format "X effect triggered — Y".
+    combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
+    combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',
     // Mid-combat windups (bat / ghoul / lynx).
     combatEnemyPrepareWindup: '{name} winds up: {action}.',
     combatEnemyPrepareResolve: '{name} unleashes {action} for {takenDamage}.',
@@ -223,13 +223,13 @@ export const EN_STRINGS = {
     hudPrepareWindupLabel: '{action} ({turns}t)',
     hudPrepareReadyLabel: '{action} (NOW)',
     // Cursed gear procs (cursed_amulet miss, cursed_ring skill->basic).
-    combatRelicCursedMiss: 'The Cursed Amulet jerks your arm — the strike whiffs.',
-    combatRelicCursedSkillBasic: 'The Cursed Ring chokes the skill into a basic strike.',
+    combatRelicCursedMiss: 'Cursed Amulet effect triggered — the strike whiffs.',
+    combatRelicCursedSkillBasic: 'Cursed Ring effect triggered — skill became a basic strike.',
     // Minor Cursed set coin flip on attack.
-    combatRelicCursedDouble: 'Minor Cursed set surges — damage doubled to {damage}.',
-    combatRelicCursedSelfHit: 'Minor Cursed set lashes back — you take {damage}.',
+    combatRelicCursedDouble: 'Minor Cursed Set effect triggered — damage doubled to {damage}.',
+    combatRelicCursedSelfHit: 'Minor Cursed Set effect triggered — {damage} damage backfire.',
     // Sara's Vampire Blessing on-attack heal proc.
-    combatVampireBlessingHeal: 'Vampire Blessing drinks the wound — recover {healed} HP.',
+    combatVampireBlessingHeal: 'Vampire Blessing effect triggered — recovered {healed} HP.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */

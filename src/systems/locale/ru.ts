@@ -193,9 +193,9 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatEnemyExtraDamage: '{name} рвётся в атаку: +{bonus} урона.',
     combatEnemyThorns: '{name} жалит в ответ на {thorns} урона.',
     combatEnemyDamageReduction: '{name} стряхивает {amount} урона.',
-    // Срабатывания предметов (треснутый амулет, дырявый нагрудник).
-    combatRelicHealOnAttack: 'Треснутый амулет: восстановлено {healed} ОЗ.',
-    combatRelicBlockOnHit: 'Дырявый нагрудник поглощает {amount} урона.',
+    // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
+    combatRelicHealOnAttack: 'Сработал эффект предмета «Треснутый амулет» — восстановлено {healed} ОЗ.',
+    combatRelicBlockOnHit: 'Сработал эффект предмета «Дырявый нагрудник» — поглощено {amount} урона.',
     // Замах врагов (мышь / упырь / рысь).
     combatEnemyPrepareWindup: '{name} готовится: {action}.',
     combatEnemyPrepareResolve: '{name} применяет {action}: {takenDamage} урона.',
@@ -211,11 +211,11 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     hudPrepareWindupLabel: '{action} (через {turns}х)',
     hudPrepareReadyLabel: '{action} (СЕЙЧАС)',
     // Прокковые эффекты проклятого снаряжения.
-    combatRelicCursedMiss: 'Проклятый амулет дёрнул руку — удар идёт в пустоту.',
-    combatRelicCursedSkillBasic: 'Проклятое кольцо превращает способность в обычный удар.',
+    combatRelicCursedMiss: 'Сработал эффект предмета «Проклятый амулет» — удар уходит в пустоту.',
+    combatRelicCursedSkillBasic: 'Сработал эффект предмета «Проклятое кольцо» — способность стала обычным ударом.',
     // Подбрасывание монеты малого проклятого сета на атаку.
-    combatRelicCursedDouble: 'Малый проклятый сет: удар удвоен до {damage}.',
-    combatRelicCursedSelfHit: 'Малый проклятый сет бьёт в ответ: получаешь {damage}.',
+    combatRelicCursedDouble: 'Сработал эффект предмета «Малый проклятый сет» — урон удвоен до {damage}.',
+    combatRelicCursedSelfHit: 'Сработал эффект предмета «Малый проклятый сет» — отдача {damage} урона.',
     // Прок благословения вампиров от Сары на ударе игрока.
-    combatVampireBlessingHeal: 'Благословение вампиров пьёт рану: восстановлено {healed} ОЗ.',
+    combatVampireBlessingHeal: 'Сработал эффект предмета «Благословение вампиров» — восстановлено {healed} ОЗ.',
 };
