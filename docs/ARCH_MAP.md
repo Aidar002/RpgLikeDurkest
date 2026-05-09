@@ -24,7 +24,7 @@ through the whole tree.
 | --- | --- | --- | --- | --- |
 | `BootScene.ts` | Splash + asset preload, then hands off to `GameScene`. | — | `Localization`, `SoundManager`, `MusicManager` | The **shared** `Localization` / `SoundManager` / `MusicManager` instances passed to all later scenes. |
 | `GameScene.ts` | Coordinator. Wires every manager + controller, owns Phaser containers, top HUD, keyboard shortcuts, restart-confirm modal, escape modal, end-screen routing. | — (consumes everything) | All `systems/*`, `ui/*`, both controllers | Phaser containers (`mapContainer`, `roomContainer`, `uiContainer`), HUD widget refs, scene-local run state (`runSkillPointsPending`, `runBestDepth`, `runBossKills`, `escaped`, `dead`). |
-| `RoomFlow.ts` (`RoomFlowController`) | Per-room handlers (treasure / trap / rest / shrine / NPC / merchant / empty) + depth whispers. | — | `GameScene` (back-ref), `CombatManager`, `PlayerManager`, `NarrativeManager`, `Narrator`, `NpcManager`, `Localization` | Current room result text, room-button bindings while a room is open. |
+| `RoomFlow.ts` (`RoomFlowController`) | Per-room handlers (treasure / trap / rest / shrine / NPC / merchant / empty) + depth whispers. | — | `GameScene` (back-ref), `CombatManager`, `PlayerManager`, `Narrator`, `NpcManager`, `Localization` | Current room result text, room-button bindings while a room is open. |
 | `CombatHud.ts` (`CombatHudController`) | Combat UI (action buttons, intel panel, enemy portrait, hit flash, victory transition). | — (subscribes to `CombatManager`) | `GameScene`, `CombatManager`, `PlayerManager`, `Localization`, `VFX` | Combat-only UI widgets and their event subscriptions. |
 
 ## Systems (`src/systems/`)
@@ -34,16 +34,14 @@ through the whole tree.
 | `CombatManager.ts` | Turn combat: enemy intents, status effects, rewards, boss phase machine. | `enemyUpdate`, `playerStatusChange`, `enemyStatusChange`, `playerHit`, `combatEnd` | `PlayerManager`, `StatusEffects`, `Enemies`, `Bosses`, `EnemyTextConfig`, `Rng`, `Localization`, `Narrator` | Active enemy snapshot, boss phase state, skill cooldown table, prepare/windup state. |
 | `DungeonManager.ts` | Graph position, movement validation, graph mutation. | — | `MapGenerator` types | Current node + visited-node set. |
 | `Emitter.ts` | Tiny typed pub/sub primitive (`on / off / emit / clear`). | — | — | Listener list per `Emitter` instance. |
-| `Light.ts` | Light-economy helpers (decay interval per `runLength`, low/high thresholds). | — | — | Pure functions, no state. |
 | `Localization.ts` + `LocalizedText.ts` + `locale/en.ts` / `locale/ru.ts` | RU/EN string lookup; canonical typing comes from `en.ts` so missing RU keys break the build. | `change` (language flip) | `localStorage` | Active language flag. |
 | `MapGenerator.ts` | Procedural room graph: layer build, boss placement, seal coverage, weighted room rolls. | — | `Rng`, `MapConfig`, room-pool config | Owned graph (`MapNode[]`), seal counts, available-room set. |
 | `MapLayout.ts` | Serpentine map coordinates + edge routing. | — | `Layout` constants | Pure layout math. |
 | `MetaProgressionManager.ts` | Persistent skill-points bank + 4 upgrades + content-unlock state (`localStorage["rpglikedurkest-meta-v4"]`). | — | `localStorage`, `UPGRADE_DEFINITIONS` | Persisted profile (skill points, upgrade levels, unlocks). `bankSkillPoints(...)` is **escape-only**; `resetProgress()` is called on death. |
 | `MusicManager.ts` | Music playback + cross-fade. Shares the persistent mute flag with `SoundManager`. | — | `Phaser.Sound`, `localStorage` | Active track / queued track. |
-| `NarrativeManager.ts` | Authored room/run text + run memory (recurring lines). | — | `Localization`, `Rng` | Run-memory map. |
 | `Narrator.ts` | Short on-the-beat lines emitted from combat/exploration. | — | `Localization` | Per-key cooldown to avoid spam. |
 | `NpcManager.ts` + `Npcs.ts` | NPC altar offer rolling and post-pick state. | — | `Rng`, `Npcs` catalog | Active offer per NPC, "already picked" flags. |
-| `PlayerManager.ts` | Player stats (HP, atk, def, light, gold), level/XP, status, relics, skills. | `hpChange`, `statsChange`, `resourcesChange`, `levelUp`, `death`, `relicsChange` | `MetaProgressionManager.getBonuses().player`, `StatusEffects` | All mutable player state. **No revives** (removed PR #110). |
+| `PlayerManager.ts` | Player stats (HP, atk, def, gold), level/XP, status, relics, skills. | `hpChange`, `statsChange`, `resourcesChange`, `levelUp`, `death`, `relicsChange` | `MetaProgressionManager.getBonuses().player`, `StatusEffects` | All mutable player state. **No revives** (removed PR #110). |
 | `Relics.ts` | Catalog + `rollRelicFor(...)` / `rollRelicForEnemy(...)`. | — | `Rng` | Relic definitions. |
 | `Skills.ts` | Skill catalog + starter loadout. | — | — | Skill definitions. |
 | `Rng.ts` | `Rng` interface, seeded `Mulberry32`, `defaultRng = Math.random`, helpers (`randomInt`, `chance`, `pick`). | — | — | Per-instance seed state (Mulberry32 only). |
@@ -77,7 +75,7 @@ through the whole tree.
 
 | File | Role |
 | --- | --- |
-| `GameConfig.ts` | All numeric balance constants — `EXPEDITION_CONFIG`, `ROOM_CONFIG`, `XP_CONFIG.xpPerLevel`, per-enemy XP rewards, light economy. |
+| `GameConfig.ts` | All numeric balance constants — `EXPEDITION_CONFIG`, `ROOM_CONFIG`, `XP_CONFIG.xpPerLevel`, per-enemy XP rewards. |
 | `Enemies.ts` | Non-boss enemy definitions (HP, attack, intent profiles). |
 | `Bosses.ts` | Boss phase definitions, prepare/windup actions. |
 | `EnemyTextConfig.ts` | Enemy intent / attack labels keyed by enemy id. |
