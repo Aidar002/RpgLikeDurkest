@@ -75,12 +75,6 @@ export class PlayerManager {
         return this.stats.level * LEVEL_UP_CONFIG.xpPerLevel;
     }
 
-    // Kept for historical call sites; resources are always available now.
-    get isGoldUnlocked(): boolean { return true; }
-    get isPotionUnlocked(): boolean { return true; }
-    get isResolveUnlocked(): boolean { return true; }
-    get isRelicShardUnlocked(): boolean { return true; }
-
     get aggregate(): RelicAggregate {
         return this.relicAggregate;
     }
