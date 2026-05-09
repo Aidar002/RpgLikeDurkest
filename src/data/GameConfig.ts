@@ -379,7 +379,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
         pool: [
             {
                 name: 'Rat',
-                description: 'A quick critter that occasionally lunges harder.',
+                description: 'test_desc_rat',
                 icon: 'R',
                 hp: 5,
                 attack: 1,
@@ -391,7 +391,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
             },
             {
                 name: 'Slime',
-                description: 'A corrosive blob that stings when struck.',
+                description: 'test_desc_slime',
                 icon: 'S',
                 hp: 3,
                 attack: 2,
@@ -403,7 +403,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
             },
             {
                 name: 'Skeleton',
-                description: 'Bare bones that sometimes shrug off the blow.',
+                description: 'test_desc_skeleton',
                 icon: 'K',
                 hp: 6,
                 attack: 2,
@@ -415,7 +415,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
             },
             {
                 name: 'Bat',
-                description: 'A cave flyer that dives after a windup.',
+                description: 'test_desc_bat',
                 icon: 'B',
                 hp: 5,
                 attack: 1,
@@ -434,7 +434,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
             },
             {
                 name: 'Ghoul',
-                description: 'An undead horror that festers before it strikes.',
+                description: 'test_desc_ghoul',
                 icon: 'G',
                 hp: 10,
                 attack: 1,
@@ -461,7 +461,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
         pool: [
             {
                 name: 'Steel Lynx',
-                description: 'A vicious predator with bleeding claws.',
+                description: 'test_desc_steel_lynx',
                 icon: 'L',
                 hp: 10,
                 attack: 6,
@@ -480,7 +480,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
             },
             {
                 name: 'Skeleton Swordsman',
-                description: 'An armored skeleton with no tricks — just steel.',
+                description: 'test_desc_skeleton_swordsman',
                 icon: 'W',
                 hp: 15,
                 attack: 3,
@@ -509,7 +509,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
         depth: 25,
         def: {
             name: 'Death Knight',
-            description: 'An armored revenant that commands death itself.',
+            description: 'test_desc_death_knight',
             icon: '\u2620',
             hp: 45,
             attack: 8,

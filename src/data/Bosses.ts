@@ -87,11 +87,11 @@ const BOSS_BLUEPRINTS: BossBlueprint[] = [
                 actions: [
                     {
                         id: 'attack',
-                        intent: { en: 'Dark Slash', ru: 'Тёмный удар' },
+                        intent: { en: 'test_intent_dark_slash', ru: 'тест_намерение_тёмный_удар' },
                     },
                     {
                         id: 'death_shield',
-                        intent: { en: 'Death Shield', ru: 'Щит смерти' },
+                        intent: { en: 'test_intent_death_shield', ru: 'тест_намерение_щит_смерти' },
                         noAttack: true,
                         windupTurns: 1,
                         pendingBlock: 15,
@@ -99,11 +99,14 @@ const BOSS_BLUEPRINTS: BossBlueprint[] = [
                     },
                     {
                         id: 'attack',
-                        intent: { en: 'Dark Slash', ru: 'Тёмный удар' },
+                        intent: { en: 'test_intent_dark_slash', ru: 'тест_намерение_тёмный_удар' },
                     },
                     {
                         id: 'death_touch',
-                        intent: { en: 'Death Touch', ru: 'Касание смерти' },
+                        intent: {
+                            en: 'test_intent_death_touch',
+                            ru: 'тест_намерение_касание_смерти',
+                        },
                         noAttack: true,
                         windupTurns: 3,
                         oneShot: true,
