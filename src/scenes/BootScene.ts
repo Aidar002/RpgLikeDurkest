@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { Localization } from '../systems/Localization';
 import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
+import { parseDevSeedQuery } from '../systems/DevSeed';
 import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { createStoneBackdrop } from '../ui/StoneBackdrop';
 
@@ -115,6 +116,19 @@ export class BootScene extends Phaser.Scene {
         const loc = new Localization();
         const sfx = new SoundManager();
         const music = new MusicManager();
+
+        // Dev-only `?seed=...&inv=...&lang=...` cheat string. Picked up
+        // *before* the title-screen widgets render so the language
+        // override flows into `loc.t(...)` immediately. The seed and
+        // inventory bumps travel into `GameScene` via the start payload.
+        // Guarded by `import.meta.env.DEV` so production builds skip the
+        // parse + URL read entirely.
+        const devSeed = import.meta.env.DEV
+            ? parseDevSeedQuery(window.location.search)
+            : null;
+        if (devSeed?.lang) {
+            loc.language = devSeed.lang;
+        }
         const audioBase = `${import.meta.env.BASE_URL}audio`;
         music.setPlaylist([
             { url: `${audioBase}/dungeon_sound_2.mp3` },
@@ -211,7 +225,7 @@ export class BootScene extends Phaser.Scene {
             // playback starts even on browsers with strict autoplay policy.
             music.kick();
             this.cameras.main.fadeOut(400, 0, 0, 0);
-            this.time.delayedCall(400, () => this.scene.start('GameScene', { loc, sfx, music }));
+            this.time.delayedCall(400, () => this.scene.start('GameScene', { loc, sfx, music, devSeed }));
         });
 
         this.add.text(GAME_WIDTH - 20, GAME_HEIGHT - 20, 'v0.3', {

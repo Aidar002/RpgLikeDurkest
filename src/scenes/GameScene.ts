@@ -8,6 +8,8 @@ import {
     type ContentUnlockMilestone,
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
+import { Mulberry32 } from '../systems/Rng';
+import type { DevSeedConfig } from '../systems/DevSeed';
 import { RunTracker } from '../systems/RunTracker';
 import { SKILLS, STARTER_LOADOUT } from '../systems/Skills';
 import type { SkillId } from '../systems/Skills';
@@ -151,10 +153,13 @@ export class GameScene extends Phaser.Scene {
      * `scene.restart()`, so the same `loc` / `sfx` references survive a run
      * restart from the death screen.
      */
-    init(data?: { loc?: Localization; sfx?: SoundManager; music?: MusicManager }) {
+    private devSeed: DevSeedConfig | null = null;
+
+    init(data?: { loc?: Localization; sfx?: SoundManager; music?: MusicManager; devSeed?: DevSeedConfig | null }) {
         this.loc = data?.loc ?? new Localization();
         this.sfx = data?.sfx ?? new SoundManager();
         this.music = data?.music ?? new MusicManager();
+        this.devSeed = data?.devSeed ?? null;
     }
 
     public skillShort(id: SkillId): string {
@@ -188,7 +193,18 @@ export class GameScene extends Phaser.Scene {
         const pool: SkillId[] = [...STARTER_LOADOUT, ...extras.filter(s => !STARTER_LOADOUT.includes(s))];
         this.skillLoadout = pool.slice(0, 2);
 
-        this.mapGen = new MapGenerator(this.map.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
+        const rng = this.devSeed?.seed !== undefined
+            ? new Mulberry32(this.devSeed.seed)
+            : undefined;
+        this.mapGen = new MapGenerator(
+            this.map.getUnlockedRoomTypes(this.meta.getUnlockedContent()),
+            rng,
+        );
+
+        if (this.devSeed?.inv) {
+            if (this.devSeed.inv.gold) this.player.gainGold(this.devSeed.inv.gold);
+            if (this.devSeed.inv.potions) this.player.gainPotions(this.devSeed.inv.potions);
+        }
 
         this.dead = false;
         this.deathSequenceStarted = false;
