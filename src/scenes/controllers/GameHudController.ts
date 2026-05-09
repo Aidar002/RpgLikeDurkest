@@ -1,0 +1,803 @@
+import * as Phaser from 'phaser';
+
+import {
+    BOTTOM_BAR_H,
+    CENTER_X,
+    CENTER_Y,
+    Depths,
+    GAME_HEIGHT,
+    GAME_WIDTH,
+    HUD_BOTTOM_OFFSET,
+    HUD_PAD,
+    HudLayout,
+    TOP_BAR_H,
+} from '../../ui/Layout';
+import {
+    HUD_FONT,
+    HUD_STROKE,
+    HudColors,
+    HudHex,
+    drawBarFrame,
+    drawBarSegments,
+} from '../../ui/HudTheme';
+import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../../ui/HudFrame';
+import { createTorchlightOverlay } from '../../ui/Torchlight';
+import {
+    createHudCell,
+    createHudInlineSlot,
+    type HudCellHandle,
+    type HudInlineSlotHandle,
+} from '../../ui/HudCell';
+import { createHudIcon } from '../../ui/HudIcons';
+import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
+import { VFX } from '../../ui/VFX';
+import { statusSummary } from '../../systems/StatusEffects';
+import { relicSummary as relicSummaryImpl } from '../../systems/RelicDrops';
+import type { GameScene } from '../GameScene';
+
+/**
+ * Owns the global HUD: top bar (HP/XP, ATK/DEF, gold/potion/resolve),
+ * bottom bar (relic shards + depth/kills/bosses), below-bar text,
+ * top-right chrome (escape + restart buttons + restart-confirm modal),
+ * and the radial torchlight overlay.
+ *
+ * The controller holds every HUD widget reference and owns the
+ * subscriptions to `PlayerManager` events (hp/stats/resources/level/death).
+ * `GameScene` keeps a thin shim API (`refreshUI`, `relicSummary`,
+ * `updatePlayerStatusUI`, `updateEnemyStatusUI`) that forwards into the
+ * controller so existing call sites in `RoomFlow` / `CombatHud` keep
+ * compiling unchanged.
+ */
+export class GameHudController {
+    private readonly scene: GameScene;
+
+    // Bar dimensions cached so `refresh` can rescale fills without re-measuring.
+    private readonly hpBarWidth = 200;
+    private readonly hpBarHeight = 14;
+    private readonly xpBarWidth = 200;
+    private readonly xpBarHeight = 10;
+
+    /** Horizontal slide each direction during a room transition (px). */
+    public readonly torchlightSweepPx = 110;
+    public torchlight: Phaser.GameObjects.Image | null = null;
+    public torchlightHomeX = 0;
+    public torchlightHomeY = 0;
+
+    // Top vitals (HP bar + Level/XP bar).
+    private hpBar!: Phaser.GameObjects.Rectangle;
+    private hpValueText!: Phaser.GameObjects.Text;
+    private xpBar!: Phaser.GameObjects.Rectangle;
+    private xpBarBg!: Phaser.GameObjects.Rectangle;
+    private xpBarFrame!: Phaser.GameObjects.Graphics;
+    private levelText!: Phaser.GameObjects.Text;
+    private xpValueText!: Phaser.GameObjects.Text;
+
+    // Top combat stats and resources.
+    private atkStat!: HudInlineSlotHandle;
+    private defStat!: HudInlineSlotHandle;
+    private goldStat!: HudInlineSlotHandle;
+    private potionStat!: HudInlineSlotHandle;
+    private resolveStat!: HudInlineSlotHandle;
+
+    // Bottom-bar cells.
+    private shardStat!: HudCellHandle;
+    private depthStat!: HudCellHandle;
+    private killsStat!: HudCellHandle;
+    private bossStat!: HudCellHandle;
+
+    // Below-bar floating text + chrome buttons.
+    private hintText!: Phaser.GameObjects.Text;
+    private relicText!: Phaser.GameObjects.Text;
+    private playerStatusText!: Phaser.GameObjects.Text;
+    private enemyStatusText!: Phaser.GameObjects.Text;
+    private escapeButtonBg!: Phaser.GameObjects.Rectangle;
+    private escapeButtonLabel!: Phaser.GameObjects.Text;
+    private restartButtonBg!: Phaser.GameObjects.Rectangle;
+    private restartButtonLabel!: Phaser.GameObjects.Text;
+
+    /** Restart-confirm modal. Built once in `build()` and toggled
+     *  via `RestartConfirmModal.show` / `.hide()`. */
+    private restartConfirmModal!: RestartConfirmModal;
+
+    /** Two-step confirm timer for the HUD escape button. -1 == idle. */
+    private escapeConfirmAt = -1;
+
+    constructor(scene: GameScene) {
+        this.scene = scene;
+    }
+
+    /**
+     * Build every HUD widget and attach it to `scene.uiContainer` /
+     * `scene.roomContainer`. Should be called once in
+     * `GameScene.create()` *after* the containers are created and
+     * *before* the room UI is set up.
+     */
+    public build(): void {
+        const PAD = HUD_PAD;
+        const TOP_H = TOP_BAR_H;
+        const BOT_H = BOTTOM_BAR_H;
+        const BOT_Y = GAME_HEIGHT - BOT_H - HUD_BOTTOM_OFFSET;
+
+        const stoneWall = this.buildBackdrop(TOP_H, BOT_H);
+
+        // ── TOP BAR ─────────────────────────────────────────────
+        const topFrame = drawTopFrame(this.scene, GAME_WIDTH, TOP_H);
+        const vitals = this.buildTopVitals(PAD);
+        this.buildTopCombatStats(TOP_H);
+        this.buildTopResources();
+
+        // ── BOTTOM BAR ──────────────────────────────────────────
+        const bottom = this.buildBottomBar(BOT_Y, BOT_H);
+        this.buildBelowBarText(BOT_Y, PAD);
+
+        // ── CHROME BUTTONS + CONFIRM MODAL ──────────────────────
+        this.buildHudButtons(TOP_H, PAD);
+        this.buildRestartConfirmModal();
+
+        const topWidgets: Phaser.GameObjects.GameObject[] = [
+            topFrame,
+            vitals.hpIcon,
+            vitals.hpLabel,
+            // bar frame must sit beneath the track so its rim hugs the bar
+            vitals.hpBarFrame,
+            vitals.hpBarBg,
+            this.hpBar,
+            vitals.hpSegments,
+            this.hpValueText,
+            this.levelText,
+            this.xpBarFrame,
+            this.xpBarBg,
+            this.xpBar,
+            this.xpValueText,
+            this.atkStat.root,
+            this.defStat.root,
+            this.goldStat.root,
+            this.potionStat.root,
+            this.resolveStat.root,
+            this.playerStatusText,
+        ];
+
+        const bottomWidgets: Phaser.GameObjects.GameObject[] = [
+            bottom.botFrame,
+            this.shardStat.root,
+            bottom.pillarG,
+            this.depthStat.root,
+            this.killsStat.root,
+            this.bossStat.root,
+            this.relicText,
+            this.hintText,
+            this.escapeButtonBg,
+            this.escapeButtonLabel,
+            this.restartButtonBg,
+            this.restartButtonLabel,
+        ];
+
+        // Stone wall must sit below the room content. Inside a Container
+        // setDepth has no effect, so keep it scene-level and pin it under
+        // every Depths.* tier (Background = 0).
+        stoneWall.setDepth(Depths.Background - 1);
+        this.scene.uiContainer.add([...topWidgets, ...bottomWidgets]);
+
+        this.scene.roomContainer.add(this.enemyStatusText);
+    }
+
+    /**
+     * Subscribe to player events so the HUD stays in sync with hp/stat
+     * changes, level-ups grant pending skill points, and death triggers
+     * the meta-progression wipe + death-screen handoff. Called from
+     * `GameScene.create()` after `combat` is constructed (the
+     * resourcesChange handler needs a live `combat` reference).
+     */
+    public wire(): void {
+        const scene = this.scene;
+        scene.player.hpChange.on(() => this.refresh());
+        scene.player.statsChange.on(() => this.refresh());
+        scene.player.resourcesChange.on(() => {
+            this.refresh();
+            if (scene.combat.enemy) {
+                scene.combatHud.refreshButtons();
+            }
+        });
+        scene.player.levelUp.on(({ level }) => {
+            scene.tracker.trackMax('levelReached', level);
+            // Each level-up grants a single pending skill point. The
+            // bank only commits when the run ends in escape; on death
+            // `meta.resetProgress()` wipes everything anyway.
+            scene.runState.pendingSkillPoints += 1;
+            scene.log.addMessage(scene.loc.t('levelUp', { level }), '#fff17a');
+            scene.log.addMessage(scene.loc.t('levelUpSkillPoint'), '#a4d8ff');
+            VFX.floatText(scene, 370, 20, `${scene.loc.t('level')} ${level}`, '#fff17a');
+            scene.sfx.play('levelUp');
+            const flash = scene.add
+                .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xfff17a, 0.08)
+                .setDepth(Depths.ScreenFlash);
+            scene.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
+            this.refresh();
+        });
+        scene.player.death.on(() => {
+            if (scene.deathSequenceStarted) {
+                return;
+            }
+
+            scene.deathSequenceStarted = true;
+            scene.dead = true;
+            // Death wipes the entire profile — skill point bank AND
+            // every purchased upgrade go back to first-time-player
+            // defaults. Pending points are forgotten too since they
+            // were never banked.
+            scene.runState.pendingSkillPoints = 0;
+            scene.runState.skillPointsBanked = 0;
+            scene.runState.skillPointsBankedFlag = false;
+            scene.meta.resetProgress();
+            scene.sfx.play('death');
+            scene.sfx.stopAmbient();
+            scene.cameras.main.shake(650, 0.04);
+            scene.time.delayedCall(320, () => scene.showDeathScreenInternal());
+        });
+    }
+
+    /**
+     * Re-pull every HUD widget from the player/meta managers. Public
+     * because `GameScene.refreshUI()` forwards to it, and several
+     * scene methods (`afterMove`, `enterRoom`, end-screen handlers)
+     * also call it directly.
+     */
+    public refresh(): void {
+        const scene = this.scene;
+        const unlocks = scene.meta.getUiUnlockState();
+        const stats = scene.player.stats;
+        const resources = scene.player.resources;
+
+        // Vitals: HP bar fill colour shifts as HP drops; numeric overlay tracks
+        // exact values for the player.
+        const hpRatio = Phaser.Math.Clamp(stats.hp / stats.maxHp, 0, 1);
+        this.hpBar.setDisplaySize(this.hpBarWidth * hpRatio, this.hpBarHeight);
+        this.hpBar.setFillStyle(
+            hpRatio > 0.5
+                ? HudColors.bloodFill
+                : hpRatio > 0.25
+                  ? HudColors.bloodFillMid
+                  : HudColors.bloodFillLow
+        );
+        this.hpValueText.setText(`${stats.hp} / ${stats.maxHp}`);
+
+        // Progression: XP bar + featured level number + caption.
+        const xpRatio = Phaser.Math.Clamp(stats.xp / scene.player.xpToNextLevel, 0, 1);
+        this.xpBar.setDisplaySize(this.xpBarWidth * xpRatio, this.xpBarHeight);
+        this.levelText.setText(`${scene.loc.t('level')} ${stats.level}`);
+        this.xpValueText.setText(`${scene.loc.t('xp')} ${stats.xp}/${scene.player.xpToNextLevel}`);
+
+        // Combat stats: each stat has its own icon/value pair so colours can
+        // differentiate at a glance.
+        const showStats = unlocks.showPlayerStats;
+        this.atkStat.setValue(`${scene.player.getAttackPower()}`);
+        this.atkStat.setVisible(showStats);
+        this.defStat.setValue(`${scene.player.getEffectiveDefense()}`);
+        this.defStat.setVisible(showStats);
+
+        // Resources: per-stat slots, each with their own accent colour.
+        this.goldStat.setValue(`${resources.gold}`);
+        this.goldStat.setVisible(unlocks.showGold);
+        this.potionStat.setValue(`${resources.potions}`);
+        this.potionStat.setVisible(unlocks.showPotions);
+        this.resolveStat.setValue(`${resources.resolve}/${resources.maxResolve}`);
+        this.resolveStat.setVisible(unlocks.showResolve);
+        this.shardStat.setValue(`${resources.relicShards}`);
+        this.shardStat.setVisible(unlocks.showRelicShards);
+
+        // Run progress cells (depth / kills / bosses). The legacy
+        // PRESTIGE forecast cell was removed when the meta-progression
+        // economy switched to skill-points-from-level-ups.
+        const showProgress = unlocks.showRunMetrics || unlocks.showKillCounter;
+        this.depthStat.setValue(`${scene.runState.runBestDepth}`);
+        this.depthStat.setVisible(showProgress);
+        this.killsStat.setValue(`${scene.player.killCount}`);
+        this.killsStat.setVisible(showProgress && unlocks.showKillCounter);
+        this.bossStat.setValue(`${scene.runState.runBossKills}`);
+        this.bossStat.setVisible(showProgress && unlocks.showRunMetrics);
+
+        // The "next unlock" milestone hint ("Дальше: Достигни глубины N")
+        // is intentionally hidden from the in-game HUD per design — meta
+        // unlocks still apply silently in the background; the player just
+        // doesn't get a depth-goal nag in the play area.
+        this.hintText.setText('');
+
+        this.hpValueText.setVisible(unlocks.showHpNumbers);
+        this.xpBarFrame.setVisible(unlocks.showLevelPanel);
+        this.xpBarBg.setVisible(unlocks.showLevelPanel);
+        this.xpBar.setVisible(unlocks.showLevelPanel);
+        this.levelText.setVisible(unlocks.showLevelPanel);
+        this.xpValueText.setVisible(unlocks.showLevelPanel);
+        this.hintText.setVisible(false);
+
+        this.relicText.setText(this.relicSummary());
+        this.updatePlayerStatus();
+
+        // Escape and Restart buttons live on the map UI only. They
+        // disappear inside any room (combat, treasure, NPC, …) so the
+        // room's own action buttons (#1..#5) own the click area, and
+        // they also hide while a death sequence / end screen is up.
+        const hudButtonsVisible =
+            scene.mapContainer.visible && !scene.dead && !scene.deathSequenceStarted;
+        this.escapeButtonBg.setVisible(hudButtonsVisible);
+        this.escapeButtonLabel.setVisible(hudButtonsVisible);
+        this.restartButtonBg.setVisible(hudButtonsVisible);
+        this.restartButtonLabel.setVisible(hudButtonsVisible);
+    }
+
+    public updatePlayerStatus(): void {
+        const txt = statusSummary(this.scene.player.status, this.scene.loc.language);
+        this.playerStatusText.setText(txt);
+    }
+
+    public updateEnemyStatus(): void {
+        if (!this.scene.combat.enemy) {
+            this.enemyStatusText.setText('');
+            return;
+        }
+        const txt = statusSummary(this.scene.combat.enemy.status, this.scene.loc.language);
+        this.enemyStatusText.setText(txt);
+    }
+
+    public relicSummary(): string {
+        return relicSummaryImpl(this.scene.player, this.scene.loc);
+    }
+
+    /**
+     * Backdrop layer for the play area: optional carved-stone wall
+     * texture (drops out gracefully when the asset is missing) plus a
+     * radial torchlight overlay that keeps the centre of the wall
+     * readable and fades the edges to black so the dungeon feels lit
+     * by a single lamp.
+     */
+    private buildBackdrop(topH: number, botH: number): Phaser.GameObjects.Image {
+        const playAreaH = GAME_HEIGHT - topH - botH;
+        const stoneWall = drawStoneBackdrop(this.scene, topH, GAME_WIDTH, playAreaH);
+        // The torchlight texture is oversized by TORCH_MARGIN on every
+        // side so the overlay can slide during room transitions
+        // without exposing an un-dimmed strip of stone at the trailing
+        // edge.
+        const TORCH_MARGIN = 256;
+        const torchW = GAME_WIDTH + TORCH_MARGIN * 2;
+        const torchH = playAreaH + TORCH_MARGIN * 2;
+        const torchlight = createTorchlightOverlay(this.scene, torchW, torchH, {
+            innerRadius: 250,
+            outerRadius: 400,
+            centerAlpha: 0.45,
+            edgeAlpha: 0.94,
+        });
+        this.torchlightHomeX = GAME_WIDTH / 2;
+        this.torchlightHomeY = topH + playAreaH / 2;
+        torchlight
+            .setOrigin(0.5, 0.5)
+            .setPosition(this.torchlightHomeX, this.torchlightHomeY)
+            .setDepth(Depths.Background - 0.5);
+        this.torchlight = torchlight;
+        return stoneWall;
+    }
+
+    /**
+     * Top-bar vitals column (Group A + B): HP bar with segment
+     * markers and Level + XP stacked underneath. Returns the local
+     * widgets the orchestrator needs for `uiContainer.add` ordering;
+     * the bar fills (`hpBar`, `xpBar`, etc.) and the value labels
+     * stay on `this` so `refresh` can scale them.
+     */
+    private buildTopVitals(pad: number): {
+        hpIcon: Phaser.GameObjects.GameObject;
+        hpLabel: Phaser.GameObjects.Text;
+        hpBarFrame: Phaser.GameObjects.GameObject;
+        hpBarBg: Phaser.GameObjects.Rectangle;
+        hpSegments: Phaser.GameObjects.GameObject;
+    } {
+        // The 96px panel has a 52px interior (y=22..74 after the carved
+        // gold rim).
+        const VITALS_LABEL_X = pad + 22;
+        const VITALS_BAR_X = pad + 22 + 64 + 12;
+        const hpIcon = createHudIcon(this.scene, pad + 8, 36, 'heart', { pixelSize: 16 });
+        const hpLabel = this.scene.add.text(VITALS_LABEL_X, 29, this.scene.loc.t('hp').toUpperCase(), {
+            fontFamily: HUD_FONT,
+            fontSize: '11px',
+            color: HudHex.textSecondary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+        const hpBarX = VITALS_BAR_X;
+        const hpBarY = 36;
+        const hpBarFrame = drawBarFrame(this.scene, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight);
+        const hpBarBg = this.scene.add
+            .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodTrack)
+            .setOrigin(0, 0.5);
+        this.hpBar = this.scene.add
+            .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodFill)
+            .setOrigin(0, 0.5);
+        const hpSegments = drawBarSegments(this.scene, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, 5);
+        this.hpValueText = this.scene.add.text(hpBarX + this.hpBarWidth + 10, hpBarY - 9, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '14px',
+            color: HudHex.textPrimary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        });
+
+        // Group B — Level + XP, stacked directly under the HP bar so
+        // the vitals/progression block reads as a single column on the
+        // left third of the top bar. "УР N" sits at the bar's left
+        // edge and "ОП X/Y" mirrors the HP value text on the right of
+        // the bar — same x as `hpValueText` so both numeric overlays
+        // line up vertically.
+        this.levelText = this.scene.add.text(VITALS_LABEL_X, 64, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '13px',
+            fontStyle: 'bold',
+            color: HudHex.textPrimary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        }).setOrigin(0, 0.5);
+        this.xpValueText = this.scene.add.text(hpBarX + this.hpBarWidth + 10, 64, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.textSecondary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        }).setOrigin(0, 0.5);
+        const xpBarX = hpBarX;
+        const xpBarY = 64;
+        this.xpBarFrame = drawBarFrame(
+            this.scene,
+            xpBarX,
+            xpBarY,
+            this.xpBarWidth,
+            this.xpBarHeight,
+        );
+        this.xpBarBg = this.scene.add
+            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x14202c)
+            .setOrigin(0, 0.5);
+        // Fill at full width then scaled by ratio in refresh.
+        this.xpBar = this.scene.add
+            .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x6a8fc2)
+            .setOrigin(0, 0.5);
+        this.xpBar.setDisplaySize(0, this.xpBarHeight);
+
+        return { hpIcon, hpLabel, hpBarFrame, hpBarBg, hpSegments };
+    }
+
+    /**
+     * Top-bar combat stats (Group C): atk/def stacked column and the
+     * centred "player status" floating text just below the bar.
+     * valueOffsetX forces atk/def rows to share a numeric column so the
+     * values line up vertically even though "АТАКА" is shorter than
+     * "ЗАЩИТА".
+     */
+    private buildTopCombatStats(topH: number) {
+        const { topHud } = HudLayout;
+        this.atkStat = createHudInlineSlot(this.scene, topHud.statsX, topHud.atkY, {
+            icon: 'sword',
+            label: this.scene.loc.t('attackShort').toUpperCase(),
+            valueColor: HudHex.textPrimary,
+            valueFontSize: '17px',
+            valueOffsetX: topHud.statsValueOffset,
+        });
+        this.defStat = createHudInlineSlot(this.scene, topHud.statsX, topHud.defY, {
+            icon: 'shield',
+            label: this.scene.loc.t('defenseShort').toUpperCase(),
+            valueColor: HudHex.textPrimary,
+            valueFontSize: '17px',
+            valueOffsetX: topHud.statsValueOffset,
+        });
+
+        this.playerStatusText = this.scene.add.text(CENTER_X, topH + 14, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.accentResolve,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        }).setOrigin(0.5, 0);
+    }
+
+    /**
+     * Top-bar resources (Group D): gold / potion / resolve stacked as
+     * inline icon|label|value rows. They used to live in the bottom
+     * carved bar but were promoted to the top so the player can keep
+     * core resources in the same eye-line as HP/XP/АТАКА during
+     * combat. valueOffsetX keeps the numeric column aligned even
+     * though the labels are different lengths.
+     */
+    private buildTopResources() {
+        const { topHud } = HudLayout;
+        this.goldStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow1Y, {
+            icon: 'coin',
+            label: this.scene.loc.t('goldShort').toUpperCase(),
+            valueColor: HudHex.accentGold,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.resourceValueOffset,
+        });
+        this.potionStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow2Y, {
+            icon: 'potion',
+            label: this.scene.loc.t('potionShort').toUpperCase(),
+            valueColor: HudHex.accentPotion,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.resourceValueOffset,
+        });
+        this.resolveStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow3Y, {
+            icon: 'quill',
+            label: this.scene.loc.t('resolveShort').toUpperCase(),
+            valueColor: HudHex.accentResolve,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.resourceValueOffset,
+        });
+    }
+
+    /**
+     * Bottom carved bar: relic-shard cell (gated behind an unlock),
+     * divider pillar, 3 progress cells (depth / kills / bosses). The
+     * 3 resources moved to the top bar have left the left half of
+     * the bottom bar mostly empty in the early game; once the shard
+     * unlock fires the cell fills in.
+     *
+     * cellH grew 70 → 110 so the resource icons can render at ~2×
+     * their old pixel size (18 → 36) without crowding the
+     * label/value rows. Stat label / value font sizes are bumped a
+     * tier to keep visual hierarchy consistent with the chunkier
+     * icons.
+     */
+    private buildBottomBar(botY: number, botH: number): {
+        botFrame: Phaser.GameObjects.GameObject;
+        pillarG: Phaser.GameObjects.Graphics;
+    } {
+        const botFrame = drawBottomFrame(this.scene, botY, GAME_WIDTH, botH);
+
+        // Bottom-bar PNG carved corners eat ~32 px on each side; cells
+        // are sized so the row sits comfortably inside that safe area
+        // (left margin 36, right margin ~36 to the carved frame).
+        // Cells are vertically centred inside the bar so they don't
+        // crowd the top gold rim and leave a dead strip at the bottom.
+        const cellH = 110;
+        const cellTop = botY + Math.round((botH - cellH) / 2);
+        const resW = 112;
+        const resStart = 36;
+        const progW = 88;
+        const progStart = 624;
+        const STAT_ICON_SIZE = 36;
+        const STAT_LABEL_FONT = '12px';
+        const STAT_VALUE_FONT = '17px';
+
+        this.shardStat = createHudCell(this.scene, resStart + 0 * resW, cellTop, resW, cellH, {
+            icon: 'shard',
+            label: this.scene.loc.t('shardShort').toUpperCase(),
+            valueColor: HudHex.accentShard,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
+        });
+
+        // Pillar divider between the resource block and the progress block.
+        const pillarG = this.scene.add.graphics();
+        pillarG.fillStyle(HudColors.panelOuter, 0.95);
+        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, cellH - 12);
+        pillarG.fillStyle(HudColors.panelHi, 0.7);
+        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, 1);
+        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + cellH - 7, 4, 1);
+
+        this.depthStat = createHudCell(this.scene, progStart + 0 * progW, cellTop, progW, cellH, {
+            icon: 'depth',
+            label: this.scene.loc.t('depthShort').toUpperCase(),
+            valueColor: HudHex.accentDepth,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
+        });
+        this.killsStat = createHudCell(this.scene, progStart + 1 * progW, cellTop, progW, cellH, {
+            icon: 'kills',
+            label: this.scene.loc.t('killShort').toUpperCase(),
+            valueColor: HudHex.accentKills,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
+        });
+        this.bossStat = createHudCell(this.scene, progStart + 2 * progW, cellTop, progW, cellH, {
+            icon: 'boss',
+            label: this.scene.loc.t('bossShort').toUpperCase(),
+            valueColor: HudHex.accentBoss,
+            iconPixelSize: STAT_ICON_SIZE,
+            labelFontSize: STAT_LABEL_FONT,
+            valueFontSize: STAT_VALUE_FONT,
+        });
+
+        return { botFrame, pillarG };
+    }
+
+    /**
+     * Floating text rows that sit *above* the bottom bar (relic
+     * summary on the left, milestone hint centred) and the
+     * out-of-bar enemy status text used during combat. Anchored to
+     * `botY − small offset` so a future change to BOTTOM_BAR_H carries
+     * them along, and the carved bar interior is left entirely to
+     * the resource cells (so the milestone hint no longer sits on
+     * top of the bottom rim where it gets visually clipped).
+     *
+     * The two are stacked vertically — hint sits on the bottom line
+     * just above the bar (centred so it reads as a deliberate goal
+     * reminder), relic summary sits one line up on the left —
+     * because their horizontal extents (centred + 540 px word wrap)
+     * would otherwise collide whenever the player has both relics
+     * and an outstanding milestone simultaneously.
+     */
+    private buildBelowBarText(botY: number, pad: number) {
+        const HINT_LINE_Y = botY - 8;
+        const RELIC_LINE_Y = botY - 24;
+        this.relicText = this.scene.add.text(pad, RELIC_LINE_Y, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.accentGold,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+            wordWrap: { width: 540 },
+        }).setOrigin(0, 1);
+        this.hintText = this.scene.add.text(CENTER_X, HINT_LINE_Y, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '12px',
+            color: HudHex.textSecondary,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+            align: 'center',
+        }).setOrigin(0.5, 1);
+
+        this.enemyStatusText = this.scene.add.text(780, 356, '', {
+            fontFamily: HUD_FONT,
+            fontSize: '11px',
+            color: HudHex.accentBloodLow,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        }).setOrigin(0.5, 0);
+    }
+
+    /**
+     * Top-right HUD chrome: ESCAPE button (out-of-combat run-end with
+     * skill-point banking — first click arms, second click within
+     * ~3s confirms via `handleEscapeClick`) and RESTART button
+     * (instantly scraps the run via `handleRestartClick` →
+     * confirmation modal → meta-progression wipe). The two share
+     * visibility rules in `refresh`.
+     */
+    private buildHudButtons(topH: number, pad: number) {
+        const ESCAPE_BTN_W = 110;
+        const ESCAPE_BTN_H = 26;
+        const ESCAPE_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W / 2;
+        const ESCAPE_BTN_Y = topH + 18;
+        this.escapeButtonBg = this.scene.add
+            .rectangle(ESCAPE_BTN_X, ESCAPE_BTN_Y, ESCAPE_BTN_W, ESCAPE_BTN_H, HudColors.panelBg, 0.92)
+            .setStrokeStyle(1, HudColors.panelHi)
+            .setOrigin(0.5)
+            .setDepth(220)
+            .setInteractive({ useHandCursor: true });
+        this.escapeButtonLabel = this.scene.add
+            .text(ESCAPE_BTN_X, ESCAPE_BTN_Y - 1, this.scene.loc.t('escapeButton'), {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.textSecondary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5)
+            .setDepth(221);
+        this.escapeButtonBg.on('pointerover', () => {
+            this.escapeButtonBg.setStrokeStyle(2, HudColors.accentExp);
+        });
+        this.escapeButtonBg.on('pointerout', () => {
+            this.escapeButtonBg.setStrokeStyle(1, HudColors.panelHi);
+        });
+        this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
+
+        const RESTART_BTN_W = 130;
+        const RESTART_BTN_H = 26;
+        const RESTART_BTN_X =
+            GAME_WIDTH - pad - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
+        const RESTART_BTN_Y = ESCAPE_BTN_Y;
+        this.restartButtonBg = this.scene.add
+            .rectangle(RESTART_BTN_X, RESTART_BTN_Y, RESTART_BTN_W, RESTART_BTN_H, HudColors.panelBg, 0.92)
+            .setStrokeStyle(1, HudColors.panelHi)
+            .setOrigin(0.5)
+            .setDepth(220)
+            .setInteractive({ useHandCursor: true });
+        this.restartButtonLabel = this.scene.add
+            .text(RESTART_BTN_X, RESTART_BTN_Y - 1, this.scene.loc.t('restartButton'), {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.textSecondary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5)
+            .setDepth(221);
+        this.restartButtonBg.on('pointerover', () => {
+            this.restartButtonBg.setStrokeStyle(2, HudColors.accentExp);
+        });
+        this.restartButtonBg.on('pointerout', () => {
+            this.restartButtonBg.setStrokeStyle(1, HudColors.panelHi);
+        });
+        this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
+    }
+
+    /**
+     * Build the restart-confirm modal once and stash the handle on
+     * `restartConfirmModal` so it can be toggled from
+     * `handleRestartClick`. Mirrors the look of the death-screen
+     * reset modal but commits to a full meta-progression wipe +
+     * return to the boot scene rather than just restarting the
+     * current run.
+     */
+    private buildRestartConfirmModal() {
+        this.restartConfirmModal = new RestartConfirmModal(this.scene, {
+            loc: this.scene.loc,
+            onConfirm: () => this.confirmRestart(),
+        });
+    }
+
+    /**
+     * HUD restart button. Opens a confirmation modal — the player must
+     * accept before the run is wiped. Guarded the same way as Escape
+     * (no-op during combat / death sequence) so the visibility logic
+     * in `refresh` and this guard stay in sync.
+     */
+    private handleRestartClick() {
+        if (this.scene.combat?.enemy || this.scene.dead || this.scene.deathSequenceStarted) {
+            return;
+        }
+        this.restartConfirmModal.show();
+    }
+
+    /**
+     * Apply the restart confirmation: wipe meta progression to
+     * defaults and return to the boot/title scene so the next run
+     * starts from a fresh profile. Carries the existing
+     * locale/audio managers across so language and volume settings
+     * survive.
+     */
+    private confirmRestart() {
+        const scene = this.scene;
+        scene.meta.resetProgress();
+        scene.tweens.killAll();
+        scene.time.removeAllEvents();
+        scene.input.removeAllListeners();
+        scene.scene.start('BootScene', { loc: scene.loc, sfx: scene.sfx, music: scene.music });
+    }
+
+    /**
+     * HUD escape button. First click arms a confirm window; second
+     * click within `ESCAPE_CONFIRM_MS` commits the escape and hands
+     * off to the meta-progression end screen (which awards prestige
+     * and lets the player spend it before starting the next run).
+     * Pressing the button while combat is active or while the player
+     * is dead is a no-op — the visibility logic in `refresh` also
+     * hides it in those cases, this guard is belt-and-braces.
+     */
+    private handleEscapeClick() {
+        const scene = this.scene;
+        if (scene.combat?.enemy || scene.dead || scene.deathSequenceStarted) {
+            return;
+        }
+        const now = scene.time.now;
+        const ESCAPE_CONFIRM_MS = 3000;
+        if (this.escapeConfirmAt > 0 && now - this.escapeConfirmAt <= ESCAPE_CONFIRM_MS) {
+            // Confirmed — commit the escape.
+            this.escapeConfirmAt = -1;
+            scene.runState.escaped = true;
+            scene.dead = true;
+            scene.showDeathScreenInternal();
+            return;
+        }
+        // First click — arm the confirm window and update the label.
+        this.escapeConfirmAt = now;
+        this.escapeButtonLabel.setText(scene.loc.t('escapeButtonConfirm'));
+        this.escapeButtonLabel.setColor(HudHex.accentBloodLow);
+        scene.time.delayedCall(ESCAPE_CONFIRM_MS, () => {
+            // Window expired without a confirm — revert label.
+            if (this.escapeConfirmAt > 0 && scene.time.now - this.escapeConfirmAt >= ESCAPE_CONFIRM_MS) {
+                this.escapeConfirmAt = -1;
+                this.escapeButtonLabel.setText(scene.loc.t('escapeButton'));
+                this.escapeButtonLabel.setColor(HudHex.textSecondary);
+            }
+        });
+    }
+}
