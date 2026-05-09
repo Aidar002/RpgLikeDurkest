@@ -1,6 +1,6 @@
 import type * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
-import { RoomType, type MapNode, type RoomType as RoomTypeValue } from '../systems/MapGenerator';
+import { RoomType, type MapNode, type RoomType as RoomTypeValue } from '../data/MapTypes';
 
 // Pure visual lookups for map-node rendering. Extracted from GameScene so
 // they're trivially testable and reusable by other UI helpers.

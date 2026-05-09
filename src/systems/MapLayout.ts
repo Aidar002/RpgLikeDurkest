@@ -1,4 +1,4 @@
-import type { MapNode } from './MapGenerator';
+import type { MapNode } from '../data/MapTypes';
 
 export const MAP_LAYOUT = {
     colWidth: 142,

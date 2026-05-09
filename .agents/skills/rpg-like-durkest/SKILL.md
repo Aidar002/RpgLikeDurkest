@@ -75,7 +75,7 @@ src/
 ├── scenes/         Phaser scenes + per-room / per-combat controllers
 ├── systems/        Game-state managers (no Phaser at module top)
 ├── ui/             Pure rendering helpers + layout constants
-├── data/           Numeric balance + enemy / boss tables
+├── data/           Numeric balance + enemy / boss tables + pure type defs (e.g. `MapTypes.ts`)
 └── main.ts         Phaser game bootstrap (canvas, scene registry)
 
 tests/              Vitest pure-logic tests (no Phaser import)
@@ -174,6 +174,7 @@ All numeric / catalog tables. Edit here when balance changes.
 | File                 | What's inside                                                                                                                                                                                                                                                                                                                                                     |
 | -------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `GameConfig.ts`      | `PLAYER_CONFIG` (start HP/atk/def/level/resolve), `LEVEL_UP_CONFIG` (xp curve + per-level bumps), `EXPEDITION_CONFIG` (start gold/potions/resolve), `COMBAT_CONFIG`, `MAP_CONFIG` (final depth, weights, branching), `ROOM_CONFIG` (rewards, prices, trap damage, rest/shrine/merchant), `ENEMY_TIERS` (per-depth pools), `BOSSES`, `ALTAR_EFFECTS`, `XP_CONFIG`. |
+| `MapTypes.ts`        | Pure type definitions for the dungeon graph: `RoomType` (const-object enum), `BossKind`, `SealType`, `MapNode` interface. Imported by `MapGenerator`, `DungeonManager`, `MapLayout`, `MapView`, `RoomVisuals`, `RoomFlow`, `GameMapController`, and tests. `MapGenerator.ts` re-exports these for back-compat with old import paths.                              |
 | `Enemies.ts`         | Non-boss enemy intent profiles; `assertBossMapping()` validates `BOSSES` at module load.                                                                                                                                                                                                                                                                          |
 | `Bosses.ts`          | `BOSS_BLUEPRINT_BY_NAME` — phase script, `prepareActions`, `windupActions`.                                                                                                                                                                                                                                                                                       |
 | `EnemyTextConfig.ts` | Per-enemy `name` (RU display) + `description` keyed by canonical English name.                                                                                                                                                                                                                                                                                    |
@@ -350,19 +351,21 @@ Verify after every recipe: `npm run lint && npm test && npm run build`.
 
 ### 1. Add a new room type
 
-1. **Enum + pool** — `src/systems/MapGenerator.ts`
+1. **Enum** — `src/data/MapTypes.ts`
    - Append the new variant to the `RoomType` const-object **at the
-     end** (don't reorder; positional callers exist).
+     end** (don't reorder; positional callers exist). The matching
+     `RoomType` type alias is derived automatically.
+2. **Pool + weights** — `src/systems/MapGenerator.ts`
    - Add it to `BASE_ROOM_POOL` (and any depth-restricted pool) with
      a weight in `getWeight()`.
    - If unlock-gated, add an entry to
      `MetaProgressionManager.ALL_UNLOCK_IDS` and reference it in
      `getAllowedRoomTypes()`.
-2. **Visuals** — `src/ui/RoomVisuals.ts`
+3. **Visuals** — `src/ui/RoomVisuals.ts`
    - Add a `{ color, icon, sprite, name }` row keyed by the new
      `RoomType` value. The lookup is exhaustive — TypeScript will
      fail the build if you miss it.
-3. **Handler module** — `src/systems/rooms/YourRoom.ts`
+4. **Handler module** — `src/systems/rooms/YourRoom.ts`
    - Export a single `handleYourRoom(scene: GameScene): void` function
      mirroring the existing handlers in that folder (`Treasure.ts`,
      `Trap.ts`, `Rest.ts`, `Shrine.ts`, `Merchant.ts`, `Empty.ts`).
@@ -370,13 +373,13 @@ Verify after every recipe: `npm run lint && npm test && npm run build`.
      to render the UI; never instantiate Phaser objects directly here.
    - Use `defaultRng` (or accept an injected seeded `Rng`) for any
      randomness — never `Math.random()`.
-4. **Dispatch** — `src/scenes/RoomFlow.ts`
+5. **Dispatch** — `src/scenes/RoomFlow.ts`
    - Import the handler and add a `case RoomType.YOUR_ROOM:` branch
      in `enter()` that calls it. The `default: never` guard at the
      bottom of `enter()` will flag the gap if you forget.
-5. **Localization** — `src/systems/locale/en.ts` + `ru.ts`
+6. **Localization** — `src/systems/locale/en.ts` + `ru.ts`
    - At minimum `roomXxxName`, `roomXxxDesc`, `roomXxxHint`.
-6. **Test** — `tests/MapGenerator.test.ts` if depth/frequency
+7. **Test** — `tests/MapGenerator.test.ts` if depth/frequency
    matters; `tests/Smoke.run.test.ts` already exercises every
    handler in the dispatch table, so missing branches surface there.
 

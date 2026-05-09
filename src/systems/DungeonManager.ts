@@ -1,4 +1,4 @@
-import type { MapNode } from './MapGenerator';
+import type { MapNode } from '../data/MapTypes';
 import { MAP_CONFIG } from '../data/GameConfig';
 
 export class DungeonManager {

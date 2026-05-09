@@ -2,8 +2,7 @@ import type * as Phaser from 'phaser';
 
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../../ui/Layout';
 import { MapView } from '../../ui/MapView';
-import { RoomType } from '../../systems/MapGenerator';
-import type { MapNode, RoomType as RoomTypeValue } from '../../systems/MapGenerator';
+import { RoomType, type MapNode, type RoomType as RoomTypeValue } from '../../data/MapTypes';
 import type {
     ContentUnlockMilestone,
     ContentUnlockState,
