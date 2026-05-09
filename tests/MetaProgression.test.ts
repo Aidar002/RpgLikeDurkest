@@ -67,7 +67,8 @@ describe('sanitizeProfile', () => {
                 goldGain: 999,
             },
         });
-        expect(result.upgrades.damage).toBe(10);
+        // Canonical caps: damage 7, hp 8, defense 4, goldGain 4.
+        expect(result.upgrades.damage).toBe(7);
         expect(result.upgrades.hp).toBe(0);
         expect(result.upgrades.defense).toBe(4);
         expect(result.upgrades.goldGain).toBe(4);
@@ -101,9 +102,13 @@ describe('MetaProgressionManager.bankSkillPoints', () => {
 });
 
 describe('MetaProgressionManager.purchaseUpgrade', () => {
+    // Canonical cost curves — keep in sync with UPGRADE_DEFINITIONS in
+    // src/systems/MetaProgressionManager.ts. The parametric loop below
+    // walks every level and asserts the manager spends the bank in the
+    // exact cost order.
     const upgrades = [
-        { id: 'damage' as const, costs: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512], maxLevel: 10 },
-        { id: 'hp' as const, costs: [1, 2, 4, 5, 8, 9, 16, 17, 32, 33], maxLevel: 10 },
+        { id: 'damage' as const, costs: [1, 2, 4, 8, 16, 32, 64], maxLevel: 7 },
+        { id: 'hp' as const, costs: [1, 2, 4, 5, 8, 9, 16, 17], maxLevel: 8 },
         { id: 'defense' as const, costs: [5, 10, 20, 40], maxLevel: 4 },
         { id: 'goldGain' as const, costs: [5, 10, 20, 40], maxLevel: 4 },
     ];

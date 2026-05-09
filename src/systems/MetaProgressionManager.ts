@@ -214,12 +214,20 @@ const ALL_MILESTONES: ContentUnlockMilestone[] = [
     FIRST_BOSS_MILESTONE,
 ];
 
+// Canonical meta-upgrade table (per design doc):
+//   damage:   7 levels, costs 1/2/4/8/16/32/64       (geometric x2)
+//   hp:       8 levels, costs 1/2/4/5/8/9/16/17      (paired steps)
+//   defense:  4 levels, costs 5/10/20/40             (geometric x2)
+//   goldGain: 4 levels, costs 5/10/20/40, +5%/level
+// `sanitizeProfile` clamps any pre-existing save above maxLevel down
+// to the new ceiling, so older v4 profiles with damage=10 / hp=10
+// will simply land on the new caps next launch.
 const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
     {
         id: 'damage',
         title: lt('Урон', 'Damage'),
-        maxLevel: 10,
-        costs: [1, 2, 4, 8, 16, 32, 64, 128, 256, 512],
+        maxLevel: 7,
+        costs: [1, 2, 4, 8, 16, 32, 64],
         description: (nextLevel) => lt(
             `Каждый забег начинается с +${nextLevel} к атаке.`,
             `Start each run with +${nextLevel} attack.`
@@ -228,8 +236,8 @@ const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
     {
         id: 'hp',
         title: lt('ОЗ', 'Max HP'),
-        maxLevel: 10,
-        costs: [1, 2, 4, 5, 8, 9, 16, 17, 32, 33],
+        maxLevel: 8,
+        costs: [1, 2, 4, 5, 8, 9, 16, 17],
         description: (nextLevel) => lt(
             `Каждый забег начинается с +${nextLevel} к максимуму ОЗ.`,
             `Start each run with +${nextLevel} max HP.`
