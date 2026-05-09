@@ -206,7 +206,3 @@ export const NPCS: Record<NpcId, NpcProfile> = {
 };
 
 export const ALL_NPC_IDS: NpcId[] = ['sara', 'gogi'];
-
-export function npcRoleOf(id: NpcId): NpcRole {
-    return NPCS[id].role;
-}

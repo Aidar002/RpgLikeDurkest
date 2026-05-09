@@ -6,18 +6,9 @@
 //   weaken: enemy attack -X for N turns
 //   mark:   next incoming attack on this target is guaranteed critical
 //   guard:  flat damage block for the next N incoming hits
-//   focus:  +X attack for N turns (player)
 //   regen:  heals per turn for N turns (player)
 
-export type StatusId =
-    | 'bleed'
-    | 'poison'
-    | 'stun'
-    | 'weaken'
-    | 'mark'
-    | 'guard'
-    | 'focus'
-    | 'regen';
+export type StatusId = 'bleed' | 'poison' | 'stun' | 'weaken' | 'mark' | 'guard' | 'regen';
 
 export interface StatusState {
     bleed: { stacks: number; turns: number };
@@ -26,7 +17,6 @@ export interface StatusState {
     weaken: { turns: number; amount: number };
     mark: { turns: number };
     guard: { hits: number; amount: number };
-    focus: { turns: number; amount: number };
     regen: { turns: number; amount: number };
 }
 
@@ -40,7 +30,6 @@ export function emptyStatusState(): StatusState {
         weaken: { turns: 0, amount: 0 },
         mark: { turns: 0 },
         guard: { hits: 0, amount: 0 },
-        focus: { turns: 0, amount: 0 },
         regen: { turns: 0, amount: 0 },
     };
 }
@@ -83,11 +72,6 @@ export function applyMark(s: StatusState, turns: number) {
 export function applyGuard(s: StatusState, hits: number, amount: number) {
     s.guard.hits += hits;
     if (amount > s.guard.amount) s.guard.amount = amount;
-}
-
-export function applyFocus(s: StatusState, amount: number, turns: number) {
-    if (amount > s.focus.amount) s.focus.amount = amount;
-    s.focus.turns = Math.max(s.focus.turns, turns);
 }
 
 export function applyRegen(s: StatusState, amount: number, turns: number) {
@@ -158,14 +142,6 @@ export function tickTurn(s: StatusState): TickResult {
         if (s.mark.turns <= 0) expired.push('mark');
     }
 
-    if (s.focus.turns > 0) {
-        s.focus.turns -= 1;
-        if (s.focus.turns <= 0) {
-            s.focus.amount = 0;
-            expired.push('focus');
-        }
-    }
-
     if (s.regen.turns > 0) {
         regenHeal = s.regen.amount;
         s.regen.turns -= 1;
@@ -194,7 +170,6 @@ interface StatusLabels {
     weaken: (amount: number, turns: number) => string;
     mark: () => string;
     guard: (amount: number, hits: number) => string;
-    focus: (amount: number, turns: number) => string;
     regen: (amount: number, turns: number) => string;
 }
 
@@ -206,7 +181,6 @@ const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
         weaken: (amount, turns) => `Слаб. -${amount}/${turns}х`,
         mark: () => 'Метка',
         guard: (amount, hits) => `Защита ${amount}x${hits}`,
-        focus: (amount, turns) => `Фокус +${amount}/${turns}х`,
         regen: (amount, turns) => `Реген. +${amount}/${turns}х`,
     },
     en: {
@@ -216,7 +190,6 @@ const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
         weaken: (amount, turns) => `Weaken -${amount}/${turns}t`,
         mark: () => 'Marked',
         guard: (amount, hits) => `Guard ${amount}x${hits}`,
-        focus: (amount, turns) => `Focus +${amount}/${turns}t`,
         regen: (amount, turns) => `Regen +${amount}/${turns}t`,
     },
 };
@@ -230,7 +203,6 @@ export function statusSummary(s: StatusState, language: StatusLanguage = 'en'): 
     if (s.weaken.turns > 0) parts.push(labels.weaken(s.weaken.amount, s.weaken.turns));
     if (s.mark.turns > 0) parts.push(labels.mark());
     if (s.guard.hits > 0) parts.push(labels.guard(s.guard.amount, s.guard.hits));
-    if (s.focus.turns > 0) parts.push(labels.focus(s.focus.amount, s.focus.turns));
     if (s.regen.turns > 0) parts.push(labels.regen(s.regen.amount, s.regen.turns));
     return parts.join(' | ');
 }
