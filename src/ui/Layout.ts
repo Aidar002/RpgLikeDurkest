@@ -37,9 +37,13 @@ export const HudLayout = {
         /** X offset (from `statsX`) of the second column. */
         secondColumnDx: 130,
         /** X anchor for the ЗОЛОТО / ЭЛИК. / ВОЛЯ resource column.
-         *  Lives in the right third of the top bar, between the
-         *  combat stat block and the chrome icon row. */
-        resourcesX: 700,
+         *  Sits ~20 px to the right of the ATK/DEF value column so
+         *  the two stat blocks read as one unit. The ATK/DEF value
+         *  text starts at `statsX + statsValueOffset = 504` and
+         *  takes up ~30 px even for a 3-digit value, so 540 keeps a
+         *  visible 20 px gap in the typical 1- or 2-digit case
+         *  without crowding the high-roll edge. */
+        resourcesX: 540,
         /** Y of the topmost resource row (ЗОЛОТО). */
         resourceRow1Y: 14,
         /** Y of the middle resource row (ЭЛИК.). */
