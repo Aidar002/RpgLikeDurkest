@@ -21,7 +21,6 @@ import {
     intentLabelForPhase,
     intentLabelForPrepare,
     maybeAdvancePhase,
-    prepareName,
     tickBossBlockAtTurnEnd,
 } from './BossRuntime';
 import { Emitter } from './Emitter';
@@ -32,14 +31,17 @@ import { SKILLS } from './Skills';
 import type { SkillId } from './Skills';
 import {
     applyBleed,
-    applyPoison,
     consumeGuardBlock,
     consumeMark,
-    consumeStunForTurn,
     emptyStatusState,
     statusSummary,
     tickTurn,
 } from './StatusEffects';
+import {
+    resolveEnemyTurn as resolveEnemyTurnFn,
+    type EnemyTurnDeps,
+    type PlayerAction,
+} from './EnemyTurn';
 import type { StatusState } from './StatusEffects';
 import { defaultRng, randomInt, type Rng } from './Rng';
 
@@ -734,118 +736,27 @@ export class CombatManager {
         return focus;
     }
 
-    private resolveEnemyTurn(playerAction: 'attack' | 'defend' | 'skill' | 'potion') {
+    private resolveEnemyTurn(playerAction: PlayerAction) {
         if (!this.enemy) return;
+        resolveEnemyTurnFn(this.enemy, this.buildEnemyTurnDeps(), playerAction);
+    }
 
-        // Stun check.
-        if (consumeStunForTurn(this.enemy.status)) {
-            this.log.addMessage(
-                this.loc.t('combatEnemyStunned', { name: this.enemy.name }),
-                '#7aaaff'
-            );
-            // [FIX-10] Recompute next intent so the UI reflects what the
-            // boss will do AFTER recovering from stun.
-            if (this.enemy.bossPhase) {
-                this.enemy.currentIntent = intentLabelForPhase(this.enemy.bossPhase, this.loc);
-            }
-            this.enemyStatusChange.emit();
-            return;
-        }
-
-        // First-hit evasion from Shade Mask.
-        if (this.enemy.firstHitEvaded) {
-            this.enemy.firstHitEvaded = false;
-            this.lastActionResult.enemyEvaded = true;
-            this.log.addMessage(
-                    this.loc.t('combatEnemyEvadeFirst', { name: this.enemy.name }),
-                '#9fb4c4'
-            );
-            return;
-        }
-
-        // [FIX-10] Boss enemies with a phase blueprint use the phase
-        // runner instead of the profile-based fallback. This is also the
-        // hook for the final-boss FIX-1 phase logic.
-        if (this.enemy.bossPhase) {
-            this.runBossTurn(playerAction);
-            return;
-        }
-
-        // Mid-combat windups (bat / ghoul / lynx). The enemy spends
-        // `def.turns` turns telegraphing, then resolves on the matching
-        // turn. The enemy does NOT also throw a basic attack on those
-        // turns — the wind-up replaces the regular hit.
-        if (this.enemy.pendingPrepare) {
-            const pp = this.enemy.pendingPrepare;
-            if (pp.turnsRemaining > 0) {
-                pp.turnsRemaining -= 1;
-                this.log.addMessage(
-                    this.loc.t('combatEnemyPrepareWindup', {
-                        name: this.enemy.name,
-                        action: prepareName(pp.def, this.loc),
-                    }),
-                    '#c4a35a'
-                );
-                this.enemy.currentIntent = intentLabelForPrepare(pp, this.loc);
-                this.playerStatusChange.emit();
-                this.enemyStatusChange.emit();
-                return;
-            }
-            this.resolvePrepare(playerAction, pp.def);
-            // Re-arm for the next windup cycle (enemies repeat their
-            // prepare every `turns + 1` turns).
-            pp.turnsRemaining = pp.def.turns;
-            this.enemy.currentIntent = intentLabelForPrepare(pp, this.loc);
-            this.playerStatusChange.emit();
-            this.enemyStatusChange.emit();
-            return;
-        }
-
-        const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
-
-        const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
-        let attackPower = this.enemy.attack - weakenReduction;
-        if (attackPower < 1) attackPower = 1;
-        // Rat-style passive: chance for the basic attack to land for +N.
-        if (
-            this.enemy.passive?.kind === 'extraDamageOnHit' &&
-            this.rng.next() < this.enemy.passive.chance
-        ) {
-            attackPower += this.enemy.passive.bonus;
-            this.log.addMessage(
-                this.loc.t('combatEnemyExtraDamage', {
-                    name: this.enemy.name,
-                    bonus: this.enemy.passive.bonus,
-                }),
-                '#d09a4f'
-            );
-        }
-        // Profile is purely a sprite/visual category — no profile-driven
-        // mechanics. Per-mob behaviour comes from `passive` (handled
-        // above) and `prepare` blocks (resolved on the dedicated
-        // resolvePrepare path).
-        const extraMessage = '';
-
-        const takenDamage = this.applyEnemyHitToPlayer(attackPower, flatBlock);
-        if (takenDamage > 0) {
-            this.log.addMessage(
-                this.loc.t('combatEnemyHit', { name: this.enemy.name, takenDamage, extraMessage }),
-                '#ff6666'
-            );
-        } else {
-            this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
-        }
-
-        if (this.player.stats.hp <= 0) {
-            this.logDeath();
-            return;
-        }
-
-        if (this.player.stats.hp > 0 && this.player.stats.hp <= Math.ceil(this.player.stats.maxHp * 0.25)) {
-            if (this.rng.next() < 0.25) this.log.addMessage(narrate('low_hp', this.loc.language), '#c4a35a');
-        }
-
-        this.playerStatusChange.emit();
+    private buildEnemyTurnDeps(): EnemyTurnDeps {
+        return {
+            player: this.player,
+            log: this.log,
+            loc: this.loc,
+            rng: this.rng,
+            lastActionResult: this.lastActionResult,
+            emitPlayerHit: (damage) => this.playerHit.emit({ damage }),
+            emitEnemyUpdate: (payload) => this.enemyUpdate.emit(payload),
+            emitPlayerStatus: () => this.playerStatusChange.emit(),
+            emitEnemyStatus: () => this.enemyStatusChange.emit(),
+            logDeath: () => this.logDeath(),
+            applyEnemyHitToPlayer: (rawAttack, flatBlock) =>
+                this.applyEnemyHitToPlayer(rawAttack, flatBlock),
+            runBossTurn: (action) => this.runBossTurn(action),
+        };
     }
 
     private applyEnemyHitToPlayer(rawAttack: number, flatBlock: number): number {
@@ -944,153 +855,6 @@ export class CombatManager {
     // maybeAdvancePhase / tickBossBlockAtTurnEnd /
     // breakBossBlockOnSkillDamage) live in ./BossRuntime.ts.
     // -----------------------------------------------------------------
-
-    /**
-     * Resolve a prepared enemy action. Damage and rider effects depend
-     * on whether the player chose Defend on this turn:
-     *  - `damageBack`: Defend cancels the hit and the enemy takes
-     *    {@link EnemyPrepareDef.defenseBackDamage} damage instead. No
-     *    riders are applied.
-     *  - `leakOnDefend`: Defend mitigates most of the damage but lets
-     *    {@link EnemyPrepareDef.defenseLeakDamage} bleed through as
-     *    true damage. Riders (bleed/poison) are still cancelled.
-     *  - `cancelRiders`: Defend lets the raw damage land (with the
-     *    normal flat block) but skips the bleed/poison rider.
-     * If the player did not Defend, the full damage + rider lands.
-     */
-    private resolvePrepare(
-        playerAction: 'attack' | 'defend' | 'skill' | 'potion',
-        def: EnemyPrepareDef
-    ) {
-        if (!this.enemy) return;
-        const defended = playerAction === 'defend';
-        const action = prepareName(def, this.loc);
-
-        if (defended && def.defenseRule === 'damageBack') {
-            const back = def.defenseBackDamage ?? 0;
-            this.log.addMessage(
-                this.loc.t('combatEnemyPrepareDefend', {
-                    name: this.enemy.name,
-                    action,
-                }),
-                '#9bc8ff'
-            );
-            if (back > 0) {
-                this.enemy.hp = Math.max(0, this.enemy.hp - back);
-                this.log.addMessage(
-                    this.loc.t('combatEnemyPrepareDamageBack', {
-                        name: this.enemy.name,
-                        back,
-                    }),
-                    '#9bc8ff'
-                );
-                this.enemyUpdate.emit({
-                    hp: this.enemy.hp,
-                    maxHp: this.enemy.maxHp,
-                    color: this.enemy.color,
-                    name: this.enemy.name,
-                    icon: this.enemy.icon,
-                });
-            }
-            return;
-        }
-
-        if (defended && def.defenseRule === 'leakOnDefend') {
-            const leak = def.defenseLeakDamage ?? 0;
-            const taken = leak > 0 ? this.player.takeDamage(leak, 0, 'true') : 0;
-            if (taken > 0) {
-                this.playerHit.emit({ damage: taken });
-                this.log.addMessage(
-                    this.loc.t('combatEnemyPrepareLeakOnDefend', {
-                        name: this.enemy.name,
-                        action,
-                        takenDamage: taken,
-                    }),
-                    '#d0a060'
-                );
-            } else {
-                this.log.addMessage(
-                    this.loc.t('combatEnemyPrepareDefend', {
-                        name: this.enemy.name,
-                        action,
-                    }),
-                    '#9bc8ff'
-                );
-            }
-            if (def.bleed || def.poison) {
-                this.log.addMessage(
-                    this.loc.t('combatEnemyPrepareRidersCancelled', {
-                        name: this.enemy.name,
-                        action,
-                    }),
-                    '#9bc8ff'
-                );
-            }
-            return;
-        }
-
-        // Either no Defend, or 'cancelRiders' rule. The hit lands
-        // (Defend's flat block applies for cancelRiders).
-        const flatBlock = defended ? COMBAT_CONFIG.defendBlock : 0;
-        const taken = this.applyEnemyHitToPlayer(def.damage, flatBlock);
-        if (taken > 0) {
-            this.log.addMessage(
-                this.loc.t('combatEnemyPrepareResolve', {
-                    name: this.enemy.name,
-                    action,
-                    takenDamage: taken,
-                }),
-                '#ff6666'
-            );
-        } else {
-            this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
-        }
-
-        if (defended) {
-            // cancelRiders: damage went through, but bleed/poison don't.
-            if (def.bleed || def.poison) {
-                this.log.addMessage(
-                    this.loc.t('combatEnemyPrepareRidersCancelled', {
-                        name: this.enemy.name,
-                        action,
-                    }),
-                    '#9bc8ff'
-                );
-            }
-            return;
-        }
-
-        // No Defend: apply rider effects.
-        if (def.bleed) {
-            applyBleed(
-                this.player.status,
-                def.bleed.stacks,
-                def.bleed.turns,
-                this.enemy.bleedCap
-            );
-            this.log.addMessage(
-                this.loc.t('combatEnemyPrepareBleed', {
-                    name: this.enemy.name,
-                    action,
-                    stacks: def.bleed.stacks,
-                    turns: def.bleed.turns,
-                }),
-                '#d06060'
-            );
-        }
-        if (def.poison) {
-            applyPoison(this.player.status, def.poison.damage, def.poison.turns);
-            this.log.addMessage(
-                this.loc.t('combatEnemyPreparePoison', {
-                    name: this.enemy.name,
-                    action,
-                    damage: def.poison.damage,
-                    turns: def.poison.turns,
-                }),
-                '#7fbf6a'
-            );
-        }
-    }
 
     private runBossTurn(playerAction: 'attack' | 'defend' | 'skill' | 'potion') {
         if (!this.enemy || !this.enemy.bossPhase) return;
