@@ -30,7 +30,7 @@ import type { SoundManager } from './SoundManager';
 /** Reward kinds that can drop a relic. */
 export type RelicDropKind = 'normal' | 'elite' | 'boss' | 'treasure' | 'shrine';
 
-export interface RelicDropContext {
+interface RelicDropContext {
     meta: MetaProgressionManager;
     player: PlayerManager;
     tracker: RunTracker;

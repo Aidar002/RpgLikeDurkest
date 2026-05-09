@@ -8,7 +8,7 @@ import { lt } from './LocalizedText';
 
 export type SkillId = 'cleave' | 'bleed_strike' | 'preparation';
 
-export interface SkillDef {
+interface SkillDef {
     id: SkillId;
     name: LocalizedText;
     short: LocalizedText; // shown on button: max ~14 chars

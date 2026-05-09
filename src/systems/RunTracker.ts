@@ -1,6 +1,6 @@
 import type { Language } from './Localization';
 
-export interface RunStats {
+interface RunStats {
     roomsVisited: number;
     enemiesKilled: number;
     elitesKilled: number;

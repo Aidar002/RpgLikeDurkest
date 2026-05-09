@@ -403,7 +403,7 @@ export function pickRegularNodeToPromoteToMini(
     return bestNode;
 }
 
-export function computePerPathStat(
+function computePerPathStat(
     allNodes: readonly MapNode[],
     byId: Map<string, MapNode>,
     start: MapNode,

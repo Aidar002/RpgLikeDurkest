@@ -44,7 +44,7 @@ export type CombatAction =
     | 'potion'
     | { kind: 'skill'; id: SkillId };
 
-export type EncounterKind = 'normal' | 'elite' | 'boss';
+type EncounterKind = 'normal' | 'elite' | 'boss';
 
 /**
  * [FIX-10] Per-combat boss phase tracking. Built from a BossBlueprint
@@ -116,7 +116,7 @@ export interface ActiveEnemy {
     bleedCap?: number;
 }
 
-export interface CombatRewards {
+interface CombatRewards {
     xp: number;
     gold: number;
     potions: number;

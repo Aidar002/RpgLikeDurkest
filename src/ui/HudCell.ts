@@ -16,7 +16,7 @@ import { hasTexture } from './AssetGuard';
 import { createHudIcon, type IconKey } from './HudIcons';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 
-export interface HudCellOptions {
+interface HudCellOptions {
     /** Pixel art icon shown above the label. */
     icon?: IconKey;
     /** ALL-CAPS label rendered below the icon. */
@@ -173,7 +173,7 @@ export interface HudInlineSlotHandle {
     setVisible(visible: boolean): void;
 }
 
-export interface HudInlineSlotOptions {
+interface HudInlineSlotOptions {
     icon?: IconKey;
     iconSize?: number;
     /**

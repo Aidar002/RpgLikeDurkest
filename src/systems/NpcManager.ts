@@ -12,7 +12,7 @@ import type {
 // State the player accumulates *across* runs about each NPC. This is the
 // reason NPCs feel like characters: they remember, and the player remembers
 // they remember. Persistence is handled by MetaProgressionManager.
-export interface NpcMemory {
+interface NpcMemory {
     metCount: number;
     affinity: number; // -5..+5; positive = warmth, negative = wary
     lastDepthMet: number; // most recent depth they were encountered at

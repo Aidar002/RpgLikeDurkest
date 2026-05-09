@@ -133,7 +133,7 @@ export function resolveEnemyTurn(
 /**
  * Resolve a prepared enemy attack (bat Bite, ghoul Decay, lynx Claws).
  */
-export function resolvePrepare(
+function resolvePrepare(
     enemy: ActiveEnemy,
     deps: EnemyTurnDeps,
     playerAction: PlayerAction,

@@ -9,15 +9,7 @@
 //   focus:  +X attack for N turns (player)
 //   regen:  heals per turn for N turns (player)
 
-export type StatusId =
-    | 'bleed'
-    | 'poison'
-    | 'stun'
-    | 'weaken'
-    | 'mark'
-    | 'guard'
-    | 'focus'
-    | 'regen';
+type StatusId = 'bleed' | 'poison' | 'stun' | 'weaken' | 'mark' | 'guard' | 'focus' | 'regen';
 
 export interface StatusState {
     bleed: { stacks: number; turns: number };
@@ -114,7 +106,7 @@ export function consumeMark(s: StatusState): boolean {
 }
 
 /** Returns bonus damage at end of a turn (bleed/poison) and ticks statuses. */
-export interface TickResult {
+interface TickResult {
     bleedDamage: number;
     poisonDamage: number;
     expired: StatusId[];

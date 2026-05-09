@@ -27,7 +27,7 @@ import { HUD_FONT, HUD_STROKE, HudHex } from './HudTheme';
  * the closest visual match in the current sheet so existing call sites
  * continue to work.
  */
-export const IconFrame = {
+const IconFrame = {
     heart: 0,
     star: 2,
     xpArrow: 3,

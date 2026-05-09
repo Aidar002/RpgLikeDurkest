@@ -31,7 +31,7 @@ const CROSSFADE_S = 1.6;
 /** Fade-in time for the very first track (seconds). */
 const INITIAL_FADE_S = 1.5;
 
-export interface MusicTrack {
+interface MusicTrack {
     /** Resolved URL to play (already prefixed with the Vite base path). */
     url: string;
 }

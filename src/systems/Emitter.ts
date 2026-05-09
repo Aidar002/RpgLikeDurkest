@@ -6,7 +6,7 @@
 // listener throws, the next ones still fire (we swallow + console.error so
 // one bad subscriber doesn't break unrelated UI).
 
-export type Listener<T> = (value: T) => void;
+type Listener<T> = (value: T) => void;
 
 export class Emitter<T = void> {
     private listeners: Set<Listener<T>> = new Set();

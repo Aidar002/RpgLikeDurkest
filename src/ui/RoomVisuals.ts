@@ -1,26 +1,9 @@
 import type * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
-import { RoomType, type MapNode, type RoomType as RoomTypeValue } from '../data/MapTypes';
+import { RoomType, type RoomType as RoomTypeValue } from '../data/MapTypes';
 
 // Pure visual lookups for map-node rendering. Extracted from GameScene so
 // they're trivially testable and reusable by other UI helpers.
-
-const ROOM_COLOR: Record<RoomTypeValue, number> = {
-    [RoomType.START]: 0x777777,
-    [RoomType.ENEMY]: 0x903535,
-    [RoomType.TREASURE]: 0x9b7a22,
-    [RoomType.TRAP]: 0x7f4b96,
-    [RoomType.REST]: 0x2f8f52,
-    [RoomType.SHRINE]: 0x5f4e8a,
-    [RoomType.MERCHANT]: 0x2e6c87,
-    [RoomType.ELITE]: 0xb14545,
-    [RoomType.BOSS]: 0xc83b3b,
-    // PR-1: MINI_BOSS is declared as a future room kind (placement
-    // lands in PR-2). Until then it visually mirrors a major BOSS
-    // so any stray MINI_BOSS node still renders sensibly.
-    [RoomType.MINI_BOSS]: 0xb84545,
-    [RoomType.EMPTY]: 0x454545,
-};
 
 const ROOM_ICON: Record<RoomTypeValue, string> = {
     [RoomType.START]: '@',
@@ -131,10 +114,6 @@ const ROOM_NAME_KEY = {
     [RoomType.EMPTY]: 'roomEmpty',
 } as const satisfies Record<RoomTypeValue, string>;
 
-export function roomColor(node: MapNode): number {
-    return ROOM_COLOR[node.type];
-}
-
 export function roomIcon(type: RoomTypeValue): string {
     return ROOM_ICON[type];
 }
@@ -148,10 +127,10 @@ export function roomTypeName(type: RoomTypeValue, loc: Localization): string {
 }
 
 /** Target box for room sprites on the map — slightly inset from the node rect. */
-export const ROOM_SPRITE_MAX_DIM = 64;
+const ROOM_SPRITE_MAX_DIM = 64;
 
 /** Target box for enemy portraits in the combat/room panel. */
-export const ENEMY_SPRITE_MAX_DIM = 120;
+const ENEMY_SPRITE_MAX_DIM = 120;
 
 /**
  * Scale down high-resolution hand-authored room textures to fit the map node.
