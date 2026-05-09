@@ -107,8 +107,6 @@ export const LEVEL_UP_CONFIG = {
     // [FIX-9] Hard level ceiling. Past this level, gainXp() / level-up are
     // no-ops and the HUD shows "MAX" instead of an XP bar.
     levelCap: 10,
-    // Wisdom XP bonus stops applying at this level (FIX-9).
-    wisdomXpBonusUpToLevel: 8,
 } as const;
 
 export const EXPEDITION_CONFIG = {
@@ -126,13 +124,8 @@ export const COMBAT_CONFIG = {
     resolveFromAttack: 1,
     resolveFromGuard: 1,
     baseCritChance: 0.06,
-    skillCost: 2,
-    skillMultiplier: 1.8,
-    skillBonus: 2,
     potionHeal: 10,
     randomVariance: 2,
-    heavyIntentBonus: 3,
-    chargeIntentBonus: 2,
     criticalMultiplier: 1.7,
     eliteHpMultiplier: 1.45,
     eliteAttackMultiplier: 1.25,
@@ -277,12 +270,6 @@ export const MAP_CONFIG = {
      * so the player feels meaningful directional choice instead
      * of being funneled.
      */
-    branchRolls: {
-        one: 0.05,
-        two: 0.20,
-        three: 0.40,
-        four: 0.35,
-    },
     roomTypeWeights: {
         ENEMY: 0.34,
         EMPTY: 0.11,
@@ -309,12 +296,6 @@ export const MAP_CONFIG = {
      * MapGenerator.buildLayer} for the depth-1 width override that
      * makes the START 4-fanout actually realisable.
      */
-    fanoutRolls: {
-        one: 0.10,
-        two: 0.30,
-        three: 0.30,
-        four: 0.30,
-    },
     /**
      * Hard cap on outgoing edges per non-bottleneck room. Keeps
      * the visual graph readable even on wide layers and matches
@@ -357,7 +338,6 @@ export const ROOM_CONFIG = {
         premiumShardCost: 1,
         premiumAttackBonus: 2,
         premiumPotionBonus: 1,
-        relicGoldCost: 40,
     },
     empty: {
         scoutGoldChance: 0.3,
@@ -545,34 +525,6 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
     },
 ];
 
-// ---------------------------------------------------------------------------
-// Stun resistance percentages by enemy class. The higher the pct, the
-// more often a stun is fully resisted (instead of half-duration like
-// the v0.1 boss handling).
-// ---------------------------------------------------------------------------
-export const STUN_RESIST_CONFIG = {
-    normal: 0,
-    elite: 0.5,
-    boss: 0.7,
-    /** Per-boss override map, indexed by EnemyDef.name. */
-    bossByName: {
-        'Death Knight': 0.7,
-    } as Record<string, number>,
-} as const;
 
-// ---------------------------------------------------------------------------
-// Death Knight prepare timings. Pulled into a config object so combat
-// code, intents, and tests share one source of truth.
-// ---------------------------------------------------------------------------
-export const DEATH_KNIGHT_CONFIG = {
-    /** death_shield: turns of windup before the block lands. */
-    shieldPrepareTurns: 1,
-    /** Block amount granted by death_shield when it resolves. */
-    shieldBlock: 15,
-    /** Turns the death_shield block persists if not broken first. */
-    shieldDuration: 3,
-    /** death_touch: turns of windup before the OHKO lands. */
-    touchPrepareTurns: 3,
-    /** Damage taken if the player Defends on the death_touch resolution turn. */
-    touchDefendDamage: 8,
-} as const;
+
+

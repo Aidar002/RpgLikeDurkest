@@ -7,7 +7,6 @@ import {
 import {
     EXPEDITION_CONFIG,
     LEVEL_UP_CONFIG,
-    STUN_RESIST_CONFIG,
     PLAYER_CONFIG,
     MAP_CONFIG,
 } from '../src/data/GameConfig';
@@ -59,13 +58,6 @@ describe('[FIX-9] Level cap', () => {
         const granted = p.gainXp(9999);
         expect(granted).toBe(0);
         expect(p.stats.level).toBe(LEVEL_UP_CONFIG.levelCap);
-    });
-});
-
-describe('[FIX-11] Stun resistance baseline tiers', () => {
-    it('matches the spec values for normal / elite tiers', () => {
-        expect(STUN_RESIST_CONFIG.normal).toBe(0);
-        expect(STUN_RESIST_CONFIG.elite).toBe(0.5);
     });
 });
 
