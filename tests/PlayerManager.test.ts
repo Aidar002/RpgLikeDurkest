@@ -13,7 +13,8 @@ import {
     LEVEL_UP_CONFIG,
     PLAYER_CONFIG,
 } from '../src/data/GameConfig';
-import { PlayerManager } from '../src/systems/PlayerManager';
+import { MAX_RELICS, PlayerManager } from '../src/systems/PlayerManager';
+import type { RelicId } from '../src/systems/Relics';
 
 describe('PlayerManager — construction', () => {
     it('starts at config defaults with no bonuses', () => {
@@ -258,11 +259,63 @@ describe('PlayerManager — relics', () => {
         let changes = 0;
         player.relicsChange.on(() => changes++);
 
-        player.addRelic('worn_ring');
-        player.addRelic('worn_ring');
+        expect(player.addRelic('worn_ring')).toBe('added');
+        expect(player.addRelic('worn_ring')).toBe('duplicate');
 
         expect(player.relics).toEqual(['worn_ring']);
         expect(changes).toBe(1);
+    });
+
+    it('addRelic returns "full" once the inventory hits MAX_RELICS', () => {
+        const player = new PlayerManager();
+        const fillers: RelicId[] = [
+            'worn_ring',
+            'cracked_shield',
+            'tattered_cloak',
+            'cracked_amulet',
+            'simple_sword',
+        ];
+        // Sanity: the catalog must offer at least MAX_RELICS distinct
+        // ids for the test to fill the inventory.
+        expect(fillers.length).toBe(MAX_RELICS);
+        for (const id of fillers) {
+            expect(player.addRelic(id)).toBe('added');
+        }
+        expect(player.relics).toHaveLength(MAX_RELICS);
+
+        let offers = 0;
+        player.relicOffer.on(() => offers++);
+
+        // 6th distinct id rejects with `'full'` and does NOT fire
+        // `relicsChange` (the manager doesn't mutate); the caller
+        // (`RelicDrops`) is expected to translate this into a
+        // `relicOffer` emit, but `addRelic` itself is silent.
+        expect(player.addRelic('simple_chestplate')).toBe('full');
+        expect(player.relics).toHaveLength(MAX_RELICS);
+        expect(offers).toBe(0);
+    });
+
+    it('swap path: removeRelic + addRelic restores the cap and emits change', () => {
+        const player = new PlayerManager();
+        const fillers: RelicId[] = [
+            'worn_ring',
+            'cracked_shield',
+            'tattered_cloak',
+            'cracked_amulet',
+            'simple_sword',
+        ];
+        for (const id of fillers) player.addRelic(id);
+
+        // Cap reached, candidate rejected.
+        expect(player.addRelic('simple_chestplate')).toBe('full');
+
+        // Drop one, then retry with the candidate — mirrors the
+        // RelicSwapModal path.
+        player.removeRelic('worn_ring');
+        expect(player.addRelic('simple_chestplate')).toBe('added');
+        expect(player.relics).toHaveLength(MAX_RELICS);
+        expect(player.relics).not.toContain('worn_ring');
+        expect(player.relics).toContain('simple_chestplate');
     });
 
     it('removeRelic removes only the matching id and emits change', () => {
