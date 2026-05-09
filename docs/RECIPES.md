@@ -287,7 +287,7 @@ flat-stat bumps. Adding a new card:
 - **Layout / depth literals** belong in `src/ui/Layout.ts`. Never
   inline `800`, `600`, or a `setDepth(99)`.
 - **User-facing text** goes through `Localization.t(...)`. Never
-  hardcode display strings outside of `locale/` and `NarrativeManager`.
+  hardcode display strings outside of `locale/`.
 - **Random rolls** go through `defaultRng` (or a passed-in seeded
   `Rng`). The audit closed off `Math.random()` in gameplay paths so
   the determinism envelope is whole.
