@@ -43,10 +43,9 @@ import { maybeDropRelic as maybeDropRelicImpl, type RelicDropKind } from '../sys
 // Map layout / node-visual types moved to ../ui/MapView.ts.
 
 // Room-action button types/builders moved to ../ui/RoomButtons.ts.
-// Re-exported here for backward compat with `import { RoomButtonAction,
-// RoomButtonVariant } from '../scenes/GameScene'` call sites in
-// CombatHud / RoomFlow.
-export type { RoomButtonAction, RoomButtonVariant } from '../ui/RoomButtons';
+// Re-exported here for backward compat with `import { RoomButtonAction }
+// from '../scenes/GameScene'` call sites in CombatHud / RoomFlow.
+export type { RoomButtonAction } from '../ui/RoomButtons';
 
 // =============================================================================
 // GameScene routing map (see .agents/skills/rpg-like-durkest/SKILL.md for the cross-file picture)

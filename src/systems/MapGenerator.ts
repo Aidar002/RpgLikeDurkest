@@ -59,16 +59,16 @@ const START_FANOUT_WIDTH = 4;
  * map container's resting position centres START at the viewport
  * focal point used by {@link MapView.getMapOffset}.
  */
-export const MAP_START_X = 360;
+const MAP_START_X = 360;
 /** @see MAP_START_X */
-export const MAP_START_Y = 380;
+const MAP_START_Y = 380;
 
 /**
  * Pixel spacing between adjacent grid cells. Matches the previous
  * preferred-edge length so the visual feel is unchanged: every
  * 90° step on the grid is exactly one screen segment.
  */
-export const GRID_CELL = 150;
+const GRID_CELL = 150;
 
 /**
  * Soft cap on the number of distinct cells in any non-START layer.

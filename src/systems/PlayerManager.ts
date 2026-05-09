@@ -12,7 +12,7 @@ import { aggregateRelics, emptyAggregate, RELICS } from './Relics';
 import { emptyStatusState } from './StatusEffects';
 import type { StatusState } from './StatusEffects';
 
-export interface PlayerStats {
+interface PlayerStats {
     maxHp: number;
     hp: number;
     attack: number;
@@ -21,7 +21,7 @@ export interface PlayerStats {
     xp: number;
 }
 
-export interface RunResources {
+interface RunResources {
     gold: number;
     potions: number;
     resolve: number;

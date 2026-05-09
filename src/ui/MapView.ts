@@ -39,20 +39,12 @@ import {
 } from './RoomVisuals';
 import { VFX } from './VFX';
 
-/** Horizontal distance between node columns (one column per depth). */
-export const COL_W = 180;
-/** Vertical distance between node rows (one row per slot). */
-export const ROW_H = 140;
 /** Square side length for the node background rectangle. */
-export const NODE_SZ = 80;
-/** Origin X of the depth-0 node column on canvas. */
-export const MAP_X = 360;
-/** Origin Y of the slot-0 node row on canvas (centred on this Y). */
-export const MAP_Y = 380;
+const NODE_SZ = 80;
 /** X position the camera/container centres the current node onto. */
-export const VIEW_X = 512;
+const VIEW_X = 512;
 /** Y position the camera/container centres the current node onto. */
-export const VIEW_Y = 380;
+const VIEW_Y = 380;
 
 /**
  * Set of Phaser objects that together render one map node. Created in
@@ -60,7 +52,7 @@ export const VIEW_Y = 380;
  * passes. `sprite` and `frame` are optional because the optional
  * spritesheet textures may not be present (tests, loading phase).
  */
-export interface NodeVisual {
+interface NodeVisual {
     rect: Phaser.GameObjects.Rectangle;
     icon: Phaser.GameObjects.Text;
     sprite?: Phaser.GameObjects.Image;
@@ -74,7 +66,7 @@ export interface NodeVisual {
  * state, current room visibility, dead state — none of which live in
  * `MapView`).
  */
-export interface MapViewDeps {
+interface MapViewDeps {
     scene: Phaser.Scene;
     container: Phaser.GameObjects.Container;
     dungeon: DungeonManager;

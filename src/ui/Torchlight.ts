@@ -15,7 +15,7 @@ import * as Phaser from 'phaser';
 
 const KEY_PREFIX = 'torchlight_overlay';
 
-export interface TorchlightOptions {
+interface TorchlightOptions {
     /** Distance from the centre at which the overlay reaches `centerAlpha`.
      *  Inside this radius the wall reads as the brightest point. */
     innerRadius: number;
@@ -36,7 +36,7 @@ export interface TorchlightOptions {
  * Ensure a torchlight gradient texture exists and return its key.
  * Idempotent — calls with identical parameters reuse the cached texture.
  */
-export function ensureTorchlightTexture(
+function ensureTorchlightTexture(
     scene: Phaser.Scene,
     width: number,
     height: number,

@@ -88,7 +88,7 @@ export function getSavedLanguage(): Language {
 }
 
 /** Persist the player-selected language and update the document `lang`. */
-export function saveLanguage(language: Language): void {
+function saveLanguage(language: Language): void {
     try {
         window.localStorage.setItem(STORAGE_KEY, language);
     } catch {

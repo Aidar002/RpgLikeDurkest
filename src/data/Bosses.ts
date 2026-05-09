@@ -17,7 +17,7 @@ import type { Language } from '../systems/Localization';
 /** Locale-aware label. Mirrors LocalizedText but stays free of import
  *  cycles; CombatManager picks the right one from the Localization
  *  object's language. */
-export interface BossLine {
+interface BossLine {
     en: string;
     ru: string;
 }
@@ -26,7 +26,7 @@ export function pickLine(line: BossLine, lang: Language): string {
     return lang === 'ru' ? line.ru : line.en;
 }
 
-export type BossActionId = 'attack' | 'death_shield' | 'death_touch';
+type BossActionId = 'attack' | 'death_shield' | 'death_touch';
 
 export interface BossActionDef {
     id: BossActionId;
@@ -53,7 +53,7 @@ export interface BossActionDef {
     oneShotDefendDamage?: number;
 }
 
-export interface BossPhaseDef {
+interface BossPhaseDef {
     /** HP ratio (0..1) at or below which this phase activates. Phases
      *  are evaluated top-down, so list them in descending order. */
     enterAtHpRatio: number;
@@ -72,7 +72,7 @@ export interface BossBlueprint {
 // Death Knight boss blueprint.
 // ---------------------------------------------------------------------------
 
-export const BOSS_BLUEPRINTS: BossBlueprint[] = [
+const BOSS_BLUEPRINTS: BossBlueprint[] = [
     {
         name: 'Death Knight',
         phases: [

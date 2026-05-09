@@ -23,7 +23,7 @@ import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 
 type Widget = Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text;
 
-export interface RestartConfirmModalOptions {
+interface RestartConfirmModalOptions {
     /** Localisation runtime; used to translate the four user-facing
      *  strings on the modal. */
     loc: Localization;

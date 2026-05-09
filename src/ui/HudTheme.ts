@@ -88,22 +88,6 @@ export function drawHudPanel(
     return g;
 }
 
-/** Thin vertical divider between HUD groups. */
-export function drawHudDivider(
-    scene: Phaser.Scene,
-    x: number,
-    y: number,
-    h: number
-): Phaser.GameObjects.Graphics {
-    const g = scene.add.graphics();
-    g.fillStyle(HudColors.divider, 1);
-    g.fillRect(x, y, 1, h);
-    g.fillStyle(HudColors.panelHi, 1);
-    g.fillRect(x, y, 1, 2);
-    g.fillRect(x, y + h - 2, 1, 2);
-    return g;
-}
-
 /**
  * Draws a carved frame around a horizontal bar so it reads as a
  * recessed gauge consistent with the rest of the HUD.
@@ -164,67 +148,4 @@ export function drawBarSegments(
         g.fillRect(sx, y - height / 2, 1, height);
     }
     return g;
-}
-
-export interface IconStat {
-    icon: Phaser.GameObjects.Text;
-    value: Phaser.GameObjects.Text;
-    setVisible(visible: boolean): void;
-    setValue(text: string): void;
-}
-
-/**
- * Creates an inline stat slot (icon glyph + value text). The icon and value
- * share a baseline so the slot reads as a single unit; the value is offset to
- * the right of the icon by `iconWidth` pixels.
- */
-export function createIconStat(
-    scene: Phaser.Scene,
-    x: number,
-    y: number,
-    iconChar: string,
-    iconColor: string,
-    options: {
-        valueColor?: string;
-        valueFontSize?: string;
-        iconFontSize?: string;
-        iconWidth?: number;
-        valueOriginX?: number;
-    } = {}
-): IconStat {
-    const valueFontSize = options.valueFontSize ?? '15px';
-    const iconFontSize = options.iconFontSize ?? '14px';
-    const iconWidth = options.iconWidth ?? 16;
-    const valueColor = options.valueColor ?? HudHex.textPrimary;
-
-    const icon = scene.add.text(x, y, iconChar, {
-        fontFamily: HUD_FONT,
-        fontSize: iconFontSize,
-        color: iconColor,
-        stroke: HUD_STROKE,
-        strokeThickness: 2,
-    });
-
-    const value = scene.add.text(x + iconWidth, y, '', {
-        fontFamily: HUD_FONT,
-        fontSize: valueFontSize,
-        color: valueColor,
-        stroke: HUD_STROKE,
-        strokeThickness: 2,
-    });
-    if (options.valueOriginX !== undefined) {
-        value.setOrigin(options.valueOriginX, 0);
-    }
-
-    return {
-        icon,
-        value,
-        setVisible(visible: boolean) {
-            icon.setVisible(visible);
-            value.setVisible(visible);
-        },
-        setValue(text: string) {
-            value.setText(text);
-        },
-    };
 }

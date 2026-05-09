@@ -1,4 +1,4 @@
-export interface EnemyTextConfig {
+interface EnemyTextConfig {
     name: string;
     description: string;
 }

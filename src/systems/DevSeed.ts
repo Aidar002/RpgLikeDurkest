@@ -25,7 +25,7 @@ export interface DevSeedConfig {
     lang?: Language;
 }
 
-export interface DevSeedInventory {
+interface DevSeedInventory {
     gold?: number;
     potions?: number;
 }

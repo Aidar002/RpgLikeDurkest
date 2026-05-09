@@ -24,58 +24,17 @@ export type RelicId =
 
 export type RelicRarity = 'common' | 'rare' | 'unique';
 
-export type RelicSetId = 'wanderer' | 'flesh' | 'recruit' | 'minor_cursed';
-
-export interface RelicSetDef {
-    id: RelicSetId;
-    name: LocalizedText;
-    bonus: LocalizedText;
-}
-
-export const RELIC_SETS: Record<RelicSetId, RelicSetDef> = {
-    wanderer: {
-        id: 'wanderer',
-        name: lt('Сет странника', "Wanderer's Set"),
-        bonus: lt(
-            '+1 урон, +1 жизнь, когда собран весь сет.',
-            '+1 attack, +1 max HP when the set is complete.'
-        ),
-    },
-    flesh: {
-        id: 'flesh',
-        name: lt('Сет плоти', 'Flesh Set'),
-        bonus: lt(
-            '+2 урона при ОЗ < 50%, +1 защита при ОЗ > 50%.',
-            '+2 attack while HP < 50%, +1 defense while HP > 50%.'
-        ),
-    },
-    recruit: {
-        id: 'recruit',
-        name: lt('Сет новобранца', "Recruit's Set"),
-        bonus: lt(
-            '+2 защита, +2 жизни, +2 урон, когда собран весь сет.',
-            '+2 defense, +2 max HP, +2 attack when the set is complete.'
-        ),
-    },
-    minor_cursed: {
-        id: 'minor_cursed',
-        name: lt('Малый проклятый сет', 'Minor Cursed Set'),
-        bonus: lt(
-            'При атаке: 50% удвоить урон или 50% получить 2 урона.',
-            'On attack: 50% deal double damage or 50% take 2 damage.'
-        ),
-    },
-};
+type RelicSetId = 'wanderer' | 'flesh' | 'recruit' | 'minor_cursed';
 
 /** Drop table entry: which enemy drops this item with what chance (0..1). */
-export interface RelicDropEntry {
+interface RelicDropEntry {
     /** Canonical English enemy `name` (matches GameConfig.ENEMY_TIERS / BOSSES). */
     enemyName: string;
     /** Probability the item drops on that enemy's death. */
     chance: number;
 }
 
-export interface RelicDef {
+interface RelicDef {
     id: RelicId;
     name: LocalizedText;
     short: LocalizedText;
@@ -194,7 +153,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
     },
 };
 
-export const RELIC_ORDER: RelicId[] = Object.keys(RELICS) as RelicId[];
+const RELIC_ORDER: RelicId[] = Object.keys(RELICS) as RelicId[];
 
 /** Aggregate numeric effect bag, built by summing relic contributions. */
 export interface RelicAggregate {

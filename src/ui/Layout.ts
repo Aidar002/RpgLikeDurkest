@@ -110,5 +110,3 @@ export const Depths = {
     /** Tooltip text rendered above all gameplay UI. */
     Tooltip: 220,
 } as const;
-
-export type DepthKey = keyof typeof Depths;

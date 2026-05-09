@@ -3,7 +3,7 @@ import type { NpcEvalContext, PickedDialog } from '../NpcManager';
 import type { NpcId, NpcOfferTemplate } from '../Npcs';
 import type { GameScene, RoomButtonAction } from '../../scenes/GameScene';
 
-export function buildNpcEvalContext(scene: GameScene): NpcEvalContext {
+function buildNpcEvalContext(scene: GameScene): NpcEvalContext {
     const hpFrac =
         scene.player.stats.maxHp > 0 ? scene.player.stats.hp / scene.player.stats.maxHp : 1;
     return {
@@ -15,7 +15,7 @@ export function buildNpcEvalContext(scene: GameScene): NpcEvalContext {
     };
 }
 
-export function npcOfferCost(offerId: string, _npcId: NpcId): number {
+function npcOfferCost(offerId: string, _npcId: NpcId): number {
     switch (offerId) {
         case 'gogi_what':
         case 'gogi_who':
@@ -25,11 +25,7 @@ export function npcOfferCost(offerId: string, _npcId: NpcId): number {
     }
 }
 
-export function isNpcOfferEnabled(
-    scene: GameScene,
-    offer: NpcOfferTemplate,
-    npcId: NpcId
-): boolean {
+function isNpcOfferEnabled(scene: GameScene, offer: NpcOfferTemplate, npcId: NpcId): boolean {
     const cost = npcOfferCost(offer.id, npcId);
     switch (offer.id) {
         case 'gogi_what':
