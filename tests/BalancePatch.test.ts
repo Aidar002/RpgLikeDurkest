@@ -7,13 +7,11 @@ import {
 import {
     EXPEDITION_CONFIG,
     LEVEL_UP_CONFIG,
-    LIGHT_CONFIG,
     STUN_RESIST_CONFIG,
     PLAYER_CONFIG,
     MAP_CONFIG,
 } from '../src/data/GameConfig';
 import { PlayerManager } from '../src/systems/PlayerManager';
-import { shouldDecayLight } from '../src/systems/Light';
 
 describe('[FIX-4] Boss mapping (canonical depth -> name)', () => {
     it('maps every required depth to the expected boss', () => {
@@ -46,20 +44,6 @@ describe('Starting resolve and clamps', () => {
         p.gainResolve(99);
         expect(p.resources.resolve).toBe(p.resources.maxResolve);
         expect(before).toBe(EXPEDITION_CONFIG.startingResolve);
-    });
-});
-
-describe('[FIX-2] Light economy', () => {
-    it('decays every N rooms (default runLength), not every room', () => {
-        // At default runLength=25 the derived interval is 2.
-        expect(shouldDecayLight(1)).toBe(false);
-        expect(shouldDecayLight(2)).toBe(true);
-        expect(shouldDecayLight(3)).toBe(false);
-        expect(shouldDecayLight(4)).toBe(true);
-    });
-
-    it('legacy LIGHT_CONFIG.decayEveryNRooms still reports the short-run baseline', () => {
-        expect(LIGHT_CONFIG.decayEveryNRooms).toBe(2);
     });
 });
 

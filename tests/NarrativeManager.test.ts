@@ -15,39 +15,28 @@ function make(language: 'en' | 'ru' = 'en') {
 describe('NarrativeManager.enterDepth', () => {
     it('returns null for non-trigger depths', () => {
         const n = make('en');
-        expect(n.enterDepth(1, false)).toBeNull();
-        expect(n.enterDepth(2, false)).toBeNull();
-        expect(n.enterDepth(7, false)).toBeNull();
+        expect(n.enterDepth(1)).toBeNull();
+        expect(n.enterDepth(2)).toBeNull();
+        expect(n.enterDepth(7)).toBeNull();
     });
 
     it('returns the scratched-wall line at depth 3 in English', () => {
         const n = make('en');
-        const line = n.enterDepth(3, false);
+        const line = n.enterDepth(3);
         expect(line).toBe('Scratched into the wall: "Treasure below. Turn back above."');
     });
 
     it('returns the scratched-wall line at depth 3 in Russian', () => {
         const n = make('ru');
-        const line = n.enterDepth(3, false);
+        const line = n.enterDepth(3);
         expect(line).toBe('На стене нацарапано: «Добыча ниже. Назад — выше».');
     });
 
     it('returns the artifact-near line on the layer just before the final depth', () => {
         const n = make('en');
-        const line = n.enterDepth(MAP_CONFIG.finalDepth - 1, false);
+        const line = n.enterDepth(MAP_CONFIG.finalDepth - 1);
         expect(line).toBe(
             'The walls glow faintly. The Wish Artifact is on the next floor. Its guardian waits.'
-        );
-    });
-
-    it('emits the lantern-warning line on the second consecutive low-light depth', () => {
-        const n = make('en');
-        // First low-light enter just bumps the darkness counter and returns null
-        // (depth=1 is not one of the special-line depths).
-        expect(n.enterDepth(1, true)).toBeNull();
-        // Second low-light enter: darkness === 2 -> warning line fires.
-        expect(n.enterDepth(2, true)).toBe(
-            'The lantern is weak. Corners hide movement now.'
         );
     });
 });

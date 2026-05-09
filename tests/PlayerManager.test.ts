@@ -28,7 +28,6 @@ describe('PlayerManager — construction', () => {
 
         expect(player.resources.gold).toBe(EXPEDITION_CONFIG.startingGold);
         expect(player.resources.potions).toBe(EXPEDITION_CONFIG.startingPotions);
-        expect(player.resources.light).toBe(EXPEDITION_CONFIG.startingLight);
         expect(player.resources.resolve).toBe(EXPEDITION_CONFIG.startingResolve);
         expect(player.resources.relicShards).toBe(0);
 
@@ -148,34 +147,6 @@ describe('PlayerManager — heal and resources', () => {
             expect(player.spendPotion()).toBe(true);
         }
         expect(player.spendPotion()).toBe(false);
-    });
-
-    it('gainLight is capped at maxLight; spendLight floors at 0', () => {
-        const player = new PlayerManager();
-        player.gainLight(999);
-        expect(player.resources.light).toBe(EXPEDITION_CONFIG.maxLight);
-
-        player.spendLight(999);
-        expect(player.resources.light).toBe(0);
-    });
-
-    it('hasHighLight / hasLowLight flip with the configured thresholds', () => {
-        const player = new PlayerManager();
-
-        // [FIX-2] hasLowLight is strictly `< lowLightThreshold`, so we
-        // gain `threshold - 1` here to land inside the low band.
-        player.spendLight(player.resources.light);
-        player.gainLight(Math.max(0, EXPEDITION_CONFIG.lowLightThreshold - 1));
-        expect(player.hasLowLight).toBe(true);
-        expect(player.hasHighLight).toBe(false);
-
-        // Right at the threshold the player is no longer low-light.
-        player.gainLight(1);
-        expect(player.hasLowLight).toBe(false);
-
-        player.gainLight(EXPEDITION_CONFIG.maxLight);
-        expect(player.hasHighLight).toBe(true);
-        expect(player.hasLowLight).toBe(false);
     });
 
     it('gainResolve clamps at maxResolve; spendResolve validates affordability', () => {

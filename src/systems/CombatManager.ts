@@ -1,7 +1,6 @@
 import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
 import {
     COMBAT_CONFIG,
-    LIGHT_CONFIG,
     ROOM_CONFIG,
 } from '../data/GameConfig';
 import type {
@@ -140,8 +139,6 @@ export interface CombatEndPayload {
     killedByBleed: boolean;
     /** [FIX-1] Set when the slain enemy was the final boss. */
     finalBossDefeated: boolean;
-    /** [FIX-2] Light recovered from boss kill, applied by GameScene. */
-    lightRecovered: number;
 }
 
 export interface EnemyUpdatePayload {
@@ -241,9 +238,6 @@ export class CombatManager {
                   ? COMBAT_CONFIG.bossRewardMultiplier
                   : 1;
 
-        const lowLightRewardMultiplier =
-            kind !== 'normal' ? this.player.getRewardMultiplierFromLowLight() : 1;
-
         // Boss "piñata" XP bump — bosses dump 10–20 levels worth of XP in
         // one kill so the player visibly powers up after every depth-tier
         // fight. Stacks on top of bossRewardMultiplier and is XP-only
@@ -273,8 +267,8 @@ export class CombatManager {
             maxHp: baseHp,
             attack: baseAtk,
             color: definition.color,
-            xp: Math.max(1, Math.round(definition.xp * rewardMultiplier * lowLightRewardMultiplier * xpBossBonus)),
-            gold: Math.max(1, Math.round(definition.gold * rewardMultiplier * lowLightRewardMultiplier)),
+            xp: Math.max(1, Math.round(definition.xp * rewardMultiplier * xpBossBonus)),
+            gold: Math.max(1, Math.round(definition.gold * rewardMultiplier)),
             profile: definition.profile,
             turnsAlive: 0,
             status: emptyStatusState(),
@@ -810,10 +804,7 @@ export class CombatManager {
         const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
 
         const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
-        let attackPower =
-            this.enemy.attack +
-            this.player.getEnemyAttackBonusFromLight() -
-            weakenReduction;
+        let attackPower = this.enemy.attack - weakenReduction;
         if (attackPower < 1) attackPower = 1;
         // Rat-style passive: chance for the basic attack to land for +N.
         if (
@@ -897,13 +888,6 @@ export class CombatManager {
         this.log.addMessage(this.loc.t('enemyFalls', { name: this.enemy.name }), '#66ff88');
         if (killedByBleed) this.log.addMessage(narrate('bleed_finisher', this.loc.language), '#c4a35a');
 
-        // [FIX-2] Light recovery on boss kill is reported back to the
-        // GameScene through the payload so the run-level resource
-        // model is the single owner of light state.
-        if (this.enemy.kind === 'boss') {
-            this.player.gainLight(LIGHT_CONFIG.onBossKill);
-        }
-
         this.enemy = null;
         this.combatEnd.emit(payload);
     }
@@ -930,17 +914,15 @@ export class CombatManager {
 
     private buildRewards(enemy: ActiveEnemy, killedByBleed: boolean): CombatEndPayload {
         // Death Knight is the only boss in the spec, so a boss kill
-        // here is always the final-boss kill. Light recovery and the
-        // victoryWishArtifact log line both fire on that single event.
+        // here is always the final-boss kill. The victoryWishArtifact
+        // log line fires on that single event.
         const finalBoss = enemy.kind === 'boss';
-        const lightRecovered = finalBoss ? LIGHT_CONFIG.onBossKill : 0;
         return {
             enemyName: enemy.name,
             enemyCanonicalName: enemy.canonicalName,
             kind: enemy.kind,
             killedByBleed,
             finalBossDefeated: finalBoss,
-            lightRecovered,
             rewards: {
                 xp: enemy.xp,
                 gold: enemy.gold + (enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusGold : 0),
@@ -1198,10 +1180,7 @@ export class CombatManager {
         const flatBlock = flatBlockBase;
 
         const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
-        let attackPower =
-            this.enemy.attack +
-            this.player.getEnemyAttackBonusFromLight() -
-            weakenReduction;
+        let attackPower = this.enemy.attack - weakenReduction;
         if (action.damageBonus) attackPower += action.damageBonus;
         if (attackPower < 1) attackPower = 1;
 
@@ -1316,10 +1295,7 @@ export class CombatManager {
         const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
         const weakenReduction =
             this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
-        let attackPower =
-            this.enemy.attack +
-            this.player.getEnemyAttackBonusFromLight() -
-            weakenReduction;
+        let attackPower = this.enemy.attack - weakenReduction;
         if (action.damageBonus) attackPower += action.damageBonus;
         if (attackPower < 1) attackPower = 1;
         if (!action.noAttack) {

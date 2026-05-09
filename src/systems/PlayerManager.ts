@@ -1,7 +1,6 @@
 import {
     COMBAT_CONFIG,
     EXPEDITION_CONFIG,
-    FEATURES,
     LEVEL_UP_CONFIG,
     PLAYER_CONFIG,
 } from '../data/GameConfig';
@@ -25,7 +24,6 @@ export interface PlayerStats {
 export interface RunResources {
     gold: number;
     potions: number;
-    light: number;
     resolve: number;
     maxResolve: number;
     relicShards: number;
@@ -65,7 +63,6 @@ export class PlayerManager {
         this.resources = {
             gold: EXPEDITION_CONFIG.startingGold,
             potions: EXPEDITION_CONFIG.startingPotions,
-            light: EXPEDITION_CONFIG.startingLight,
             resolve: EXPEDITION_CONFIG.startingResolve,
             maxResolve: PLAYER_CONFIG.maxResolve,
             relicShards: 0,
@@ -82,51 +79,23 @@ export class PlayerManager {
     get isGoldUnlocked(): boolean { return true; }
     get isPotionUnlocked(): boolean { return true; }
     get isResolveUnlocked(): boolean { return true; }
-    get isLightUnlocked(): boolean { return true; }
     get isRelicShardUnlocked(): boolean { return true; }
-
-    get hasHighLight(): boolean {
-        return this.resources.light >= EXPEDITION_CONFIG.highLightThreshold;
-    }
-
-    /**
-     * [FIX-2] Strictly `< lowLightThreshold` (default 4). The previous
-     * `<=` made low-light the default for the whole mid-run; the
-     * patched threshold means the penalty kicks in only when the
-     * lantern dips below the safe band.
-     */
-    get hasLowLight(): boolean {
-        return this.resources.light < EXPEDITION_CONFIG.lowLightThreshold;
-    }
 
     get aggregate(): RelicAggregate {
         return this.relicAggregate;
     }
 
     getAttackPower(): number {
-        const light = FEATURES.light && this.hasHighLight ? COMBAT_CONFIG.highLightAttackBonus : 0;
         let setBonus = 0;
         // Flesh set: +2 attack while HP < 50% (lives/max strictly less).
         if (this.relicAggregate.sets.flesh && this.stats.hp * 2 < this.stats.maxHp) {
             setBonus += 2;
         }
-        return this.stats.attack + light + this.relicAggregate.bonusAttack + setBonus;
+        return this.stats.attack + this.relicAggregate.bonusAttack + setBonus;
     }
 
     getCritChance(): number {
-        const light = FEATURES.light && this.hasHighLight ? COMBAT_CONFIG.criticalChanceFromHighLight : 0;
-        return COMBAT_CONFIG.baseCritChance + light;
-    }
-
-    getEnemyAttackBonusFromLight(): number {
-        if (!FEATURES.light) return 0;
-        if (!this.hasLowLight) return 0;
-        return COMBAT_CONFIG.lowLightEnemyAttackBonus;
-    }
-
-    getRewardMultiplierFromLowLight(): number {
-        if (!FEATURES.light) return 1;
-        return this.hasLowLight ? COMBAT_CONFIG.lowLightRewardMultiplier : 1;
+        return COMBAT_CONFIG.baseCritChance;
     }
 
     getEffectiveDefense(): number {
@@ -248,22 +217,6 @@ export class PlayerManager {
         );
         this.emitResources();
         return true;
-    }
-
-    gainLight(amount: number): number {
-        if (amount <= 0) return 0;
-        const previous = this.resources.light;
-        this.resources.light = Math.min(EXPEDITION_CONFIG.maxLight, this.resources.light + amount);
-        this.emitAllChanges();
-        return this.resources.light - previous;
-    }
-
-    spendLight(amount: number): number {
-        if (amount <= 0) return 0;
-        const previous = this.resources.light;
-        this.resources.light = Math.max(0, this.resources.light - amount);
-        this.emitAllChanges();
-        return previous - this.resources.light;
     }
 
     gainRelicShards(amount: number): number {

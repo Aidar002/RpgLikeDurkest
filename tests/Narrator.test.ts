@@ -71,7 +71,6 @@ describe('narrate', () => {
             'crit_landed',
             'crit_received',
             'low_hp',
-            'low_light',
             'bleed_finisher',
             'rest',
             'relic_found',

@@ -34,7 +34,6 @@ export const ALL_UNLOCK_IDS = [
     'resource_resolve',
     'action_skill',
     'room_shrine',
-    'resource_light',
     'room_elite',
     'ui_enemy_hp',
     'ui_run_metrics',
@@ -73,7 +72,6 @@ export interface UiUnlockState {
     showGold: boolean;
     showPotions: boolean;
     showResolve: boolean;
-    showLight: boolean;
     showEnemyHp: boolean;
     showRunMetrics: boolean;
     showKillCounter: boolean;
@@ -147,7 +145,6 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     resource_resolve: true,
     action_skill: true,
     room_shrine: true,
-    resource_light: true,
     room_elite: true,
     ui_enemy_hp: true,
     ui_run_metrics: true,
@@ -432,7 +429,6 @@ export class MetaProgressionManager {
             showGold: true,
             showPotions: true,
             showResolve: true,
-            showLight: FEATURES.light,
             showEnemyHp: true,
             showRunMetrics: true,
             showKillCounter: true,

@@ -46,18 +46,8 @@ export class NarrativeManager {
         this.memory[mark] += amount;
     }
 
-    enterDepth(depth: number, lowLight: boolean): string | null {
+    enterDepth(depth: number): string | null {
         this.deepestRoom = Math.max(this.deepestRoom, depth);
-
-        if (lowLight) {
-            this.mark('darkness');
-            if (this.memory.darkness === 2) {
-                return this.text(
-                    'The lantern is weak. Corners hide movement now.',
-                    'Фонарь садится. В углах уже шевелится что-то лишнее.'
-                );
-            }
-        }
 
         if (depth === 3) {
             return this.text(

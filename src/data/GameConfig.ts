@@ -5,8 +5,6 @@
  * intact so a feature can be re-enabled later by flipping the flag.
  */
 export const FEATURES = {
-    /** Light economy (decay, low/high light bonuses, lantern shops). */
-    light: false,
     /** Boss / mini-boss `grantsSeal` tagging and seal-coverage validation. */
     seals: false,
     /** Relic shards currency + premium shrine/merchant offers. */
@@ -116,55 +114,10 @@ export const LEVEL_UP_CONFIG = {
 export const EXPEDITION_CONFIG = {
     // Per design: every run begins resourceless. Gold, potions and
     // resolve all reset to zero on a fresh PlayerManager so the player
-    // earns them in-run rather than starting with a kit. Light still
-    // starts full because the lantern economy is decay-driven.
+    // earns them in-run rather than starting with a kit.
     startingGold: 0,
     startingPotions: 0,
     startingResolve: 0,
-    startingLight: 7,
-    maxLight: 10,
-    /** @deprecated kept for legacy call sites; light decay is now driven by
-     *  LIGHT_CONFIG.decayEveryNRooms (FIX-2). */
-    lightLossPerRoom: 1,
-    lowLightThreshold: 4,
-    highLightThreshold: 8,
-} as const;
-
-// [FIX-2] Light economy. Light ticks down every N rooms (was every room
-// in pre-FIX-2 builds), with a +3 recovery on boss kills. Thresholds are
-// sourced from EXPEDITION_CONFIG via the helpers in src/systems/Light.ts.
-//
-// Decay interval is now runLength-derived through
-// {@link getLightDecayInterval} so longer runs don't drain Light too fast:
-//
-//   decayInterval = max(decayIntervalFloor, round(runLength / decayIntervalFactor))
-//
-// Empirical onsets at startingLight=7 and lowLightThreshold=4 (no recovery):
-//   runLength=25  → interval=2 → low-light at room  8 (~32 % of run)
-//   runLength=35  → interval=3 → low-light at room 12 (~34 %)
-//   runLength=50  → interval=4 → low-light at room 16 (~32 %)
-//   runLength=75  → interval=6 → low-light at room 24 (~32 %)
-//
-// (Spec quoted "≈ 60-70 % onset". That target assumes a fully-recovering
-// player; with no recovery the onset clamps to ~32 % across all lengths
-// because the (startingLight - lowLightThreshold) drop count is fixed.
-// See PR notes for the calibration table.)
-export const LIGHT_CONFIG = {
-    /** @deprecated kept only for the legacy `BalancePatch` test
-     *  assertion. New code should call
-     *  {@link getLightDecayInterval} (which reads
-     *  `decayIntervalFactor` / `decayIntervalFloor`). */
-    decayEveryNRooms: 2,
-    /** Divisor for the runLength-scaled decay interval. */
-    decayIntervalFactor: 12,
-    /** Lower bound: even very short runs decay no faster than this. */
-    decayIntervalFloor: 2,
-    /** Light gained on a Rest room. Currently runLength-independent. */
-    restLightGain: 2,
-    /** Light gained on a boss kill (mid-run majors and minis). */
-    onBossKill: 3,
-    /** Players see a warning when light is at this value or lower. */
-    warningThreshold: 4,
 } as const;
 
 export const COMBAT_CONFIG = {
@@ -180,12 +133,7 @@ export const COMBAT_CONFIG = {
     randomVariance: 2,
     heavyIntentBonus: 3,
     chargeIntentBonus: 2,
-    curseLightLoss: 1,
-    criticalChanceFromHighLight: 0.1,
     criticalMultiplier: 1.7,
-    highLightAttackBonus: 1,
-    lowLightEnemyAttackBonus: 1,
-    lowLightRewardMultiplier: 1.15,
     eliteHpMultiplier: 1.45,
     eliteAttackMultiplier: 1.25,
     eliteRewardMultiplier: 1.7,
@@ -221,12 +169,8 @@ export const COMBAT_CONFIG = {
  *      25→8-10, 35→10-12, 50→12-15, 75→15-18
  *  - phase boundaries (early/mid/late/final) at 0/30/70/95% of runLength
  *
- * Done:
- *  - Light decay interval — see `LIGHT_CONFIG.decayIntervalFactor`
- *    and {@link getLightDecayInterval}.
- *
- * Until the rest land, runLength affects map shape + Light only;
- * the combat curve stays tuned to the legacy ~25-depth baseline.
+ * Until those land, runLength affects map shape only; the combat
+ * curve stays tuned to the legacy ~25-depth baseline.
  */
 export const RUN_CONFIG = {
     runLength: 25,
@@ -399,8 +343,6 @@ export const ROOM_CONFIG = {
     },
     rest: {
         recoverHeal: 9,
-        // [FIX-2] Rest now restores +2 light (was +1).
-        recoverLight: 2,
         focusResolve: 1,
         focusXp: 4,
     },
@@ -410,10 +352,7 @@ export const ROOM_CONFIG = {
     },
     merchant: {
         potionCost: 14,
-        // [FIX-2] Merchant lantern: cost 10 -> 12, +3 light -> +4 light.
-        lanternCost: 12,
         armorCost: 24,
-        lanternLightGain: 4,
         armorDefenseGain: 1,
         premiumShardCost: 1,
         premiumAttackBonus: 2,
@@ -421,7 +360,6 @@ export const ROOM_CONFIG = {
         relicGoldCost: 40,
     },
     empty: {
-        scoutLightGain: 1,
         scoutGoldChance: 0.3,
         scoutGoldMin: 4,
         scoutGoldMax: 8,

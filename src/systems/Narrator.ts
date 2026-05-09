@@ -10,7 +10,6 @@ export type NarrationEvent =
     | 'crit_landed'
     | 'crit_received'
     | 'low_hp'
-    | 'low_light'
     | 'bleed_finisher'
     | 'rest'
     | 'relic_found'
@@ -53,10 +52,6 @@ const LINES: Record<NarrationEvent, string[]> = {
     low_hp: [
         'You are made of paper now. Choose your next step.',
         'A single mistake from here on.',
-    ],
-    low_light: [
-        'The lantern dims. The dungeon leans in.',
-        'Light fails. Something in the dark smiles.',
     ],
     bleed_finisher: [
         'It falls to wounds it cannot close.',
@@ -116,10 +111,6 @@ const RU_LINES: Record<NarrationEvent, string[]> = {
     low_hp: [
         'Кровь уходит быстро. Следующий шаг считай дважды.',
         'Теперь хватит одной ошибки.',
-    ],
-    low_light: [
-        'Фонарь садится. Углы становятся глубже.',
-        'Свет худеет. Стены будто ближе.',
     ],
     bleed_finisher: [
         'Раны сделали своё дело.',
