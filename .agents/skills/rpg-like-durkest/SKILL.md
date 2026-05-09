@@ -159,7 +159,7 @@ them.
 | `Layout.ts`                                                  | `GAME_WIDTH/HEIGHT/CENTER_X/CENTER_Y`, `Depths.*` Z-tiers, `HudLayout.topHud.*` / `HudLayout.chrome.*` HUD coordinates.                                                                  | Compile-time constants. **Never hardcode 800/600 or `setDepth(99)`.** |
 | `HudCell.ts` / `HudFrame.ts` / `HudIcons.ts` / `HudTheme.ts` | Bottom-bar resource cells, top/bottom carved frame, icon spritesheet bindings, palette.                                                                                                  | HUD widget factories.                                                 |
 | `MapView.ts`                                                 | Map node visuals + tweens + pointer interaction.                                                                                                                                         | Node sprites, edge graphics, hover/pulse tweens.                      |
-| `RoomButtons.ts`                                             | Room action button factory + `RoomButtonAction` / `RoomButtonVariant` types.                                                                                                             | Button widget references.                                             |
+| `RoomButtons.ts`                                             | Room action button factory + `RoomButtonAction` (public) and the file-private `RoomButtonVariant` style union.                                                                           | Button widget references.                                             |
 | `RoomVisuals.ts`                                             | Pure room → `{ color, icon, sprite, name }` lookup.                                                                                                                                      | Static lookup table.                                                  |
 | `SceneChrome.ts`                                             | Bottom-left sound/language toggles + unlock banner.                                                                                                                                      | Chrome widget refs.                                                   |
 | `Torchlight.ts` / `StoneBackdrop.ts` / `VolumePanel.ts`      | Atmospheric overlays + volume slider panel.                                                                                                                                              | Decorative widgets.                                                   |
@@ -196,8 +196,19 @@ not be imported in unit tests. Two existing patterns:
   constructing `MetaProgressionManager`. Copy this when testing
   anything that hits `localStorage`.
 
-`tests/Locale.consistency.test.ts` runs the runtime `en.ts ↔ ru.ts`
-key + placeholder check.
+`tests/Locale.consistency.test.ts` runs three runtime `en.ts ↔ ru.ts`
+assertions: identical key set, identical `{placeholder}` token sets,
+and an orphan-key check that fails when an `EN_STRINGS` key has no
+string-literal call site under `src/` (excluding `src/systems/locale/`).
+The orphan-key assertion uses
+`import.meta.glob('../src/**/*.{ts,tsx}', { query: '?raw', eager: true })`
+to inline every source file's raw contents at transform time, so it
+needs no `fs` / `path` (and no `@types/node`). See the test docstring
+for the runtime-template caveat: if you ever introduce a template-literal
+key like `loc.t` of `` `prefix_${x}` ``, you must also spell every
+reachable key as a string literal somewhere under `src/` (e.g. inside a
+typed lookup map) — otherwise the assertion will flag those keys as
+orphans even though they are dynamically reachable.
 
 ## Emitter catalog
 
@@ -359,9 +370,11 @@ Verify after every recipe: `npm run lint && npm test && npm run build`.
 2. **Pool + weights** — `src/systems/MapGenerator.ts`
    - Add it to `BASE_ROOM_POOL` (and any depth-restricted pool) with
      a weight in `getWeight()`.
-   - If unlock-gated, add an entry to
-     `MetaProgressionManager.ALL_UNLOCK_IDS` and reference it in
-     `getAllowedRoomTypes()`.
+   - If unlock-gated, add a new literal to the `UnlockId` union in
+     `MetaProgressionManager.ts` and reference it in
+     `MapGenerator.getAllowedRoomTypes()`. (`UnlockId` replaces the
+     historical `ALL_UNLOCK_IDS` runtime array — there is no longer a
+     value-level enumeration to append to.)
 3. **Visuals** — `src/ui/RoomVisuals.ts`
    - Add a `{ color, icon, sprite, name }` row keyed by the new
      `RoomType` value. The lookup is exhaustive — TypeScript will
@@ -428,12 +441,12 @@ Enemy _pool selection_ now goes through the seeded `Rng` — see
 ### 4. Add a new skill
 
 1. **ID** — `src/systems/Skills.ts`
-   - Add to the `SkillId` union, the `SKILLS` record (with
+   - Add to the `SkillId` union and the `SKILLS` record (with
      `LocalizedText` `name` / `short` / `description`, `resolveCost`,
-     `color`, `starter`), and `SKILL_ORDER`.
+     `color`, `starter`).
    - Set `starter: false` if the skill is locked behind meta progress;
-     also add a matching `'skill_<id>'` to `ALL_UNLOCK_IDS` in
-     `MetaProgressionManager.ts` and surface it via
+     also add a matching `'skill_<id>'` literal to the `UnlockId`
+     union in `MetaProgressionManager.ts` and surface it via
      `getUnlockedExtraSkills()`.
 2. **Effect** — `src/systems/CombatManager.ts`
    - Add a branch in `handlePlayerSkill(skillId)`. Use
@@ -509,8 +522,8 @@ See "Adding a new channel" above under the Emitter catalog.
 ### 10. Add a new content unlock (milestone reward)
 
 1. **Unlock id** — `src/systems/MetaProgressionManager.ts`
-   - Append to `ALL_UNLOCK_IDS`. The id is a stable string used in
-     persisted profiles, so it is permanent.
+   - Append a new literal to the `UnlockId` union. The id is a stable
+     string used in persisted profiles, so it is permanent.
    - Reflect it in defaults (`DEFAULT_CONTENT_UNLOCKS`) — `false` for
      gated content, `true` if you're retroactively flipping a
      historical id on for old saves.
@@ -539,8 +552,11 @@ See "Adding a new channel" above under the Emitter catalog.
 ### 12. Add a new status effect
 
 1. **Definition** — `src/systems/StatusEffects.ts`
-   - Add the effect to the `StatusBag` shape and the tick logic.
-   - Surface a setter / clearer if needed.
+   - Add the effect to the `StatusState` shape (`emptyStatusState()`
+     defaults + the `tickTurn()` decay block) and surface a setter /
+     clearer (`applyXxx(s, ...)`) if needed.
+   - Add the new id to the `StatusId` union if you're going to refer
+     to it as a typed string anywhere outside `StatusEffects.ts`.
 2. **Apply** — most effects are applied from
    `src/systems/CombatManager.handlePlayerSkill` or
    `applyPlayerDamage` / `resolveEnemyTurn`. Use the existing
@@ -627,6 +643,12 @@ Update SKILL.md when your PR:
   → fix the **Module reference** tables.
 - Adds, removes, or renames an `Emitter<T>` channel, or changes its
   payload shape → fix the **Emitter catalog**.
+- Renames a top-level identifier referenced from this file (e.g. the
+  `ALL_UNLOCK_IDS` → `UnlockId` migration in #156) → fix every
+  recipe that mentions the old name. The orphan-key vitest assertion
+  in `tests/Locale.consistency.test.ts` will catch missed locale-key
+  references but not missed recipe references — those are the
+  reviewer's responsibility.
 - Changes the procedure for any of the 13 recipes (e.g. a new file
   must be touched, an old one no longer exists, an enforcement
   changes) → fix the relevant **Recipe**.
