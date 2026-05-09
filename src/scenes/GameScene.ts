@@ -1,15 +1,11 @@
 import * as Phaser from 'phaser';
 import { DungeonManager } from '../systems/DungeonManager';
-import {
-    MapGenerator,
-    RoomType,
-} from '../systems/MapGenerator';
+import { MapGenerator } from '../systems/MapGenerator';
 import type { MapNode, RoomType as RoomTypeValue } from '../systems/MapGenerator';
 import { CombatManager } from '../systems/CombatManager';
 import {
     MetaProgressionManager,
     type ContentUnlockMilestone,
-    type ContentUnlockState,
 } from '../systems/MetaProgressionManager';
 import { PlayerManager } from '../systems/PlayerManager';
 import { RunTracker } from '../systems/RunTracker';
@@ -27,8 +23,6 @@ import { fitEnemySprite } from '../ui/RoomVisuals';
 import { compactText } from '../ui/TextHelpers';
 import {
     BOTTOM_BAR_H,
-    CENTER_X,
-    CENTER_Y,
     Depths,
     GAME_HEIGHT,
     GAME_WIDTH,
@@ -36,9 +30,8 @@ import {
     TOP_BAR_H,
 } from '../ui/Layout';
 import { hasTexture } from '../ui/AssetGuard';
-import { setupSceneChrome, showUnlockBanner } from '../ui/SceneChrome';
+import { setupSceneChrome } from '../ui/SceneChrome';
 import { createRoomButtons, type RoomButtonAction, type RoomButtonsHandle } from '../ui/RoomButtons';
-import { MapView } from '../ui/MapView';
 import {
     showDeathScreen,
     showVictoryScreen,
@@ -48,6 +41,7 @@ import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
 import { GameHudController } from './controllers/GameHudController';
+import { GameMapController } from './controllers/GameMapController';
 import {
     maybeDropRelic as maybeDropRelicImpl,
     type RelicDropKind,
@@ -86,22 +80,13 @@ export class GameScene extends Phaser.Scene {
     public mapContainer!: Phaser.GameObjects.Container;
     public roomContainer!: Phaser.GameObjects.Container;
     public uiContainer!: Phaser.GameObjects.Container;
-    private mapView!: MapView;
 
-    private animating = false;
     /** True after the death-screen sequence starts (or escape commits).
      *  Read by `GameHudController` / room transitions to gate clicks. */
     public dead = false;
     /** Re-entry guard so the death sequence runs only once per run.
      *  Set by `GameHudController.wire()` death handler and the escape flow. */
     public deathSequenceStarted = false;
-    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`). */
-    private readonly roomTransitionPhaseMs = 800;
-    /** Duration of the walk along the map edge before the room fade. */
-    private readonly walkDurationMs = 2000;
-    /** Fade-in / fade-out duration for the looped footsteps SFX that
-     *  plays during the camera-pan room transition. */
-    private readonly footstepsFadeMs = 500;
     public lastEnemyHp = 0;
     /**
      * Single source of truth for run-end-screen flags.
@@ -134,7 +119,6 @@ export class GameScene extends Phaser.Scene {
         escaped: false,
     };
     public eliteKillsThisRun = 0;
-    private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
     public tooltipText!: Phaser.GameObjects.Text;
 
@@ -151,9 +135,10 @@ export class GameScene extends Phaser.Scene {
     public roomPanelGroup!: Phaser.GameObjects.Container;
     public roomButtons!: RoomButtonsHandle;
 
-    private roomFlow: RoomFlowController = new RoomFlowController(this);
+    public roomFlow: RoomFlowController = new RoomFlowController(this);
     public combatHud: CombatHudController = new CombatHudController(this);
-    private hud: GameHudController = new GameHudController(this);
+    public hud: GameHudController = new GameHudController(this);
+    public map: GameMapController = new GameMapController(this);
 
     constructor() {
         super('GameScene');
@@ -203,10 +188,8 @@ export class GameScene extends Phaser.Scene {
         const pool: SkillId[] = [...STARTER_LOADOUT, ...extras.filter(s => !STARTER_LOADOUT.includes(s))];
         this.skillLoadout = pool.slice(0, 2);
 
-        this.mapGen = new MapGenerator(this.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
+        this.mapGen = new MapGenerator(this.map.getUnlockedRoomTypes(this.meta.getUnlockedContent()));
 
-        this.roomTintOverlay = null;
-        this.animating = false;
         this.dead = false;
         this.deathSequenceStarted = false;
         this.lastEnemyHp = 0;
@@ -218,16 +201,17 @@ export class GameScene extends Phaser.Scene {
             skillPointsBankedFlag: false,
             escaped: false,
         };
-        // Re-create the HUD controller on every restart so its widget
-        // refs are scrubbed alongside Phaser's container teardown. The
-        // initialiser-bound instance only covers the very first run.
+        // Re-create the HUD/map controllers on every restart so their
+        // widget refs are scrubbed alongside Phaser's container teardown.
+        // The initialiser-bound instances only cover the very first run.
         this.hud = new GameHudController(this);
+        this.map = new GameMapController(this);
 
         const nodes = this.mapGen.generateInitialMap();
         this.dungeon = new DungeonManager(
             nodes,
-            (node, previous) => this.afterMove(node, previous),
-            (fromDepth) => this.appendLayer(fromDepth)
+            (node, previous) => this.map.afterMove(node, previous),
+            (fromDepth) => this.map.appendLayer(fromDepth)
         );
 
         PixelSprite.registerAll(this);
@@ -247,23 +231,7 @@ export class GameScene extends Phaser.Scene {
             padding: { x: 6, y: 3 },
         }).setDepth(Depths.Tooltip).setVisible(false);
 
-        this.mapView = new MapView({
-            scene: this,
-            container: this.mapContainer,
-            dungeon: this.dungeon,
-            meta: this.meta,
-            loc: this.loc,
-            tooltipText: this.tooltipText,
-            canMove: (_node) =>
-                this.mapContainer.visible &&
-                !this.roomContainer.visible &&
-                !this.animating &&
-                !this.dead,
-            onNodeClick: (node) => {
-                this.sfx.play('nodeSelect');
-                this.advanceToNode(node);
-            },
-        });
+        this.map.build();
 
         this.log = new EventLog(
             this,
@@ -292,10 +260,7 @@ export class GameScene extends Phaser.Scene {
 
         this.setupRoomUI();
         this.setupKeyboardShortcuts();
-        this.mapView.build(false);
-        this.mapView.redrawEdges();
-        this.mapView.refresh();
-        this.mapView.centerOnNode(this.dungeon.currentNode);
+        this.map.layoutInitial();
         this.refreshUI();
 
         VFX.scanlines(this, GAME_WIDTH, GAME_HEIGHT);
@@ -475,196 +440,19 @@ export class GameScene extends Phaser.Scene {
         this.roomButtons.setActions(actions, useWideOnly);
     }
 
-    /**
-     * Sequence the post-move animation: dim cleared rooms, build any
-     * freshly-revealed nodes, redraw edges, then walk along the edge
-     * path to the new node (with footstep traces and sound) before
-     * fading into the room itself.
-     * Triggered by `DungeonManager.onMove` (wired in `create()`).
-     */
-    private afterMove(node: MapNode, previous: MapNode) {
-        this.updateRunProgress(node.depth);
-        this.animating = true;
-
-        this.mapView.animateClearedOut(() => {
-            this.mapView.build(true);
-            this.mapView.redrawEdges();
-            this.mapView.refresh();
-
-            this.sfx.startFootstepsLoop(this.footstepsFadeMs);
-
-            this.mapView.animateWalk(
-                previous,
-                node,
-                this.walkDurationMs,
-                (_screenX, _screenY) => {
-                    if (this.hud.torchlight) {
-                        this.hud.torchlight.setPosition(_screenX, _screenY);
-                    }
-                },
-                () => {
-                    this.sfx.stopFootstepsLoop(this.footstepsFadeMs);
-                    if (this.hud.torchlight) {
-                        this.hud.torchlight.setPosition(
-                            this.hud.torchlightHomeX,
-                            this.hud.torchlightHomeY,
-                        );
-                    }
-                    this.fadeToRoom(node);
-                },
-            );
-        });
-    }
-
-    private updateRunProgress(depth: number) {
-        if (depth > this.runState.runBestDepth) {
-            this.runState.runBestDepth = depth;
-        }
-
-        const milestones = this.meta.unlockDepthMilestones(depth);
-        this.handleMilestoneUnlocks(milestones);
-        this.refreshUI();
-    }
-
-    public handleMilestoneUnlocks(milestones: ContentUnlockMilestone[]) {
-        if (milestones.length === 0) {
-            return;
-        }
-
-        milestones.forEach((milestone) => {
-            const label = this.milestoneLabel(milestone);
-            this.log.addMessage(this.loc.t('unlocked', { label }), '#66b8ff');
-            showUnlockBanner(this, label);
-        });
-
-        this.refreshAvailableRoomPool(this.dungeon.currentDepth);
-        this.mapView.refresh();
-        this.refreshUI();
-    }
-
-    private appendLayer(fromDepth: number) {
-        this.refreshAvailableRoomPool(this.dungeon.currentDepth);
-        const newNodes = this.mapGen.generateNextLayer(this.dungeon.getAllNodes(), fromDepth);
-        this.dungeon.addNodes(newNodes);
-    }
-
-    private refreshAvailableRoomPool(depth: number) {
-        const projectedUnlocks = this.meta.getProjectedUnlocks(depth);
-        this.mapGen.setAvailableRoomTypes(this.getUnlockedRoomTypes(projectedUnlocks));
-    }
-
-    private getUnlockedRoomTypes(unlocks: ContentUnlockState): RoomTypeValue[] {
-        const roomTypes: RoomTypeValue[] = [RoomType.ENEMY, RoomType.EMPTY, RoomType.REST, RoomType.TREASURE];
-
-        if (unlocks.room_trap) {
-            roomTypes.push(RoomType.TRAP);
-        }
-        if (unlocks.room_merchant) {
-            roomTypes.push(RoomType.MERCHANT);
-        }
-        if (unlocks.room_shrine) {
-            roomTypes.push(RoomType.SHRINE);
-        }
-        if (unlocks.room_elite) {
-            roomTypes.push(RoomType.ELITE);
-        }
-
-        return roomTypes;
-    }
-
-    private fadeToRoom(node: MapNode) {
-        this.animating = true;
-        const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
-        this.animateTorchlightSweep('forward');
-        this.tweens.add({
-            targets: overlay,
-            alpha: 1,
-            duration: this.roomTransitionPhaseMs,
-            ease: 'Sine.in',
-            onComplete: () => {
-                this.mapContainer.setVisible(false);
-                this.roomContainer.setVisible(true);
-                // Re-evaluate HUD-button visibility now that the map
-                // container is hidden — refreshUI keys off
-                // mapContainer.visible to drop the Escape/Restart
-                // buttons inside rooms.
-                this.refreshUI();
-                this.tweens.add({
-                    targets: overlay,
-                    alpha: 0,
-                    duration: this.roomTransitionPhaseMs,
-                    ease: 'Sine.out',
-                    onComplete: () => {
-                        overlay.destroy();
-                        this.animating = false;
-                    },
-                });
-                this.enterRoom(node);
-            },
-        });
-    }
-
-    /**
-     * Slide the torchlight pool toward `direction` over `roomTransitionPhaseMs`,
-     * then ease it back to the home position over the same duration. Lines up
-     * the visible "camera drift" of the lit area with the existing fade-to-
-     * black / fade-from-black phases of the room transition.
-     */
-    private animateTorchlightSweep(direction: 'forward' | 'back') {
-        const tl = this.hud.torchlight;
-        if (!tl) return;
-        const delta = direction === 'forward' ? this.hud.torchlightSweepPx : -this.hud.torchlightSweepPx;
-        this.tweens.killTweensOf(tl);
-        this.tweens.add({
-            targets: tl,
-            x: this.hud.torchlightHomeX + delta,
-            duration: this.roomTransitionPhaseMs,
-            ease: 'Sine.in',
-            onComplete: () => {
-                this.tweens.add({
-                    targets: tl,
-                    x: this.hud.torchlightHomeX,
-                    duration: this.roomTransitionPhaseMs,
-                    ease: 'Sine.out',
-                });
-            },
-        });
-    }
-
-    private roomTintColor(type: RoomTypeValue): { color: number; alpha: number } {
-        switch (type) {
-            case RoomType.ENEMY: return { color: 0x331111, alpha: 0.12 };
-            case RoomType.ELITE: return { color: 0x442211, alpha: 0.15 };
-            case RoomType.BOSS: return { color: 0x440000, alpha: 0.18 };
-            case RoomType.MINI_BOSS: return { color: 0x441111, alpha: 0.16 };
-            case RoomType.TREASURE: return { color: 0x332800, alpha: 0.10 };
-            case RoomType.TRAP: return { color: 0x220033, alpha: 0.14 };
-            case RoomType.REST: return { color: 0x003311, alpha: 0.10 };
-            case RoomType.SHRINE: return { color: 0x111133, alpha: 0.10 };
-            case RoomType.MERCHANT: return { color: 0x112233, alpha: 0.10 };
-            default: return { color: 0x111111, alpha: 0.06 };
-        }
-    }
-
+    /** Forward to {@link GameMapController.applyRoomTint}. */
     public applyRoomTint(type: RoomTypeValue) {
-        if (this.roomTintOverlay) {
-            this.roomTintOverlay.destroy();
-            this.roomTintOverlay = null;
-        }
-        const tint = this.roomTintColor(type);
-        this.roomTintOverlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, tint.color, tint.alpha)
-            .setDepth(1).setScrollFactor(0);
+        this.map.applyRoomTint(type);
     }
 
+    /** Forward to {@link GameMapController.clearRoomTint}. */
     public clearRoomTint() {
-        if (this.roomTintOverlay) {
-            this.roomTintOverlay.destroy();
-            this.roomTintOverlay = null;
-        }
+        this.map.clearRoomTint();
     }
 
-    private enterRoom(node: MapNode) {
-        this.roomFlow.enter(node);
+    /** Forward to {@link GameMapController.handleMilestoneUnlocks}. */
+    public handleMilestoneUnlocks(milestones: ContentUnlockMilestone[]) {
+        this.map.handleMilestoneUnlocks(milestones);
     }
 
     public startCombatEncounter(kind: 'normal' | 'elite' | 'boss') {
@@ -720,50 +508,14 @@ export class GameScene extends Phaser.Scene {
         );
     }
 
+    /** Forward to {@link GameMapController.returnToMap}. */
     public returnToMap() {
-        if (this.animating) return;
-        this.animating = true;
-        const overlay = this.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000).setAlpha(0).setDepth(Depths.RoomTint);
-        this.animateTorchlightSweep('back');
-        this.tweens.add({
-            targets: overlay,
-            alpha: 1,
-            duration: this.roomTransitionPhaseMs,
-            ease: 'Sine.in',
-            onComplete: () => {
-                this.roomContainer.setVisible(false);
-                this.mapContainer.setVisible(true);
-                this.roomPanelGroup.setVisible(false);
-                this.setRoomButtons([]);
-                this.clearRoomTint();
-                this.mapView.refresh();
-                this.refreshUI();
-                this.tweens.add({
-                    targets: overlay,
-                    alpha: 0,
-                    duration: this.roomTransitionPhaseMs,
-                    ease: 'Sine.out',
-                    onComplete: () => {
-                        overlay.destroy();
-                        this.animating = false;
-                    },
-                });
-            },
-        });
+        this.map.returnToMap();
     }
 
+    /** Forward to {@link GameMapController.advanceToNode}. */
     public advanceToNode(node: MapNode) {
-        if (!this.mapView.canUseNode(node)) {
-            return;
-        }
-
-        this.roomContainer.setVisible(false);
-        this.roomPanelGroup.setVisible(false);
-        this.mapContainer.setVisible(true);
-        this.setRoomButtons([]);
-        this.clearRoomTint();
-        this.refreshUI();
-        this.dungeon.moveTo(node.id);
+        this.map.advanceToNode(node);
     }
 
     public updateEnemyUI(
