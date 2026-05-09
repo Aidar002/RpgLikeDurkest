@@ -19,8 +19,6 @@ import { VFX } from '../ui/VFX';
 import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
 import { PixelSprite } from '../ui/PixelSprite';
-import { fitEnemySprite } from '../ui/RoomVisuals';
-import { compactText } from '../ui/TextHelpers';
 import {
     BOTTOM_BAR_H,
     Depths,
@@ -29,15 +27,15 @@ import {
     HUD_BOTTOM_OFFSET,
     TOP_BAR_H,
 } from '../ui/Layout';
-import { hasTexture } from '../ui/AssetGuard';
 import { setupSceneChrome } from '../ui/SceneChrome';
-import { createRoomButtons, type RoomButtonAction, type RoomButtonsHandle } from '../ui/RoomButtons';
+import type { RoomButtonAction, RoomButtonsHandle } from '../ui/RoomButtons';
 import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
 import { GameHudController } from './controllers/GameHudController';
 import { GameMapController } from './controllers/GameMapController';
 import { GameOverlayController } from './controllers/GameOverlayController';
+import { GameRoomController } from './controllers/GameRoomController';
 import {
     maybeDropRelic as maybeDropRelicImpl,
     type RelicDropKind,
@@ -136,6 +134,7 @@ export class GameScene extends Phaser.Scene {
     public hud: GameHudController = new GameHudController(this);
     public map: GameMapController = new GameMapController(this);
     public overlay: GameOverlayController = new GameOverlayController(this);
+    public room: GameRoomController = new GameRoomController(this);
 
     constructor() {
         super('GameScene');
@@ -198,13 +197,14 @@ export class GameScene extends Phaser.Scene {
             skillPointsBankedFlag: false,
             escaped: false,
         };
-        // Re-create the HUD/map/overlay controllers on every restart
-        // so their widget refs are scrubbed alongside Phaser's container
-        // teardown. The initialiser-bound instances only cover the very
-        // first run.
+        // Re-create the HUD/map/room/overlay controllers on every
+        // restart so their widget refs are scrubbed alongside Phaser's
+        // container teardown. The initialiser-bound instances only
+        // cover the very first run.
         this.hud = new GameHudController(this);
         this.map = new GameMapController(this);
         this.overlay = new GameOverlayController(this);
+        this.room = new GameRoomController(this);
 
         const nodes = this.mapGen.generateInitialMap();
         this.dungeon = new DungeonManager(
@@ -257,7 +257,7 @@ export class GameScene extends Phaser.Scene {
 
         this.hud.wire();
 
-        this.setupRoomUI();
+        this.room.build();
         this.setupKeyboardShortcuts();
         this.map.layoutInitial();
         this.refreshUI();
@@ -294,11 +294,7 @@ export class GameScene extends Phaser.Scene {
     }
 
     private triggerActionButton(index: number) {
-        if (!this.roomContainer.visible || this.dead) {
-            return;
-        }
-
-        this.roomButtons.trigger(index);
+        this.room.triggerActionButton(index);
     }
 
     /**
@@ -350,93 +346,13 @@ export class GameScene extends Phaser.Scene {
         );
     }
 
-    private setupRoomUI() {
-        const panelY = TOP_BAR_H + 12;
-        const panelH = GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12;
-        const panel = this.add.rectangle(570, panelY, 434, panelH, 0x111111).setOrigin(0);
-        panel.setStrokeStyle(2, 0x353535);
-
-        this.roomHeaderText = this.add.text(590, panelY + 4, '', {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
-            color: '#8b8b8b',
-        });
-
-        this.enemyPortrait = this.add.rectangle(787, 190, 120, 120, 0x333333).setStrokeStyle(2, 0x555555);
-        this.enemyIconText = this.add.text(787, 204, '', {
-            fontFamily: 'Courier New',
-            fontSize: '42px',
-            color: '#ffffff',
-        }).setOrigin(0.5);
-        this.enemySpriteImage = this.add.image(787, 190, '__DEFAULT')
-            .setVisible(false).setOrigin(0.5);
-
-        this.enemyNameText = this.add.text(787, 266, '', {
-            fontFamily: 'Courier New',
-            fontSize: '18px',
-            color: '#f0f0f0',
-            align: 'center',
-            wordWrap: { width: 280 },
-        }).setOrigin(0.5, 0);
-
-        this.enemyHpBarBg = this.add.rectangle(647, 326, 280, 14, 0x331111).setOrigin(0, 0.5);
-        this.enemyHpBar = this.add.rectangle(647, 326, 280, 14, 0xc93d2f).setOrigin(0, 0.5);
-        this.enemyHpText = this.add.text(787, 342, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#ad6767',
-        }).setOrigin(0.5);
-
-        this.enemyIntelText = this.add.text(787, 370, '', {
-            fontFamily: 'Courier New',
-            fontSize: '11px',
-            color: '#7ea4ff',
-            align: 'center',
-            wordWrap: { width: 300 },
-        }).setOrigin(0.5, 0);
-
-        this.roomFlavorText = this.add.text(787, 416, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#9b9b9b',
-            align: 'center',
-            wordWrap: { width: 300 },
-            lineSpacing: 2,
-        }).setOrigin(0.5, 0);
-
-        this.roomPanelGroup = this.add.container(0, 0, [
-            panel,
-            this.roomHeaderText,
-            this.enemyPortrait,
-            this.enemyIconText,
-            this.enemySpriteImage,
-            this.enemyNameText,
-            this.enemyHpBarBg,
-            this.enemyHpBar,
-            this.enemyHpText,
-            this.enemyIntelText,
-            this.roomFlavorText,
-        ]);
-
-        this.roomContainer.add(this.roomPanelGroup);
-
-        // Buttons live inside the right info panel (x=570..1004, centred at
-        // 787). The left column was previously at x=650 which spilled past
-        // the panel border and overlapped the EVENT LOG seam — shift the
-        // pair so each column sits ~22 px inside the panel walls. The
-        // actual button creation lives in `../ui/RoomButtons.ts`; the
-        // returned handle exposes setActions / trigger / wideEnabled /
-        // disableAll for keyboard shortcuts and combat to call.
-        this.roomButtons = createRoomButtons(this, this.roomContainer, this.sfx);
-    }
-
     /**
      * @deprecated Use `this.roomButtons.setActions(...)` directly.
      * Kept as a thin shim so RoomFlow / CombatHud call sites compile
      * unchanged after the RoomButtons extraction.
      */
     public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
-        this.roomButtons.setActions(actions, useWideOnly);
+        this.room.setRoomButtons(actions, useWideOnly);
     }
 
     /** Forward to {@link GameMapController.applyRoomTint}. */
@@ -458,10 +374,12 @@ export class GameScene extends Phaser.Scene {
         this.combatHud.start(kind);
     }
 
+    /** Forward to {@link GameRoomController.applyTrapDamage}. */
     public applyTrapDamage(rawDamage: number): number {
-        return this.player.takeDamage(rawDamage, 0, 'trap');
+        return this.room.applyTrapDamage(rawDamage);
     }
 
+    /** Forward to {@link GameRoomController.showRoomCard}. */
     public showRoomCard(
         header: string,
         title: string,
@@ -469,42 +387,14 @@ export class GameScene extends Phaser.Scene {
         color: number,
         icon: string,
         intel: string,
-        spriteKey: string = header
+        spriteKey: string = header,
     ) {
-        this.roomHeaderText.setText(header);
-        this.enemyPortrait.setFillStyle(color);
-        this.enemyIconText.setText(icon);
-        this.enemyNameText.setText(compactText(title, 28));
-        this.roomFlavorText.setText(compactText(description, 72));
-        this.enemyIntelText.setText(compactText(intel, 54));
-        this.enemyIntelText.setVisible(true);
-        this.enemyHpBarBg.setVisible(false);
-        this.enemyHpBar.setVisible(false);
-        this.enemyHpText.setVisible(false);
-        this.roomPanelGroup.setVisible(true);
-
-        const roomKey = PixelSprite.roomKey(spriteKey);
-        if (hasTexture(this, roomKey)) {
-            this.enemySpriteImage.setTexture(roomKey).setVisible(true);
-            fitEnemySprite(this.enemySpriteImage);
-            this.enemyIconText.setVisible(false);
-        } else {
-            this.enemySpriteImage.setVisible(false);
-            this.enemyIconText.setVisible(true);
-        }
+        this.room.showRoomCard(header, title, description, color, icon, intel, spriteKey);
     }
 
+    /** Forward to {@link GameRoomController.showReturnButton}. */
     public showReturnButton() {
-        this.setRoomButtons(
-            [
-                {
-                    label: this.loc.t('returnToMap'),
-                    callback: () => this.returnToMap(),
-                    fill: 0x202020,
-                },
-            ],
-            true
-        );
+        this.room.showReturnButton();
     }
 
     /** Forward to {@link GameMapController.returnToMap}. */
