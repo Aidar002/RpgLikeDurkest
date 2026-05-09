@@ -29,10 +29,14 @@ import {
     type HudInlineSlotHandle,
 } from '../../ui/HudCell';
 import { createHudIcon } from '../../ui/HudIcons';
+import { RelicSlots } from '../../ui/RelicSlots';
+import { RelicSwapModal } from '../../ui/RelicSwapModal';
 import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
 import { VFX } from '../../ui/VFX';
 import { statusSummary } from '../../systems/StatusEffects';
-import { relicSummary as relicSummaryImpl } from '../../systems/RelicDrops';
+import { MAX_RELICS } from '../../systems/PlayerManager';
+import { RELICS } from '../../systems/Relics';
+import type { RelicId } from '../../systems/Relics';
 import type { GameScene } from '../GameScene';
 
 /**
@@ -46,8 +50,8 @@ import type { GameScene } from '../GameScene';
  * `GameScene` keeps a thin shim API (`refreshUI`) that forwards into
  * the controller so existing call sites in `RoomFlow` / `CombatHud`
  * keep compiling unchanged. The HUD controller's own methods
- * (`updatePlayerStatus`, `updateEnemyStatus`, `relicSummary`, …) are
- * called directly from the scene (e.g. from emitter listeners on
+ * (`updatePlayerStatus`, `updateEnemyStatus`, …) are called directly
+ * from the scene (e.g. from emitter listeners on
  * `CombatManager.playerStatusChange` / `enemyStatusChange`).
  */
 export class GameHudController {
@@ -87,9 +91,18 @@ export class GameHudController {
     private killsStat!: HudCellHandle;
     private bossStat!: HudCellHandle;
 
+    /** Inline relic-icon row that lives between the shard cell and
+     *  the pillar divider. Hover-aware; tooltips are owned by the
+     *  widget itself. */
+    private relicSlots!: RelicSlots;
+
+    /** Modal that pops on `player.relicOffer` (cap reached) so the
+     *  player can drop one of the equipped five for the candidate
+     *  or skip the candidate. */
+    private relicSwapModal!: RelicSwapModal;
+
     // Below-bar floating text + chrome buttons.
     private hintText!: Phaser.GameObjects.Text;
-    private relicText!: Phaser.GameObjects.Text;
     private playerStatusText!: Phaser.GameObjects.Text;
     private enemyStatusText!: Phaser.GameObjects.Text;
     private escapeButtonBg!: Phaser.GameObjects.Rectangle;
@@ -130,7 +143,9 @@ export class GameHudController {
 
         // ── BOTTOM BAR ──────────────────────────────────────────
         const bottom = this.buildBottomBar(BOT_Y, BOT_H);
+        this.buildRelicSlots(BOT_Y, BOT_H);
         this.buildBelowBarText(BOT_Y, PAD);
+        this.buildRelicSwapModal();
 
         // ── CHROME BUTTONS + CONFIRM MODAL ──────────────────────
         this.buildHudButtons(TOP_H, PAD);
@@ -166,7 +181,7 @@ export class GameHudController {
             this.depthStat.root,
             this.killsStat.root,
             this.bossStat.root,
-            this.relicText,
+            ...this.relicSlots.widgets(),
             this.hintText,
             this.escapeButtonBg,
             this.escapeButtonLabel,
@@ -240,6 +255,13 @@ export class GameHudController {
             scene.sfx.stopAmbient();
             scene.cameras.main.shake(650, 0.04);
             scene.time.delayedCall(320, () => scene.showDeathScreenInternal());
+        });
+
+        // When a relic drops with the inventory at the cap, the
+        // manager fires `relicOffer` instead of mutating. The
+        // swap-modal owns the resolution.
+        scene.player.relicOffer.on(({ id }) => {
+            this.relicSwapModal.show(id);
         });
     }
 
@@ -317,7 +339,7 @@ export class GameHudController {
         this.xpValueText.setVisible(unlocks.showLevelPanel);
         this.hintText.setVisible(false);
 
-        this.relicText.setText(this.relicSummary());
+        this.relicSlots.refresh();
         this.updatePlayerStatus();
 
         // Escape and Restart buttons live on the map UI only. They
@@ -344,10 +366,6 @@ export class GameHudController {
         }
         const txt = statusSummary(this.scene.combat.enemy.status, this.scene.loc.language);
         this.enemyStatusText.setText(txt);
-    }
-
-    public relicSummary(): string {
-        return relicSummaryImpl(this.scene.player, this.scene.loc);
     }
 
     /**
@@ -647,34 +665,79 @@ export class GameHudController {
     }
 
     /**
-     * Floating text rows that sit *above* the bottom bar (relic
-     * summary on the left, milestone hint centred) and the
-     * out-of-bar enemy status text used during combat. Anchored to
-     * `botY − small offset` so a future change to BOTTOM_BAR_H carries
-     * them along, and the carved bar interior is left entirely to
-     * the resource cells (so the milestone hint no longer sits on
-     * top of the bottom rim where it gets visually clipped).
-     *
-     * The two are stacked vertically — hint sits on the bottom line
-     * just above the bar (centred so it reads as a deliberate goal
-     * reminder), relic summary sits one line up on the left —
-     * because their horizontal extents (centred + 540 px word wrap)
-     * would otherwise collide whenever the player has both relics
-     * and an outstanding milestone simultaneously.
+     * Build the inline relic-icon row that lives between the shard
+     * cell and the pillar divider in the bottom bar. The widget owns
+     * its own `relicsChange` subscription and tooltip; the HUD
+     * controller only needs to flush it through `widgets()` so the
+     * icons share the `uiContainer`.
+     */
+    private buildRelicSlots(botY: number, botH: number) {
+        // Geometry mirrors `buildBottomBar`: shardStat ends at
+        // resStart + resW = 36 + 112 = 148, pillar sits at 600.
+        // Centre the slot row in [148, 600] so the icons sit between
+        // the shard cell and the progress block.
+        const cellH = 110;
+        const cellTop = botY + Math.round((botH - cellH) / 2);
+        const SHARD_RIGHT = 36 + 112;
+        const PILLAR_LEFT = 600;
+        const centerX = Math.round((SHARD_RIGHT + PILLAR_LEFT) / 2);
+        const centerY = cellTop + Math.round(cellH / 2);
+        this.relicSlots = new RelicSlots(this.scene, this.scene.player, this.scene.loc, {
+            centerX,
+            centerY,
+            capacity: MAX_RELICS,
+        });
+    }
+
+    /** Build the cap-reached swap modal. The modal owns its own
+     *  show/hide state; we just keep the handle here so the
+     *  `relicOffer` listener in `wire()` can invoke `show(candidate)`. */
+    private buildRelicSwapModal() {
+        const scene = this.scene;
+        this.relicSwapModal = new RelicSwapModal(scene, {
+            loc: scene.loc,
+            player: scene.player,
+            onSwap: (droppedId: RelicId, candidateId: RelicId) => {
+                scene.player.removeRelic(droppedId);
+                scene.player.addRelic(candidateId);
+                const relic = RELICS[candidateId];
+                scene.sfx.play('relicDrop');
+                scene.tracker.record('relicsFound');
+                scene.log.addMessage(
+                    scene.loc.t('relicObtained', {
+                        value: scene.loc.pick(relic.name),
+                        value2: scene.loc.pick(relic.description),
+                    }),
+                    relic.rarity === 'unique'
+                        ? '#f0a8ff'
+                        : relic.rarity === 'rare'
+                          ? '#ffd36e'
+                          : '#ffcc99'
+                );
+            },
+            onSkip: () => {
+                // Intentional no-op: declined relics don't write to
+                // the log so a busy combat tail doesn't get spammed
+                // with "skipped X" lines on every enemy. The slot
+                // row stays unchanged so the player has visual
+                // confirmation that nothing was equipped.
+            },
+        });
+    }
+
+    /**
+     * Floating text rows that sit *above* the bottom bar (milestone
+     * hint centred) and the out-of-bar enemy status text used during
+     * combat. Anchored to `botY − small offset` so a future change to
+     * BOTTOM_BAR_H carries them along.
      */
     private buildBelowBarText(botY: number, pad: number) {
         const HINT_LINE_Y = botY - 8;
-        const RELIC_LINE_Y = botY - 24;
-        this.relicText = this.scene.add
-            .text(pad, RELIC_LINE_Y, '', {
-                fontFamily: HUD_FONT,
-                fontSize: '12px',
-                color: HudHex.accentGold,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-                wordWrap: { width: 540 },
-            })
-            .setOrigin(0, 1);
+        // Relic display moved into the bottom bar itself (see
+        // `buildRelicSlots`). The old `relicText` line was a
+        // throwaway summary that didn't communicate rarity or let
+        // the player inspect a relic's effect.
+        void pad;
         this.hintText = this.scene.add
             .text(CENTER_X, HINT_LINE_Y, '', {
                 fontFamily: HUD_FONT,

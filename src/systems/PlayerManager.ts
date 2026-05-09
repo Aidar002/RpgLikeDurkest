@@ -29,6 +29,16 @@ interface RunResources {
     relicShards: number;
 }
 
+/**
+ * Hard cap on equipped relics. Above this, `addRelic` returns
+ * `'full'` instead of mutating, and the drop pipeline routes the
+ * candidate through {@link PlayerManager.relicOffer} so the HUD can
+ * put up a swap-or-skip modal. The catalog has 10 unique ids today
+ * \u2014 the cap is intentionally well below that so the inventory stays
+ * a meaningful constraint instead of "wear them all".
+ */
+export const MAX_RELICS = 5;
+
 export class PlayerManager {
     public stats: PlayerStats;
     public resources: RunResources;
@@ -42,6 +52,15 @@ export class PlayerManager {
     public readonly statsChange = new Emitter<void>();
     public readonly resourcesChange = new Emitter<void>();
     public readonly relicsChange = new Emitter<void>();
+    /**
+     * Fires when {@link addRelic} is called with the inventory already
+     * at {@link MAX_RELICS}. The HUD listens here to put up the
+     * `RelicSwapModal` so the player can decide which relic to drop
+     * for the candidate (or skip the candidate entirely). The relic
+     * is *not* added until the modal calls back through
+     * {@link removeRelic} + {@link addRelic}.
+     */
+    public readonly relicOffer = new Emitter<{ id: RelicId }>();
 
     private goldGainMult: number;
     private relicAggregate: RelicAggregate = emptyAggregate();
@@ -232,10 +251,26 @@ export class PlayerManager {
         return true;
     }
 
-    addRelic(id: RelicId) {
-        if (this.relics.includes(id)) return;
+    /**
+     * Add a relic to the inventory. Returns the outcome so the caller
+     * (`RelicDrops.maybeDropRelic`) can decide whether to log the
+     * pickup, swallow the duplicate silently, or hand off to the
+     * swap-modal flow when the inventory is full.
+     *
+     *   - `'added'`     — relic was new and inventory had room.
+     *   - `'duplicate'` — id already in `relics`. No emit, no aggregate
+     *                     change, no event fires.
+     *   - `'full'`      — inventory was already at {@link MAX_RELICS}.
+     *                     Nothing changes; the caller is expected to
+     *                     either drop the candidate or run the swap
+     *                     flow (`removeRelic` then `addRelic`).
+     */
+    addRelic(id: RelicId): 'added' | 'duplicate' | 'full' {
+        if (this.relics.includes(id)) return 'duplicate';
+        if (this.relics.length >= MAX_RELICS) return 'full';
         this.relics.push(id);
         this.recomputeAggregate();
+        return 'added';
     }
 
     removeRelic(id: RelicId) {

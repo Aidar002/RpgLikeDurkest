@@ -10,7 +10,6 @@
  *
  * Public API:
  *   - {@link maybeDropRelic}  — roll + apply for a kind/enemy.
- *   - {@link relicSummary}    — localized one-liner of owned relics.
  *
  * The caller passes a {@link RelicDropContext} carrying every system
  * the function touches, so this module has zero scene-graph access
@@ -64,7 +63,7 @@ export function maybeDropRelic(
     kind: RelicDropKind,
     enemyName?: string
 ): boolean {
-    const { meta, player, tracker, sfx, log, loc } = ctx;
+    const { meta, player } = ctx;
     const rng = ctx.rng ?? defaultRng;
     const allowedRarities = meta.getRelicRarityPool();
 
@@ -95,20 +94,30 @@ export function maybeDropRelic(
         // Downgrade to common alternative.
         const fallback = rollRelicFor(player.relics, 'normal', rng);
         if (!fallback) return false;
-        player.addRelic(fallback);
-        tracker.record('relicsFound');
-        sfx.play('relicDrop');
-        log.addMessage(
-            loc.t('relicObtained', {
-                value: loc.pick(RELICS[fallback].name),
-                value2: loc.pick(RELICS[fallback].description),
-            }),
-            '#ffcc99'
-        );
-        return true;
+        return acceptOrOffer(ctx, fallback);
     }
 
-    player.addRelic(relicId);
+    return acceptOrOffer(ctx, relicId);
+}
+
+/**
+ * Try to add a relic; on `'full'`, route through `relicOffer` so the
+ * HUD can ask the player to drop one of the equipped five (or skip
+ * the candidate). Logs / SFX fire only on the successful `'added'`
+ * branch \u2014 the swap-modal owns its own pickup log/SFX after the
+ * player resolves the choice.
+ */
+function acceptOrOffer(ctx: RelicDropContext, relicId: RelicId): boolean {
+    const { player, tracker, sfx, log, loc } = ctx;
+    const outcome = player.addRelic(relicId);
+    if (outcome === 'duplicate') return false;
+
+    if (outcome === 'full') {
+        player.relicOffer.emit({ id: relicId });
+        return false;
+    }
+
+    const relic = RELICS[relicId];
     tracker.record('relicsFound');
     sfx.play('relicDrop');
     log.addMessage(
@@ -119,14 +128,4 @@ export function maybeDropRelic(
         relic.rarity === 'unique' ? '#f0a8ff' : relic.rarity === 'rare' ? '#ffd36e' : '#ffcc99'
     );
     return true;
-}
-
-/**
- * Build the localized "relics: a, b, c" line shown under the HUD.
- * Returns the empty string when no relics are owned (caller decides
- * whether to clear the field or hide the row).
- */
-export function relicSummary(player: PlayerManager, loc: Localization): string {
-    if (player.relics.length === 0) return '';
-    return loc.t('relicsLabel') + player.relics.map((id) => loc.pick(RELICS[id].short)).join(', ');
 }
