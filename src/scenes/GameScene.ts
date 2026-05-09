@@ -1,5 +1,4 @@
 import * as Phaser from 'phaser';
-import { EXPEDITION_CONFIG } from '../data/GameConfig';
 import { DungeonManager } from '../systems/DungeonManager';
 import {
     MapGenerator,
@@ -168,14 +167,6 @@ export class GameScene extends Phaser.Scene {
     };
     /** Two-step confirm timer for the HUD escape button. -1 == idle. */
     private escapeConfirmAt = -1;
-    public skipLightSpendThisRoom = false;
-    /**
-     * [FIX-2] Run-level counter incremented every time the player
-     * enters a non-start room. Light is consumed only on every Nth
-     * tick (LIGHT_CONFIG.decayEveryNRooms), preventing the early-game
-     * darkness death-spiral.
-     */
-    public roomsVisitedForLight = 0;
     public eliteKillsThisRun = 0;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
@@ -194,11 +185,9 @@ export class GameScene extends Phaser.Scene {
     private xpValueText!: Phaser.GameObjects.Text;
     private atkStat!: HudInlineSlotHandle;
     private defStat!: HudInlineSlotHandle;
-    private lightTorchIcon!: Phaser.GameObjects.Text;
     private goldStat!: HudInlineSlotHandle;
     private potionStat!: HudInlineSlotHandle;
     private resolveStat!: HudInlineSlotHandle;
-    private lightResStat!: HudCellHandle;
     private shardStat!: HudCellHandle;
     private depthStat!: HudCellHandle;
     private killsStat!: HudCellHandle;
@@ -297,7 +286,6 @@ export class GameScene extends Phaser.Scene {
             escaped: false,
         };
         this.escapeConfirmAt = -1;
-        this.skipLightSpendThisRoom = false;
 
         const nodes = this.mapGen.generateInitialMap();
         this.dungeon = new DungeonManager(
@@ -469,7 +457,6 @@ export class GameScene extends Phaser.Scene {
             this.xpValueText,
             this.atkStat.root,
             this.defStat.root,
-            this.lightTorchIcon,
             this.goldStat.root,
             this.potionStat.root,
             this.resolveStat.root,
@@ -478,7 +465,6 @@ export class GameScene extends Phaser.Scene {
 
         const bottomWidgets: Phaser.GameObjects.GameObject[] = [
             bottom.botFrame,
-            this.lightResStat.root,
             this.shardStat.root,
             bottom.pillarG,
             this.depthStat.root,
@@ -623,15 +609,14 @@ export class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Top-bar combat stats (Group C): atk/def stacked column, the
-     * light-status torch icon, and the centred "player status"
-     * floating text just below the bar. valueOffsetX forces atk/def
-     * rows to share a numeric column so the values line up vertically
-     * even though "АТАКА" is shorter than "ЗАЩИТА".
+     * Top-bar combat stats (Group C): atk/def stacked column and the
+     * centred "player status" floating text just below the bar.
+     * valueOffsetX forces atk/def rows to share a numeric column so the
+     * values line up vertically even though "АТАКА" is shorter than
+     * "ЗАЩИТА".
      */
     private buildTopCombatStats(topH: number) {
         const { topHud } = HudLayout;
-        const secondColX = topHud.statsX + topHud.secondColumnDx;
         this.atkStat = createHudInlineSlot(this, topHud.statsX, topHud.atkY, {
             icon: 'sword',
             label: this.loc.t('attackShort').toUpperCase(),
@@ -645,16 +630,6 @@ export class GameScene extends Phaser.Scene {
             valueColor: HudHex.textPrimary,
             valueFontSize: '17px',
             valueOffsetX: topHud.statsValueOffset,
-        });
-
-        // Light status indicator (torch icon) — sits just to the right
-        // of the atk/def block.
-        this.lightTorchIcon = this.add.text(secondColX, topHud.torchIconY, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '14px',
-            color: HudHex.accentLight,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
         });
 
         this.playerStatusText = this.add.text(CENTER_X, topH + 14, '', {
@@ -700,11 +675,11 @@ export class GameScene extends Phaser.Scene {
     }
 
     /**
-     * Bottom carved bar: 2 resource cells (light / shard, both gated
-     * behind unlocks), divider pillar, 3 progress cells (depth /
-     * kills / bosses). The 3 resources moved to the top bar have left
-     * the left half of the bottom bar mostly empty in the early game;
-     * once the light/shard unlocks fire the cells fill in.
+     * Bottom carved bar: relic-shard cell (gated behind an unlock),
+     * divider pillar, 3 progress cells (depth / kills / bosses). The
+     * 3 resources moved to the top bar have left the left half of
+     * the bottom bar mostly empty in the early game; once the shard
+     * unlock fires the cell fills in.
      *
      * cellH grew 70 → 110 so the resource icons can render at ~2×
      * their old pixel size (18 → 36) without crowding the
@@ -733,15 +708,7 @@ export class GameScene extends Phaser.Scene {
         const STAT_LABEL_FONT = '12px';
         const STAT_VALUE_FONT = '17px';
 
-        this.lightResStat = createHudCell(this, resStart + 0 * resW, cellTop, resW, cellH, {
-            icon: 'lantern',
-            label: this.loc.t('lightShort').toUpperCase(),
-            valueColor: HudHex.accentLight,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
-        });
-        this.shardStat = createHudCell(this, resStart + 1 * resW, cellTop, resW, cellH, {
+        this.shardStat = createHudCell(this, resStart + 0 * resW, cellTop, resW, cellH, {
             icon: 'shard',
             label: this.loc.t('shardShort').toUpperCase(),
             valueColor: HudHex.accentShard,
@@ -982,13 +949,6 @@ export class GameScene extends Phaser.Scene {
         this.atkStat.setVisible(showStats);
         this.defStat.setValue(`${this.player.getEffectiveDefense()}`);
         this.defStat.setVisible(showStats);
-        if (showStats && this.player.hasHighLight) {
-            this.lightTorchIcon.setText('\u2600\uFE0E').setColor(HudHex.accentLight).setVisible(true);
-        } else if (showStats && this.player.hasLowLight) {
-            this.lightTorchIcon.setText('\u263D\uFE0E').setColor(HudHex.accentMoon).setVisible(true);
-        } else {
-            this.lightTorchIcon.setVisible(false);
-        }
 
         // Resources: per-stat slots, each with their own accent colour.
         this.goldStat.setValue(`${resources.gold}`);
@@ -997,8 +957,6 @@ export class GameScene extends Phaser.Scene {
         this.potionStat.setVisible(unlocks.showPotions);
         this.resolveStat.setValue(`${resources.resolve}/${resources.maxResolve}`);
         this.resolveStat.setVisible(unlocks.showResolve);
-        this.lightResStat.setValue(`${resources.light}/${EXPEDITION_CONFIG.maxLight}`);
-        this.lightResStat.setVisible(unlocks.showLight);
         this.shardStat.setValue(`${resources.relicShards}`);
         this.shardStat.setVisible(unlocks.showRelicShards);
 

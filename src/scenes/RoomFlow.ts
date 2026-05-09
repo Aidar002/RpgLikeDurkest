@@ -1,10 +1,8 @@
-import { ALTAR_EFFECTS, FEATURES, MAP_CONFIG, ROOM_CONFIG, RUN_CONFIG } from '../data/GameConfig';
+import { ALTAR_EFFECTS, MAP_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import { RoomType } from '../systems/MapGenerator';
-import { isLightWarning, shouldDecayLight } from '../systems/Light';
 import type { MapNode } from '../systems/MapGenerator';
 import type { NpcEvalContext, PickedDialog } from '../systems/NpcManager';
 import type { NpcId, NpcOfferTemplate } from '../systems/Npcs';
-import { narrate } from '../systems/Narrator';
 import { chance, defaultRng, pick, randomInt } from '../systems/Rng';
 import { compactText } from '../ui/TextHelpers';
 import type { GameScene, RoomButtonAction } from './GameScene';
@@ -33,34 +31,6 @@ export class RoomFlowController {
         scene.applyRoomTint(node.type);
         scene.sfx.play('footstep');
         scene.sfx.updateAmbientDepth(scene.dungeon.currentDepth);
-
-        // [FIX-2] Light now decays once every
-        // {@link getLightDecayInterval} rooms (runLength-derived; was a
-        // flat 2 per room before the runLength refactor). Empty rooms
-        // spared by relic and the START room never tick the counter so
-        // the relic effect stays meaningful.
-        if (FEATURES.light) {
-            if (scene.skipLightSpendThisRoom) {
-                scene.skipLightSpendThisRoom = false;
-            } else if (node.type !== RoomType.START) {
-                scene.roomsVisitedForLight += 1;
-                if (shouldDecayLight(scene.roomsVisitedForLight, RUN_CONFIG.runLength)) {
-                    const spent = scene.player.spendLight(1);
-                    if (spent > 0) {
-                        scene.log.addMessage(scene.loc.t('lightLower', { count: spent }), '#e0c873');
-                    }
-                }
-                if (isLightWarning(scene.player.resources.light)) {
-                    scene.log.addMessage(scene.loc.t('lightWarning'), '#c4a35a');
-                }
-            }
-
-            if (scene.player.hasLowLight && node.type !== RoomType.START) {
-                if (chance(defaultRng, 0.3)) {
-                    scene.log.addMessage(narrate('low_light', scene.loc.language), '#c4a35a');
-                }
-            }
-        }
 
         scene.log.addDivider(`${scene.loc.t('depth')} ${scene.dungeon.currentDepth}`);
 
@@ -319,13 +289,7 @@ export class RoomFlowController {
                 callback: () => {
                     const healed = scene.player.heal(ROOM_CONFIG.rest.recoverHeal);
                     if (healed > 0) scene.tracker.record('healingDone', healed);
-                    const lightGained = FEATURES.light
-                        ? scene.player.gainLight(ROOM_CONFIG.rest.recoverLight)
-                        : 0;
                     const summary = [`${healed} ${scene.loc.t('hp')}`];
-                    if (lightGained > 0) {
-                        summary.push(`${lightGained} ${scene.loc.t('unitLight')}`);
-                    }
                     scene.log.addMessage(scene.loc.t('restRecover', { parts: summary.join(', ') }), '#79e28f');
                     scene.enemyIntelText.setText(scene.loc.t('restAfterHint'));
                     scene.showReturnButton();
@@ -721,24 +685,6 @@ export class RoomFlowController {
             },
         ];
 
-        if (FEATURES.light && scene.player.isLightUnlocked) {
-            actions.push({
-                label: scene.loc.t('actionLantern', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.lanternCost }),
-                callback: () => {
-                    if (!scene.player.spendGold(ROOM_CONFIG.merchant.lanternCost)) {
-                        return;
-                    }
-                    scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.lanternCost);
-                    const gainedLight = scene.player.gainLight(ROOM_CONFIG.merchant.lanternLightGain);
-                    scene.log.addMessage(scene.loc.t('buyLantern', { value: gainedLight }), '#ffe08a');
-                    scene.enemyIntelText.setText(scene.loc.t('npcMerchantOil'));
-                    scene.showReturnButton();
-                },
-                enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.lanternCost,
-                fill: 0x8a5d2d,
-            });
-        }
-
         actions.push({
             label: scene.loc.t('actionArmor', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.armorCost }),
             callback: () => {
@@ -843,10 +789,6 @@ export class RoomFlowController {
                 label: scene.loc.t('actionScout'),
                 callback: () => {
                     const gains: string[] = [];
-                    const lightGain = scene.player.gainLight(ROOM_CONFIG.empty.scoutLightGain);
-                    if (lightGain > 0) {
-                        gains.push(`${lightGain} ${scene.loc.t('unitLight')}`);
-                    }
 
                     if (
                         scene.player.isGoldUnlocked &&
