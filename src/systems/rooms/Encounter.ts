@@ -45,11 +45,11 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
     scene.enemyPortrait.setFillStyle(picked.npc.color);
     scene.enemyIconText.setText(picked.npc.glyph);
     scene.enemyNameText.setText(
-        compactText(`${scene.loc.pick(picked.npc.name)}, ${scene.loc.pick(picked.npc.title)}`, 28)
+        compactText(`${scene.loc.pick(picked.npc.name)}, ${scene.loc.pick(picked.npc.title)}`, 36)
     );
     scene.enemyIntelText.setText(scene.loc.pick(picked.npc.flavor));
     scene.enemyIntelText.setVisible(true);
-    scene.roomFlavorText.setText(compactText(scene.loc.pick(picked.beat.text), 90));
+    scene.roomFlavorText.setText(compactText(scene.loc.pick(picked.beat.text), 120));
     scene.enemySpriteImage.setVisible(false);
     scene.enemyIconText.setVisible(true);
     scene.enemyHpBarBg.setVisible(false);

@@ -1,4 +1,10 @@
-import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, TOP_BAR_H } from '../../ui/Layout';
+import {
+    BOTTOM_BAR_H,
+    GAME_HEIGHT,
+    HUD_BOTTOM_OFFSET,
+    RoomLayout,
+    TOP_BAR_H,
+} from '../../ui/Layout';
 import { hasTexture } from '../../ui/AssetGuard';
 import { PixelSprite } from '../../ui/PixelSprite';
 import { fitEnemySprite } from '../../ui/RoomVisuals';
@@ -34,70 +40,103 @@ export class GameRoomController {
      */
     public build(): void {
         const scene = this.scene;
+        // Right panel — 65 % of the play area (see Layout.RoomLayout
+        // for the full split rationale and ratios).
         const panelY = TOP_BAR_H + 12;
         const panelH = GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12;
-        const panel = scene.add.rectangle(570, panelY, 434, panelH, 0x111111).setOrigin(0);
+        const panelX = RoomLayout.panelX;
+        const panelW = RoomLayout.panelWidth;
+        const cx = RoomLayout.panelCenterX;
+        const panel = scene.add.rectangle(panelX, panelY, panelW, panelH, 0x111111).setOrigin(0);
         panel.setStrokeStyle(2, 0x353535);
 
-        scene.roomHeaderText = scene.add.text(590, panelY + 4, '', {
+        scene.roomHeaderText = scene.add.text(panelX + 20, panelY + 6, '', {
             fontFamily: 'Courier New',
-            fontSize: '13px',
+            fontSize: '14px',
             color: '#8b8b8b',
         });
 
+        // Bigger portrait so the enemy reads as the focal point of
+        // the right panel (was 120×120; bumped to 140×140 along with
+        // matching ENEMY_SPRITE_MAX_DIM in RoomVisuals). 140 is the
+        // sweet spot — bigger than before while still leaving room
+        // beneath for the name + HP + intent + flavour stack above
+        // the taller action buttons.
+        const portraitCY = panelY + 82;
         scene.enemyPortrait = scene.add
-            .rectangle(787, 190, 120, 120, 0x333333)
+            .rectangle(cx, portraitCY, 140, 140, 0x333333)
             .setStrokeStyle(2, 0x555555);
         scene.enemyIconText = scene.add
-            .text(787, 204, '', {
+            .text(cx, portraitCY + 14, '', {
                 fontFamily: 'Courier New',
-                fontSize: '42px',
+                fontSize: '52px',
                 color: '#ffffff',
             })
             .setOrigin(0.5);
         scene.enemySpriteImage = scene.add
-            .image(787, 190, '__DEFAULT')
+            .image(cx, portraitCY, '__DEFAULT')
             .setVisible(false)
             .setOrigin(0.5);
 
         scene.enemyNameText = scene.add
-            .text(787, 266, '', {
+            .text(cx, portraitCY + 84, '', {
                 fontFamily: 'Courier New',
-                fontSize: '18px',
-                color: '#f0f0f0',
+                fontSize: '20px',
+                color: '#f4f0e0',
                 align: 'center',
-                wordWrap: { width: 280 },
+                stroke: '#000000',
+                strokeThickness: 2,
+                wordWrap: { width: panelW - 40 },
             })
             .setOrigin(0.5, 0);
 
-        scene.enemyHpBarBg = scene.add.rectangle(647, 326, 280, 14, 0x331111).setOrigin(0, 0.5);
-        scene.enemyHpBar = scene.add.rectangle(647, 326, 280, 14, 0xc93d2f).setOrigin(0, 0.5);
+        // HP bar gets wider + taller so it reads as the primary
+        // damage indicator (was 280×14; bumped to 360×18).
+        const hpBarY = portraitCY + 116;
+        scene.enemyHpBarBg = scene.add
+            .rectangle(cx - 180, hpBarY, 360, 18, 0x331111)
+            .setStrokeStyle(1, 0x5a1a1a)
+            .setOrigin(0, 0.5);
+        scene.enemyHpBar = scene.add
+            .rectangle(cx - 180, hpBarY, 360, 18, 0xc93d2f)
+            .setOrigin(0, 0.5);
         scene.enemyHpText = scene.add
-            .text(787, 342, '', {
+            .text(cx, hpBarY + 1, '', {
                 fontFamily: 'Courier New',
-                fontSize: '12px',
-                color: '#ad6767',
+                fontSize: '14px',
+                color: '#ffd9d2',
+                stroke: '#000000',
+                strokeThickness: 2,
             })
             .setOrigin(0.5);
 
+        // Intent gets a dedicated highlighted line so the player can
+        // tell at a glance what the enemy is winding up to do
+        // (was 11px subtle; bumped to 14px and brighter blue).
         scene.enemyIntelText = scene.add
-            .text(787, 370, '', {
+            .text(cx, hpBarY + 22, '', {
                 fontFamily: 'Courier New',
-                fontSize: '11px',
-                color: '#7ea4ff',
+                fontSize: '14px',
+                color: '#9ec3ff',
                 align: 'center',
-                wordWrap: { width: 300 },
+                stroke: '#0c1828',
+                strokeThickness: 2,
+                wordWrap: { width: panelW - 50 },
             })
             .setOrigin(0.5, 0);
 
+        // Contextual flavour / dialogue block sits below the intent
+        // and above the action buttons. Wider word wrap and a hair
+        // larger font than before so room descriptions and merchant
+        // dialogue lines read naturally inside the wider panel.
         scene.roomFlavorText = scene.add
-            .text(787, 416, '', {
+            .text(cx, hpBarY + 58, '', {
                 fontFamily: 'Courier New',
-                fontSize: '12px',
-                color: '#9b9b9b',
+                fontSize: '13px',
+                color: '#b0b0b0',
                 align: 'center',
-                wordWrap: { width: 300 },
-                lineSpacing: 2,
+                wordWrap: { width: panelW - 50 },
+                lineSpacing: 3,
             })
             .setOrigin(0.5, 0);
 
@@ -149,9 +188,9 @@ export class GameRoomController {
         scene.roomHeaderText.setText(header);
         scene.enemyPortrait.setFillStyle(color);
         scene.enemyIconText.setText(icon);
-        scene.enemyNameText.setText(compactText(title, 28));
-        scene.roomFlavorText.setText(compactText(description, 72));
-        scene.enemyIntelText.setText(compactText(intel, 54));
+        scene.enemyNameText.setText(compactText(title, 36));
+        scene.roomFlavorText.setText(compactText(description, 96));
+        scene.enemyIntelText.setText(compactText(intel, 64));
         scene.enemyIntelText.setVisible(true);
         scene.enemyHpBarBg.setVisible(false);
         scene.enemyHpBar.setVisible(false);

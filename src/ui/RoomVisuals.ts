@@ -129,8 +129,10 @@ export function roomTypeName(type: RoomTypeValue, loc: Localization): string {
 /** Target box for room sprites on the map — slightly inset from the node rect. */
 const ROOM_SPRITE_MAX_DIM = 64;
 
-/** Target box for enemy portraits in the combat/room panel. */
-const ENEMY_SPRITE_MAX_DIM = 120;
+/** Target box for enemy portraits in the combat/room panel. The
+ *  portrait rectangle is 140×140; this cap matches so the sprite
+ *  fills the frame without overflowing into the name/HP bar below. */
+const ENEMY_SPRITE_MAX_DIM = 140;
 
 /**
  * Scale down high-resolution hand-authored room textures to fit the map node.

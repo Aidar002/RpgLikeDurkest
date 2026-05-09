@@ -4,7 +4,7 @@ import { type CombatAction, type CombatEndPayload } from '../systems/CombatManag
 import { chance, defaultRng, pick } from '../systems/Rng';
 import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
-import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
+import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH, RoomLayout } from '../ui/Layout';
 import { PixelSprite } from '../ui/PixelSprite';
 import { fitEnemySprite } from '../ui/RoomVisuals';
 import { VFX } from '../ui/VFX';
@@ -219,8 +219,8 @@ export class CombatHudController {
         );
         scene.enemyPortrait.setFillStyle(color);
         scene.enemyIconText.setText(icon);
-        scene.enemyNameText.setText(compactText(name, 28));
-        scene.roomFlavorText.setText(compactText(description, 72));
+        scene.enemyNameText.setText(compactText(name, 36));
+        scene.roomFlavorText.setText(compactText(description, 96));
         scene.roomPanelGroup.setVisible(true);
 
         const profile = scene.combat.enemy?.profile;
@@ -240,7 +240,9 @@ export class CombatHudController {
         }
 
         const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-        scene.enemyHpBar.setDisplaySize(ratio * 280, 14);
+        // HP bar grew to 360×18 in the redesigned right panel — keep
+        // setDisplaySize in sync with GameRoomController.build().
+        scene.enemyHpBar.setDisplaySize(ratio * 360, 18);
         scene.enemyHpBar.setFillStyle(ratio > 0.5 ? 0xc65a2e : ratio > 0.25 ? 0xcf9e16 : 0xc63d2d);
         scene.enemyHpText.setText(`${scene.loc.t('hp')} ${Math.max(0, hp)}/${maxHp}`);
         scene.enemyHpBarBg.setVisible(unlocks.showEnemyHp);
@@ -249,13 +251,13 @@ export class CombatHudController {
         scene.enemyIntelText.setVisible(true);
         scene.enemyIntelText.setText(
             unlocks.showEnemyHp
-                ? compactText(this.buildIntel(), 54)
+                ? compactText(this.buildIntel(), 64)
                 : scene.loc.t('enemyInfoLocked')
         );
 
         if (scene.lastEnemyHp > 0 && hp < scene.lastEnemyHp) {
             const damage = scene.lastEnemyHp - hp;
-            VFX.floatText(scene, 787, 150, `-${damage}`, '#ff7373');
+            VFX.floatText(scene, RoomLayout.panelCenterX, 130, `-${damage}`, '#ff7373');
             VFX.shake(scene, scene.enemyPortrait);
             VFX.flash(scene, scene.enemyPortrait, 0xff3232, 120);
         }
