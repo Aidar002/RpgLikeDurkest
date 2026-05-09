@@ -12,7 +12,7 @@ glyph for icons.
 | `stone_wall.png` | optional | no | background of the play area between panels |
 | `hud_icons.png` | 512×128 | yes | 8×2 grid of 64×64 frames in `IconFrame` order |
 | `room_frames.png` | 192×64 | yes | 3×1 grid of 64×64 frames (gold / red / grey) for map nodes |
-| `room_icons.png` | 512×64 | yes | 8×1 grid of 64×64 room-type icons (loaded but currently unused) |
+| `room_icons.png` | 576×64 | yes | 9×1 grid of 64×64 room-type icons. Frame order matches `ROOM_ICON_FRAME` in `src/ui/RoomVisuals.ts`: 0 campfire (START/REST), 1 enemy skull, 2 stone "?" (EMPTY), 3 elite skull, 4 boss crown skull (BOSS/MINI_BOSS), 5 chest (TREASURE), 6 sigil (TRAP), 7 tombstone (SHRINE), 8 coin pouch (MERCHANT) |
 
 ## `hud_icons.png` frame order
 
