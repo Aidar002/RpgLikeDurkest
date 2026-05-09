@@ -55,5 +55,3 @@ export const SKILLS: Record<SkillId, SkillDef> = {
 };
 
 export const STARTER_LOADOUT: SkillId[] = ['cleave', 'bleed_strike', 'preparation'];
-
-export const SKILL_ORDER: SkillId[] = ['cleave', 'bleed_strike', 'preparation'];

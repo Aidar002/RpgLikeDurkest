@@ -156,7 +156,7 @@ export interface EnemyUpdatePayload {
 // handlePlayerAttack / Defend / Skill / Potion . . . . . . . . . .  430 - 564
 // applyPlayerDamage (crit, mark, weaken, status, kill check) . . .  566 - 670
 // applyOnAttackRelics / tryVampireBlessingOnAttack /
-//   tryHealOnAttack / effectiveDamageMod . . . . . . . . . . . . .  672 - 721
+//   tryHealOnAttack . . . . . . . . . . . . . . . . . . . . . . .  672 - 716
 // resolveEnemyTurn (non-boss intent execution) . . . . . . . . . .  723 - 900
 // applyEnemyHitToPlayer / finishCombat / logDeath /
 //   rollPlayerAttack / buildRewards . . . . . . . . . . . . . . . . 902 - 1001
@@ -411,7 +411,7 @@ export class CombatManager {
 
         this.resolveEnemyTurn(actionName as Exclude<CombatAction, { kind: 'skill'; id: SkillId }>);
 
-        // Tick player statuses (bleed/poison damage, focus/regen/mark/weaken decay).
+        // Tick player statuses (bleed/poison damage, regen/mark/weaken decay).
         const playerTick = tickTurn(this.player.status);
         if (playerTick.regenHeal > 0) {
             const healed = this.player.heal(playerTick.regenHeal);
@@ -529,7 +529,7 @@ export class CombatManager {
 
         switch (skillId) {
             case 'cleave': {
-                const base = this.player.getAttackPower() + this.effectiveDamageMod();
+                const base = this.player.getAttackPower();
                 const bonus = Math.max(1, Math.floor(base * 0.5));
                 const dmg = Math.max(1, base + bonus);
                 this.applyPlayerDamage(dmg, false);
@@ -539,7 +539,7 @@ export class CombatManager {
                 break;
             }
             case 'bleed_strike': {
-                const dmg = Math.max(1, this.player.getAttackPower() + this.effectiveDamageMod());
+                const dmg = Math.max(1, this.player.getAttackPower());
                 this.applyPlayerDamage(dmg, false);
                 const bleedPerTick = Math.max(1, Math.floor(this.player.getAttackPower() * 0.2));
                 applyBleed(this.enemy.status, bleedPerTick, 3, this.enemy.bleedCap);
@@ -715,11 +715,6 @@ export class CombatManager {
         }
     }
 
-    private effectiveDamageMod(): number {
-        const focus = this.player.status.focus.turns > 0 ? this.player.status.focus.amount : 0;
-        return focus;
-    }
-
     private resolveEnemyTurn(playerAction: PlayerAction) {
         if (!this.enemy) return;
         resolveEnemyTurnFn(this.enemy, this.buildEnemyTurnDeps(), playerAction);
@@ -797,10 +792,7 @@ export class CombatManager {
             COMBAT_CONFIG.randomVariance > 0
                 ? this.randomBetween(-COMBAT_CONFIG.randomVariance, COMBAT_CONFIG.randomVariance)
                 : 0;
-        const baseDamage = Math.max(
-            1,
-            this.player.getAttackPower() + variance + this.effectiveDamageMod()
-        );
+        const baseDamage = Math.max(1, this.player.getAttackPower() + variance);
         const critical = this.rng.next() < this.player.getCritChance();
 
         return {
