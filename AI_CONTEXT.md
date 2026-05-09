@@ -46,16 +46,15 @@ Use `npm.cmd` in PowerShell because `npm.ps1` can be blocked by local execution 
 ### Scenes (`src/scenes/`)
 
 - `BootScene.ts`: Splash + asset boot. Owns the **shared** `Localization` and `SoundManager` instances and passes them into `GameScene` via `scene.start('GameScene', { loc, sfx })`. Restarts preserve language and audio state.
-- `GameScene.ts`: Coordinator only. Wires managers/controllers, owns Phaser containers, top HUD (HP, ATK/DEF, light, gold, depth), keyboard shortcuts, the language/sound toggles, and the restart-confirmation modal. Domain logic lives in the controllers below.
-- `RoomFlow.ts`: `RoomFlowController`. Owns `enter(node)` and every room handler — treasure, trap, rest, shrine (incl. all five NPC altar paths: Mira/Casimir/Hollow Trader/Veth/Chorister/Kessa), merchant, and empty rooms. Also handles the depth-based whispers (3, 10, 15, 20, final-1, final).
+- `GameScene.ts`: Coordinator only. Wires managers/controllers, owns Phaser containers, top HUD (HP, ATK/DEF, gold, depth), keyboard shortcuts, the language/sound toggles, and the restart-confirmation modal. Domain logic lives in the controllers below.
+- `RoomFlow.ts`: `RoomFlowController`. Owns `enter(node)` and every room handler — treasure, trap, rest, shrine, merchant, and empty rooms. Also handles the depth-based whispers (3, 10, 15, 20, final-1, final).
 - `CombatHud.ts`: `CombatHudController`. Owns combat UI (action buttons, intel panel, enemy portrait), `refreshButtons`, `performAction`, `handleVictory`, `updateEnemyUI`, `onPlayerHit` (hit flash).
 
 ### Systems (`src/systems/`)
 
-- `CombatManager.ts`: Turn combat, enemy intent profiles, status effects, combat rewards. Takes an optional seeded `Rng`. Exposes pub/sub emitters: `enemyUpdate`, `playerStatusChange`, `enemyStatusChange`, `playerHit`, `combatEnd`.
+- `CombatManager.ts`: Turn combat, enemy intent profile (sprite-only category), status effects, combat rewards. Takes an optional seeded `Rng`. Exposes pub/sub emitters: `enemyUpdate`, `playerStatusChange`, `enemyStatusChange`, `playerHit`, `combatEnd`.
 - `DungeonManager.ts`: Current graph position, movement checks, graph mutation.
 - `Emitter.ts`: Tiny typed pub/sub primitive (`on / off / emit / clear`) used by every manager. Snapshots listeners during `emit` and isolates listener exceptions.
-- `Light.ts`: Light-economy helpers (decay interval per `runLength`, low/high-light thresholds).
 - `Localization.ts` + `LocalizedText.ts` + `locale/en.ts` / `locale/ru.ts`: RU/EN strings, language persistence in `localStorage`. `en.ts` is canonical (`Record<LocaleKey, string>`) so missing RU keys fail the build. Keys are semantic — e.g. `combatBossEncounter`, `hudReturnHint`, `roomTreasureName`, `npcMiraPotion`, `shopBeginRun`. **Do not** introduce mechanical prefixes (`cm_001`, etc.).
 - `MapGenerator.ts`: Room graph generation, available room type pool. Takes an optional seeded `Rng`.
 - `MapLayout.ts`: Serpentine map coordinates, map centering, edge routing.
@@ -65,7 +64,6 @@ Use `npm.cmd` in PowerShell because `npm.ps1` can be blocked by local execution 
   - Upgrades: `damage` (10 levels), `hp` (10 levels), `defense` (4 levels), `goldGain` (4 levels, +5% per level).
   - `getBonuses()` → `{ player: { maxHp, attack, defenseBonus, goldGainMult } }` consumed by `PlayerManager` constructor.
 - `MusicManager.ts`: Music playback + cross-fade. Shares the persistent mute flag with `SoundManager`.
-- `NarrativeManager.ts`: Run memory, room intro/result text, death/victory narrative.
 - `Narrator.ts`: Short on-the-beat lines emitted by combat/exploration.
 - `NpcManager.ts` + `Npcs.ts`: NPC altar offers, post-pick state, catalog.
 - `PlayerManager.ts`: Player stats, resources, damage, healing, level-up. Constructor accepts `MetaProgressionManager.getBonuses().player`. Exposes pub/sub emitters: `hpChange`, `statsChange`, `resourcesChange`, `levelUp`, `death`, `relicsChange`. (No `revive` — the revive system was removed in PR #110.)
@@ -110,7 +108,6 @@ The graph layout is intentionally separated:
 The narrative/language path is also separated:
 
 - Add normal UI strings to `Localization` (with a semantic key like `roomTreasureName`).
-- Add authored run flavor to `NarrativeManager`.
 - Avoid hardcoding new user-facing gameplay text in `GameScene` / `RoomFlow` / `CombatHud` — they should call `this.loc.t('semanticKey', vars)`.
 
 The event/notification path is `Emitter`-based:

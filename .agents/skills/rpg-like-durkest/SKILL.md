@@ -51,13 +51,13 @@ Source lives under `src/`:
     inside `BootScene.create()`. Don't grep for `MenuScene`.
 - `src/systems/` — game-state managers wired to `GameScene` via the
   typed pub/sub `Emitter`:
-  - `PlayerManager` (HP, level, light, gold). No revives — the revive
+  - `PlayerManager` (HP, level, gold). No revives — the revive
     system was removed in PR #110.
   - `DungeonManager` (current floor + node graph)
-  - `CombatManager`, `NarrativeManager`, `Narrator`, `MapGenerator`,
+  - `CombatManager`, `Narrator`, `MapGenerator`,
     `RunTracker`, `MetaProgressionManager`, `MusicManager`,
     `SoundManager`, `Localization`, `EventLog`, `Rng`, `NpcManager`,
-    `Light`, `StatusEffects`.
+    `StatusEffects`.
 - `src/ui/` — pure rendering helpers (no game-state coupling):
   - `Layout.ts` — `GAME_WIDTH/HEIGHT`, `TOP_BAR_H`, `BOTTOM_BAR_H`,
     depth tiers, and `HudLayout` (per-section stat coordinates). Add
@@ -76,7 +76,7 @@ Source lives under `src/`:
 
 Tests live under `tests/` and target pure-logic systems (`Rng`,
 `StatusEffects`, `MapGenerator`, `MetaProgression`, `CombatManager`,
-`PlayerManager`, `Light`, `DungeonManager`, `Relics`, `BalancePatch`).
+`PlayerManager`, `DungeonManager`, `Relics`, `BalancePatch`).
 They run in node without a Phaser context — keep system files
 headless-friendly (no `import phaser` at module top in `src/systems/*`).
 

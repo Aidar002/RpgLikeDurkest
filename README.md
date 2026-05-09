@@ -1,6 +1,6 @@
 # RpgLikeDurkest
 
-A compact Phaser 3 roguelike prototype: procedural map exploration, text-forward rooms, turn combat, meta progression, narrative memory, and RU/EN localization.
+A compact Phaser 3 roguelike prototype: procedural map exploration, text-forward rooms, turn combat, meta progression, and RU/EN localization.
 
 ## Commands
 
@@ -39,7 +39,6 @@ src/
 │   ├── CombatManager.ts    # Turn combat + enemy intents (Emitter-based events, seeded Rng)
 │   ├── DungeonManager.ts   # Graph position, movement, mutation
 │   ├── Emitter.ts          # Typed on/off/emit pub/sub (snapshots listeners, isolates errors)
-│   ├── Light.ts            # Light decay interval + thresholds
 │   ├── Localization.ts     # RU + EN string lookup; locale/en.ts is canonical
 │   ├── locale/             # locale/en.ts + locale/ru.ts (semantic LocaleKey)
 │   ├── LocalizedText.ts    # Phaser text helper that re-renders on language change
@@ -47,7 +46,6 @@ src/
 │   ├── MapLayout.ts        # Serpentine graph coordinates, edge paths
 │   ├── MetaProgressionManager.ts  # Skill-points bank + 4 upgrades (v4 schema, escape-only banking, death = full wipe)
 │   ├── MusicManager.ts     # Music + cross-fade (shares mute flag with SoundManager)
-│   ├── NarrativeManager.ts # Authored room/run narrative + memory
 │   ├── Narrator.ts         # Short on-the-beat lines
 │   ├── NpcManager.ts / Npcs.ts  # NPC altar offers + catalog
 │   ├── PlayerManager.ts    # Player stats and resources (Emitter-based events)
@@ -87,7 +85,7 @@ For a one-page architectural map (file → role → emits / depends on / owns), 
 For new visible text:
 
 - UI / gameplay strings → add a **semantic** `LocaleKey` to `src/systems/locale/en.ts` (and the matching `ru.ts` translation). `en.ts` is canonical, so a missing `ru.ts` translation will fail typecheck. Do not introduce new mechanical prefixes like `cm_001`.
-- Authored atmosphere → `NarrativeManager.ts` / `Narrator.ts`.
+- Authored atmosphere → `Narrator.ts`.
 
 For new manager-to-scene events, expose an `Emitter<T>` field rather than a mutable `onXxx` callback. Subscribers register with `emitter.on(payload => …)` and unsubscribe with the returned disposer.
 
