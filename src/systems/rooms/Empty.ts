@@ -52,10 +52,7 @@ export function handleEmptyRoom(scene: GameScene): void {
             callback: () => {
                 const gains: string[] = [];
 
-                if (
-                    scene.player.isGoldUnlocked &&
-                    chance(defaultRng, ROOM_CONFIG.empty.scoutGoldChance)
-                ) {
+                if (chance(defaultRng, ROOM_CONFIG.empty.scoutGoldChance)) {
                     const gold = scene.player.gainGold(
                         randomInt(defaultRng, ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
                     );
@@ -77,13 +74,8 @@ export function handleEmptyRoom(scene: GameScene): void {
         {
             label: scene.loc.t('actionSteady'),
             callback: () => {
-                if (scene.player.isResolveUnlocked) {
-                    const gained = scene.player.gainResolve(ROOM_CONFIG.empty.steadyResolveGain);
-                    scene.log.addMessage(scene.loc.t('emptySteady', { value: gained }), '#9bc8ff');
-                } else {
-                    const gainedXp = scene.player.gainXp(1);
-                    scene.log.addMessage(scene.loc.t('emptyStudy', { value: gainedXp }), '#bbbbbb');
-                }
+                const gained = scene.player.gainResolve(ROOM_CONFIG.empty.steadyResolveGain);
+                scene.log.addMessage(scene.loc.t('emptySteady', { value: gained }), '#9bc8ff');
                 scene.enemyIntelText.setText(scene.loc.t('roomEmptyAfterSkip'));
                 scene.showReturnButton();
             },

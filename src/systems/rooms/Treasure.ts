@@ -11,7 +11,7 @@ export function handleTreasureRoom(scene: GameScene): void {
     if (goldUnlocked) {
         goldGained = scene.player.gainGold(randomInt(defaultRng, ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
         if (goldGained > 0) scene.tracker.record('goldEarned', goldGained);
-        if (scene.player.isPotionUnlocked && chance(defaultRng, ROOM_CONFIG.treasure.potionChance)) {
+        if (chance(defaultRng, ROOM_CONFIG.treasure.potionChance)) {
             potionGained = scene.player.gainPotions(1);
         }
     }
