@@ -78,7 +78,7 @@ import {
 export type { RoomButtonAction, RoomButtonVariant } from '../ui/RoomButtons';
 
 // =============================================================================
-// GameScene routing map (see docs/ARCH_MAP.md for the cross-file picture)
+// GameScene routing map (see .agents/skills/rpg-like-durkest/SKILL.md for the cross-file picture)
 // -----------------------------------------------------------------------------
 // Field declarations . . . . . . . . . . . . . . . . . . . . . .  ~99 - 215
 // constructor / init / small i18n helpers (skillShort, etc.) . . . 217 - 248
