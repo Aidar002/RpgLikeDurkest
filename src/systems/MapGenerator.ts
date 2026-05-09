@@ -230,7 +230,7 @@ function forwardNeighbours(gx: number, gy: number): GridPos[] {
 }
 
 // =============================================================================
-// MapGenerator routing map (see docs/ARCH_MAP.md for the cross-file picture)
+// MapGenerator routing map (see .agents/skills/rpg-like-durkest/SKILL.md for the cross-file picture)
 // -----------------------------------------------------------------------------
 // RoomType enum + MapNode + room pools (BASE / FINAL_APPROACH /
 //   POST_MAJOR_RECOVERY) . . . . . . . . . . . . . . . . . . . . .   4 - 123

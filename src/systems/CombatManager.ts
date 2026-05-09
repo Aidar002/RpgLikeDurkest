@@ -150,7 +150,7 @@ export interface EnemyUpdatePayload {
 }
 
 // =============================================================================
-// CombatManager routing map (see docs/ARCH_MAP.md + docs/EVENTS.md)
+// CombatManager routing map (see .agents/skills/rpg-like-durkest/SKILL.md)
 // -----------------------------------------------------------------------------
 // Type/payload exports (CombatAction, BossPhaseState, ActiveEnemy,
 //   CombatRewards, CombatEndPayload, EnemyUpdatePayload) . . . . . .   40 - 149

@@ -1,12 +1,21 @@
 ---
 name: rpg-like-durkest
-description: Setup, lint/test/build commands, and architectural conventions for the RpgLikeDurkest Phaser-3 roguelike. Use whenever you work on this repo.
+description: Single-source AI reference for the RpgLikeDurkest Phaser-3 roguelike. Covers setup, conventions, file-by-file architecture, the Emitter catalog, and 13 copy-paste recipes. Read this whenever you work on this repo.
 ---
 
-# RpgLikeDurkest
+# RpgLikeDurkest — AI Reference
 
-Browser roguelike built on Phaser 3.90 + TypeScript + Vite. Pure client app
-(no backend), shipped as a static bundle.
+Browser roguelike: **Phaser 3.90 + TypeScript + Vite**. Pure client app
+(no backend, no `.env`, no external secrets). Ships as a static bundle.
+
+> This file is the single onboarding doc. `README.md` is the quick
+> human-facing index that points here. The only other doc files are
+> `docs/ART_GUIDE.md` (asset / sprite workflow) and
+> `docs/NARRATIVE_DIRECTION.md` (writing voice for room and combat
+> text). All previous AI-facing files (`AI_CONTEXT.md`,
+> `docs/ARCH_MAP.md`, `docs/EVENTS.md`, `docs/RECIPES.md`,
+> `docs/CONFIG_GUIDE.md`) were merged into this skill. Don't grep for
+> them.
 
 ## Setup
 
@@ -14,8 +23,7 @@ Browser roguelike built on Phaser 3.90 + TypeScript + Vite. Pure client app
 npm install
 ```
 
-There is no `.env` and no external secrets needed. All assets ship in
-`public/assets/`.
+No env vars. All assets ship in `public/`.
 
 ## Daily commands
 
@@ -29,72 +37,230 @@ There is no `.env` and no external secrets needed. All assets ship in
 | Prettier check           | `npm run format`       |
 | Prettier auto-fix        | `npm run format:write` |
 
-Before opening a PR, all of `lint`, `test`, `build` must pass. CI runs all
-three in parallel on every PR; PRs are not merged unless CI is green.
+The dev server is at `http://127.0.0.1:5173/RpgLikeDurkest/`. The base
+path comes from `VITE_BASE` (default `/RpgLikeDurkest/`); a fork can
+override it without patching `vite.config.ts`.
+
+CI (`.github/workflows/ci.yml`) runs `npm ci → lint → test → build` on
+every PR. PRs are not merged unless CI is green. Always run all three
+locally before pushing.
+
+PowerShell users: invoke `npm.cmd` instead of `npm` (the `.ps1`
+shim can be blocked by execution policy).
 
 ## TypeScript settings
 
 `tsconfig.json` runs in `strict` mode with `noUnusedLocals` and
-`noUnusedParameters` enabled. Don't introduce `any`, `getattr`-style escape
-hatches, or `// @ts-ignore`; instead, narrow the type properly. ESLint
+`noUnusedParameters` enabled. No `any`, no `// @ts-ignore`, no
+`getattr`-style escape hatches — narrow the type properly. ESLint
 flat-config rules also forbid unused vars.
 
-## Architecture overview
+Use `import type` for type-only imports — Vite/esbuild can fail if
+interfaces are imported as runtime values.
 
-Source lives under `src/`:
+Files are UTF-8 (no BOM). Comments are ASCII unless they're literal
+RU strings being escaped.
 
-- `src/main.ts` — Phaser game bootstrap (canvas size, scenes registry).
-- `src/scenes/` — `BootScene` (asset preload + title/start UI),
-  `GameScene` (orchestrator), plus combat/roomflow controllers
-  (`CombatHud`, `RoomFlow`).
-  - There is **no** separate `MenuScene` — the start screen is built
-    inside `BootScene.create()`. Don't grep for `MenuScene`.
-- `src/systems/` — game-state managers wired to `GameScene` via the
-  typed pub/sub `Emitter`:
-  - `PlayerManager` (HP, level, gold). No revives — the revive
-    system was removed in PR #110.
-  - `DungeonManager` (current floor + node graph)
-  - `CombatManager`, `Narrator`, `MapGenerator`,
-    `RunTracker`, `MetaProgressionManager`, `MusicManager`,
-    `SoundManager`, `Localization`, `EventLog`, `Rng`, `NpcManager`,
-    `StatusEffects`.
-- `src/ui/` — pure rendering helpers (no game-state coupling):
-  - `Layout.ts` — `GAME_WIDTH/HEIGHT`, `TOP_BAR_H`, `BOTTOM_BAR_H`,
-    depth tiers, and `HudLayout` (per-section stat coordinates). Add
-    new HUD coordinates here, NOT inline in `GameScene.ts`.
-  - `HudFrame.ts` — top/bottom carved bars + free-floating
-    `drawCarvedPanel`.
-  - `HudCell.ts`, `HudIcons.ts`, `HudTheme.ts` — bottom-bar resource
-    cells + spritesheet icons.
-  - `AssetGuard.ts` — `hasTexture(scene, key)` /
-    `withTexture(scene, key, withImage, withFallback)`. Use these
-    instead of inline `scene.textures.exists(...)` so the
-    "real spritesheet vs procedural fallback" branching stays in one
-    place.
-  - `EndScreens.ts`, `SceneChrome.ts`, `VFX.ts`, `RoomVisuals.ts`,
-    `PixelSprite.ts`, `VolumePanel.ts`.
+## High-level architecture
 
-Tests live under `tests/` and target pure-logic systems (`Rng`,
-`StatusEffects`, `MapGenerator`, `MetaProgression`, `CombatManager`,
-`PlayerManager`, `DungeonManager`, `Relics`, `BalancePatch`).
-They run in node without a Phaser context — keep system files
-headless-friendly (no `import phaser` at module top in `src/systems/*`).
+```
+src/
+├── scenes/         Phaser scenes + per-room / per-combat controllers
+├── systems/        Game-state managers (no Phaser at module top)
+├── ui/             Pure rendering helpers + layout constants
+├── data/           Numeric balance + enemy / boss tables
+└── main.ts         Phaser game bootstrap (canvas, scene registry)
 
-The `StressManager` system was removed in earlier refactors — there is
-no such file or test. Don't grep for it.
+tests/              Vitest pure-logic tests (no Phaser import)
+public/             Static assets (sprites, audio) copied to dist/
+```
+
+Three-layer rule:
+
+- `data/` is pure constants (no imports from `systems/` / `ui/` /
+  `scenes/`).
+- `systems/` are headless managers (no `import phaser` at module top —
+  tests import them directly).
+- `ui/` is pure rendering (no game-state mutations; takes everything
+  via parameters).
+- `scenes/` is the only layer allowed to wire `systems/` + `ui/` +
+  Phaser together.
+
+`GameScene` is the coordinator: it constructs every manager, wires
+their `Emitter` channels, owns the top HUD and keyboard, and delegates
+room flow to `RoomFlowController` and combat UI to
+`CombatHudController`. New gameplay rules belong in `systems/`, new
+room behaviour belongs in `RoomFlow.ts`, new combat UI belongs in
+`CombatHud.ts`, and reusable rendering helpers belong in `ui/`.
+
+## Module reference
+
+For each module: **role** (one-liner), **emits** (Emitter channels —
+see "Emitter catalog" below for payloads), **depends on** (major
+collaborators), **owns** (state / side effects).
+
+### Scenes (`src/scenes/`)
+
+| File | Role | Emits | Depends on | Owns |
+| --- | --- | --- | --- | --- |
+| `BootScene.ts` | Splash + asset preload, hands off to `GameScene`. | — | `Localization`, `SoundManager`, `MusicManager` | The **shared** `Localization`, `SoundManager`, `MusicManager` instances passed to all later scenes. Restarts preserve language and audio state. |
+| `GameScene.ts` | Coordinator. Wires every manager + controller, owns Phaser containers, top HUD, keyboard, restart-confirm modal, escape modal, end-screen routing. | — (consumes everything) | All `systems/*`, `ui/*`, both controllers | Phaser containers (`mapContainer`, `roomContainer`, `uiContainer`), HUD widget refs, scene-local run state (`runSkillPointsPending`, `runBestDepth`, `runBossKills`, `escaped`, `dead`). |
+| `RoomFlow.ts` (`RoomFlowController`) | Per-room handlers (treasure / trap / rest / shrine / NPC / merchant / empty) + depth whispers (3, 10, 15, 20, final-1, final). | — | `GameScene` (back-ref), `CombatManager`, `PlayerManager`, `Narrator`, `NpcManager`, `Localization` | Current room result text, room-button bindings while a room is open. |
+| `CombatHud.ts` (`CombatHudController`) | Combat UI (action buttons, intel panel, enemy portrait, hit flash, victory transition). | — (subscribes to `CombatManager`) | `GameScene`, `CombatManager`, `PlayerManager`, `Localization`, `VFX` | Combat-only UI widgets and their event subscriptions. |
+
+There is **no** separate `MenuScene` — the start screen is built inside
+`BootScene.create()`. Don't grep for `MenuScene`.
+
+### Systems (`src/systems/`)
+
+| File | Role | Emits | Depends on | Owns |
+| --- | --- | --- | --- | --- |
+| `CombatManager.ts` | Turn combat: enemy intents, status effects, rewards, boss phase machine. Takes an optional seeded `Rng`. | `enemyUpdate`, `playerStatusChange`, `enemyStatusChange`, `playerHit`, `combatEnd` | `PlayerManager`, `StatusEffects`, `Enemies`, `Bosses`, `EnemyTextConfig`, `Rng`, `Localization`, `Narrator`, `BossRuntime` | Active enemy snapshot, boss phase state, skill cooldown table, prepare/windup state. |
+| `BossRuntime.ts` | Six pure helpers extracted from `CombatManager` for boss phase resolution (PR #125). | — | `Bosses`, `EnemyTextConfig` | — (pure functions) |
+| `DungeonManager.ts` | Graph position, movement validation, graph mutation. | — | `MapGenerator` types | Current node + visited-node set. |
+| `Emitter.ts` | Tiny typed pub/sub primitive (`on / off / emit / clear`). | — | — | Listener list per `Emitter` instance. Snapshots listeners during `emit`; isolates listener exceptions. |
+| `Localization.ts` + `LocalizedText.ts` + `locale/en.ts` / `locale/ru.ts` | RU/EN string lookup. `en.ts` is canonical (`Record<LocaleKey, string>` so missing RU keys break the build). `tests/Locale.consistency.test.ts` also asserts both sides have identical keys + identical `{placeholder}` tokens at runtime. | `change` (language flip) — single mutable callback, not an `Emitter<T>` (predates the pattern; if you add a second consumer, migrate it). | `localStorage` | Active language flag. |
+| `MapGenerator.ts` | Procedural room graph: layer build, boss placement, seal coverage, weighted room rolls. Takes an optional seeded `Rng`. | — | `Rng`, `MapConfig`, room-pool config | Owned graph (`MapNode[]`), seal counts, available-room set. |
+| `MapLayout.ts` | Serpentine map coordinates + edge routing. | — | `Layout` constants | Pure layout math. |
+| `MetaProgressionManager.ts` | Persistent skill-points bank + 4 upgrades + content-unlock state. Storage key `localStorage["rpglikedurkest-meta-v4"]`; pre-v4 keys dropped on load — **no migration**. | — | `localStorage`, `UPGRADE_DEFINITIONS` | Persisted profile. `bankSkillPoints(...)` is **escape-only**; on death the scene calls `resetProgress()` which wipes the entire profile. |
+| `MusicManager.ts` | Music playback + cross-fade. Shares the persistent mute flag with `SoundManager`. | — | `Phaser.Sound`, `localStorage` | Active track / queued track. |
+| `Narrator.ts` | Short on-the-beat lines emitted from combat/exploration. | — | `Localization` | Per-key cooldown to avoid spam. |
+| `NpcManager.ts` + `Npcs.ts` | NPC altar offer rolling and post-pick state. | — | `Rng`, `Npcs` catalog | Active offer per NPC, "already picked" flags. |
+| `PlayerManager.ts` | Player stats (HP, atk, def, gold), level/XP, status, relics, skills. Constructor accepts `MetaProgressionManager.getBonuses().player`. | `hpChange`, `statsChange`, `resourcesChange`, `levelUp`, `death`, `relicsChange` | `MetaProgressionManager.getBonuses().player`, `StatusEffects` | All mutable player state. **No revives** (removed PR #110). |
+| `Relics.ts` | Catalog + `rollRelicFor(...)` / `rollRelicForEnemy(...)`. | — | `Rng` | Relic definitions. |
+| `Skills.ts` | Skill catalog + starter loadout. | — | — | Skill definitions. |
+| `Rng.ts` | `Rng` interface, seeded `Mulberry32`, `defaultRng = Math.random`, helpers (`randomInt`, `chance`, `pick`). | — | — | Per-instance seed state (Mulberry32 only). |
+| `RunTracker.ts` | Per-run stats (peak depth, level reached, kills, …) for end screens. | — | — | Run-scoped counters. |
+| `SoundManager.ts` | SFX bank + ambient loop, persisted mute flag. | — | `Phaser.Sound`, `localStorage` | SFX cache, ambient track. |
+| `StatusEffects.ts` | Bleed / guard / mark / focus / stun / weaken state, tick logic, `statusSummary` helper. | — | — | Pure functions over a passed-in status bag. |
+
+The `StressManager` and `NarrativeManager` systems were removed in
+earlier refactors — there is no such file or test. Don't grep for
+them.
+
+### UI (`src/ui/`)
+
+| File | Role | Owns |
+| --- | --- | --- |
+| `EndScreens.ts` | Barrel re-export → `end/DeathScreen`, `end/VictoryScreen`. | — |
+| `end/DeathScreen.ts` | Death modal. Reused for escape: 4-card meta-shop renders **only** when `runState.escaped === true`. | Modal Phaser widgets. |
+| `end/VictoryScreen.ts` | Final-boss artifact-collected modal. | Victory modal widgets. |
+| `end/shared.ts` | `bankSkillPointsOnce` (idempotent — banks **only** when escaped), `hideLiveContainers`. | — |
+| `end/types.ts` | `EndScreenContext` + `RunEndState` type definitions. | — |
+| `EventLog.ts` | Text log component used by both rooms and combat. | Log line buffer. |
+| `Layout.ts` | `GAME_WIDTH/HEIGHT/CENTER_X/CENTER_Y`, `Depths.*` Z-tiers, `HudLayout.topHud.*` / `HudLayout.chrome.*` HUD coordinates. | Compile-time constants. **Never hardcode 800/600 or `setDepth(99)`.** |
+| `HudCell.ts` / `HudFrame.ts` / `HudIcons.ts` / `HudTheme.ts` | Bottom-bar resource cells, top/bottom carved frame, icon spritesheet bindings, palette. | HUD widget factories. |
+| `MapView.ts` | Map node visuals + tweens + pointer interaction. | Node sprites, edge graphics, hover/pulse tweens. |
+| `RoomButtons.ts` | Room action button factory + `RoomButtonAction` / `RoomButtonVariant` types. | Button widget references. |
+| `RoomVisuals.ts` | Pure room → `{ color, icon, sprite, name }` lookup. | Static lookup table. |
+| `SceneChrome.ts` | Bottom-left sound/language toggles + unlock banner. | Chrome widget refs. |
+| `Torchlight.ts` / `StoneBackdrop.ts` / `VolumePanel.ts` | Atmospheric overlays + volume slider panel. | Decorative widgets. |
+| `PixelSprite.ts` | Procedural pixel-art fallback when a real spritesheet isn't loaded. | Generated `Phaser.Textures.CanvasTexture` instances. |
+| `AssetGuard.ts` | `hasTexture(scene, key)` + `withTexture(scene, key, withImage, withFallback)`. **Always go through this** so the "real spritesheet vs procedural fallback" branching stays in one place. | — (utility) |
+| `TextHelpers.ts` | `compactText` and other small text utilities. | — |
+| `VFX.ts` | Vignette, scanlines, hit-flash, float-text helpers. Default sizes use `Layout`. | Effect widget refs. |
+
+### Data (`src/data/`)
+
+All numeric / catalog tables. Edit here when balance changes.
+
+| File | What's inside |
+| --- | --- |
+| `GameConfig.ts` | `PLAYER_CONFIG` (start HP/atk/def/level/resolve), `LEVEL_UP_CONFIG` (xp curve + per-level bumps), `EXPEDITION_CONFIG` (start gold/potions/resolve), `COMBAT_CONFIG`, `MAP_CONFIG` (final depth, weights, branching), `ROOM_CONFIG` (rewards, prices, trap damage, rest/shrine/merchant), `ENEMY_TIERS` (per-depth pools), `BOSSES`, `ALTAR_EFFECTS`, `XP_CONFIG`. |
+| `Enemies.ts` | Non-boss enemy intent profiles; `assertBossMapping()` validates `BOSSES` at module load. |
+| `Bosses.ts` | `BOSS_BLUEPRINT_BY_NAME` — phase script, `prepareActions`, `windupActions`. |
+| `EnemyTextConfig.ts` | Per-enemy `name` (RU display) + `description` keyed by canonical English name. |
+
+`name` on each `EnemyDef` is the **canonical English** string and
+serves as the lookup key for `EnemyTextConfig` and relic drop tables.
+Renaming it breaks lookups silently — keep that key stable.
+
+### Tests (`tests/`)
+
+Vitest, run with `npm test`. Pure-logic systems only — `Phaser` must
+not be imported in unit tests. Two existing patterns:
+
+- `tests/PlayerManager.test.ts` — passes a hand-rolled scene/log
+  shim into `PlayerManager` to avoid pulling Phaser.
+- `tests/MetaProgression.test.ts` — defines an in-file
+  `MemoryStorage` shim on `globalThis.window.localStorage` before
+  constructing `MetaProgressionManager`. Copy this when testing
+  anything that hits `localStorage`.
+
+`tests/Locale.consistency.test.ts` runs the runtime `en.ts ↔ ru.ts`
+key + placeholder check.
+
+## Emitter catalog
+
+Every manager-to-scene channel in the game is a typed `Emitter<T>`
+(see `src/systems/Emitter.ts`). Append a row here whenever you add a
+channel — tests and `GameScene.refreshUI()` rely on this catalog.
+
+### Conventions
+
+- Channels are exposed as `public readonly` fields on managers, e.g.
+  `public readonly hpChange = new Emitter<{ hp: number; max: number }>();`.
+- Subscribers register with `emitter.on(payload => …)` and unsubscribe
+  with the returned disposer (or `emitter.off(listener)`).
+- `emit()` snapshots the listener list before calling, so a listener
+  can safely subscribe / unsubscribe during dispatch without mutating
+  the current sweep.
+- Listener exceptions are caught and logged; one bad listener cannot
+  break unrelated UI.
+- **Don't** add mutable `onXxx` callback fields. Always use
+  `Emitter<T>` — multiple subscribers per channel are intentional.
+- Payload `void` means "no value" — call sites use `emitter.emit()`
+  and subscribers use `() => …`.
+
+### `PlayerManager` (`src/systems/PlayerManager.ts`)
+
+| Channel | Payload | Fires when | Consumers |
+| --- | --- | --- | --- |
+| `hpChange` | `{ hp: number; max: number }` | HP changes (damage, heal, max-HP increase). | `GameScene.refreshUI()` (HUD HP bar / number); tests. |
+| `death` | `void` | HP reaches 0. | `GameScene` death sequence: hide HUD, call `meta.resetProgress()`, zero `runSkillPointsPending`, fade out, show `DeathScreen`. |
+| `levelUp` | `{ level: number }` | XP threshold passes (`xpPerLevel = 10`). | `GameScene` (`runSkillPointsPending++`, level toast); tests. |
+| `statsChange` | `void` | ATK / DEF / max-HP recomputed (relic equipped, level-up bonus, meta upgrade applied at run start). | `GameScene.refreshUI()` (ATK/DEF cells). |
+| `resourcesChange` | `void` | Gold / potions / resolve / relic shards / seal count / kill counters change. | `GameScene` (HUD resource cells); tests. |
+| `relicsChange` | `void` | Relic added or removed from the player. | `GameScene.refreshUI()`; tests. |
+
+### `CombatManager` (`src/systems/CombatManager.ts`)
+
+Type definitions for the typed payloads (`EnemyUpdatePayload`,
+`CombatEndPayload`) live in the same file.
+
+| Channel | Payload | Fires when | Consumers |
+| --- | --- | --- | --- |
+| `enemyUpdate` | `EnemyUpdatePayload` = `{ hp, maxHp, color, name, icon }` | Enemy HP / display state changes (after the player or boss acts). | `GameScene` → `combatHud.updateEnemyUI(...)` (portrait + HP bar). |
+| `playerStatusChange` | `void` | Player status bag mutated (bleed/guard/mark/focus/stun/weaken applied or ticked). | `GameScene.updatePlayerStatusUI()`. |
+| `enemyStatusChange` | `void` | Enemy status bag mutated. | `GameScene.updateEnemyStatusUI()`. |
+| `playerHit` | `{ damage: number }` | Enemy attack lands and damages the player (post-mitigation). | `GameScene` → `combatHud.onPlayerHit(damage)` (hit-flash VFX). |
+| `combatEnd` | `CombatEndPayload` = `{ enemyName, enemyCanonicalName, kind, rewards, killedByBleed, finalBossDefeated }` | Combat resolves (enemy dies — by attack or by bleed). | `GameScene` → `combatHud.handleVictory(payload)` (rewards UI, depth advance, boss-kill bookkeeping). |
+
+### Adding a new channel
+
+1. Pick the manager that owns the state being broadcast (the source of
+   truth — see "Owns" column in module reference).
+2. Declare the field as `public readonly fooChange = new Emitter<Payload>();`.
+3. Call `this.fooChange.emit(payload)` from the mutator method,
+   **after** the state mutation is complete (never mid-mutation).
+4. Subscribe in `GameScene.create()` (or a controller's setup) with
+   `this.foo.fooChange.on(payload => …)`. Keep listeners thin — push
+   real work back into a `refreshUI()`-style method.
+5. Append a row to the matching table above in the same PR.
 
 ## Coordinate conventions
 
-- Canvas: 1024×768.
-- Top HUD bar: y=0..96.
+- Canvas: 1024 × 768.
+- Top HUD bar: `y = 0..96`.
 - Bottom HUD bar: bottom edge sits at `GAME_HEIGHT − HUD_BOTTOM_OFFSET`,
   height `BOTTOM_BAR_H = 140`.
-- Anything anchored to the bottom of the canvas must compute Y from
+- Anything anchored to the bottom of the canvas computes Y from
   `GAME_HEIGHT − BOTTOM_BAR_H − HUD_BOTTOM_OFFSET`, not a hard-coded
   pixel — see `RoomButtons` in `GameScene.ts` and PR #54 for the bug
   this convention prevents.
 - Section-specific HUD coordinates live in `HudLayout.topHud.*` /
-  `HudLayout.chrome.*` (see `src/ui/Layout.ts`).
+  `HudLayout.chrome.*` (see `src/ui/Layout.ts`). New HUD coordinates
+  go there, NOT inline in `GameScene.ts`.
 
 ## Localization
 
@@ -103,9 +269,18 @@ tables live in `src/systems/locale/en.ts` (canonical) and
 `src/systems/locale/ru.ts` (`Record<LocaleKey, string>` so missing
 translations fail the build). `loc.t('key')` returns the
 active-language string; passing `loc` into UI helpers keeps them
-language-agnostic. To add a new string: add it to `en.ts`, then add
-the matching translation in `ru.ts` — TypeScript will block the build
-if you forget the second.
+language-agnostic.
+
+To add a new visible string:
+
+1. Add `mySemanticKey: 'English text'` to `src/systems/locale/en.ts`.
+2. Add the matching translation to `src/systems/locale/ru.ts`.
+3. Use `this.loc.t('mySemanticKey', { var: value })` at the call site.
+
+Keys are **semantic** — `combatBossEncounter`, `roomTreasureName`,
+`npcMiraPotion`, `shopBeginRun`. Do **not** introduce mechanical
+prefixes (`cm_001`, etc.). Don't drop the `{placeholder}` tokens —
+`tests/Locale.consistency.test.ts` will fail.
 
 ## Meta progression (v4 — skill points)
 
@@ -123,10 +298,10 @@ Storage key: `localStorage["rpglikedurkest-meta-v4"]`. Pre-v4 keys
   (bank + all upgrades + all content unlocks) so the next run starts
   as a first launch.
 - 4 permanent upgrades, paid out of the bank:
-  - `damage` — 10 levels, costs `1/2/4/8/16/32/64/128/256/512`
-  - `hp` — 10 levels, costs `1/2/4/5/8/9/16/17/32/33`
-  - `defense` — 4 levels, costs `5/10/20/40`
-  - `goldGain` — 4 levels, costs `5/10/20/40`, `+5%` per level
+  - `damage` — 7 levels, costs `1 / 2 / 4 / 8 / 16 / 32 / 64`
+  - `hp` — 8 levels, costs `1 / 2 / 4 / 5 / 8 / 9 / 16 / 17`
+  - `defense` — 4 levels, costs `5 / 10 / 20 / 40`
+  - `goldGain` — 4 levels, costs `5 / 10 / 20 / 40`, `+5%` per level
 - `getBonuses()` → `{ player: { maxHp, attack, defenseBonus,
   goldGainMult } }` is consumed by the `PlayerManager` constructor.
 
@@ -134,6 +309,7 @@ Storage key: `localStorage["rpglikedurkest-meta-v4"]`. Pre-v4 keys
 
 `src/ui/EndScreens.ts` is a re-export barrel; the actual overlays live
 under `src/ui/end/`:
+
 - `end/DeathScreen.ts` — death modal. Shows the death summary and a
   **Reset soul progress** button. The 4-card meta-shop only renders
   when `runState.escaped === true` (the escape flow reuses this
@@ -150,19 +326,261 @@ under `src/ui/end/`:
 Restart UX (`GameScene`): the **Начать заново / Restart** button
 opens a confirmation modal ("весь прогресс обнулится"). "Yes" calls
 `meta.resetProgress()` and reboots into `BootScene`; "Cancel" closes
-the modal.
+the modal. Both Restart and Escape are HUD-only — they are hidden
+inside any room (combat, shrine, merchant, …) and only shown on the
+map.
+
+## Recipes
+
+Token-cheap walkthroughs for the most common edits. Each recipe lists
+**every file** an AI agent needs to touch. "Add to […]" means *append*
+an entry; never reorder existing entries because some are referenced
+positionally (e.g. milestone tables). All locale changes require
+**both** `en.ts` (canonical) **and** `ru.ts` — TypeScript fails the
+build if either is missing.
+
+Verify after every recipe: `npm run lint && npm test && npm run build`.
+
+### 1. Add a new room type
+
+1. **Enum + pool** — `src/systems/MapGenerator.ts`
+   - Append the new variant to the `RoomType` const-object **at the
+     end** (don't reorder; positional callers exist).
+   - Add it to `BASE_ROOM_POOL` (and any depth-restricted pool) with
+     a weight in `getWeight()`.
+   - If unlock-gated, add an entry to
+     `MetaProgressionManager.ALL_UNLOCK_IDS` and reference it in
+     `getAllowedRoomTypes()`.
+2. **Visuals** — `src/ui/RoomVisuals.ts`
+   - Add a `{ color, icon, sprite, name }` row keyed by the new
+     `RoomType` value. The lookup is exhaustive — TypeScript will
+     fail the build if you miss it.
+3. **Handler** — `src/scenes/RoomFlow.ts`
+   - Add a `case RoomType.YOUR_ROOM:` branch in `enter()` that calls
+     a new private `showYourRoomOptions()` method. The
+     `default: never` guard at the bottom of `enter()` will flag the
+     gap if you forget.
+   - Use `scene.showRoomCard(...)` and `scene.setRoomButtons([...])`
+     to render the UI; never instantiate Phaser objects directly here.
+4. **Localization** — `src/systems/locale/en.ts` + `ru.ts`
+   - At minimum `roomXxxName`, `roomXxxDesc`, `roomXxxHint`.
+5. **Test** — `tests/MapGenerator.test.ts` if depth/frequency matters.
+
+### 2. Add a new (non-boss) enemy
+
+1. **Definition** — `src/data/GameConfig.ts`
+   - Append an `EnemyDef` to the matching `ENEMY_TIERS[i].pool`. Set
+     `name` (canonical English — used as the relic-drop key + the
+     `EnemyTextConfig` key), `hp`, `attack`, `xpReward`, `goldReward`,
+     `intentProfile` (sprite category — does NOT change behaviour
+     after PR #129).
+2. **Localized name + flavor** — `src/data/EnemyTextConfig.ts`
+   - Add `[<canonical>]: { name: 'Русское имя', description: '…' }`.
+3. **Drop table (optional)** — `src/systems/Relics.ts`
+   - Add the canonical `name` to the `enemyName` field of any relic's
+     `drops: RelicDropEntry[]`.
+4. **Test** — `tests/CombatManager.test.ts` if a new combat dynamic.
+
+Enemy *pool selection* now goes through the seeded `Rng` — see
+`getEnemyForDepth(depth, rng)`. Pass `Mulberry32(seed)` into a fresh
+`CombatManager` for deterministic tests.
+
+### 3. Add a new boss (with phases)
+
+1. **Boss definition** — `src/data/GameConfig.ts`
+   - Append to `BOSSES` with `{ depth, def: EnemyDef }`. Depth must be
+     unique. If the depth lands on a canonical milestone, add it to
+     `EXPECTED_BOSS_NAMES` in `src/data/Enemies.ts` so
+     `assertBossMapping()` validates the table at module load.
+2. **Phase script** — `src/data/Bosses.ts`
+   - Add `BOSS_BLUEPRINT_BY_NAME[<canonical name>]` with `phases`,
+     `prepareActions`, `windupActions`. Lookup key is the boss's
+     **English** `name` from `GameConfig.BOSSES`.
+3. **Localization** — `src/systems/locale/en.ts` + `ru.ts`
+   - Per-action labels if the script references new `intentLabel` /
+     `prepareName` / `windupName` ids.
+4. **Combat wiring** — `src/systems/CombatManager.ts`
+   - Usually nothing. The `runBossTurn` / `resolvePrepare` /
+     `resolveBossWindupAction` machinery reads the blueprint
+     generically. Edit only for a brand-new action kind.
+5. **Test** — `tests/CombatManager.test.ts`
+   - Drive a `Mulberry32`-seeded fight; assert phase transitions and
+     final reward shape.
+
+### 4. Add a new skill
+
+1. **ID** — `src/systems/Skills.ts`
+   - Add to the `SkillId` union, the `SKILLS` record (with
+     `LocalizedText` `name` / `short` / `description`, `resolveCost`,
+     `color`, `starter`), and `SKILL_ORDER`.
+   - Set `starter: false` if the skill is locked behind meta progress;
+     also add a matching `'skill_<id>'` to `ALL_UNLOCK_IDS` in
+     `MetaProgressionManager.ts` and surface it via
+     `getUnlockedExtraSkills()`.
+2. **Effect** — `src/systems/CombatManager.ts`
+   - Add a branch in `handlePlayerSkill(skillId)`. Use
+     `applyPlayerDamage(...)` for damage, status helpers for buffs.
+3. **Localization** — already covered if you used `lt(ru, en)` in
+   step 1.
+4. **Test** — `tests/CombatManager.test.ts`
+   - Cover damage / status / cooldown. The existing `'cleave'` and
+     `'bleed_strike'` tests are good templates.
+
+### 5. Add a new relic
+
+1. **ID + def** — `src/systems/Relics.ts`
+   - Add to `RelicId`, then to `RELICS` with `name`, `description`,
+     `rarity`, `set` (or `null`), per-stat aggregate fields, and a
+     `drops: RelicDropEntry[]` listing canonical enemy `name`s and
+     their `chance`.
+   - Set bag rarity via `RelicRarity` (`common`/`rare`/`unique`).
+     Rare/unique are gated by `getRelicRarityPool()` until their
+     unlock fires.
+2. **Aggregation (only for new effect kinds)** — `src/systems/Relics.ts`
+   - If the relic introduces a new numeric channel (e.g. lifesteal),
+     extend `RelicAggregate`, `emptyAggregate`, `applyRelic`, and
+     wherever `CombatManager` reads from the aggregate.
+3. **Localization** — `lt(ru, en)` covers it in step 1.
+4. **Test** — `tests/Relics.test.ts` (drop chance) + a `CombatManager`
+   test if a new effect kind is wired.
+
+### 6. Add a new NPC
+
+1. **Catalog** — `src/systems/Npcs.ts`
+   - Add an `NpcId` and an entry in `NPCS` with `role`, `voice`
+     lines, beats, optional `offer` template.
+2. **Memory** — `src/systems/NpcManager.ts`
+   - If the NPC needs persistent state (already-met / chosen-offer
+     flags), append to `NpcMemoryMap` defaults in
+     `makeDefaultNpcMemoryMap()`. The sanitizer drops unknown ids.
+3. **Hookup** — `src/scenes/RoomFlow.ts`
+   - If the NPC should appear in shrines/empty rooms, add it to the
+     relevant `npcs.pickForRole(...)` call. For altars, follow the
+     `presentSaraAdviceChoice` / `presentGogiPayChoice` pattern —
+     every NPC altar lives in `RoomFlow`, not `GameScene`.
+4. **Localization** — covered by `lt(ru, en)` in step 1.
+
+### 7. Add a new locale string
+
+1. `src/systems/locale/en.ts` — add `mySemanticKey: 'English text'`.
+2. `src/systems/locale/ru.ts` — add the matching Russian translation.
+3. Use `this.loc.t('mySemanticKey', { var: value })` at the call site.
+
+**Never** introduce mechanical prefixes (`cm_001`, etc.). Keys must
+read like English (`combatBossEncounter`, `roomTreasureName`).
+
+### 8. Add a new HUD cell
+
+1. **Layout constants** — `src/ui/Layout.ts`
+   - Add an x/y/width entry under `HudLayout.topHud.*` or pick a slot
+     in the bottom bar. Never inline literals.
+2. **Cell creation** — `src/scenes/GameScene.setupGlobalUI()`
+   - Use `createHudCell(...)` (bottom bar) or
+     `createHudInlineSlot(...)` (top bar) and store the handle on a
+     scene field.
+3. **Refresh** — `src/scenes/GameScene.refreshUI()`
+   - Set the cell's `value` text on every refresh. The cell handle
+     exposes `setValue` / `setLabel` / `setIcon`.
+4. **Visibility (optional)** — gate the cell on a meta unlock by
+   reading `this.meta.getUiUnlockState()` in `refreshUI()`.
+
+### 9. Add a new Emitter channel
+
+See "Adding a new channel" above under the Emitter catalog.
+
+### 10. Add a new content unlock (milestone reward)
+
+1. **Unlock id** — `src/systems/MetaProgressionManager.ts`
+   - Append to `ALL_UNLOCK_IDS`. The id is a stable string used in
+     persisted profiles, so it is permanent.
+   - Reflect it in defaults (`DEFAULT_CONTENT_UNLOCKS`) — `false` for
+     gated content, `true` if you're retroactively flipping a
+     historical id on for old saves.
+2. **Trigger** — same file
+   - Add to `DEPTH_MILESTONES` (depth-based) or
+     `FIRST_BOSS_MILESTONE` (first boss kill) so the unlock banner
+     can fire. Or call `meta.unlockContent('your_id')` from the
+     relevant handler.
+3. **Effect** — wire the consumer to read `meta.isUnlocked('your_id')`
+   or `meta.getUiUnlockState()` and gate the feature accordingly.
+4. **Localization** — `unlockBannerYourId` (`{ key, value }` style)
+   for the banner text in `setupSceneChrome`.
+5. **Test** — `tests/MetaProgression.test.ts`. The `MemoryStorage`
+   shim pattern is at the top of the file.
+
+### 11. Add a new room-action button variant
+
+1. **Variant id** — `src/ui/RoomButtons.ts`
+   - Add to `RoomButtonVariant` union. The factory's switch is
+     exhaustive; TypeScript will fail the build if you miss the
+     style mapping.
+2. **Style** — `src/ui/RoomButtons.ts` `styleByVariant` table.
+3. **Caller** — usually `src/scenes/RoomFlow.ts`. Pass `variant:
+   'your_variant'` in the `RoomButtonAction` literal.
+
+### 12. Add a new status effect
+
+1. **Definition** — `src/systems/StatusEffects.ts`
+   - Add the effect to the `StatusBag` shape and the tick logic.
+   - Surface a setter / clearer if needed.
+2. **Apply** — most effects are applied from
+   `src/systems/CombatManager.handlePlayerSkill` or
+   `applyPlayerDamage` / `resolveEnemyTurn`. Use the existing
+   `applyStatus(...)` helper.
+3. **Display** — `statusSummary(status, language)` is the single
+   source of truth for the player/enemy status pill text. Add a
+   branch there.
+4. **Test** — `tests/StatusEffects.test.ts`. Unit-test pure tick
+   logic before wiring it into combat.
+
+### 13. Wire a new meta-progression upgrade
+
+The existing 4 upgrades (`damage`, `hp`, `defense`, `goldGain`) cover
+flat-stat bumps. Adding a new card:
+
+1. **Upgrade id** — `src/systems/MetaProgressionManager.ts`
+   - Add to `UpgradeId` union. Add a `UPGRADE_DEFINITIONS[<id>]`
+     entry with `maxLevel`, `costForLevel(level)`, `apply(level,
+     bonuses)`, `description`, `title`.
+2. **Bonuses shape** — same file
+   - If the upgrade affects a new player stat, extend
+     `PlayerMetaBonuses` and adjust `PlayerManager`'s constructor.
+3. **Card UI** — `src/ui/end/DeathScreen.ts`
+   - The 4-card meta-shop reads from `meta.getUpgradeCards()` so no
+     UI change is needed for a 5th card *unless* you're past the
+     hardcoded 4-slot 2x2 grid. The grid is built inline near the
+     `CARD_W` / `CARD_H` / `CARD_GAP_Y` constants and the
+     `positions: { x, y }[]` array — extend the array (or add a row)
+     and the rest of the rendering loop scales.
+4. **Test** — `tests/MetaProgression.test.ts`. Cover the upgrade's
+   cost curve and `apply` math.
 
 ## Common pitfalls
 
-- Phaser's `nineslice` requires the source texture to actually exist —
-  always go through `AssetGuard.withTexture(...)` so the procedural
+- Phaser's `nineslice` requires the source texture to actually exist
+  — always go through `AssetGuard.withTexture(...)` so the procedural
   fallback runs in tests / before BootScene completes.
 - `setStrokeStyle` on `Rectangle` resets the stroke; set it once after
   every `setStrokeStyle` change inside hover handlers (see existing
   `pointerover`/`pointerout` pairs).
-- `MusicManager` uses `HTMLAudioElement` whose volume is capped at 1.0;
-  don't request gain higher than 1.0 without switching to Web Audio.
+- `MusicManager` uses `HTMLAudioElement` whose volume is capped at
+  1.0; don't request gain higher than 1.0 without switching to Web
+  Audio.
 - When changing animation behavior on map-node visuals, remember the
   fallback (PNG missing) path uses `alpha` tweens on `rect`. Both
   branches must call `tweens.killTweensOf(visual.rect)` before
   re-tweening.
+- Random rolls go through `defaultRng` (or a passed-in seeded `Rng`).
+  The audit closed off `Math.random()` in gameplay paths so the
+  determinism envelope is whole — don't reintroduce `Math.random()`.
+- `GameScene` currently is the single largest file (~1500 lines). New
+  gameplay rules belong in `systems/`, new room behaviour in
+  `RoomFlow.ts`, new combat UI in `CombatHud.ts`. Keep the coordinator
+  thin.
+
+## Topical references
+
+- `docs/ART_GUIDE.md` — adding hand-authored sprite assets (room
+  icons, enemy portraits) and the procedural-fallback workflow.
+- `docs/NARRATIVE_DIRECTION.md` — voice for room cards, combat log
+  lines, intent text, and death lines.
