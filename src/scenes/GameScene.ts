@@ -32,16 +32,12 @@ import {
 import { hasTexture } from '../ui/AssetGuard';
 import { setupSceneChrome } from '../ui/SceneChrome';
 import { createRoomButtons, type RoomButtonAction, type RoomButtonsHandle } from '../ui/RoomButtons';
-import {
-    showDeathScreen,
-    showVictoryScreen,
-    type EndScreenContext,
-} from '../ui/EndScreens';
 import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
 import { GameHudController } from './controllers/GameHudController';
 import { GameMapController } from './controllers/GameMapController';
+import { GameOverlayController } from './controllers/GameOverlayController';
 import {
     maybeDropRelic as maybeDropRelicImpl,
     type RelicDropKind,
@@ -139,6 +135,7 @@ export class GameScene extends Phaser.Scene {
     public combatHud: CombatHudController = new CombatHudController(this);
     public hud: GameHudController = new GameHudController(this);
     public map: GameMapController = new GameMapController(this);
+    public overlay: GameOverlayController = new GameOverlayController(this);
 
     constructor() {
         super('GameScene');
@@ -201,11 +198,13 @@ export class GameScene extends Phaser.Scene {
             skillPointsBankedFlag: false,
             escaped: false,
         };
-        // Re-create the HUD/map controllers on every restart so their
-        // widget refs are scrubbed alongside Phaser's container teardown.
-        // The initialiser-bound instances only cover the very first run.
+        // Re-create the HUD/map/overlay controllers on every restart
+        // so their widget refs are scrubbed alongside Phaser's container
+        // teardown. The initialiser-bound instances only cover the very
+        // first run.
         this.hud = new GameHudController(this);
         this.map = new GameMapController(this);
+        this.overlay = new GameOverlayController(this);
 
         const nodes = this.mapGen.generateInitialMap();
         this.dungeon = new DungeonManager(
@@ -528,51 +527,18 @@ export class GameScene extends Phaser.Scene {
         this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon);
     }
 
-    private endScreenContext(): EndScreenContext {
-        // `runState` is the single source of truth for the run-end
-        // flags (see field doc). End screens mutate it in place via
-        // `bankSkillPointsOnce` and read back the banked totals on
-        // re-renders — no proxy needed.
-        return {
-            scene: this,
-            loc: this.loc,
-            sfx: this.sfx,
-            meta: this.meta,
-            tracker: this.tracker,
-            player: this.player,
-            npcs: this.npcs,
-            mapContainer: this.mapContainer,
-            roomContainer: this.roomContainer,
-            uiContainer: this.uiContainer,
-            safeRestart: () => this.safeRestart(),
-            runState: this.runState,
-        };
-    }
-
+    /** Forward to {@link GameOverlayController.showVictoryScreen}. */
     public showVictoryScreen() {
-        showVictoryScreen(this.endScreenContext());
+        this.overlay.showVictoryScreen();
     }
 
-    /**
-     * Run the death-screen flow. Public so {@link GameHudController}
-     * can invoke it from the player.death handler and from the
-     * escape-button two-tap commit path; existing scene-internal
-     * call sites don't change.
-     */
+    /** Forward to {@link GameOverlayController.showDeathScreenInternal}. */
     public showDeathScreenInternal() {
-        showDeathScreen(this.endScreenContext());
+        this.overlay.showDeathScreenInternal();
     }
 
-    /**
-     * Tear down timers/tweens/input and restart the current scene
-     * (so the player starts a fresh run with the same locale + audio
-     * managers). Used by the death-screen "play again" button and
-     * the {@link setupSceneChrome} reset hook.
-     */
+    /** Forward to {@link GameOverlayController.safeRestart}. */
     public safeRestart() {
-        this.tweens.killAll();
-        this.time.removeAllEvents();
-        this.input.removeAllListeners();
-        this.scene.restart();
+        this.overlay.safeRestart();
     }
 }
