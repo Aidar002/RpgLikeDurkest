@@ -32,7 +32,7 @@ import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET } from './Layout';
  * a variant get 'default' unless their legacy `fill` value can be
  * heuristically mapped (see {@link variantFromFill}).
  */
-export type RoomButtonVariant = 'default' | 'gold' | 'dark' | 'silver' | 'positive' | 'danger';
+type RoomButtonVariant = 'default' | 'gold' | 'dark' | 'silver' | 'positive' | 'danger';
 
 const BUTTON_TEXTURES: Record<RoomButtonVariant, string> = {
     default: 'btn_default',

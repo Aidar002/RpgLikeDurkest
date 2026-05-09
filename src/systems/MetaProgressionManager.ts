@@ -13,42 +13,39 @@ import {
 // The game no longer gates the base HUD or base resources on these - they
 // all exist from run 1. New installs keep them `true` by default. Meta
 // unlocks now meaningfully gate *new* skills and relic-tier quality.
-export const ALL_UNLOCK_IDS = [
-    'room_enemy',
-    'room_empty',
-    'room_rest',
-    'room_treasure',
-    'action_attack',
-    'action_defend',
-    'hud_hp_bar',
-    'ui_hp_numbers',
-    'ui_depth',
-    'ui_room_icons',
-    'ui_level_panel',
-    'currency_gold',
-    'room_trap',
-    'ui_player_stats',
-    'room_merchant',
-    'resource_potions',
-    'action_potion',
-    'resource_resolve',
-    'action_skill',
-    'room_shrine',
-    'room_elite',
-    'ui_enemy_hp',
-    'ui_run_metrics',
-    'ui_kill_counter',
-    'currency_relic_shards',
-    'merchant_premium',
-    'shrine_premium',
-    'skill_cleave',
-    'skill_bleed_strike',
-    'skill_preparation',
-    'relic_pool_rare',
-    'relic_pool_unique',
-] as const;
-
-export type UnlockId = (typeof ALL_UNLOCK_IDS)[number];
+type UnlockId =
+    | 'room_enemy'
+    | 'room_empty'
+    | 'room_rest'
+    | 'room_treasure'
+    | 'action_attack'
+    | 'action_defend'
+    | 'hud_hp_bar'
+    | 'ui_hp_numbers'
+    | 'ui_depth'
+    | 'ui_room_icons'
+    | 'ui_level_panel'
+    | 'currency_gold'
+    | 'room_trap'
+    | 'ui_player_stats'
+    | 'room_merchant'
+    | 'resource_potions'
+    | 'action_potion'
+    | 'resource_resolve'
+    | 'action_skill'
+    | 'room_shrine'
+    | 'room_elite'
+    | 'ui_enemy_hp'
+    | 'ui_run_metrics'
+    | 'ui_kill_counter'
+    | 'currency_relic_shards'
+    | 'merchant_premium'
+    | 'shrine_premium'
+    | 'skill_cleave'
+    | 'skill_bleed_strike'
+    | 'skill_preparation'
+    | 'relic_pool_rare'
+    | 'relic_pool_unique';
 
 export type UpgradeId = 'damage' | 'hp' | 'defense' | 'goldGain';
 
@@ -76,7 +73,7 @@ export interface UiUnlockState {
 
 export type ContentUnlockState = Record<UnlockId, boolean>;
 
-export interface MetaProfile {
+interface MetaProfile {
     skillPoints: number;
     totalSkillPointsBanked: number;
     highestDepthEver: number;
@@ -86,7 +83,7 @@ export interface MetaProfile {
     npcMemory: NpcMemoryMap;
 }
 
-export interface UpgradeCardInfo {
+interface UpgradeCardInfo {
     id: UpgradeId;
     title: string;
     description: string;

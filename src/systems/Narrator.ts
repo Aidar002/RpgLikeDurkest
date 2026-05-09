@@ -1,7 +1,7 @@
 // Narrator flavor lines, inspired by Darkest Dungeon's narrator. Used
 // sparingly so they retain weight. Tone: grim, terse, observing.
 
-export type NarrationEvent =
+type NarrationEvent =
     | 'expedition_start'
     | 'first_blood'
     | 'enter_combat'

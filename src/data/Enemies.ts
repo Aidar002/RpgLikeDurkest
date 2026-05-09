@@ -2,8 +2,6 @@ import { ENEMY_TIERS, BOSSES, MAP_CONFIG } from './GameConfig';
 import type { EnemyDef } from './GameConfig';
 import { defaultRng, pick, type Rng } from '../systems/Rng';
 
-export type { EnemyDef };
-
 /**
  * Pick a normal-tier enemy for the given depth. The optional `rng`
  * parameter lets callers (combat manager, tests) inject a seeded

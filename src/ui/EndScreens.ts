@@ -10,4 +10,4 @@
  */
 export { showDeathScreen } from './end/DeathScreen';
 export { showVictoryScreen } from './end/VictoryScreen';
-export type { EndScreenContext, RunEndState } from './end/types';
+export type { EndScreenContext } from './end/types';

@@ -31,7 +31,7 @@ const GRIME_COLOR = 0x241f1a;
 /** Brick base colours — picked at random per brick for variation. */
 const BRICK_PALETTE = [0x3a3530, 0x423b34, 0x4a423a, 0x352e29, 0x3d3530] as const;
 
-export interface StoneBackdropOptions {
+interface StoneBackdropOptions {
     /**
      * Cache-key suffix override. The full key is
      * `procedural_stone_backdrop_<suffix>`. Defaults to `<width>x<height>`,
@@ -55,7 +55,7 @@ export interface StoneBackdropOptions {
  * cache and return its key. Idempotent — calling twice with the same
  * dimensions / options reuses the cached texture.
  */
-export function ensureStoneTexture(
+function ensureStoneTexture(
     scene: Phaser.Scene,
     width: number,
     height: number,
