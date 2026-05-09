@@ -6,10 +6,7 @@ import { lt } from './LocalizedText';
 // loadout of up to 2 skills when an expedition begins. Extra skills unlock
 // through meta progression (see MetaProgressionManager.UNLOCK_SKILL_*).
 
-export type SkillId =
-    | 'cleave'
-    | 'bleed_strike'
-    | 'preparation';
+export type SkillId = 'cleave' | 'bleed_strike' | 'preparation';
 
 export interface SkillDef {
     id: SkillId;
@@ -27,10 +24,7 @@ export const SKILLS: Record<SkillId, SkillDef> = {
         name: lt('Рубка', 'Cleave'),
         short: lt('Рубка', 'Cleave'),
         resolveCost: 2,
-        description: lt(
-            'Урон +50% (минимум +1 урон).',
-            'Damage +50% (min +1 damage).'
-        ),
+        description: lt('Урон +50% (минимум +1 урон).', 'Damage +50% (min +1 damage).'),
         color: 0x5a2d78,
         starter: true,
     },
@@ -62,8 +56,4 @@ export const SKILLS: Record<SkillId, SkillDef> = {
 
 export const STARTER_LOADOUT: SkillId[] = ['cleave', 'bleed_strike', 'preparation'];
 
-export const SKILL_ORDER: SkillId[] = [
-    'cleave',
-    'bleed_strike',
-    'preparation',
-];
+export const SKILL_ORDER: SkillId[] = ['cleave', 'bleed_strike', 'preparation'];

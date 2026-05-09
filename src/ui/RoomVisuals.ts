@@ -158,7 +158,10 @@ export const ENEMY_SPRITE_MAX_DIM = 120;
  * Procedural sprites from {@link PixelSprite} are already tiny (~24px) and are
  * left at their native size so nearest-neighbor rendering stays crisp.
  */
-export function fitRoomSprite(sprite: Phaser.GameObjects.Image, maxDim = ROOM_SPRITE_MAX_DIM): void {
+export function fitRoomSprite(
+    sprite: Phaser.GameObjects.Image,
+    maxDim = ROOM_SPRITE_MAX_DIM
+): void {
     if (sprite.width > maxDim || sprite.height > maxDim) {
         sprite.setDisplaySize(maxDim, maxDim);
     }
@@ -168,7 +171,10 @@ export function fitRoomSprite(sprite: Phaser.GameObjects.Image, maxDim = ROOM_SP
  * Scale down high-resolution hand-authored enemy portraits to fit the panel.
  * Procedural sprites (48px) are left at native size.
  */
-export function fitEnemySprite(sprite: Phaser.GameObjects.Image, maxDim = ENEMY_SPRITE_MAX_DIM): void {
+export function fitEnemySprite(
+    sprite: Phaser.GameObjects.Image,
+    maxDim = ENEMY_SPRITE_MAX_DIM
+): void {
     if (sprite.width > maxDim || sprite.height > maxDim) {
         sprite.setDisplaySize(maxDim, maxDim);
     }

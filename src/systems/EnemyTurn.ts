@@ -1,19 +1,11 @@
 import { COMBAT_CONFIG } from '../data/GameConfig';
 import type { EnemyPrepareDef } from '../data/GameConfig';
 import type { EventLog } from '../ui/EventLog';
-import {
-    intentLabelForPhase,
-    intentLabelForPrepare,
-    prepareName,
-} from './BossRuntime';
+import { intentLabelForPhase, intentLabelForPrepare, prepareName } from './BossRuntime';
 import { narrate } from './Narrator';
 import type { Localization } from './Localization';
 import type { PlayerManager } from './PlayerManager';
-import {
-    applyBleed,
-    applyPoison,
-    consumeStunForTurn,
-} from './StatusEffects';
+import { applyBleed, applyPoison, consumeStunForTurn } from './StatusEffects';
 import type { ActiveEnemy, EnemyUpdatePayload } from './CombatManager';
 import type { Rng } from './Rng';
 
@@ -45,16 +37,13 @@ export interface EnemyTurnDeps {
 export function resolveEnemyTurn(
     enemy: ActiveEnemy,
     deps: EnemyTurnDeps,
-    playerAction: PlayerAction,
+    playerAction: PlayerAction
 ): void {
     const { player, log, loc, rng } = deps;
 
     // Stun check.
     if (consumeStunForTurn(enemy.status)) {
-        log.addMessage(
-            loc.t('combatEnemyStunned', { name: enemy.name }),
-            '#7aaaff'
-        );
+        log.addMessage(loc.t('combatEnemyStunned', { name: enemy.name }), '#7aaaff');
         if (enemy.bossPhase) {
             enemy.currentIntent = intentLabelForPhase(enemy.bossPhase, loc);
         }
@@ -66,10 +55,7 @@ export function resolveEnemyTurn(
     if (enemy.firstHitEvaded) {
         enemy.firstHitEvaded = false;
         deps.lastActionResult.enemyEvaded = true;
-        log.addMessage(
-            loc.t('combatEnemyEvadeFirst', { name: enemy.name }),
-            '#9fb4c4'
-        );
+        log.addMessage(loc.t('combatEnemyEvadeFirst', { name: enemy.name }), '#9fb4c4');
         return;
     }
 
@@ -110,10 +96,7 @@ export function resolveEnemyTurn(
     let attackPower = enemy.attack - weakenReduction;
     if (attackPower < 1) attackPower = 1;
 
-    if (
-        enemy.passive?.kind === 'extraDamageOnHit' &&
-        rng.next() < enemy.passive.chance
-    ) {
+    if (enemy.passive?.kind === 'extraDamageOnHit' && rng.next() < enemy.passive.chance) {
         attackPower += enemy.passive.bonus;
         log.addMessage(
             loc.t('combatEnemyExtraDamage', {
@@ -154,7 +137,7 @@ export function resolvePrepare(
     enemy: ActiveEnemy,
     deps: EnemyTurnDeps,
     playerAction: PlayerAction,
-    def: EnemyPrepareDef,
+    def: EnemyPrepareDef
 ): void {
     const { player, log, loc } = deps;
     const defended = playerAction === 'defend';
@@ -162,10 +145,7 @@ export function resolvePrepare(
 
     if (defended && def.defenseRule === 'damageBack') {
         const back = def.defenseBackDamage ?? 0;
-        log.addMessage(
-            loc.t('combatEnemyPrepareDefend', { name: enemy.name, action }),
-            '#9bc8ff'
-        );
+        log.addMessage(loc.t('combatEnemyPrepareDefend', { name: enemy.name, action }), '#9bc8ff');
         if (back > 0) {
             enemy.hp = Math.max(0, enemy.hp - back);
             log.addMessage(
@@ -239,12 +219,7 @@ export function resolvePrepare(
 
     // No Defend: apply rider effects.
     if (def.bleed) {
-        applyBleed(
-            player.status,
-            def.bleed.stacks,
-            def.bleed.turns,
-            enemy.bleedCap
-        );
+        applyBleed(player.status, def.bleed.stacks, def.bleed.turns, enemy.bleedCap);
         log.addMessage(
             loc.t('combatEnemyPrepareBleed', {
                 name: enemy.name,

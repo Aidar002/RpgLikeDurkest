@@ -38,10 +38,7 @@ import { GameHudController } from './controllers/GameHudController';
 import { GameMapController } from './controllers/GameMapController';
 import { GameOverlayController } from './controllers/GameOverlayController';
 import { GameRoomController } from './controllers/GameRoomController';
-import {
-    maybeDropRelic as maybeDropRelicImpl,
-    type RelicDropKind,
-} from '../systems/RelicDrops';
+import { maybeDropRelic as maybeDropRelicImpl, type RelicDropKind } from '../systems/RelicDrops';
 
 // Map layout / node-visual types moved to ../ui/MapView.ts.
 
@@ -151,7 +148,12 @@ export class GameScene extends Phaser.Scene {
      */
     private devSeed: DevSeedConfig | null = null;
 
-    init(data?: { loc?: Localization; sfx?: SoundManager; music?: MusicManager; devSeed?: DevSeedConfig | null }) {
+    init(data?: {
+        loc?: Localization;
+        sfx?: SoundManager;
+        music?: MusicManager;
+        devSeed?: DevSeedConfig | null;
+    }) {
         this.loc = data?.loc ?? new Localization();
         this.sfx = data?.sfx ?? new SoundManager();
         this.music = data?.music ?? new MusicManager();
@@ -186,15 +188,17 @@ export class GameScene extends Phaser.Scene {
 
         // Pick loadout: first 2 skills from [starter + meta-unlocked extras].
         const extras = this.meta.getUnlockedExtraSkills();
-        const pool: SkillId[] = [...STARTER_LOADOUT, ...extras.filter(s => !STARTER_LOADOUT.includes(s))];
+        const pool: SkillId[] = [
+            ...STARTER_LOADOUT,
+            ...extras.filter((s) => !STARTER_LOADOUT.includes(s)),
+        ];
         this.skillLoadout = pool.slice(0, 2);
 
-        const rng = this.devSeed?.seed !== undefined
-            ? new Mulberry32(this.devSeed.seed)
-            : undefined;
+        const rng =
+            this.devSeed?.seed !== undefined ? new Mulberry32(this.devSeed.seed) : undefined;
         this.mapGen = new MapGenerator(
             this.map.getUnlockedRoomTypes(this.meta.getUnlockedContent()),
-            rng,
+            rng
         );
 
         if (this.devSeed?.inv) {
@@ -238,13 +242,16 @@ export class GameScene extends Phaser.Scene {
 
         // Tooltip text used by MapView for hover-name labels. Created
         // before MapView so the constructor can capture it.
-        this.tooltipText = this.add.text(0, 0, '', {
-            fontFamily: 'Courier New',
-            fontSize: '11px',
-            color: '#d0d0d0',
-            backgroundColor: '#1a1a1aee',
-            padding: { x: 6, y: 3 },
-        }).setDepth(Depths.Tooltip).setVisible(false);
+        this.tooltipText = this.add
+            .text(0, 0, '', {
+                fontFamily: 'Courier New',
+                fontSize: '11px',
+                color: '#d0d0d0',
+                backgroundColor: '#1a1a1aee',
+                padding: { x: 6, y: 3 },
+            })
+            .setDepth(Depths.Tooltip)
+            .setVisible(false);
 
         this.map.build();
 
@@ -253,21 +260,18 @@ export class GameScene extends Phaser.Scene {
             18,
             TOP_BAR_H + 12,
             530,
-            GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12,
+            GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12
         );
         this.roomContainer.add(this.log.view);
 
         this.hud.build();
 
-        this.combat = new CombatManager(
-            this.player,
-            this.log,
-            this.loc
-        );
+        this.combat = new CombatManager(this.player, this.log, this.loc);
         this.combat.combatEnd.on((payload) => this.combatHud.handleVictory(payload));
         this.combat.playerHit.on(({ damage }) => this.combatHud.onPlayerHit(damage));
         this.combat.enemyUpdate.on(({ hp, maxHp, color, name, icon }) =>
-            this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon));
+            this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon)
+        );
         this.combat.playerStatusChange.on(() => this.updatePlayerStatusUI());
         this.combat.enemyStatusChange.on(() => this.updateEnemyStatusUI());
 
@@ -339,7 +343,6 @@ export class GameScene extends Phaser.Scene {
         return this.hud.relicSummary();
     }
 
-
     /**
      * Roll-and-grant a relic for a reward `kind`. Thin wrapper around
      * {@link maybeDropRelicImpl} (in `../systems/RelicDrops`) — exists
@@ -403,7 +406,7 @@ export class GameScene extends Phaser.Scene {
         color: number,
         icon: string,
         intel: string,
-        spriteKey: string = header,
+        spriteKey: string = header
     ) {
         this.room.showRoomCard(header, title, description, color, icon, intel, spriteKey);
     }
@@ -423,13 +426,7 @@ export class GameScene extends Phaser.Scene {
         this.map.advanceToNode(node);
     }
 
-    public updateEnemyUI(
-        hp: number,
-        maxHp: number,
-        color: number,
-        name: string,
-        icon: string
-    ) {
+    public updateEnemyUI(hp: number, maxHp: number, color: number, name: string, icon: string) {
         this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon);
     }
 

@@ -179,18 +179,21 @@ describe('NpcManager.pickDialog', () => {
         });
         try {
             // Met 0 / aff 0: offer hidden.
-            expect(manager.pickDialog('sara', ctx()).offers.find((o) => o.id === 'sara_secret'))
-                .toBeUndefined();
+            expect(
+                manager.pickDialog('sara', ctx()).offers.find((o) => o.id === 'sara_secret')
+            ).toBeUndefined();
 
             // Met 5 / aff 0: still hidden by affinity gate.
             memory.sara.metCount = 5;
-            expect(manager.pickDialog('sara', ctx()).offers.find((o) => o.id === 'sara_secret'))
-                .toBeUndefined();
+            expect(
+                manager.pickDialog('sara', ctx()).offers.find((o) => o.id === 'sara_secret')
+            ).toBeUndefined();
 
             // Met 5 / aff 4: visible.
             memory.sara.affinity = 4;
-            expect(manager.pickDialog('sara', ctx()).offers.find((o) => o.id === 'sara_secret'))
-                .toBeDefined();
+            expect(
+                manager.pickDialog('sara', ctx()).offers.find((o) => o.id === 'sara_secret')
+            ).toBeDefined();
         } finally {
             NPCS.sara.offers = original;
         }

@@ -92,7 +92,9 @@ export class BootScene extends Phaser.Scene {
         // missing — the HUD already falls back gracefully.
         this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
             if (file.key.startsWith('hud_')) {
-                console.info(`[hud] optional asset missing: ${file.key} — using procedural fallback`);
+                console.info(
+                    `[hud] optional asset missing: ${file.key} — using procedural fallback`
+                );
             }
         });
 
@@ -101,11 +103,7 @@ export class BootScene extends Phaser.Scene {
         // default LINEAR — they're carved-stone bitmaps that look better
         // anti-aliased.
         this.load.on(Phaser.Loader.Events.FILE_COMPLETE, (key: string) => {
-            if (
-                key === 'hud_icons' ||
-                key === 'hud_room_frames' ||
-                key === 'hud_room_icons'
-            ) {
+            if (key === 'hud_icons' || key === 'hud_room_frames' || key === 'hud_room_icons') {
                 const tex = this.textures.get(key);
                 tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
             }
@@ -123,16 +121,12 @@ export class BootScene extends Phaser.Scene {
         // inventory bumps travel into `GameScene` via the start payload.
         // Guarded by `import.meta.env.DEV` so production builds skip the
         // parse + URL read entirely.
-        const devSeed = import.meta.env.DEV
-            ? parseDevSeedQuery(window.location.search)
-            : null;
+        const devSeed = import.meta.env.DEV ? parseDevSeedQuery(window.location.search) : null;
         if (devSeed?.lang) {
             loc.language = devSeed.lang;
         }
         const audioBase = `${import.meta.env.BASE_URL}audio`;
-        music.setPlaylist([
-            { url: `${audioBase}/dungeon_sound_2.mp3` },
-        ]);
+        music.setPlaylist([{ url: `${audioBase}/dungeon_sound_2.mp3` }]);
         music.start();
         this.cameras.main.setBackgroundColor('#050505');
         const titleText = () => (loc.language === 'ru' ? 'НИЖНИЙ\nСПУСК' : 'DARKEST\nDESCENT');
@@ -158,21 +152,28 @@ export class BootScene extends Phaser.Scene {
             const col = Math.random() > 0.5 ? 0xffaa33 : 0x888888;
             const dot = this.add.rectangle(x, y + 30, sz, sz, col, 0.3).setDepth(2);
             this.tweens.add({
-                targets: dot, y: y - 80 - Math.random() * 60, alpha: 0,
-                duration: 3000 + Math.random() * 2000, ease: 'Quad.out',
-                repeat: -1, repeatDelay: Math.random() * 800,
+                targets: dot,
+                y: y - 80 - Math.random() * 60,
+                alpha: 0,
+                duration: 3000 + Math.random() * 2000,
+                ease: 'Quad.out',
+                repeat: -1,
+                repeatDelay: Math.random() * 800,
             });
         }
 
-        const title = this.add.text(CENTER_X, 260, titleText(), {
-            fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '48px',
-            color: '#f1c75d',
-            align: 'center',
-            lineSpacing: 8,
-            stroke: '#000000',
-            strokeThickness: 4,
-        }).setOrigin(0.5).setDepth(3);
+        const title = this.add
+            .text(CENTER_X, 260, titleText(), {
+                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontSize: '48px',
+                color: '#f1c75d',
+                align: 'center',
+                lineSpacing: 8,
+                stroke: '#000000',
+                strokeThickness: 4,
+            })
+            .setOrigin(0.5)
+            .setDepth(3);
 
         this.tweens.add({
             targets: title,
@@ -182,13 +183,17 @@ export class BootScene extends Phaser.Scene {
             ease: 'Quad.out',
         });
 
-        const tagline = this.add.text(CENTER_X, 380, loc.t('bootTagline'), {
-            fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '14px',
-            color: '#c8cdd2',
-            stroke: '#030507',
-            strokeThickness: 2,
-        }).setOrigin(0.5).setAlpha(0).setDepth(3);
+        const tagline = this.add
+            .text(CENTER_X, 380, loc.t('bootTagline'), {
+                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontSize: '14px',
+                color: '#c8cdd2',
+                stroke: '#030507',
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5)
+            .setAlpha(0)
+            .setDepth(3);
 
         this.tweens.add({
             targets: tagline,
@@ -197,15 +202,23 @@ export class BootScene extends Phaser.Scene {
             duration: 600,
         });
 
-        const startBtn = this.add.rectangle(CENTER_X, 480, 260, 48, 0x1c1c1c)
-            .setStrokeStyle(1, 0x5a5a5a).setInteractive({ useHandCursor: true }).setAlpha(0).setDepth(3);
-        const startText = this.add.text(CENTER_X, 480, loc.t('bootStart'), {
-            fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '18px',
-            color: '#ffffff',
-            stroke: '#000000',
-            strokeThickness: 2,
-        }).setOrigin(0.5).setAlpha(0).setDepth(4);
+        const startBtn = this.add
+            .rectangle(CENTER_X, 480, 260, 48, 0x1c1c1c)
+            .setStrokeStyle(1, 0x5a5a5a)
+            .setInteractive({ useHandCursor: true })
+            .setAlpha(0)
+            .setDepth(3);
+        const startText = this.add
+            .text(CENTER_X, 480, loc.t('bootStart'), {
+                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontSize: '18px',
+                color: '#ffffff',
+                stroke: '#000000',
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5)
+            .setAlpha(0)
+            .setDepth(4);
 
         this.tweens.add({
             targets: [startBtn, startText],
@@ -225,21 +238,29 @@ export class BootScene extends Phaser.Scene {
             // playback starts even on browsers with strict autoplay policy.
             music.kick();
             this.cameras.main.fadeOut(400, 0, 0, 0);
-            this.time.delayedCall(400, () => this.scene.start('GameScene', { loc, sfx, music, devSeed }));
+            this.time.delayedCall(400, () =>
+                this.scene.start('GameScene', { loc, sfx, music, devSeed })
+            );
         });
 
-        this.add.text(GAME_WIDTH - 20, GAME_HEIGHT - 20, 'v0.3', {
-            fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '11px',
-            color: '#68717a',
-        }).setOrigin(1, 1);
+        this.add
+            .text(GAME_WIDTH - 20, GAME_HEIGHT - 20, 'v0.3', {
+                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontSize: '11px',
+                color: '#68717a',
+            })
+            .setOrigin(1, 1);
 
         // Language toggle button
-        const langLabel = this.add.text(20, GAME_HEIGHT - 20, loc.language === 'ru' ? 'RU' : 'EN', {
-            fontFamily: 'Lucida Console, Consolas, monospace',
-            fontSize: '13px',
-            color: '#aaaaaa',
-        }).setOrigin(0, 1).setDepth(11).setInteractive({ useHandCursor: true });
+        const langLabel = this.add
+            .text(20, GAME_HEIGHT - 20, loc.language === 'ru' ? 'RU' : 'EN', {
+                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontSize: '13px',
+                color: '#aaaaaa',
+            })
+            .setOrigin(0, 1)
+            .setDepth(11)
+            .setInteractive({ useHandCursor: true });
 
         langLabel.on('pointerdown', () => {
             const next = loc.toggle();
@@ -255,7 +276,10 @@ export class BootScene extends Phaser.Scene {
         const scanGfx = this.add.graphics().setDepth(10);
         scanGfx.lineStyle(1, 0x000000, 0.012);
         for (let y = 0; y < GAME_HEIGHT; y += 6) {
-            scanGfx.beginPath(); scanGfx.moveTo(0, y); scanGfx.lineTo(GAME_WIDTH, y); scanGfx.strokePath();
+            scanGfx.beginPath();
+            scanGfx.moveTo(0, y);
+            scanGfx.lineTo(GAME_WIDTH, y);
+            scanGfx.strokePath();
         }
     }
 }

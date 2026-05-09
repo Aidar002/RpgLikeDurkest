@@ -20,33 +20,42 @@ export class CombatHudController {
     start(kind: 'normal' | 'elite' | 'boss'): void {
         const scene = this.scene;
         const isFinalBoss = kind === 'boss' && scene.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
-        const card = kind === 'boss'
-            ? {
-                  header: isFinalBoss ? (scene.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN') : scene.loc.t('boss'),
-                  title: isFinalBoss
-                      ? (scene.loc.language === 'ru' ? 'Хранитель Артефакта Желаний.' : 'The Guardian of the Wish Artifact.')
-                      : scene.loc.t('hudBossPrologueA'),
-                  description: isFinalBoss
-                      ? (scene.loc.language === 'ru' ? 'Последний страж. За ним лежит Артефакт Желаний.' : 'The final keeper. Beyond it lies the wish-granting artifact.')
-                      : scene.loc.t('hudBossPrologueB'),
-                  color: isFinalBoss ? 0xc8a030 : 0xa52f2f,
-                  icon: isFinalBoss ? '\u2726' : 'B',
-              }
-            : kind === 'elite'
-              ? {
-                    header: scene.loc.t('elite'),
-                    title: scene.loc.t('hudEliteIntroTitle'),
-                    description: scene.loc.t('hudEliteIntroBody'),
-                    color: 0xa14a4a,
-                    icon: 'E',
-                }
-              : {
-                    header: scene.loc.t('hostile'),
-                    title: scene.loc.t('hudCombatContactTitle'),
-                    description: scene.loc.t('hudCombatContactBody'),
-                    color: 0x6b3030,
-                    icon: 'X',
-                };
+        const card =
+            kind === 'boss'
+                ? {
+                      header: isFinalBoss
+                          ? scene.loc.language === 'ru'
+                              ? 'СТРАЖ АРТЕФАКТА'
+                              : 'ARTIFACT GUARDIAN'
+                          : scene.loc.t('boss'),
+                      title: isFinalBoss
+                          ? scene.loc.language === 'ru'
+                              ? 'Хранитель Артефакта Желаний.'
+                              : 'The Guardian of the Wish Artifact.'
+                          : scene.loc.t('hudBossPrologueA'),
+                      description: isFinalBoss
+                          ? scene.loc.language === 'ru'
+                              ? 'Последний страж. За ним лежит Артефакт Желаний.'
+                              : 'The final keeper. Beyond it lies the wish-granting artifact.'
+                          : scene.loc.t('hudBossPrologueB'),
+                      color: isFinalBoss ? 0xc8a030 : 0xa52f2f,
+                      icon: isFinalBoss ? '\u2726' : 'B',
+                  }
+                : kind === 'elite'
+                  ? {
+                        header: scene.loc.t('elite'),
+                        title: scene.loc.t('hudEliteIntroTitle'),
+                        description: scene.loc.t('hudEliteIntroBody'),
+                        color: 0xa14a4a,
+                        icon: 'E',
+                    }
+                  : {
+                        header: scene.loc.t('hostile'),
+                        title: scene.loc.t('hudCombatContactTitle'),
+                        description: scene.loc.t('hudCombatContactBody'),
+                        color: 0x6b3030,
+                        icon: 'X',
+                    };
 
         scene.showRoomCard(
             card.header,
@@ -189,21 +198,19 @@ export class CombatHudController {
         return hints.filter(Boolean).join(' ');
     }
 
-    updateEnemyUI(
-        hp: number,
-        maxHp: number,
-        color: number,
-        name: string,
-        icon: string
-    ): void {
+    updateEnemyUI(hp: number, maxHp: number, color: number, name: string, icon: string): void {
         const scene = this.scene;
         const unlocks = scene.meta.getUiUnlockState();
         const description = scene.combat.enemy?.description ?? scene.loc.t('enemyFallback');
 
-        const isFinalBoss = scene.combat.enemy?.kind === 'boss' && scene.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
+        const isFinalBoss =
+            scene.combat.enemy?.kind === 'boss' &&
+            scene.dungeon.currentDepth >= MAP_CONFIG.finalDepth;
         scene.roomHeaderText.setText(
             isFinalBoss
-                ? (scene.loc.language === 'ru' ? 'СТРАЖ АРТЕФАКТА' : 'ARTIFACT GUARDIAN')
+                ? scene.loc.language === 'ru'
+                    ? 'СТРАЖ АРТЕФАКТА'
+                    : 'ARTIFACT GUARDIAN'
                 : scene.combat.enemy?.kind === 'boss'
                   ? scene.loc.t('boss')
                   : scene.combat.enemy?.kind === 'elite'
@@ -303,7 +310,10 @@ export class CombatHudController {
         }
 
         scene.player.registerKill();
-        scene.log.addMessage(scene.loc.t('victoryRewards', { parts: rewardLines.join(', ') }), '#9be0a7');
+        scene.log.addMessage(
+            scene.loc.t('victoryRewards', { parts: rewardLines.join(', ') }),
+            '#9be0a7'
+        );
 
         if (payload.kind === 'boss') {
             scene.maybeDropRelic('boss', payload.enemyCanonicalName);
@@ -338,7 +348,9 @@ export class CombatHudController {
         scene.sfx.play('enemyHit');
         const intensity = Math.min(0.015, 0.004 * damage);
         scene.cameras.main.shake(220, intensity);
-        const flash = scene.add.rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0.18).setDepth(Depths.ScreenFlash);
+        const flash = scene.add
+            .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xff0000, 0.18)
+            .setDepth(Depths.ScreenFlash);
         scene.tweens.add({
             targets: flash,
             alpha: 0,

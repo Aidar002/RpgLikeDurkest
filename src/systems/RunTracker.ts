@@ -74,7 +74,8 @@ export class RunTracker {
             if (s.bossesKilled > 0) lines.push(`Боссов побеждено: ${s.bossesKilled}`);
             lines.push(`Урон: ${s.damageDealt} нанесено  |  ${s.damageTaken} получено`);
             if (s.criticalHits > 0) lines.push(`Критических ударов: ${s.criticalHits}`);
-            if (s.goldEarned > 0) lines.push(`Золото: ${s.goldEarned} найдено  |  ${s.goldSpent} потрачено`);
+            if (s.goldEarned > 0)
+                lines.push(`Золото: ${s.goldEarned} найдено  |  ${s.goldSpent} потрачено`);
             if (s.potionsUsed > 0) lines.push(`Эликсиров выпито: ${s.potionsUsed}`);
             if (s.healingDone > 0) lines.push(`ОЗ восстановлено: ${s.healingDone}`);
             lines.push(`Ходов в бою: ${s.turnsInCombat}`);

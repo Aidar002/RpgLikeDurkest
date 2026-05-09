@@ -21,42 +21,42 @@ when a real texture exists.
 Displayed on the dungeon map graph at ~34 × 34 px.
 High-res sources are scaled down automatically by `fitRoomSprite`.
 
-| File | Texture key | Used for | Status |
-|---|---|---|---|
-| `public/sprites/rooms/camp.webp` | `room_START` | Starting camp node | **done** |
-| `public/sprites/rooms/enemy.webp` | `room_ENEMY` | Regular enemy room | needed |
-| `public/sprites/rooms/treasure.webp` | `room_TREASURE` | Treasure room | needed |
-| `public/sprites/rooms/trap.webp` | `room_TRAP` | Trap room | needed |
-| `public/sprites/rooms/rest.webp` | `room_REST` | Rest / campfire room | needed |
-| `public/sprites/rooms/shrine.webp` | `room_SHRINE` | Shrine / NPC altar | needed |
-| `public/sprites/rooms/merchant.webp` | `room_MERCHANT` | Merchant room | needed |
-| `public/sprites/rooms/elite.webp` | `room_ELITE` | Elite enemy room | needed |
-| `public/sprites/rooms/boss.webp` | `room_BOSS` | Boss room | needed |
-| `public/sprites/rooms/empty.webp` | `room_EMPTY` | Empty / passage | needed |
+| File                                 | Texture key     | Used for             | Status   |
+| ------------------------------------ | --------------- | -------------------- | -------- |
+| `public/sprites/rooms/camp.webp`     | `room_START`    | Starting camp node   | **done** |
+| `public/sprites/rooms/enemy.webp`    | `room_ENEMY`    | Regular enemy room   | needed   |
+| `public/sprites/rooms/treasure.webp` | `room_TREASURE` | Treasure room        | needed   |
+| `public/sprites/rooms/trap.webp`     | `room_TRAP`     | Trap room            | needed   |
+| `public/sprites/rooms/rest.webp`     | `room_REST`     | Rest / campfire room | needed   |
+| `public/sprites/rooms/shrine.webp`   | `room_SHRINE`   | Shrine / NPC altar   | needed   |
+| `public/sprites/rooms/merchant.webp` | `room_MERCHANT` | Merchant room        | needed   |
+| `public/sprites/rooms/elite.webp`    | `room_ELITE`    | Elite enemy room     | needed   |
+| `public/sprites/rooms/boss.webp`     | `room_BOSS`     | Boss room            | needed   |
+| `public/sprites/rooms/empty.webp`    | `room_EMPTY`    | Empty / passage      | needed   |
 
 ## Enemy Portraits (combat panel)
 
 Displayed in the 96 × 96 px combat panel. High-res sources are scaled
 down by `fitEnemySprite` (max 88 px).
 
-| File | Texture key | Enemy profile |
-|---|---|---|
-| `public/sprites/enemies/brute.webp` | `enemy_brute` | Brute — heavy melee |
-| `public/sprites/enemies/stalker.webp` | `enemy_stalker` | Stalker — fast, hunched |
-| `public/sprites/enemies/mage.webp` | `enemy_mage` | Mage — robed caster |
-| `public/sprites/enemies/boss.webp` | `enemy_boss` | Boss — crowned guardian |
-| `public/sprites/enemies/bleeder.webp` | `enemy_bleeder` | Bleeder — organic, dripping |
+| File                                    | Texture key       | Enemy profile                  |
+| --------------------------------------- | ----------------- | ------------------------------ |
+| `public/sprites/enemies/brute.webp`     | `enemy_brute`     | Brute — heavy melee            |
+| `public/sprites/enemies/stalker.webp`   | `enemy_stalker`   | Stalker — fast, hunched        |
+| `public/sprites/enemies/mage.webp`      | `enemy_mage`      | Mage — robed caster            |
+| `public/sprites/enemies/boss.webp`      | `enemy_boss`      | Boss — crowned guardian        |
+| `public/sprites/enemies/bleeder.webp`   | `enemy_bleeder`   | Bleeder — organic, dripping    |
 | `public/sprites/enemies/disruptor.webp` | `enemy_disruptor` | Disruptor — ethereal, floating |
 
 ## Specs
 
-| Property | Recommendation |
-|---|---|
-| Format | **WebP** (lossy or lossless, both work) |
-| Size | 128 × 128 px (square; other sizes work but will be scaled) |
-| File size target | < 10 KB each (a typical 128 px WebP is 3–6 KB) |
-| Transparency | Supported — use alpha for non-rectangular sprites |
-| Style | Pixel art or painterly — both render fine at the game's scale |
+| Property         | Recommendation                                                |
+| ---------------- | ------------------------------------------------------------- |
+| Format           | **WebP** (lossy or lossless, both work)                       |
+| Size             | 128 × 128 px (square; other sizes work but will be scaled)    |
+| File size target | < 10 KB each (a typical 128 px WebP is 3–6 KB)                |
+| Transparency     | Supported — use alpha for non-rectangular sprites             |
+| Style            | Pixel art or painterly — both render fine at the game's scale |
 
 ## Bundle Impact
 

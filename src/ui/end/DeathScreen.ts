@@ -76,9 +76,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // The HUD escape button reuses this layout for the meta-progression
     // screen, so swap in the escape headline (and a calmer accent) when
     // the run was bailed on instead of lost.
-    const titleText = escaped
-        ? loc.t('escapeScreenTitle')
-        : tracker.getRunTitle(loc.language);
+    const titleText = escaped ? loc.t('escapeScreenTitle') : tracker.getRunTitle(loc.language);
     const titleColor = escaped ? '#c9a050' : '#d65a5a';
     const title = scene.add
         .text(CENTER_X, panelTop + 40, titleText, {
@@ -157,9 +155,12 @@ export function showDeathScreen(ctx: EndScreenContext) {
         })
         .setDepth(Depths.EndScreenContent);
 
-    const rightBodyText = npcLines.length > 0
-        ? npcLines.join('\n')
-        : isRu ? '— забег закончился до встреч —' : '— no one was met —';
+    const rightBodyText =
+        npcLines.length > 0
+            ? npcLines.join('\n')
+            : isRu
+              ? '— забег закончился до встреч —'
+              : '— no one was met —';
     const rightBody = scene.add
         .text(COL_RIGHT_X, COL_BODY_Y, rightBodyText, {
             fontFamily: 'Courier New',
@@ -174,10 +175,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // The two columns can be different heights (lots of stats, no
     // NPCs / no NPCs, lots of stats) — use the taller one as the
     // anchor for everything below.
-    const bodyEndY = Math.max(
-        leftBody.y + leftBody.height,
-        rightBody.y + rightBody.height,
-    );
+    const bodyEndY = Math.max(leftBody.y + leftBody.height, rightBody.y + rightBody.height);
 
     // ── General summary sub-panel (top_bar.png) ──────────────
     const summaryPanelPad = 16;
@@ -188,7 +186,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         panelLeft + 28,
         summaryPanelTop,
         PANEL_W - 56,
-        summaryPanelH,
+        summaryPanelH
     );
     summaryPanel.setDepth(Depths.EndScreenPanel);
 
@@ -314,7 +312,9 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 background.setStrokeStyle(1, visual.canPurchase ? 0x8a8a8a : 0x4a4a4a);
             });
             background.on('pointerdown', () => {
-                const info = meta.getUpgradeCards(loc.language).find((upgrade) => upgrade.id === visual.id);
+                const info = meta
+                    .getUpgradeCards(loc.language)
+                    .find((upgrade) => upgrade.id === visual.id);
                 if (!info?.canPurchase) {
                     return;
                 }
@@ -338,7 +338,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         panelLeft + 28,
         skillPointsPanelTop,
         PANEL_W - 56,
-        skillPointsPanelH,
+        skillPointsPanelH
     );
     skillPointsPanel.setDepth(Depths.EndScreenPanel);
     skillPointsPanel.setVisible(escaped);
@@ -403,12 +403,16 @@ export function showDeathScreen(ctx: EndScreenContext) {
             card.level.setText(`Lv ${info.level}/${info.maxLevel}`);
             card.body.setText(info.description);
             card.cost.setText(
-                info.cost === null ? loc.t('shopMaxLabel') : `${loc.t('shopCostLabel')} ${info.cost}`
+                info.cost === null
+                    ? loc.t('shopMaxLabel')
+                    : `${loc.t('shopCostLabel')} ${info.cost}`
             );
             card.background.setFillStyle(info.canPurchase ? 0x242424 : 0x1c1c1c);
             card.background.setStrokeStyle(1, info.canPurchase ? 0x8a8a8a : 0x4a4a4a);
             card.canPurchase = info.canPurchase;
-            card.cost.setColor(info.cost === null ? '#6acb7f' : info.canPurchase ? '#ffd36e' : '#6f6f6f');
+            card.cost.setColor(
+                info.cost === null ? '#6acb7f' : info.canPurchase ? '#ffd36e' : '#6f6f6f'
+            );
             card.title.setColor(info.canPurchase ? '#f0f0f0' : '#a7a7a7');
             card.body.setColor(info.canPurchase ? '#9a9a9a' : '#727272');
         });
@@ -418,7 +422,9 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
         .setDepth(Depths.ConfirmOverlay)
         .setInteractive();
-    const confirmPanel = scene.add.rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818).setDepth(Depths.ConfirmPanel);
+    const confirmPanel = scene.add
+        .rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818)
+        .setDepth(Depths.ConfirmPanel);
     confirmPanel.setStrokeStyle(2, 0x8a4d4d);
     const confirmTitle = scene.add
         .text(CENTER_X, CENTER_Y - 50, loc.t('confirmResetTitle'), {
@@ -429,22 +435,19 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setOrigin(0.5)
         .setDepth(Depths.ConfirmContent);
     const confirmBody = scene.add
-        .text(
-            CENTER_X,
-            CENTER_Y,
-            loc.t('confirmResetBody'),
-            {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#d6d6d6',
-                align: 'center',
-                lineSpacing: 8,
-                wordWrap: { width: 360 },
-            }
-        )
+        .text(CENTER_X, CENTER_Y, loc.t('confirmResetBody'), {
+            fontFamily: 'Courier New',
+            fontSize: '14px',
+            color: '#d6d6d6',
+            align: 'center',
+            lineSpacing: 8,
+            wordWrap: { width: 360 },
+        })
         .setOrigin(0.5)
         .setDepth(Depths.ConfirmContent);
-    const confirmResetButton = scene.add.rectangle(CENTER_X - 90, CENTER_Y + 66, 170, 38, 0x5a1d1d).setDepth(Depths.ConfirmContent);
+    const confirmResetButton = scene.add
+        .rectangle(CENTER_X - 90, CENTER_Y + 66, 170, 38, 0x5a1d1d)
+        .setDepth(Depths.ConfirmContent);
     confirmResetButton.setStrokeStyle(1, 0xc57d7d);
     confirmResetButton.setInteractive({ useHandCursor: true });
     const confirmResetText = scene.add
@@ -455,7 +458,9 @@ export function showDeathScreen(ctx: EndScreenContext) {
         })
         .setOrigin(0.5)
         .setDepth(Depths.ConfirmForeground);
-    const cancelResetButton = scene.add.rectangle(CENTER_X + 90, CENTER_Y + 66, 170, 38, 0x252525).setDepth(Depths.ConfirmContent);
+    const cancelResetButton = scene.add
+        .rectangle(CENTER_X + 90, CENTER_Y + 66, 170, 38, 0x252525)
+        .setDepth(Depths.ConfirmContent);
     cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
     cancelResetButton.setInteractive({ useHandCursor: true });
     const cancelResetText = scene.add
@@ -511,13 +516,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         resetText,
     ];
     if (escaped) {
-        fadeTargets.push(
-            skillPointsPanel,
-            divider2,
-            skillPointsBanner,
-            pointsText,
-            unlockText,
-        );
+        fadeTargets.push(skillPointsPanel, divider2, skillPointsBanner, pointsText, unlockText);
     }
     scene.tweens.add({
         targets: fadeTargets,

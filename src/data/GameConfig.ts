@@ -14,11 +14,7 @@ export const FEATURES = {
 // Enemy profile is purely a visual / sprite category. Mob behaviour
 // comes from per-mob `passive` and `prepare` blocks below — there is no
 // extra mechanic attached to the profile field.
-export type EnemyProfile =
-    | 'brute'
-    | 'stalker'
-    | 'bleeder'
-    | 'boss';
+export type EnemyProfile = 'brute' | 'stalker' | 'bleeder' | 'boss';
 
 /**
  * "Prepare" mechanic: enemy telegraphs an action for `turns` turns,
@@ -187,7 +183,7 @@ export const RUN_CONFIG = {
      *    by the remaining major budget).
      */
     bossPressure: {
-        windowStartFactor: 0.10,
+        windowStartFactor: 0.1,
         // Pressure-window floor was bumped from 4 to 6 when the
         // generator switched to the grid-cell layout: the START
         // room now hands out four 90° exits, so the lookahead now
@@ -196,7 +192,7 @@ export const RUN_CONFIG = {
         // boss-free regardless of seed and aligns with
         // {@link MAP_CONFIG.initialLookahead}.
         windowStartFloor: 6,
-        windowEndFactor: 0.20,
+        windowEndFactor: 0.2,
         windowEndFloor: 8,
         targetMajorFactor: 18,
         targetMajorMin: 1,
@@ -524,7 +520,3 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
         },
     },
 ];
-
-
-
-

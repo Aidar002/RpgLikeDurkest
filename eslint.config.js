@@ -1,27 +1,19 @@
 import js from '@eslint/js';
+import globals from 'globals';
 import tseslint from 'typescript-eslint';
 
 export default tseslint.config(
     {
-        ignores: ['dist/**', 'node_modules/**', '*.bat', '*.ps1'],
+        ignores: ['dist/**', 'node_modules/**', '*.bat', '*.ps1', '.husky/**'],
     },
     js.configs.recommended,
     ...tseslint.configs.recommended,
     {
         languageOptions: {
-            globals: {
-                window: 'readonly',
-                document: 'readonly',
-                localStorage: 'readonly',
-                AudioContext: 'readonly',
-                OscillatorNode: 'readonly',
-                OscillatorType: 'readonly',
-                GainNode: 'readonly',
-                AudioNode: 'readonly',
-                AudioBufferSourceNode: 'readonly',
-                setTimeout: 'readonly',
-                clearTimeout: 'readonly',
-            },
+            // Browser globals (window, document, localStorage, AudioContext,
+            // setTimeout, …) — sourced from the `globals` package so we
+            // don't have to maintain a hand-curated list.
+            globals: { ...globals.browser },
         },
         rules: {
             // Project style: warn but do not fail on these — the codebase

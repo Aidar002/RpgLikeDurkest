@@ -6,23 +6,23 @@ export interface EnemyTextConfig {
 // Russian enemy names and combat-card descriptions.
 // Keys must match enemy `name` values in GameConfig.ts exactly.
 export const RU_ENEMY_TEXT: Record<string, EnemyTextConfig> = {
-    'Rat': {
+    Rat: {
         name: 'Крыса',
         description: 'Мелкая тварь. Иногда бросается резче обычного.',
     },
-    'Slime': {
+    Slime: {
         name: 'Слизень',
         description: 'Едкая масса. Жалит в ответ на удар.',
     },
-    'Skeleton': {
+    Skeleton: {
         name: 'Скелет',
         description: 'Голые кости. Иногда удар проходит мимо.',
     },
-    'Bat': {
+    Bat: {
         name: 'Летучая мышь',
         description: 'Пещерный летун. Пикирует после подготовки.',
     },
-    'Ghoul': {
+    Ghoul: {
         name: 'Упырь',
         description: 'Нежить, которая гниёт прежде чем ударит.',
     },

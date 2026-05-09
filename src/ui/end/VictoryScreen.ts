@@ -32,7 +32,9 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     const overlay = scene.add
         .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55)
         .setDepth(Depths.EndScreenOverlay);
-    const panel = scene.add.rectangle(CENTER_X, CENTER_Y, 700, 500, 0x0a0a18).setDepth(Depths.EndScreenPanel);
+    const panel = scene.add
+        .rectangle(CENTER_X, CENTER_Y, 700, 500, 0x0a0a18)
+        .setDepth(Depths.EndScreenPanel);
     panel.setStrokeStyle(2, 0x6a8fcc);
 
     const titleKey = runState.escaped ? 'escapeScreenTitle' : 'victoryScreenTitle';
@@ -47,7 +49,9 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
 
-    const artifactGlow = scene.add.rectangle(CENTER_X, 280, 64, 64, 0xffd36e, 0.25).setDepth(Depths.EndScreenContent);
+    const artifactGlow = scene.add
+        .rectangle(CENTER_X, 280, 64, 64, 0xffd36e, 0.25)
+        .setDepth(Depths.EndScreenContent);
     const artifactIcon = scene.add
         .text(CENTER_X, 280, '\u2726', {
             fontFamily: 'Courier New',
@@ -96,7 +100,9 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         .setOrigin(0.5, 0)
         .setDepth(Depths.EndScreenContent);
 
-    const restartButton = scene.add.rectangle(CENTER_X, 590, 280, 44, 0x1c2a3a).setDepth(Depths.EndScreenContent);
+    const restartButton = scene.add
+        .rectangle(CENTER_X, 590, 280, 44, 0x1c2a3a)
+        .setDepth(Depths.EndScreenContent);
     restartButton.setStrokeStyle(1, 0x6a8fcc);
     restartButton.setInteractive({ useHandCursor: true });
     const restartLabel = scene.add
@@ -113,7 +119,16 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     restartButton.on('pointerdown', () => ctx.safeRestart());
 
     scene.tweens.add({
-        targets: [overlay, panel, title, artifactIcon, summaryText, statsText, restartButton, restartLabel],
+        targets: [
+            overlay,
+            panel,
+            title,
+            artifactIcon,
+            summaryText,
+            statsText,
+            restartButton,
+            restartLabel,
+        ],
         alpha: { from: 0, to: 1 },
         duration: 600,
         ease: 'Quad.out',

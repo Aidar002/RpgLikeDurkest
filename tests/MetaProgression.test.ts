@@ -6,11 +6,7 @@ import {
 } from '../src/systems/MetaProgressionManager';
 
 const STORAGE_KEY = 'rpglikedurkest-meta-v4';
-const LEGACY_KEYS = [
-    'rpglikedurkest-meta-v3',
-    'rpglikedurkest-meta-v2',
-    'rpglikedurkest-meta-v1',
-];
+const LEGACY_KEYS = ['rpglikedurkest-meta-v3', 'rpglikedurkest-meta-v2', 'rpglikedurkest-meta-v1'];
 
 class MemoryStorage {
     private data = new Map<string, string>();

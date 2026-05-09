@@ -22,10 +22,7 @@ const LINES: Record<NarrationEvent, string[]> = {
         'Forward, then. Treasure hunters never look back.',
         'Another descent. The artifact still waits at the bottom.',
     ],
-    first_blood: [
-        'A promising start. A terrible omen.',
-        'The first body of many, perhaps.',
-    ],
+    first_blood: ['A promising start. A terrible omen.', 'The first body of many, perhaps.'],
     enter_combat: [
         'The corridor narrows.',
         'Something ahead has been waiting.',
@@ -45,29 +42,15 @@ const LINES: Record<NarrationEvent, string[]> = {
         'A clean strike. Remember the feeling.',
         'Precision — the most underrated weapon.',
     ],
-    crit_received: [
-        'Pain insists. So must you.',
-        'A blow that will be felt for days.',
-    ],
-    low_hp: [
-        'You are made of paper now. Choose your next step.',
-        'A single mistake from here on.',
-    ],
-    bleed_finisher: [
-        'It falls to wounds it cannot close.',
-        'Patience, rewarded in blood.',
-    ],
-    rest: [
-        'Warmth. For a moment. That is all.',
-        'The fire asks nothing of you.',
-    ],
+    crit_received: ['Pain insists. So must you.', 'A blow that will be felt for days.'],
+    low_hp: ['You are made of paper now. Choose your next step.', 'A single mistake from here on.'],
+    bleed_finisher: ['It falls to wounds it cannot close.', 'Patience, rewarded in blood.'],
+    rest: ['Warmth. For a moment. That is all.', 'The fire asks nothing of you.'],
     relic_found: [
         'Old power, still humming.',
         'Someone carved meaning into this. Now it is yours.',
     ],
-    stun_landed: [
-        'Its rhythm breaks. Strike while it remembers its name.',
-    ],
+    stun_landed: ['Its rhythm breaks. Strike while it remembers its name.'],
     death: [
         'Overconfidence is a slow and insidious killer.',
         'Another treasure hunter joins the bones on these walls.',
@@ -100,33 +83,16 @@ const RU_LINES: Record<NarrationEvent, string[]> = {
         'Все прежние уроки сейчас потребуют плату.',
         'Между тобой и нижней дверью стоит это.',
     ],
-    crit_landed: [
-        'Чистый удар. Рука запомнит.',
-        'Точность тише силы, но режет глубже.',
-    ],
-    crit_received: [
-        'Боль требует внимания. Не отдавай ей всё.',
-        'Этот удар останется в рёбрах.',
-    ],
-    low_hp: [
-        'Кровь уходит быстро. Следующий шаг считай дважды.',
-        'Теперь хватит одной ошибки.',
-    ],
-    bleed_finisher: [
-        'Раны сделали своё дело.',
-        'Терпение тоже бывает оружием.',
-    ],
-    rest: [
-        'Тепло держится недолго. Этого хватит.',
-        'Огонь молчит. Редкая милость.',
-    ],
+    crit_landed: ['Чистый удар. Рука запомнит.', 'Точность тише силы, но режет глубже.'],
+    crit_received: ['Боль требует внимания. Не отдавай ей всё.', 'Этот удар останется в рёбрах.'],
+    low_hp: ['Кровь уходит быстро. Следующий шаг считай дважды.', 'Теперь хватит одной ошибки.'],
+    bleed_finisher: ['Раны сделали своё дело.', 'Терпение тоже бывает оружием.'],
+    rest: ['Тепло держится недолго. Этого хватит.', 'Огонь молчит. Редкая милость.'],
     relic_found: [
         'Старая вещь всё ещё держит заряд.',
         'Кто-то носил это до тебя. Теперь твоя очередь.',
     ],
-    stun_landed: [
-        'Ритм сломан. Бей, пока он ищет равновесие.',
-    ],
+    stun_landed: ['Ритм сломан. Бей, пока он ищет равновесие.'],
     death: [
         'Самоуверенность убивает медленно. Подземелье умеет ждать.',
         'Ещё один искатель остался среди камня и пыли.',

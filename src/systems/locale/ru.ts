@@ -88,16 +88,19 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     pathOpen: 'Путь свободен.',
     victoryRewards: 'Награда: {parts}.',
     deathTitle: 'ЭКСПЕДИЦИЯ НЕ ВЕРНУЛАСЬ',
-    deathWipeLine: 'Глубина {depth}  |  Боссы {bosses}  |  Очки прокачки и улучшения сгорели вместе с тобой.',
+    deathWipeLine:
+        'Глубина {depth}  |  Боссы {bosses}  |  Очки прокачки и улучшения сгорели вместе с тобой.',
     escapeRunLine: 'Глубина {depth}  |  Боссы {bosses}  |  +{points} очков прокачки в банк',
     victoryScreenTitle: 'АРТЕФАКТ У ТЕБЯ',
-    victoryScreenSummary: 'Ты прошёл {depth} глубин, победил {bosses} хранителей и вынес Артефакт Желаний.\nВнизу больше нечего у тебя забрать.',
+    victoryScreenSummary:
+        'Ты прошёл {depth} глубин, победил {bosses} хранителей и вынес Артефакт Желаний.\nВнизу больше нечего у тебя забрать.',
     victoryNewRun: 'Спуститься снова',
     escapeButton: 'Сбежать',
     escapeButtonConfirm: 'Точно сбежать?',
     restartButton: 'Начать заново',
     escapeScreenTitle: 'ТЫ СБЕЖАЛ',
-    escapeScreenSummary: 'Ты выбрался с глубины {depth}, оставив позади {bosses} побеждённых хранителей.\nТо, что вынес — твоё; то, что осталось внизу — больше не вернётся.',
+    escapeScreenSummary:
+        'Ты выбрался с глубины {depth}, оставив позади {bosses} побеждённых хранителей.\nТо, что вынес — твоё; то, что осталось внизу — больше не вернётся.',
     restart: 'Новый забег',
     reset: 'Стереть память',
     skillPointsBank: 'Очки прокачки: {value}',
@@ -107,7 +110,8 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     max: 'МАКС',
     cost: 'Цена {cost}',
     confirmResetTitle: 'Стереть весь прогресс?',
-    confirmResetBody: 'Это сотрёт банк очков прокачки, улучшения и открытия.\nСледующий забег начнётся с чистого профиля.',
+    confirmResetBody:
+        'Это сотрёт банк очков прокачки, улучшения и открытия.\nСледующий забег начнётся с чистого профиля.',
     confirmResetYes: 'Да, стереть всё',
     cancel: 'Отмена',
     confirmRestartTitle: 'Вы точно уверены?',
@@ -265,15 +269,18 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatEnemyThorns: '{name} жалит в ответ на {thorns} урона.',
     combatEnemyDamageReduction: '{name} стряхивает {amount} урона.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
-    combatRelicHealOnAttack: 'Сработал эффект предмета «Треснутый амулет» — восстановлено {healed} ОЗ.',
-    combatRelicBlockOnHit: 'Сработал эффект предмета «Дырявый нагрудник» — поглощено {amount} урона.',
+    combatRelicHealOnAttack:
+        'Сработал эффект предмета «Треснутый амулет» — восстановлено {healed} ОЗ.',
+    combatRelicBlockOnHit:
+        'Сработал эффект предмета «Дырявый нагрудник» — поглощено {amount} урона.',
     // Замах врагов (мышь / упырь / рысь).
     combatEnemyPrepareWindup: '{name} готовится: {action}.',
     combatEnemyPrepareResolve: '{name} применяет {action}: {takenDamage} урона.',
     combatEnemyPrepareDefend: 'Ты ставишь блок и отбиваешь {action} ({name}).',
     combatEnemyPrepareDamageBack: '{name} получает {back} урона в ответ.',
     combatEnemyPrepareRidersCancelled: 'Защита снимает доп. эффект {action} ({name}).',
-    combatEnemyPrepareLeakOnDefend: '{action} ({name}) просачивается сквозь блок: {takenDamage} урона.',
+    combatEnemyPrepareLeakOnDefend:
+        '{action} ({name}) просачивается сквозь блок: {takenDamage} урона.',
     combatEnemyPrepareBleed: '{action} ({name}) рвёт рану: кровотечение x{stacks} на {turns}х.',
     combatEnemyPreparePoison: '{action} ({name}) травит: яд {damage} на {turns}х.',
     // Тики кровотечения и яда у игрока.
@@ -284,12 +291,16 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     hudPrepareReadyLabel: '{action} (СЕЙЧАС)',
     // Прокковые эффекты проклятого снаряжения.
     combatRelicCursedMiss: 'Сработал эффект предмета «Проклятый амулет» — удар уходит в пустоту.',
-    combatRelicCursedSkillBasic: 'Сработал эффект предмета «Проклятое кольцо» — способность стала обычным ударом.',
+    combatRelicCursedSkillBasic:
+        'Сработал эффект предмета «Проклятое кольцо» — способность стала обычным ударом.',
     // Подбрасывание монеты малого проклятого сета на атаку.
-    combatRelicCursedDouble: 'Сработал эффект предмета «Малый проклятый сет» — урон удвоен до {damage}.',
-    combatRelicCursedSelfHit: 'Сработал эффект предмета «Малый проклятый сет» — отдача {damage} урона.',
+    combatRelicCursedDouble:
+        'Сработал эффект предмета «Малый проклятый сет» — урон удвоен до {damage}.',
+    combatRelicCursedSelfHit:
+        'Сработал эффект предмета «Малый проклятый сет» — отдача {damage} урона.',
     // Прок благословения вампиров от Сары на ударе игрока.
-    combatVampireBlessingHeal: 'Сработал эффект предмета «Благословение вампиров» — восстановлено {healed} ОЗ.',
+    combatVampireBlessingHeal:
+        'Сработал эффект предмета «Благословение вампиров» — восстановлено {healed} ОЗ.',
     // Замах боссов: Рыцарь Смерти (Щит смерти / Касание смерти).
     combatBossWindupStart: '{name} готовится: {action} ({turns}х).',
     combatBossWindupTick: '{name} продолжает готовить {action} (осталось {turns}х).',

@@ -66,7 +66,7 @@ export function createHudCell(
     y: number,
     w: number,
     h: number,
-    options: HudCellOptions,
+    options: HudCellOptions
 ): HudCellHandle {
     const labelColor = options.labelColor ?? HudHex.textSecondary;
     const valueColor = options.valueColor ?? HudHex.textPrimary;
@@ -202,7 +202,7 @@ export function createHudInlineSlot(
     scene: Phaser.Scene,
     x: number,
     y: number,
-    options: HudInlineSlotOptions,
+    options: HudInlineSlotOptions
 ): HudInlineSlotHandle {
     const labelColor = options.labelColor ?? HudHex.textSecondary;
     const valueColor = options.valueColor ?? HudHex.textPrimary;
@@ -232,9 +232,10 @@ export function createHudInlineSlot(
         })
         .setOrigin(0, 0);
     widgets.push(labelText);
-    cursorX = options.valueOffsetX !== undefined
-        ? x + options.valueOffsetX
-        : cursorX + labelText.width + 10;
+    cursorX =
+        options.valueOffsetX !== undefined
+            ? x + options.valueOffsetX
+            : cursorX + labelText.width + 10;
 
     const valueText = scene.add
         .text(cursorX, y - 1, options.value ?? '', {

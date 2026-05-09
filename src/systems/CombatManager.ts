@@ -1,14 +1,6 @@
 import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
-import {
-    COMBAT_CONFIG,
-    ROOM_CONFIG,
-} from '../data/GameConfig';
-import type {
-    EnemyDef,
-    EnemyPassive,
-    EnemyPrepareDef,
-    EnemyProfile,
-} from '../data/GameConfig';
+import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
+import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';
 import {
     BOSS_BLUEPRINT_BY_NAME,
     pickLine,
@@ -228,7 +220,8 @@ export class CombatManager {
         // Reset per-combat state.
         this.skillCooldowns = {};
         this.preparationActive = false;
-        const definition = kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth, this.rng);
+        const definition =
+            kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth, this.rng);
         this.setupEnemy(depth, kind, definition);
     }
 
@@ -244,20 +237,20 @@ export class CombatManager {
         // one kill so the player visibly powers up after every depth-tier
         // fight. Stacks on top of bossRewardMultiplier and is XP-only
         // (gold still uses the legacy reward multiplier).
-        const xpBossBonus =
-            kind === 'boss' ? COMBAT_CONFIG.bossXpMultiplier : 1;
+        const xpBossBonus = kind === 'boss' ? COMBAT_CONFIG.bossXpMultiplier : 1;
 
-        const baseHp = kind === 'elite'
-            ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
-            : definition.hp;
-        const baseAtk = kind === 'elite'
-            ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
-            : definition.attack;
+        const baseHp =
+            kind === 'elite'
+                ? Math.round(definition.hp * COMBAT_CONFIG.eliteHpMultiplier)
+                : definition.hp;
+        const baseAtk =
+            kind === 'elite'
+                ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
+                : definition.attack;
 
         // [FIX-10] Look up a boss blueprint by canonical English name so
         // localisation never breaks the lookup. Non-boss kinds skip this.
-        const blueprint =
-            kind === 'boss' ? BOSS_BLUEPRINT_BY_NAME[definition.name] : undefined;
+        const blueprint = kind === 'boss' ? BOSS_BLUEPRINT_BY_NAME[definition.name] : undefined;
 
         this.enemy = {
             kind,
@@ -306,10 +299,7 @@ export class CombatManager {
                 : kind === 'elite'
                   ? 'combatEliteEncounter'
                   : 'combatHostileContact';
-        this.log.addMessage(
-            this.loc.t(encounterKey, { name: this.enemy.name }),
-            '#ff6666',
-        );
+        this.log.addMessage(this.loc.t(encounterKey, { name: this.enemy.name }), '#ff6666');
 
         if (kind === 'boss') {
             this.log.addMessage(narrate('enter_boss', this.loc.language), '#c4a35a');
@@ -319,7 +309,13 @@ export class CombatManager {
             this.log.addMessage(narrate('enter_combat', this.loc.language), '#7a7a7a');
         }
 
-        this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
+        this.enemyUpdate.emit({
+            hp: this.enemy.hp,
+            maxHp: this.enemy.maxHp,
+            color: this.enemy.color,
+            name: this.enemy.name,
+            icon: this.enemy.icon,
+        });
         this.playerStatusChange.emit();
         this.enemyStatusChange.emit();
     }
@@ -390,10 +386,19 @@ export class CombatManager {
             if (enemyTick.bleedDamage > 0) {
                 this.enemy.hp = Math.max(0, this.enemy.hp - enemyTick.bleedDamage);
                 this.log.addMessage(
-                    this.loc.t('combatBleedTick', { name: this.enemy.name, bleedDamage: enemyTick.bleedDamage }),
+                    this.loc.t('combatBleedTick', {
+                        name: this.enemy.name,
+                        bleedDamage: enemyTick.bleedDamage,
+                    }),
                     '#c15a5a'
                 );
-                this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
+                this.enemyUpdate.emit({
+                    hp: this.enemy.hp,
+                    maxHp: this.enemy.maxHp,
+                    color: this.enemy.color,
+                    name: this.enemy.name,
+                    icon: this.enemy.icon,
+                });
             }
             this.enemyStatusChange.emit();
         }
@@ -411,10 +416,7 @@ export class CombatManager {
         if (playerTick.regenHeal > 0) {
             const healed = this.player.heal(playerTick.regenHeal);
             if (healed > 0) {
-                this.log.addMessage(
-                    this.loc.t('combatRegenTick', { healed }),
-                    '#8be0a7'
-                );
+                this.log.addMessage(this.loc.t('combatRegenTick', { healed }), '#8be0a7');
             }
         }
         if (playerTick.bleedDamage > 0) {
@@ -537,32 +539,18 @@ export class CombatManager {
                 break;
             }
             case 'bleed_strike': {
-                const dmg = Math.max(
-                    1,
-                    this.player.getAttackPower() + this.effectiveDamageMod()
-                );
+                const dmg = Math.max(1, this.player.getAttackPower() + this.effectiveDamageMod());
                 this.applyPlayerDamage(dmg, false);
                 const bleedPerTick = Math.max(1, Math.floor(this.player.getAttackPower() * 0.2));
-                applyBleed(
-                    this.enemy.status,
-                    bleedPerTick,
-                    3,
-                    this.enemy.bleedCap
-                );
-                this.log.addMessage(
-                    this.loc.t('combatSkillBleedStrike', { dmg }),
-                    '#d06060'
-                );
+                applyBleed(this.enemy.status, bleedPerTick, 3, this.enemy.bleedCap);
+                this.log.addMessage(this.loc.t('combatSkillBleedStrike', { dmg }), '#d06060');
                 this.applyOnAttackRelics();
                 breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
                 break;
             }
             case 'preparation': {
                 this.preparationActive = true;
-                this.log.addMessage(
-                    this.loc.t('combatSkillPreparation'),
-                    '#7fa9ff'
-                );
+                this.log.addMessage(this.loc.t('combatSkillPreparation'), '#7fa9ff');
                 break;
             }
         }
@@ -591,10 +579,7 @@ export class CombatManager {
         if (this.player.aggregate.sets.minor_cursed) {
             if (this.rng.next() < 0.5) {
                 damage *= 2;
-                this.log.addMessage(
-                    this.loc.t('combatRelicCursedDouble', { damage }),
-                    '#c98aff'
-                );
+                this.log.addMessage(this.loc.t('combatRelicCursedDouble', { damage }), '#c98aff');
             } else {
                 const taken = this.player.takeDamage(2, 0, 'true');
                 if (taken > 0) {
@@ -655,7 +640,13 @@ export class CombatManager {
             if (this.enemy.bossPhase) this.enemy.bossPhase.damagedThisTurn = true;
         }
         this.lastActionResult.critical = this.lastActionResult.critical || critical;
-        this.enemyUpdate.emit({ hp: this.enemy.hp, maxHp: this.enemy.maxHp, color: this.enemy.color, name: this.enemy.name, icon: this.enemy.icon });
+        this.enemyUpdate.emit({
+            hp: this.enemy.hp,
+            maxHp: this.enemy.maxHp,
+            color: this.enemy.color,
+            name: this.enemy.name,
+            icon: this.enemy.icon,
+        });
 
         // Slime-style thorns: when struck, the enemy may reflect a
         // small fixed amount back to the player as untyped damage.
@@ -704,10 +695,7 @@ export class CombatManager {
         if (this.rng.next() >= agg.vampireBlessingChance) return;
         const healed = this.player.heal(agg.vampireBlessingAmount);
         if (healed > 0) {
-            this.log.addMessage(
-                this.loc.t('combatVampireBlessingHeal', { healed }),
-                '#d7b6ff'
-            );
+            this.log.addMessage(this.loc.t('combatVampireBlessingHeal', { healed }), '#d7b6ff');
         }
     }
 
@@ -723,13 +711,9 @@ export class CombatManager {
         if (this.rng.next() >= agg.healOnAttackChance) return;
         const healed = this.player.heal(agg.healOnAttackAmount);
         if (healed > 0) {
-            this.log.addMessage(
-                this.loc.t('combatRelicHealOnAttack', { healed }),
-                '#8be0a7'
-            );
+            this.log.addMessage(this.loc.t('combatRelicHealOnAttack', { healed }), '#8be0a7');
         }
     }
-
 
     private effectiveDamageMod(): number {
         const focus = this.player.status.focus.turns > 0 ? this.player.status.focus.amount : 0;
@@ -797,7 +781,8 @@ export class CombatManager {
         if (!this.enemy) return;
         const payload = this.buildRewards(this.enemy, killedByBleed);
         this.log.addMessage(this.loc.t('enemyFalls', { name: this.enemy.name }), '#66ff88');
-        if (killedByBleed) this.log.addMessage(narrate('bleed_finisher', this.loc.language), '#c4a35a');
+        if (killedByBleed)
+            this.log.addMessage(narrate('bleed_finisher', this.loc.language), '#c4a35a');
 
         this.enemy = null;
         this.combatEnd.emit(payload);
@@ -812,7 +797,10 @@ export class CombatManager {
             COMBAT_CONFIG.randomVariance > 0
                 ? this.randomBetween(-COMBAT_CONFIG.randomVariance, COMBAT_CONFIG.randomVariance)
                 : 0;
-        const baseDamage = Math.max(1, this.player.getAttackPower() + variance + this.effectiveDamageMod());
+        const baseDamage = Math.max(
+            1,
+            this.player.getAttackPower() + variance + this.effectiveDamageMod()
+        );
         const critical = this.rng.next() < this.player.getCritChance();
 
         return {
@@ -943,7 +931,8 @@ export class CombatManager {
         const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
         const flatBlock = flatBlockBase;
 
-        const weakenReduction = this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
+        const weakenReduction =
+            this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
         let attackPower = this.enemy.attack - weakenReduction;
         if (action.damageBonus) attackPower += action.damageBonus;
         if (attackPower < 1) attackPower = 1;
@@ -953,7 +942,11 @@ export class CombatManager {
             const taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
             if (taken > 0) {
                 this.log.addMessage(
-                    this.loc.t('combatEnemyHit', { name: this.enemy.name, takenDamage: taken, extraMessage: '' }),
+                    this.loc.t('combatEnemyHit', {
+                        name: this.enemy.name,
+                        takenDamage: taken,
+                        extraMessage: '',
+                    }),
                     '#ff6666'
                 );
             } else {

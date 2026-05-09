@@ -25,10 +25,7 @@ import * as Phaser from 'phaser';
 import type { DungeonManager } from '../systems/DungeonManager';
 import type { Localization } from '../systems/Localization';
 import type { MapNode } from '../systems/MapGenerator';
-import type {
-    MetaProgressionManager,
-    UiUnlockState,
-} from '../systems/MetaProgressionManager';
+import type { MetaProgressionManager, UiUnlockState } from '../systems/MetaProgressionManager';
 import { hasTexture } from './AssetGuard';
 import { PixelSprite } from './PixelSprite';
 import {
@@ -166,11 +163,7 @@ export class MapView {
      * intrinsic "is the node a valid forward move" check.
      */
     canUseNode(node: MapNode): boolean {
-        return (
-            this.canMoveDelegate(node) &&
-            !node.cleared &&
-            this.dungeon.canMoveTo(node.id)
-        );
+        return this.canMoveDelegate(node) && !node.cleared && this.dungeon.canMoveTo(node.id);
     }
 
     /**
@@ -182,9 +175,7 @@ export class MapView {
     build(fadeIn: boolean): void {
         const unlocks = this.meta.getUiUnlockState();
         const currentId = this.dungeon.currentNode.id;
-        const forwardIds = new Set(
-            this.dungeon.getForwardNodes().map((node) => node.id),
-        );
+        const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
 
         this.dungeon.getAllNodes().forEach((node) => {
             if (this.visuals.has(node.id)) {
@@ -193,13 +184,9 @@ export class MapView {
 
             const x = this.nodeX(node);
             const y = this.nodeY(node);
-            const revealed =
-                node.visited || forwardIds.has(node.id) || node.id === currentId;
+            const revealed = node.visited || forwardIds.has(node.id) || node.id === currentId;
             const knowsType =
-                node.cleared ||
-                node.visited ||
-                node.id === currentId ||
-                unlocks.showRoomIcons;
+                node.cleared || node.visited || node.id === currentId || unlocks.showRoomIcons;
             // Every room sits on a black backdrop; the carved frame
             // overlay (room_frames.png) is what carries the state colour
             // (gold safe / red danger / grey unknown). The procedural
@@ -215,9 +202,7 @@ export class MapView {
                     ? 0x6d6d6d
                     : 0x343434;
 
-            const rect = this.scene.add
-                .rectangle(x, y, NODE_SZ, NODE_SZ, 0x000000)
-                .setAlpha(alpha);
+            const rect = this.scene.add.rectangle(x, y, NODE_SZ, NODE_SZ, 0x000000).setAlpha(alpha);
             if (!hasFrame) {
                 rect.setStrokeStyle(2, stroke);
             }
@@ -234,11 +219,7 @@ export class MapView {
             // Sprite priority: hand-authored room_icons spritesheet →
             // procedural PixelSprite (per-type 24×24 sprite) → text glyph.
             let sprite: Phaser.GameObjects.Image | undefined;
-            if (
-                revealed &&
-                knowsType &&
-                hasTexture(this.scene, 'hud_room_icons')
-            ) {
+            if (revealed && knowsType && hasTexture(this.scene, 'hud_room_icons')) {
                 icon.setVisible(false);
                 sprite = this.scene.add
                     .image(x, y, 'hud_room_icons', roomIconFrame(node.type))
@@ -248,16 +229,9 @@ export class MapView {
                 if (node.cleared) sprite.setTint(0x555555);
             } else {
                 const spriteKey = PixelSprite.roomKey(roomSpriteKey(node.type));
-                if (
-                    revealed &&
-                    knowsType &&
-                    hasTexture(this.scene, spriteKey)
-                ) {
+                if (revealed && knowsType && hasTexture(this.scene, spriteKey)) {
                     icon.setVisible(false);
-                    sprite = this.scene.add
-                        .image(x, y, spriteKey)
-                        .setOrigin(0.5)
-                        .setAlpha(alpha);
+                    sprite = this.scene.add.image(x, y, spriteKey).setOrigin(0.5).setAlpha(alpha);
                     fitRoomSprite(sprite);
                     if (node.cleared) sprite.setTint(0x555555);
                 }
@@ -268,8 +242,7 @@ export class MapView {
             // present — falls back silently to the base rect+icon otherwise.
             let frame: Phaser.GameObjects.Image | undefined;
             if (hasFrame) {
-                const frameIdx =
-                    revealed && knowsType ? roomFrameIndex(node.type) : 2;
+                const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
                 frame = this.scene.add
                     .image(x, y, 'hud_room_frames', frameIdx)
                     .setOrigin(0.5)
@@ -308,10 +281,7 @@ export class MapView {
         });
     }
 
-    private makeClickable(
-        rect: Phaser.GameObjects.Rectangle,
-        node: MapNode,
-    ): void {
+    private makeClickable(rect: Phaser.GameObjects.Rectangle, node: MapNode): void {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', () => {
             if (this.canUseNode(node)) {
@@ -328,18 +298,12 @@ export class MapView {
                 node.id === this.dungeon.currentNode.id ||
                 this.dungeon.getForwardNodes().some((n) => n.id === node.id);
             const knowsType =
-                node.visited ||
-                node.id === this.dungeon.currentNode.id ||
-                unlocks.showRoomIcons;
+                node.visited || node.id === this.dungeon.currentNode.id || unlocks.showRoomIcons;
             if (revealed && knowsType && !node.cleared) {
                 this.tooltipText.setText(roomTypeName(node.type, this.loc));
                 const screenX = this.nodeX(node) + this.container.x;
-                const screenY =
-                    this.nodeY(node) + this.container.y - NODE_SZ / 2 - 18;
-                this.tooltipText
-                    .setPosition(screenX, screenY)
-                    .setOrigin(0.5, 1)
-                    .setVisible(true);
+                const screenY = this.nodeY(node) + this.container.y - NODE_SZ / 2 - 18;
+                this.tooltipText.setPosition(screenX, screenY).setOrigin(0.5, 1).setVisible(true);
             }
         });
         rect.on('pointerout', () => {
@@ -391,15 +355,8 @@ export class MapView {
         }
         // Fallback path (PNG missing) — a thin stroke change with the
         // same semantic palette as refresh(), no white.
-        const colour = node.cleared
-            ? 0x333333
-            : isReachable
-              ? 0x6d6d6d
-              : 0x343434;
-        visual.rect.setStrokeStyle(
-            hovered ? 3 : 2,
-            hovered ? 0x9a8a4a : colour,
-        );
+        const colour = node.cleared ? 0x333333 : isReachable ? 0x6d6d6d : 0x343434;
+        visual.rect.setStrokeStyle(hovered ? 3 : 2, hovered ? 0x9a8a4a : colour);
     }
 
     /**
@@ -467,9 +424,7 @@ export class MapView {
         });
 
         const currentDepth = this.dungeon.currentDepth;
-        const forwardIds = new Set(
-            this.dungeon.getForwardNodes().map((node) => node.id),
-        );
+        const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
         const currentId = this.dungeon.currentNode.id;
         const allNodes = this.dungeon.getAllNodes();
 
@@ -485,24 +440,15 @@ export class MapView {
             if (node.edges.length === 0) return;
 
             const targets = node.edges
-                .map((id) =>
-                    allNodes.find((candidate) => candidate.id === id),
-                )
+                .map((id) => allNodes.find((candidate) => candidate.id === id))
                 .filter((target): target is MapNode => !!target);
 
             const x1 = this.nodeX(node);
             const y1 = this.nodeY(node);
 
             targets.forEach((target) => {
-                const active =
-                    !node.cleared &&
-                    forwardIds.has(target.id) &&
-                    node.id === currentId;
-                const lineColor = node.cleared
-                    ? 0x2a2a2a
-                    : active
-                      ? 0x9b9b9b
-                      : 0x3b3b3b;
+                const active = !node.cleared && forwardIds.has(target.id) && node.id === currentId;
+                const lineColor = node.cleared ? 0x2a2a2a : active ? 0x9b9b9b : 0x3b3b3b;
                 const lineAlpha = node.cleared ? 0.18 : active ? 1 : 0.35;
                 const lineWidth = active ? 3 : 2;
 
@@ -544,9 +490,7 @@ export class MapView {
         this.fireMap.clear();
 
         const currentId = this.dungeon.currentNode.id;
-        const forwardIds = new Set(
-            this.dungeon.getForwardNodes().map((node) => node.id),
-        );
+        const forwardIds = new Set(this.dungeon.getForwardNodes().map((node) => node.id));
         const allNodes = this.dungeon.getAllNodes();
 
         // Fog-of-war reveal/hide animation needs to know which nodes
@@ -585,10 +529,7 @@ export class MapView {
                     // Smoothly fade out a node that just left the
                     // visible window (current room got cleared, or a
                     // forward option was abandoned), then hide it.
-                    const fadeTargets: Phaser.GameObjects.GameObject[] = [
-                        visual.rect,
-                        visual.icon,
-                    ];
+                    const fadeTargets: Phaser.GameObjects.GameObject[] = [visual.rect, visual.icon];
                     if (visual.sprite && visual.sprite.visible) {
                         fadeTargets.push(visual.sprite);
                     }
@@ -603,8 +544,7 @@ export class MapView {
                         onComplete: () => {
                             visual.rect.setVisible(false);
                             visual.icon.setVisible(false);
-                            if (visual.sprite)
-                                visual.sprite.setVisible(false);
+                            if (visual.sprite) visual.sprite.setVisible(false);
                             if (visual.frame) visual.frame.setVisible(false);
                         },
                     });
@@ -620,8 +560,7 @@ export class MapView {
             visual.rect.setVisible(true);
 
             const revealed = isCurrent || isForward || node.visited;
-            const knowsType =
-                node.visited || isCurrent || unlocks.showRoomIcons;
+            const knowsType = node.visited || isCurrent || unlocks.showRoomIcons;
             const iconText = revealed && knowsType ? roomIcon(node.type) : '?';
 
             // Black backdrop for every room — the carved frame overlay
@@ -635,15 +574,11 @@ export class MapView {
             if (hasFrame) {
                 visual.rect.setStrokeStyle(0);
             } else {
-                visual.rect.setStrokeStyle(
-                    2,
-                    isForward ? 0x6d6d6d : 0x343434,
-                );
+                visual.rect.setStrokeStyle(2, isForward ? 0x6d6d6d : 0x343434);
             }
 
             if (visual.frame) {
-                const frameIdx =
-                    revealed && knowsType ? roomFrameIndex(node.type) : 2;
+                const frameIdx = revealed && knowsType ? roomFrameIndex(node.type) : 2;
                 this.scene.tweens.killTweensOf(visual.frame);
                 visual.frame
                     .setFrame(frameIdx)
@@ -655,16 +590,10 @@ export class MapView {
 
             // Sprite priority: hand-authored room_icons spritesheet →
             // procedural PixelSprite → text glyph (matches build()).
-            const useSheet =
-                revealed &&
-                knowsType &&
-                hasTexture(this.scene, 'hud_room_icons');
+            const useSheet = revealed && knowsType && hasTexture(this.scene, 'hud_room_icons');
             const proceduralKey = PixelSprite.roomKey(roomSpriteKey(node.type));
             const useProcedural =
-                !useSheet &&
-                revealed &&
-                knowsType &&
-                hasTexture(this.scene, proceduralKey);
+                !useSheet && revealed && knowsType && hasTexture(this.scene, proceduralKey);
             if (useSheet) {
                 if (!visual.sprite) {
                     visual.sprite = this.scene.add
@@ -672,15 +601,12 @@ export class MapView {
                             this.nodeX(node),
                             this.nodeY(node),
                             'hud_room_icons',
-                            roomIconFrame(node.type),
+                            roomIconFrame(node.type)
                         )
                         .setOrigin(0.5);
                     this.container.add(visual.sprite);
                 } else {
-                    visual.sprite.setTexture(
-                        'hud_room_icons',
-                        roomIconFrame(node.type),
-                    );
+                    visual.sprite.setTexture('hud_room_icons', roomIconFrame(node.type));
                 }
                 fitRoomSprite(visual.sprite);
                 visual.sprite.setAlpha(1).clearTint().setVisible(true);
@@ -698,11 +624,7 @@ export class MapView {
                 visual.sprite.setAlpha(1).clearTint().setVisible(true);
                 visual.icon.setVisible(false);
             } else {
-                visual.icon
-                    .setText(iconText)
-                    .setColor('#ffffff')
-                    .setAlpha(1)
-                    .setVisible(true);
+                visual.icon.setText(iconText).setColor('#ffffff').setAlpha(1).setVisible(true);
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
@@ -721,10 +643,7 @@ export class MapView {
                 // 0 over REVEAL_DURATION and only kick the pulse
                 // off once the reveal settles, otherwise the pulse
                 // yoyo would fight the fade-in tween.
-                const fadeTargets: Phaser.GameObjects.GameObject[] = [
-                    visual.rect,
-                    visual.icon,
-                ];
+                const fadeTargets: Phaser.GameObjects.GameObject[] = [visual.rect, visual.icon];
                 visual.rect.setAlpha(0);
                 visual.icon.setAlpha(0);
                 if (visual.sprite && visual.sprite.visible) {
@@ -756,7 +675,7 @@ export class MapView {
                     this.scene,
                     this.container,
                     this.nodeX(node),
-                    this.nodeY(node),
+                    this.nodeY(node)
                 );
                 this.fireMap.set(id, fire);
             }
@@ -798,10 +717,7 @@ export class MapView {
             this.scene.tweens.killTweensOf(visual.rect);
             if (visual.frame) this.scene.tweens.killTweensOf(visual.frame);
 
-            const tweenTargets: Phaser.GameObjects.GameObject[] = [
-                visual.rect,
-                visual.icon,
-            ];
+            const tweenTargets: Phaser.GameObjects.GameObject[] = [visual.rect, visual.icon];
             if (visual.sprite) tweenTargets.push(visual.sprite);
             if (visual.frame) {
                 this.scene.tweens.killTweensOf(visual.frame);
@@ -850,10 +766,7 @@ export class MapView {
      * 2-point segments because rooms can be placed in any direction
      * around their parent (see MapGenerator.placeNode).
      */
-    getEdgePath(
-        from: MapNode,
-        to: MapNode,
-    ): { x: number; y: number }[] {
+    getEdgePath(from: MapNode, to: MapNode): { x: number; y: number }[] {
         return [
             { x: this.nodeX(from), y: this.nodeY(from) },
             { x: this.nodeX(to), y: this.nodeY(to) },
@@ -879,7 +792,7 @@ export class MapView {
      */
     private static samplePath(
         pts: { x: number; y: number }[],
-        t: number,
+        t: number
     ): { x: number; y: number } {
         const total = MapView.pathLength(pts);
         let target = t * total;
@@ -916,7 +829,7 @@ export class MapView {
         to: MapNode,
         durationMs: number,
         onStep: (screenX: number, screenY: number) => void,
-        done: () => void,
+        done: () => void
     ): void {
         const path = this.getEdgePath(from, to);
 
@@ -938,10 +851,7 @@ export class MapView {
             onUpdate: () => {
                 const pos = MapView.samplePath(path, proxy.t);
 
-                this.container.setPosition(
-                    VIEW_X - pos.x,
-                    VIEW_Y - pos.y,
-                );
+                this.container.setPosition(VIEW_X - pos.x, VIEW_Y - pos.y);
 
                 const currentDist = proxy.t * totalLen;
                 if (currentDist - lastTraceDist >= traceInterval) {

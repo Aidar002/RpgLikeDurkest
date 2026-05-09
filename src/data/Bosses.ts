@@ -26,10 +26,7 @@ export function pickLine(line: BossLine, lang: Language): string {
     return lang === 'ru' ? line.ru : line.en;
 }
 
-export type BossActionId =
-    | 'attack'
-    | 'death_shield'
-    | 'death_touch';
+export type BossActionId = 'attack' | 'death_shield' | 'death_touch';
 
 export interface BossActionDef {
     id: BossActionId;

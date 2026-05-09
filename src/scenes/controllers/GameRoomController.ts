@@ -1,17 +1,9 @@
-import {
-    BOTTOM_BAR_H,
-    GAME_HEIGHT,
-    HUD_BOTTOM_OFFSET,
-    TOP_BAR_H,
-} from '../../ui/Layout';
+import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, TOP_BAR_H } from '../../ui/Layout';
 import { hasTexture } from '../../ui/AssetGuard';
 import { PixelSprite } from '../../ui/PixelSprite';
 import { fitEnemySprite } from '../../ui/RoomVisuals';
 import { compactText } from '../../ui/TextHelpers';
-import {
-    createRoomButtons,
-    type RoomButtonAction,
-} from '../../ui/RoomButtons';
+import { createRoomButtons, type RoomButtonAction } from '../../ui/RoomButtons';
 import type { GameScene } from '../GameScene';
 
 /**
@@ -53,47 +45,61 @@ export class GameRoomController {
             color: '#8b8b8b',
         });
 
-        scene.enemyPortrait = scene.add.rectangle(787, 190, 120, 120, 0x333333).setStrokeStyle(2, 0x555555);
-        scene.enemyIconText = scene.add.text(787, 204, '', {
-            fontFamily: 'Courier New',
-            fontSize: '42px',
-            color: '#ffffff',
-        }).setOrigin(0.5);
-        scene.enemySpriteImage = scene.add.image(787, 190, '__DEFAULT')
-            .setVisible(false).setOrigin(0.5);
+        scene.enemyPortrait = scene.add
+            .rectangle(787, 190, 120, 120, 0x333333)
+            .setStrokeStyle(2, 0x555555);
+        scene.enemyIconText = scene.add
+            .text(787, 204, '', {
+                fontFamily: 'Courier New',
+                fontSize: '42px',
+                color: '#ffffff',
+            })
+            .setOrigin(0.5);
+        scene.enemySpriteImage = scene.add
+            .image(787, 190, '__DEFAULT')
+            .setVisible(false)
+            .setOrigin(0.5);
 
-        scene.enemyNameText = scene.add.text(787, 266, '', {
-            fontFamily: 'Courier New',
-            fontSize: '18px',
-            color: '#f0f0f0',
-            align: 'center',
-            wordWrap: { width: 280 },
-        }).setOrigin(0.5, 0);
+        scene.enemyNameText = scene.add
+            .text(787, 266, '', {
+                fontFamily: 'Courier New',
+                fontSize: '18px',
+                color: '#f0f0f0',
+                align: 'center',
+                wordWrap: { width: 280 },
+            })
+            .setOrigin(0.5, 0);
 
         scene.enemyHpBarBg = scene.add.rectangle(647, 326, 280, 14, 0x331111).setOrigin(0, 0.5);
         scene.enemyHpBar = scene.add.rectangle(647, 326, 280, 14, 0xc93d2f).setOrigin(0, 0.5);
-        scene.enemyHpText = scene.add.text(787, 342, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#ad6767',
-        }).setOrigin(0.5);
+        scene.enemyHpText = scene.add
+            .text(787, 342, '', {
+                fontFamily: 'Courier New',
+                fontSize: '12px',
+                color: '#ad6767',
+            })
+            .setOrigin(0.5);
 
-        scene.enemyIntelText = scene.add.text(787, 370, '', {
-            fontFamily: 'Courier New',
-            fontSize: '11px',
-            color: '#7ea4ff',
-            align: 'center',
-            wordWrap: { width: 300 },
-        }).setOrigin(0.5, 0);
+        scene.enemyIntelText = scene.add
+            .text(787, 370, '', {
+                fontFamily: 'Courier New',
+                fontSize: '11px',
+                color: '#7ea4ff',
+                align: 'center',
+                wordWrap: { width: 300 },
+            })
+            .setOrigin(0.5, 0);
 
-        scene.roomFlavorText = scene.add.text(787, 416, '', {
-            fontFamily: 'Courier New',
-            fontSize: '12px',
-            color: '#9b9b9b',
-            align: 'center',
-            wordWrap: { width: 300 },
-            lineSpacing: 2,
-        }).setOrigin(0.5, 0);
+        scene.roomFlavorText = scene.add
+            .text(787, 416, '', {
+                fontFamily: 'Courier New',
+                fontSize: '12px',
+                color: '#9b9b9b',
+                align: 'center',
+                wordWrap: { width: 300 },
+                lineSpacing: 2,
+            })
+            .setOrigin(0.5, 0);
 
         scene.roomPanelGroup = scene.add.container(0, 0, [
             panel,
@@ -137,7 +143,7 @@ export class GameRoomController {
         color: number,
         icon: string,
         intel: string,
-        spriteKey: string = header,
+        spriteKey: string = header
     ): void {
         const scene = this.scene;
         scene.roomHeaderText.setText(header);
@@ -173,7 +179,7 @@ export class GameRoomController {
                     fill: 0x202020,
                 },
             ],
-            true,
+            true
         );
     }
 

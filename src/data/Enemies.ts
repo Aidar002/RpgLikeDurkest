@@ -12,7 +12,7 @@ export type { EnemyDef };
  * keep their current behaviour.
  */
 export function getEnemyForDepth(depth: number, rng: Rng = defaultRng): EnemyDef {
-    const tier = [...ENEMY_TIERS].reverse().find(t => depth >= t.minDepth)!;
+    const tier = [...ENEMY_TIERS].reverse().find((t) => depth >= t.minDepth)!;
     return pick(rng, tier.pool);
 }
 

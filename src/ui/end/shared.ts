@@ -25,7 +25,7 @@ export function bankSkillPointsOnce(ctx: EndScreenContext): void {
     }
     const banked = ctx.meta.bankSkillPoints(
         ctx.runState.pendingSkillPoints,
-        ctx.runState.runBestDepth,
+        ctx.runState.runBestDepth
     );
     ctx.runState.skillPointsBanked = banked;
     ctx.runState.skillPointsBankedFlag = true;

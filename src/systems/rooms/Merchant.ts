@@ -33,14 +33,20 @@ function showGenericMerchantOptions(scene: GameScene): void {
     ];
 
     actions.push({
-        label: scene.loc.t('actionArmor', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.armorCost }),
+        label: scene.loc.t('actionArmor', {
+            num: actions.length + 1,
+            cost: ROOM_CONFIG.merchant.armorCost,
+        }),
         callback: () => {
             if (!scene.player.spendGold(ROOM_CONFIG.merchant.armorCost)) {
                 return;
             }
             scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.armorCost);
             scene.player.addDefenseBonus(ROOM_CONFIG.merchant.armorDefenseGain);
-            scene.log.addMessage(scene.loc.t('buyArmor', { value: ROOM_CONFIG.merchant.armorDefenseGain }), '#b8d3ff');
+            scene.log.addMessage(
+                scene.loc.t('buyArmor', { value: ROOM_CONFIG.merchant.armorDefenseGain }),
+                '#b8d3ff'
+            );
             scene.enemyIntelText.setText(scene.loc.t('npcMerchantFair'));
             scene.showReturnButton();
         },
@@ -50,17 +56,23 @@ function showGenericMerchantOptions(scene: GameScene): void {
 
     if (scene.meta.isUnlocked('merchant_premium')) {
         actions.push({
-            label: scene.loc.t('actionRelic', { num: actions.length + 1, cost: ROOM_CONFIG.merchant.premiumShardCost }),
+            label: scene.loc.t('actionRelic', {
+                num: actions.length + 1,
+                cost: ROOM_CONFIG.merchant.premiumShardCost,
+            }),
             callback: () => {
                 if (!scene.player.spendRelicShard(ROOM_CONFIG.merchant.premiumShardCost)) {
                     return;
                 }
                 scene.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
                 scene.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
-                scene.log.addMessage(scene.loc.t('buyRelic', {
-                    attack: ROOM_CONFIG.merchant.premiumAttackBonus,
-                    potions: ROOM_CONFIG.merchant.premiumPotionBonus,
-                }), '#ffd9f7');
+                scene.log.addMessage(
+                    scene.loc.t('buyRelic', {
+                        attack: ROOM_CONFIG.merchant.premiumAttackBonus,
+                        potions: ROOM_CONFIG.merchant.premiumPotionBonus,
+                    }),
+                    '#ffd9f7'
+                );
                 scene.enemyIntelText.setText(scene.loc.t('npcMerchantSmile'));
                 scene.showReturnButton();
             },

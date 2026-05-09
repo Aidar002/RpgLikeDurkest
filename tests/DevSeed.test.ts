@@ -17,7 +17,7 @@ describe('parseDevSeedQuery', () => {
 
     it('coerces negative seed to unsigned 32-bit', () => {
         const cfg = parseDevSeedQuery('?seed=-1');
-        expect(cfg).toEqual({ seed: 0xFFFFFFFF });
+        expect(cfg).toEqual({ seed: 0xffffffff });
     });
 
     it('parses inventory with gold and potion', () => {

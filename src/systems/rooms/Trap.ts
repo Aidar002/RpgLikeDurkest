@@ -38,7 +38,11 @@ export function handleTrapRoom(scene: GameScene): void {
             callback: () => {
                 scene.tracker.record('trapsTriggered');
                 const damage = scene.applyTrapDamage(
-                    randomInt(defaultRng, ROOM_CONFIG.trap.rushDamageMin, ROOM_CONFIG.trap.rushDamageMax)
+                    randomInt(
+                        defaultRng,
+                        ROOM_CONFIG.trap.rushDamageMin,
+                        ROOM_CONFIG.trap.rushDamageMax
+                    )
                 );
                 scene.sfx.play('trapTrigger');
                 scene.log.addMessage(scene.loc.t('trapRush', { damage }), '#ff7777');
@@ -54,14 +58,19 @@ export function handleTrapRoom(scene: GameScene): void {
             callback: () => {
                 if (chance(defaultRng, ROOM_CONFIG.trap.disarmChance)) {
                     const gold = scene.player.gainGold(
-                        randomInt(defaultRng, ROOM_CONFIG.trap.disarmGoldMin, ROOM_CONFIG.trap.disarmGoldMax)
+                        randomInt(
+                            defaultRng,
+                            ROOM_CONFIG.trap.disarmGoldMin,
+                            ROOM_CONFIG.trap.disarmGoldMax
+                        )
                     );
                     scene.sfx.play('trapDisarm');
                     scene.log.addMessage(scene.loc.t('trapDisarm', { gold }), '#f7d46b');
                     scene.enemyIntelText.setText(scene.loc.t('trapAfterDisarm'));
                 } else {
                     const damage = scene.applyTrapDamage(
-                        randomInt(defaultRng,
+                        randomInt(
+                            defaultRng,
                             ROOM_CONFIG.trap.disarmFailDamageMin,
                             ROOM_CONFIG.trap.disarmFailDamageMax
                         )

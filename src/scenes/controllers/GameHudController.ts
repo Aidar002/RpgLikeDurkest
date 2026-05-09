@@ -211,7 +211,12 @@ export class GameHudController {
             const flash = scene.add
                 .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xfff17a, 0.08)
                 .setDepth(Depths.ScreenFlash);
-            scene.tweens.add({ targets: flash, alpha: 0, duration: 500, onComplete: () => flash.destroy() });
+            scene.tweens.add({
+                targets: flash,
+                alpha: 0,
+                duration: 500,
+                onComplete: () => flash.destroy(),
+            });
             this.refresh();
         });
         scene.player.death.on(() => {
@@ -395,23 +400,41 @@ export class GameHudController {
         const VITALS_LABEL_X = pad + 22;
         const VITALS_BAR_X = pad + 22 + 64 + 12;
         const hpIcon = createHudIcon(this.scene, pad + 8, 36, 'heart', { pixelSize: 16 });
-        const hpLabel = this.scene.add.text(VITALS_LABEL_X, 29, this.scene.loc.t('hp').toUpperCase(), {
-            fontFamily: HUD_FONT,
-            fontSize: '11px',
-            color: HudHex.textSecondary,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
+        const hpLabel = this.scene.add.text(
+            VITALS_LABEL_X,
+            29,
+            this.scene.loc.t('hp').toUpperCase(),
+            {
+                fontFamily: HUD_FONT,
+                fontSize: '11px',
+                color: HudHex.textSecondary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            }
+        );
         const hpBarX = VITALS_BAR_X;
         const hpBarY = 36;
-        const hpBarFrame = drawBarFrame(this.scene, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight);
+        const hpBarFrame = drawBarFrame(
+            this.scene,
+            hpBarX,
+            hpBarY,
+            this.hpBarWidth,
+            this.hpBarHeight
+        );
         const hpBarBg = this.scene.add
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodTrack)
             .setOrigin(0, 0.5);
         this.hpBar = this.scene.add
             .rectangle(hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, HudColors.bloodFill)
             .setOrigin(0, 0.5);
-        const hpSegments = drawBarSegments(this.scene, hpBarX, hpBarY, this.hpBarWidth, this.hpBarHeight, 5);
+        const hpSegments = drawBarSegments(
+            this.scene,
+            hpBarX,
+            hpBarY,
+            this.hpBarWidth,
+            this.hpBarHeight,
+            5
+        );
         this.hpValueText = this.scene.add.text(hpBarX + this.hpBarWidth + 10, hpBarY - 9, '', {
             fontFamily: HUD_FONT,
             fontSize: '14px',
@@ -426,21 +449,25 @@ export class GameHudController {
         // edge and "ОП X/Y" mirrors the HP value text on the right of
         // the bar — same x as `hpValueText` so both numeric overlays
         // line up vertically.
-        this.levelText = this.scene.add.text(VITALS_LABEL_X, 64, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '13px',
-            fontStyle: 'bold',
-            color: HudHex.textPrimary,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        }).setOrigin(0, 0.5);
-        this.xpValueText = this.scene.add.text(hpBarX + this.hpBarWidth + 10, 64, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '12px',
-            color: HudHex.textSecondary,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        }).setOrigin(0, 0.5);
+        this.levelText = this.scene.add
+            .text(VITALS_LABEL_X, 64, '', {
+                fontFamily: HUD_FONT,
+                fontSize: '13px',
+                fontStyle: 'bold',
+                color: HudHex.textPrimary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0, 0.5);
+        this.xpValueText = this.scene.add
+            .text(hpBarX + this.hpBarWidth + 10, 64, '', {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.textSecondary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0, 0.5);
         const xpBarX = hpBarX;
         const xpBarY = 64;
         this.xpBarFrame = drawBarFrame(
@@ -448,7 +475,7 @@ export class GameHudController {
             xpBarX,
             xpBarY,
             this.xpBarWidth,
-            this.xpBarHeight,
+            this.xpBarHeight
         );
         this.xpBarBg = this.scene.add
             .rectangle(xpBarX, xpBarY, this.xpBarWidth, this.xpBarHeight, 0x14202c)
@@ -486,13 +513,15 @@ export class GameHudController {
             valueOffsetX: topHud.statsValueOffset,
         });
 
-        this.playerStatusText = this.scene.add.text(CENTER_X, topH + 14, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '12px',
-            color: HudHex.accentResolve,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        }).setOrigin(0.5, 0);
+        this.playerStatusText = this.scene.add
+            .text(CENTER_X, topH + 14, '', {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.accentResolve,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5, 0);
     }
 
     /**
@@ -519,13 +548,18 @@ export class GameHudController {
             valueFontSize: '15px',
             valueOffsetX: topHud.resourceValueOffset,
         });
-        this.resolveStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow3Y, {
-            icon: 'quill',
-            label: this.scene.loc.t('resolveShort').toUpperCase(),
-            valueColor: HudHex.accentResolve,
-            valueFontSize: '15px',
-            valueOffsetX: topHud.resourceValueOffset,
-        });
+        this.resolveStat = createHudInlineSlot(
+            this.scene,
+            topHud.resourcesX,
+            topHud.resourceRow3Y,
+            {
+                icon: 'quill',
+                label: this.scene.loc.t('resolveShort').toUpperCase(),
+                valueColor: HudHex.accentResolve,
+                valueFontSize: '15px',
+                valueOffsetX: topHud.resourceValueOffset,
+            }
+        );
     }
 
     /**
@@ -541,7 +575,10 @@ export class GameHudController {
      * tier to keep visual hierarchy consistent with the chunkier
      * icons.
      */
-    private buildBottomBar(botY: number, botH: number): {
+    private buildBottomBar(
+        botY: number,
+        botH: number
+    ): {
         botFrame: Phaser.GameObjects.GameObject;
         pillarG: Phaser.GameObjects.Graphics;
     } {
@@ -626,30 +663,36 @@ export class GameHudController {
     private buildBelowBarText(botY: number, pad: number) {
         const HINT_LINE_Y = botY - 8;
         const RELIC_LINE_Y = botY - 24;
-        this.relicText = this.scene.add.text(pad, RELIC_LINE_Y, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '12px',
-            color: HudHex.accentGold,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-            wordWrap: { width: 540 },
-        }).setOrigin(0, 1);
-        this.hintText = this.scene.add.text(CENTER_X, HINT_LINE_Y, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '12px',
-            color: HudHex.textSecondary,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-            align: 'center',
-        }).setOrigin(0.5, 1);
+        this.relicText = this.scene.add
+            .text(pad, RELIC_LINE_Y, '', {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.accentGold,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+                wordWrap: { width: 540 },
+            })
+            .setOrigin(0, 1);
+        this.hintText = this.scene.add
+            .text(CENTER_X, HINT_LINE_Y, '', {
+                fontFamily: HUD_FONT,
+                fontSize: '12px',
+                color: HudHex.textSecondary,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+                align: 'center',
+            })
+            .setOrigin(0.5, 1);
 
-        this.enemyStatusText = this.scene.add.text(780, 356, '', {
-            fontFamily: HUD_FONT,
-            fontSize: '11px',
-            color: HudHex.accentBloodLow,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        }).setOrigin(0.5, 0);
+        this.enemyStatusText = this.scene.add
+            .text(780, 356, '', {
+                fontFamily: HUD_FONT,
+                fontSize: '11px',
+                color: HudHex.accentBloodLow,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5, 0);
     }
 
     /**
@@ -666,7 +709,14 @@ export class GameHudController {
         const ESCAPE_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W / 2;
         const ESCAPE_BTN_Y = topH + 18;
         this.escapeButtonBg = this.scene.add
-            .rectangle(ESCAPE_BTN_X, ESCAPE_BTN_Y, ESCAPE_BTN_W, ESCAPE_BTN_H, HudColors.panelBg, 0.92)
+            .rectangle(
+                ESCAPE_BTN_X,
+                ESCAPE_BTN_Y,
+                ESCAPE_BTN_W,
+                ESCAPE_BTN_H,
+                HudColors.panelBg,
+                0.92
+            )
             .setStrokeStyle(1, HudColors.panelHi)
             .setOrigin(0.5)
             .setDepth(220)
@@ -691,11 +741,17 @@ export class GameHudController {
 
         const RESTART_BTN_W = 130;
         const RESTART_BTN_H = 26;
-        const RESTART_BTN_X =
-            GAME_WIDTH - pad - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
+        const RESTART_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
         const RESTART_BTN_Y = ESCAPE_BTN_Y;
         this.restartButtonBg = this.scene.add
-            .rectangle(RESTART_BTN_X, RESTART_BTN_Y, RESTART_BTN_W, RESTART_BTN_H, HudColors.panelBg, 0.92)
+            .rectangle(
+                RESTART_BTN_X,
+                RESTART_BTN_Y,
+                RESTART_BTN_W,
+                RESTART_BTN_H,
+                HudColors.panelBg,
+                0.92
+            )
             .setStrokeStyle(1, HudColors.panelHi)
             .setOrigin(0.5)
             .setDepth(220)
@@ -793,7 +849,10 @@ export class GameHudController {
         this.escapeButtonLabel.setColor(HudHex.accentBloodLow);
         scene.time.delayedCall(ESCAPE_CONFIRM_MS, () => {
             // Window expired without a confirm — revert label.
-            if (this.escapeConfirmAt > 0 && scene.time.now - this.escapeConfirmAt >= ESCAPE_CONFIRM_MS) {
+            if (
+                this.escapeConfirmAt > 0 &&
+                scene.time.now - this.escapeConfirmAt >= ESCAPE_CONFIRM_MS
+            ) {
                 this.escapeConfirmAt = -1;
                 this.escapeButtonLabel.setText(scene.loc.t('escapeButton'));
                 this.escapeButtonLabel.setColor(HudHex.textSecondary);

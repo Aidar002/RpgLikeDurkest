@@ -36,7 +36,7 @@ export function withTexture<T, U = T>(
     scene: Phaser.Scene,
     key: string,
     withImage: () => T,
-    withFallback: () => U,
+    withFallback: () => U
 ): T | U {
     return scene.textures.exists(key) ? withImage() : withFallback();
 }

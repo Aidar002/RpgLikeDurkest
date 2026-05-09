@@ -141,7 +141,7 @@ export function getRequiredSeals(runLength: number): number {
     return clamp(
         Math.round(runLength / cfg.requiredSealsFactor),
         cfg.requiredSealsMin,
-        cfg.requiredSealsMax,
+        cfg.requiredSealsMax
     );
 }
 
@@ -282,7 +282,7 @@ export class MapGenerator {
     constructor(
         initialRooms: RoomType[] = BASE_ROOM_POOL,
         rng: Rng = defaultRng,
-        runLength: number = RUN_CONFIG.runLength,
+        runLength: number = RUN_CONFIG.runLength
     ) {
         this.rng = rng;
         this.runLength = runLength;
@@ -305,12 +305,9 @@ export class MapGenerator {
         return {
             start: Math.max(
                 cfg.windowStartFloor,
-                Math.round(this.runLength * cfg.windowStartFactor),
+                Math.round(this.runLength * cfg.windowStartFactor)
             ),
-            end: Math.max(
-                cfg.windowEndFloor,
-                Math.round(this.runLength * cfg.windowEndFactor),
-            ),
+            end: Math.max(cfg.windowEndFloor, Math.round(this.runLength * cfg.windowEndFactor)),
         };
     }
 
@@ -320,7 +317,7 @@ export class MapGenerator {
         return clamp(
             Math.round(this.runLength / cfg.targetMajorFactor),
             cfg.targetMajorMin,
-            cfg.targetMajorMax,
+            cfg.targetMajorMax
         );
     }
 
@@ -330,15 +327,13 @@ export class MapGenerator {
         return clamp(
             Math.round(this.runLength / cfg.targetMiniFactor),
             cfg.targetMiniMin,
-            cfg.targetMiniMax,
+            cfg.targetMiniMax
         );
     }
 
     setAvailableRoomTypes(roomTypes: RoomType[]) {
         this.availableRooms = new Set(
-            roomTypes.filter(
-                (type) => type !== RoomType.START && type !== RoomType.BOSS,
-            ),
+            roomTypes.filter((type) => type !== RoomType.START && type !== RoomType.BOSS)
         );
         BASE_ROOM_POOL.forEach((type) => this.availableRooms.add(type));
     }
@@ -385,9 +380,7 @@ export class MapGenerator {
         // buildLayer pushes new nodes into its third argument, so
         // pass a defensive copy — DungeonManager re-merges via
         // `addNodes`.
-        const newLayer = this.buildLayer(fromDepth + 1, previousLayer, [
-            ...allNodes,
-        ]);
+        const newLayer = this.buildLayer(fromDepth + 1, previousLayer, [...allNodes]);
         if (fromDepth + 1 >= this.runLength) {
             this.enforceSealCoverage([...allNodes, ...newLayer]);
         }
@@ -417,7 +410,7 @@ export class MapGenerator {
                 allNodes,
                 this.runLength,
                 required,
-                this.getPressureWindow().start,
+                this.getPressureWindow().start
             );
             if (!promoteRegular) return;
             promoteRegular.type = RoomType.MINI_BOSS;
@@ -447,11 +440,7 @@ export class MapGenerator {
      * - Final-boss adjacency / post-major-recovery rules are
      *   preserved from the previous generator.
      */
-    private buildLayer(
-        depth: number,
-        previousLayer: MapNode[],
-        allNodes: MapNode[],
-    ): MapNode[] {
+    private buildLayer(depth: number, previousLayer: MapNode[], allNodes: MapNode[]): MapNode[] {
         if (depth === 1) {
             return this.buildStartChildLayer(previousLayer, allNodes);
         }
@@ -466,7 +455,7 @@ export class MapGenerator {
         for (const parent of previousLayer) {
             let fmin = 1;
             const preds = allNodes.filter(
-                (n) => n.depth === depth - 2 && n.edges.includes(parent.id),
+                (n) => n.depth === depth - 2 && n.edges.includes(parent.id)
             );
             for (const pred of preds) {
                 if (pred.edges.length === 1) {
@@ -486,9 +475,7 @@ export class MapGenerator {
 
         // Stable iteration order keyed by node id so seed-replay is
         // deterministic regardless of how previousLayer was built.
-        const sortedParents = [...previousLayer].sort((a, b) =>
-            a.id.localeCompare(b.id),
-        );
+        const sortedParents = [...previousLayer].sort((a, b) => a.id.localeCompare(b.id));
 
         for (const parent of sortedParents) {
             const fwd = forwardNeighbours(parent.gx, parent.gy);
@@ -580,14 +567,9 @@ export class MapGenerator {
             // this is the trade-off that lets us guarantee no two
             // single-fanout corridors in a row.
             for (const parent of sortedParents) {
-                const myKeys = claimOrder.filter((k) =>
-                    claims.get(k)!.includes(parent),
-                );
+                const myKeys = claimOrder.filter((k) => claims.get(k)!.includes(parent));
                 if (myKeys.length === 0) continue;
-                const target = Math.min(
-                    forcedMin.get(parent.id) ?? 1,
-                    myKeys.length,
-                );
+                const target = Math.min(forcedMin.get(parent.id) ?? 1, myKeys.length);
                 const myKept = myKeys.filter((k) => kept.has(k));
                 if (myKept.length >= target) continue;
                 const myDropped = myKeys
@@ -641,11 +623,7 @@ export class MapGenerator {
             const bossKind: BossKind = isFinalLayer
                 ? 'final'
                 : this.decideBossKind(claimingParents, isFinalApproach);
-            const type = this.resolveRoomType(
-                bossKind,
-                depth,
-                claimingParents,
-            );
+            const type = this.resolveRoomType(bossKind, depth, claimingParents);
 
             const cell = this.makeNode(depth, slotIdx, type, bossKind);
             cell.gx = gx;
@@ -675,9 +653,7 @@ export class MapGenerator {
             if (newLayer.some((n) => parent.edges.includes(n.id))) continue;
             const fwd = forwardNeighbours(parent.gx, parent.gy);
             for (const slot of fwd) {
-                const existing = newLayer.find(
-                    (n) => n.gx === slot.gx && n.gy === slot.gy,
-                );
+                const existing = newLayer.find((n) => n.gx === slot.gx && n.gy === slot.gy);
                 if (existing && !this.parentChildBlocked(parent, existing)) {
                     parent.edges.push(existing.id);
                     break;
@@ -693,12 +669,7 @@ export class MapGenerator {
             if (!slot) continue;
             const safeKind: BossKind = isFinalLayer ? 'final' : null;
             const safeType = this.resolveRoomType(safeKind, depth, [parent]);
-            const cell = this.makeNode(
-                depth,
-                newLayer.length,
-                safeType,
-                safeKind,
-            );
+            const cell = this.makeNode(depth, newLayer.length, safeType, safeKind);
             cell.gx = slot.gx;
             cell.gy = slot.gy;
             cell.x = MAP_START_X + slot.gx * GRID_CELL;
@@ -720,16 +691,11 @@ export class MapGenerator {
                 this.stepsSinceBoss.set(node.id, 0);
                 continue;
             }
-            const parents = previousLayer.filter((p) =>
-                p.edges.includes(node.id),
-            );
-            const maxSteps = parents.length === 0
-                ? 0
-                : Math.max(
-                      ...parents.map(
-                          (p) => this.stepsSinceBoss.get(p.id) ?? 0,
-                      ),
-                  );
+            const parents = previousLayer.filter((p) => p.edges.includes(node.id));
+            const maxSteps =
+                parents.length === 0
+                    ? 0
+                    : Math.max(...parents.map((p) => this.stepsSinceBoss.get(p.id) ?? 0));
             this.stepsSinceBoss.set(node.id, maxSteps + 1);
         }
 
@@ -741,10 +707,7 @@ export class MapGenerator {
      * we always create exactly four children, one in each cardinal
      * direction.
      */
-    private buildStartChildLayer(
-        previousLayer: MapNode[],
-        allNodes: MapNode[],
-    ): MapNode[] {
+    private buildStartChildLayer(previousLayer: MapNode[], allNodes: MapNode[]): MapNode[] {
         const start = previousLayer[0];
         const isFinalLayer = 1 === this.runLength;
         const isFinalApproach = 1 === this.runLength - 1;
@@ -763,8 +726,8 @@ export class MapGenerator {
             const bossKind: BossKind = isFinalLayer
                 ? 'final'
                 : isFinalApproach
-                    ? null
-                    : this.decideBossKind([start], isFinalApproach);
+                  ? null
+                  : this.decideBossKind([start], isFinalApproach);
             const type = this.resolveRoomType(bossKind, 1, [start]);
             const cell = this.makeNode(1, i, type, bossKind);
             cell.gx = slot.gx;
@@ -783,10 +746,7 @@ export class MapGenerator {
             if (node.bossKind !== null) {
                 this.stepsSinceBoss.set(node.id, 0);
             } else {
-                this.stepsSinceBoss.set(
-                    node.id,
-                    (this.stepsSinceBoss.get(start.id) ?? 0) + 1,
-                );
+                this.stepsSinceBoss.set(node.id, (this.stepsSinceBoss.get(start.id) ?? 0) + 1);
             }
         }
         return newLayer;
@@ -824,18 +784,13 @@ export class MapGenerator {
      * `null` when at least one parent is itself a boss (no
      * boss-to-boss edges).
      */
-    private decideBossKind(
-        parents: MapNode[],
-        isFinalApproach: boolean,
-    ): BossKind {
+    private decideBossKind(parents: MapNode[], isFinalApproach: boolean): BossKind {
         if (isFinalApproach) return null;
         if (parents.some((p) => p.bossKind !== null)) return null;
 
         const cfg = RUN_CONFIG.bossPressure;
         const window = this.getPressureWindow();
-        const maxSteps = Math.max(
-            ...parents.map((p) => this.stepsSinceBoss.get(p.id) ?? 0),
-        );
+        const maxSteps = Math.max(...parents.map((p) => this.stepsSinceBoss.get(p.id) ?? 0));
         const steps = maxSteps + 1;
         if (steps < window.start) return null;
 
@@ -866,11 +821,7 @@ export class MapGenerator {
      * post-major-recovery overrides before falling through to the
      * weighted regular pool.
      */
-    private resolveRoomType(
-        bossKind: BossKind,
-        depth: number,
-        parents: MapNode[],
-    ): RoomType {
+    private resolveRoomType(bossKind: BossKind, depth: number, parents: MapNode[]): RoomType {
         if (bossKind === 'final' || bossKind === 'major') return RoomType.BOSS;
         if (bossKind === 'mini') return RoomType.MINI_BOSS;
 
@@ -900,8 +851,7 @@ export class MapGenerator {
      */
     private parentChildBlocked(parent: MapNode, child: MapNode): boolean {
         if (this.bossAdjacencyBlocks(parent, child.bossKind)) return true;
-        if (parent.bossKind === 'major' &&
-            !POST_MAJOR_RECOVERY_POOL.includes(child.type)) {
+        if (parent.bossKind === 'major' && !POST_MAJOR_RECOVERY_POOL.includes(child.type)) {
             return true;
         }
         return false;
@@ -921,9 +871,7 @@ export class MapGenerator {
                       RoomType.MERCHANT,
                       RoomType.ELITE,
                   ];
-        const allowed = depthRestrictedPool.filter((t) =>
-            this.availableRooms.has(t),
-        );
+        const allowed = depthRestrictedPool.filter((t) => this.availableRooms.has(t));
         return allowed.length > 0 ? allowed : BASE_ROOM_POOL;
     }
 
@@ -936,10 +884,7 @@ export class MapGenerator {
         if (pool.length === 0) {
             throw new Error('pickWeightedRoom called with empty pool');
         }
-        const totalWeight = pool.reduce(
-            (sum, t) => sum + this.getWeight(t),
-            0,
-        );
+        const totalWeight = pool.reduce((sum, t) => sum + this.getWeight(t), 0);
         const roll = this.rng.next() * totalWeight;
         let cursor = 0;
         for (const t of pool) {
@@ -950,8 +895,7 @@ export class MapGenerator {
     }
 
     private getWeight(type: RoomType): number {
-        const weights: Partial<Record<RoomType, number>> =
-            MAP_CONFIG.roomTypeWeights;
+        const weights: Partial<Record<RoomType, number>> = MAP_CONFIG.roomTypeWeights;
         return weights[type] ?? 0;
     }
 
@@ -969,7 +913,7 @@ export class MapGenerator {
         depth: number,
         slot: number,
         type: RoomType,
-        bossKind: BossKind = null,
+        bossKind: BossKind = null
     ): MapNode {
         let grantsSeal = false;
         let sealType: SealType | null = null;
@@ -1029,10 +973,7 @@ export interface MapValidationReport {
     pressureStrategy: 'max';
 }
 
-export function validateMap(
-    allNodes: readonly MapNode[],
-    runLength: number,
-): MapValidationReport {
+export function validateMap(allNodes: readonly MapNode[], runLength: number): MapValidationReport {
     const byId = new Map(allNodes.map((n) => [n.id, n]));
     const incoming = new Map<string, number>();
     const recoveryPool = new Set<RoomType>(POST_MAJOR_RECOVERY_POOL);
@@ -1069,9 +1010,7 @@ export function validateMap(
 
     const allFinalAreBossKindFinal =
         !finalLayerGenerated ||
-        finalNodes.every(
-            (n) => n.bossKind === 'final' && n.type === RoomType.BOSS,
-        );
+        finalNodes.every((n) => n.bossKind === 'final' && n.type === RoomType.BOSS);
 
     let orphanNodeCount = 0;
     for (const node of allNodes) {
@@ -1128,17 +1067,13 @@ export function validateMap(
             }
         }
 
-        allNodesReachAFinalBoss = allNodes.every((n) =>
-            ancestorsOfFinal.has(n.id),
-        );
+        allNodesReachAFinalBoss = allNodes.every((n) => ancestorsOfFinal.has(n.id));
 
         let endsCorrectly = true;
         for (const id of reachableFromStart) {
             const node = byId.get(id);
             if (!node) continue;
-            const isLeaf =
-                node.edges.length === 0 ||
-                node.edges.every((e) => !byId.has(e));
+            const isLeaf = node.edges.length === 0 || node.edges.every((e) => !byId.has(e));
             if (!isLeaf) continue;
             if (node.bossKind !== 'final') {
                 endsCorrectly = false;
@@ -1148,19 +1083,11 @@ export function validateMap(
         everyFullPathEndsInFinalBoss = endsCorrectly;
 
         if (start) {
-            sealsPerPath = computePerPathStat(
-                allNodes,
-                byId,
-                start,
-                finalNodes,
-                (n) => (n.grantsSeal ? 1 : 0),
+            sealsPerPath = computePerPathStat(allNodes, byId, start, finalNodes, (n) =>
+                n.grantsSeal ? 1 : 0
             );
-            bossesPerPath = computePerPathStat(
-                allNodes,
-                byId,
-                start,
-                finalNodes,
-                (n) => (n.bossKind !== null ? 1 : 0),
+            bossesPerPath = computePerPathStat(allNodes, byId, start, finalNodes, (n) =>
+                n.bossKind !== null ? 1 : 0
             );
             if (sealsPerPath) {
                 pathMeetsRequiredSeals = sealsPerPath.min >= requiredSeals;
@@ -1219,9 +1146,7 @@ export function formatMapDebug(report: MapValidationReport): string {
     return lines.join('\n');
 }
 
-function computeMinSealsPerPath(
-    allNodes: readonly MapNode[],
-): { min: number } | null {
+function computeMinSealsPerPath(allNodes: readonly MapNode[]): { min: number } | null {
     const start = allNodes.find((n) => n.type === RoomType.START);
     if (!start) return null;
     const finalNodes = allNodes.filter((n) => n.bossKind === 'final');
@@ -1252,10 +1177,7 @@ function computeMinSealsPerPath(
     return { min };
 }
 
-function pickBestSealPromotion(
-    allNodes: readonly MapNode[],
-    required: number,
-): MapNode | null {
+function pickBestSealPromotion(allNodes: readonly MapNode[], required: number): MapNode | null {
     const start = allNodes.find((n) => n.type === RoomType.START);
     if (!start) return null;
     const finalNodes = allNodes.filter((n) => n.bossKind === 'final');
@@ -1320,7 +1242,7 @@ function pickRegularNodeToPromoteToMini(
     allNodes: readonly MapNode[],
     runLength: number,
     required: number,
-    pressureWindowStart: number,
+    pressureWindowStart: number
 ): MapNode | null {
     const start = allNodes.find((n) => n.type === RoomType.START);
     if (!start) return null;
@@ -1410,7 +1332,7 @@ function computePerPathStat(
     byId: Map<string, MapNode>,
     start: MapNode,
     finalNodes: readonly MapNode[],
-    score: (n: MapNode) => number,
+    score: (n: MapNode) => number
 ): { min: number; max: number; avg: number } | null {
     if (finalNodes.length === 0) return null;
 
@@ -1444,10 +1366,7 @@ function computePerPathStat(
             if (prevMax === undefined || candidateMax > prevMax) {
                 maxScore.set(child.id, candidateMax);
             }
-            pathsFromStart.set(
-                child.id,
-                (pathsFromStart.get(child.id) ?? 0) + pathsHere,
-            );
+            pathsFromStart.set(child.id, (pathsFromStart.get(child.id) ?? 0) + pathsHere);
         }
     }
 
