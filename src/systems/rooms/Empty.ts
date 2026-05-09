@@ -31,7 +31,7 @@ export function handleEmptyRoom(scene: GameScene): void {
         {
             title: scene.loc.t('roomEmptyAlcoveName'),
             desc: scene.loc.t('roomEmptyAlcoveDesc'),
-            icon: '\'',
+            icon: "'",
         },
     ];
     const event = pick(defaultRng, subEvents);
@@ -54,7 +54,11 @@ export function handleEmptyRoom(scene: GameScene): void {
 
                 if (chance(defaultRng, ROOM_CONFIG.empty.scoutGoldChance)) {
                     const gold = scene.player.gainGold(
-                        randomInt(defaultRng, ROOM_CONFIG.empty.scoutGoldMin, ROOM_CONFIG.empty.scoutGoldMax)
+                        randomInt(
+                            defaultRng,
+                            ROOM_CONFIG.empty.scoutGoldMin,
+                            ROOM_CONFIG.empty.scoutGoldMax
+                        )
                     );
                     if (gold > 0) scene.tracker.record('goldEarned', gold);
                     gains.push(`${gold} ${scene.loc.t('unitGold')}`);
@@ -65,7 +69,10 @@ export function handleEmptyRoom(scene: GameScene): void {
                     gains.push(scene.loc.t('plusXp', { value: xp }).replace(/^\+/, ''));
                 }
 
-                scene.log.addMessage(scene.loc.t('emptyScout', { parts: gains.join(', ') }), '#bbbbbb');
+                scene.log.addMessage(
+                    scene.loc.t('emptyScout', { parts: gains.join(', ') }),
+                    '#bbbbbb'
+                );
                 scene.enemyIntelText.setText(scene.loc.t('roomEmptyAfterSearch'));
                 scene.showReturnButton();
             },

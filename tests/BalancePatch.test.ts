@@ -1,9 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import {
-    EXPECTED_BOSS_NAMES,
-    assertBossMapping,
-    getBossForDepth,
-} from '../src/data/Enemies';
+import { EXPECTED_BOSS_NAMES, assertBossMapping, getBossForDepth } from '../src/data/Enemies';
 import {
     EXPEDITION_CONFIG,
     LEVEL_UP_CONFIG,

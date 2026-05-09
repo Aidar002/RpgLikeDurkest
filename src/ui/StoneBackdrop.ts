@@ -59,7 +59,7 @@ export function ensureStoneTexture(
     scene: Phaser.Scene,
     width: number,
     height: number,
-    opts: StoneBackdropOptions = {},
+    opts: StoneBackdropOptions = {}
 ): string {
     const dims = `${Math.max(1, Math.floor(width))}x${Math.max(1, Math.floor(height))}`;
     const suffix = opts.keySuffix ?? dims;
@@ -90,7 +90,7 @@ export function createStoneBackdrop(
     y: number,
     width: number,
     height: number,
-    opts: StoneBackdropOptions = {},
+    opts: StoneBackdropOptions = {}
 ): Phaser.GameObjects.Image {
     if (scene.textures.exists('hud_stone_wall')) {
         const img = scene.add
@@ -114,9 +114,9 @@ function drawStone(
     g: Phaser.GameObjects.Graphics,
     width: number,
     height: number,
-    opts: StoneBackdropOptions,
+    opts: StoneBackdropOptions
 ): void {
-    const rng = new Mulberry32(((opts.seed ?? SEED_DEFAULT) >>> 0) || 1);
+    const rng = new Mulberry32((opts.seed ?? SEED_DEFAULT) >>> 0 || 1);
     const brightness = opts.brightness ?? 1;
 
     // Mortar fills everywhere a brick does not cover, which gives the
@@ -133,7 +133,7 @@ function layBricks(
     rng: Rng,
     width: number,
     height: number,
-    brightness: number,
+    brightness: number
 ): void {
     const ROW_H_MIN = 26;
     const ROW_H_MAX = 38;
@@ -184,7 +184,7 @@ function drawBrickFace(
     y: number,
     w: number,
     h: number,
-    brightness: number,
+    brightness: number
 ): void {
     if (w <= 0 || h <= 0) return;
 

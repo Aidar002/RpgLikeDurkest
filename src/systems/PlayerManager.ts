@@ -101,12 +101,17 @@ export class PlayerManager {
         return this.stats.defense + this.relicAggregate.bonusDefense + setBonus;
     }
 
-    takeDamage(amount: number, flatBlock: number = 0, source: 'combat' | 'trap' | 'true' = 'combat'): number {
+    takeDamage(
+        amount: number,
+        flatBlock: number = 0,
+        source: 'combat' | 'trap' | 'true' = 'combat'
+    ): number {
         const defense = source === 'true' ? 0 : this.getEffectiveDefense();
         const reduced = amount - flatBlock - defense;
-        const actual = reduced <= 0 && source !== 'true'
-            ? 0
-            : Math.max(source === 'true' ? 1 : COMBAT_CONFIG.minDamage, reduced);
+        const actual =
+            reduced <= 0 && source !== 'true'
+                ? 0
+                : Math.max(source === 'true' ? 1 : COMBAT_CONFIG.minDamage, reduced);
 
         this.stats.hp = Math.max(0, this.stats.hp - actual);
 
@@ -137,10 +142,7 @@ export class PlayerManager {
         const scaledAmount = Math.max(1, Math.round(amount));
         this.stats.xp += scaledAmount;
 
-        while (
-            this.stats.level < LEVEL_UP_CONFIG.levelCap &&
-            this.stats.xp >= this.xpToNextLevel
-        ) {
+        while (this.stats.level < LEVEL_UP_CONFIG.levelCap && this.stats.xp >= this.xpToNextLevel) {
             this.stats.xp -= this.xpToNextLevel;
             this.applyLevelUp();
         }
@@ -196,7 +198,10 @@ export class PlayerManager {
     gainResolve(amount: number): number {
         if (amount <= 0) return 0;
         const previous = this.resources.resolve;
-        this.resources.resolve = Math.min(this.resources.maxResolve, this.resources.resolve + amount);
+        this.resources.resolve = Math.min(
+            this.resources.maxResolve,
+            this.resources.resolve + amount
+        );
         this.emitResources();
         return this.resources.resolve - previous;
     }

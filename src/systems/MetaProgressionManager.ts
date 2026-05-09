@@ -50,11 +50,7 @@ export const ALL_UNLOCK_IDS = [
 
 export type UnlockId = (typeof ALL_UNLOCK_IDS)[number];
 
-export type UpgradeId =
-    | 'damage'
-    | 'hp'
-    | 'defense'
-    | 'goldGain';
+export type UpgradeId = 'damage' | 'hp' | 'defense' | 'goldGain';
 
 export interface PlayerMetaBonuses {
     maxHp: number;
@@ -206,10 +202,7 @@ const FIRST_BOSS_MILESTONE: ContentUnlockMilestone = {
     unlocks: ['skill_preparation', 'relic_pool_unique'],
 };
 
-const ALL_MILESTONES: ContentUnlockMilestone[] = [
-    ...DEPTH_MILESTONES,
-    FIRST_BOSS_MILESTONE,
-];
+const ALL_MILESTONES: ContentUnlockMilestone[] = [...DEPTH_MILESTONES, FIRST_BOSS_MILESTONE];
 
 // Canonical meta-upgrade table (per design doc):
 //   damage:   7 levels, costs 1/2/4/8/16/32/64       (geometric x2)
@@ -225,40 +218,44 @@ const UPGRADE_DEFINITIONS: MetaUpgradeDefinition[] = [
         title: lt('Урон', 'Damage'),
         maxLevel: 7,
         costs: [1, 2, 4, 8, 16, 32, 64],
-        description: (nextLevel) => lt(
-            `Каждый забег начинается с +${nextLevel} к атаке.`,
-            `Start each run with +${nextLevel} attack.`
-        ),
+        description: (nextLevel) =>
+            lt(
+                `Каждый забег начинается с +${nextLevel} к атаке.`,
+                `Start each run with +${nextLevel} attack.`
+            ),
     },
     {
         id: 'hp',
         title: lt('ОЗ', 'Max HP'),
         maxLevel: 8,
         costs: [1, 2, 4, 5, 8, 9, 16, 17],
-        description: (nextLevel) => lt(
-            `Каждый забег начинается с +${nextLevel} к максимуму ОЗ.`,
-            `Start each run with +${nextLevel} max HP.`
-        ),
+        description: (nextLevel) =>
+            lt(
+                `Каждый забег начинается с +${nextLevel} к максимуму ОЗ.`,
+                `Start each run with +${nextLevel} max HP.`
+            ),
     },
     {
         id: 'defense',
         title: lt('Защита', 'Defense'),
         maxLevel: 4,
         costs: [5, 10, 20, 40],
-        description: (nextLevel) => lt(
-            `Каждый забег начинается с +${nextLevel} к защите.`,
-            `Start each run with +${nextLevel} defense.`
-        ),
+        description: (nextLevel) =>
+            lt(
+                `Каждый забег начинается с +${nextLevel} к защите.`,
+                `Start each run with +${nextLevel} defense.`
+            ),
     },
     {
         id: 'goldGain',
         title: lt('Получаемое золото', 'Gold gain'),
         maxLevel: 4,
         costs: [5, 10, 20, 40],
-        description: (nextLevel) => lt(
-            `Получаемое золото увеличено на +${nextLevel * 5}%.`,
-            `Gold gained from any source increased by +${nextLevel * 5}%.`
-        ),
+        description: (nextLevel) =>
+            lt(
+                `Получаемое золото увеличено на +${nextLevel * 5}%.`,
+                `Gold gained from any source increased by +${nextLevel * 5}%.`
+            ),
     },
 ];
 

@@ -40,7 +40,7 @@ export function ensureTorchlightTexture(
     scene: Phaser.Scene,
     width: number,
     height: number,
-    opts: TorchlightOptions,
+    opts: TorchlightOptions
 ): string {
     const w = Math.max(1, Math.floor(width));
     const h = Math.max(1, Math.floor(height));
@@ -51,7 +51,7 @@ export function ensureTorchlightTexture(
     const suffix =
         opts.keySuffix ??
         `${w}x${h}_r${Math.round(innerR)}-${Math.round(outerR)}_a${Math.round(
-            centerA * 100,
+            centerA * 100
         )}-${Math.round(edgeA * 100)}`;
     const key = `${KEY_PREFIX}_${suffix}`;
     if (scene.textures.exists(key)) return key;
@@ -79,7 +79,7 @@ export function createTorchlightOverlay(
     scene: Phaser.Scene,
     width: number,
     height: number,
-    opts: TorchlightOptions,
+    opts: TorchlightOptions
 ): Phaser.GameObjects.Image {
     const key = ensureTorchlightTexture(scene, width, height, opts);
     return scene.add.image(0, 0, key).setOrigin(0, 0);

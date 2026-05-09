@@ -4,9 +4,8 @@ import type { NpcId, NpcOfferTemplate } from '../Npcs';
 import type { GameScene, RoomButtonAction } from '../../scenes/GameScene';
 
 export function buildNpcEvalContext(scene: GameScene): NpcEvalContext {
-    const hpFrac = scene.player.stats.maxHp > 0
-        ? scene.player.stats.hp / scene.player.stats.maxHp
-        : 1;
+    const hpFrac =
+        scene.player.stats.maxHp > 0 ? scene.player.stats.hp / scene.player.stats.maxHp : 1;
     return {
         depth: scene.dungeon.currentDepth,
         hpFrac,
@@ -26,7 +25,11 @@ export function npcOfferCost(offerId: string, _npcId: NpcId): number {
     }
 }
 
-export function isNpcOfferEnabled(scene: GameScene, offer: NpcOfferTemplate, npcId: NpcId): boolean {
+export function isNpcOfferEnabled(
+    scene: GameScene,
+    offer: NpcOfferTemplate,
+    npcId: NpcId
+): boolean {
     const cost = npcOfferCost(offer.id, npcId);
     switch (offer.id) {
         case 'gogi_what':
@@ -46,10 +49,7 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
     scene.enemyPortrait.setFillStyle(picked.npc.color);
     scene.enemyIconText.setText(picked.npc.glyph);
     scene.enemyNameText.setText(
-        compactText(
-            `${scene.loc.pick(picked.npc.name)}, ${scene.loc.pick(picked.npc.title)}`,
-            28
-        )
+        compactText(`${scene.loc.pick(picked.npc.name)}, ${scene.loc.pick(picked.npc.title)}`, 28)
     );
     scene.enemyIntelText.setText(scene.loc.pick(picked.npc.flavor));
     scene.enemyIntelText.setVisible(true);
@@ -107,9 +107,7 @@ function handleNpcOffer(scene: GameScene, npcId: NpcId, offer: NpcOfferTemplate)
             break;
         case 'sara_who':
             scene.log.addMessage(
-                scene.loc.language === 'ru'
-                    ? 'Сара: "Я? Да никто."'
-                    : 'Sara: "Me? Nobody."',
+                scene.loc.language === 'ru' ? 'Сара: "Я? Да никто."' : 'Sara: "Me? Nobody."',
                 '#cdb8ff'
             );
             break;
@@ -188,9 +186,7 @@ function presentSaraAdviceChoice(scene: GameScene): void {
             label: scene.loc.language === 'ru' ? '[2] Нет' : '[2] No',
             callback: () => {
                 scene.log.addMessage(
-                    scene.loc.language === 'ru'
-                        ? 'Сара: "Зря."'
-                        : 'Sara: "Shame."',
+                    scene.loc.language === 'ru' ? 'Сара: "Зря."' : 'Sara: "Shame."',
                     '#cdb8ff'
                 );
                 scene.showReturnButton();

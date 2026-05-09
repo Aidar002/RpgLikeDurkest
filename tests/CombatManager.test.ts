@@ -19,12 +19,7 @@ function makeManager(seed: number): {
             seenMessages.push(text);
         },
     } as unknown as EventLog;
-    const combat = new CombatManager(
-        player,
-        log,
-        undefined,
-        new Mulberry32(seed)
-    );
+    const combat = new CombatManager(player, log, undefined, new Mulberry32(seed));
     return { combat, player, seenMessages };
 }
 
@@ -147,10 +142,7 @@ describe('CombatManager log surface', () => {
 // Direct injection of an `ActiveEnemy` minus the bits the prepare path
 // touches. Lets us assert windup behaviour without depending on the
 // random enemy pool or boss rotation timing.
-function injectGhoulPrepare(
-    combat: CombatManager,
-    prepare: EnemyPrepareDef
-): void {
+function injectGhoulPrepare(combat: CombatManager, prepare: EnemyPrepareDef): void {
     combat.enemy = {
         kind: 'normal',
         name: 'Ghoul',

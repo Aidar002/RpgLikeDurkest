@@ -54,14 +54,13 @@ export function createVolumePanel(
         .rectangle(x + PANEL_W / 2, y + PANEL_H / 2, PANEL_W, PANEL_H, 0x000000, 0)
         .setInteractive();
 
-    const title = scene.add
-        .text(x + 12, y + 10, loc.t('soundOptionsTitle').toUpperCase(), {
-            fontFamily: HUD_FONT,
-            fontSize: '13px',
-            color: HudHex.accentExp,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
+    const title = scene.add.text(x + 12, y + 10, loc.t('soundOptionsTitle').toUpperCase(), {
+        fontFamily: HUD_FONT,
+        fontSize: '13px',
+        color: HudHex.accentExp,
+        stroke: HUD_STROKE,
+        strokeThickness: 2,
+    });
 
     const closeBtn = scene.add
         .text(x + PANEL_W - 14, y + 8, '×', {
@@ -77,14 +76,13 @@ export function createVolumePanel(
     closeBtn.on('pointerover', () => closeBtn.setColor(HudHex.textPrimary));
     closeBtn.on('pointerout', () => closeBtn.setColor(HudHex.textSecondary));
 
-    const musicLabel = scene.add
-        .text(x + 12, y + 36, loc.t('musicVolumeLabel'), {
-            fontFamily: HUD_FONT,
-            fontSize: '12px',
-            color: HudHex.textSecondary,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
+    const musicLabel = scene.add.text(x + 12, y + 36, loc.t('musicVolumeLabel'), {
+        fontFamily: HUD_FONT,
+        fontSize: '12px',
+        color: HudHex.textSecondary,
+        stroke: HUD_STROKE,
+        strokeThickness: 2,
+    });
 
     const musicSlider = createSlider(
         scene,
@@ -98,14 +96,13 @@ export function createVolumePanel(
         }
     );
 
-    const sfxLabel = scene.add
-        .text(x + 12, y + 70, loc.t('sfxVolumeLabel'), {
-            fontFamily: HUD_FONT,
-            fontSize: '12px',
-            color: HudHex.textSecondary,
-            stroke: HUD_STROKE,
-            strokeThickness: 2,
-        });
+    const sfxLabel = scene.add.text(x + 12, y + 70, loc.t('sfxVolumeLabel'), {
+        fontFamily: HUD_FONT,
+        fontSize: '12px',
+        color: HudHex.textSecondary,
+        stroke: HUD_STROKE,
+        strokeThickness: 2,
+    });
 
     const sfxSlider = createSlider(
         scene,
@@ -119,17 +116,18 @@ export function createVolumePanel(
         }
     );
 
-    const hint = scene.add
-        .text(x + 12, y + PANEL_H - 18, loc.t('soundOptionsHint'), {
-            fontFamily: HUD_FONT,
-            fontSize: '10px',
-            color: HudHex.textMuted,
-            stroke: HUD_STROKE,
-            strokeThickness: 1,
-        });
+    const hint = scene.add.text(x + 12, y + PANEL_H - 18, loc.t('soundOptionsHint'), {
+        fontFamily: HUD_FONT,
+        fontSize: '10px',
+        color: HudHex.textMuted,
+        stroke: HUD_STROKE,
+        strokeThickness: 1,
+    });
 
     veil.on('pointerdown', () => hide());
-    panelHit.on('pointerdown', () => { /* swallow */ });
+    panelHit.on('pointerdown', () => {
+        /* swallow */
+    });
 
     root.add([
         veil,
@@ -167,7 +165,8 @@ export function createVolumePanel(
 
     return {
         toggle() {
-            if (visible) hide(); else show();
+            if (visible) hide();
+            else show();
         },
         isOpen() {
             return visible;

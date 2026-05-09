@@ -132,17 +132,19 @@ export class MusicManager {
         this.resumeAudioContext();
         const promise = audio.play();
         if (typeof promise?.then === 'function') {
-            promise.then(() => {
-                this.playing = true;
-                this.fadeIn(audio, INITIAL_FADE_S);
-                this.detachAutoStart();
-            }).catch((err: DOMException) => {
-                // NotAllowedError = autoplay policy; an upcoming user
-                // gesture will retry. Other errors are unexpected.
-                if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
-                    console.warn('[music] play() rejected:', err.name, err.message);
-                }
-            });
+            promise
+                .then(() => {
+                    this.playing = true;
+                    this.fadeIn(audio, INITIAL_FADE_S);
+                    this.detachAutoStart();
+                })
+                .catch((err: DOMException) => {
+                    // NotAllowedError = autoplay policy; an upcoming user
+                    // gesture will retry. Other errors are unexpected.
+                    if (err.name !== 'NotAllowedError' && err.name !== 'AbortError') {
+                        console.warn('[music] play() rejected:', err.name, err.message);
+                    }
+                });
         } else {
             this.playing = true;
         }
@@ -210,7 +212,11 @@ export class MusicManager {
             if (t < 1 && !this.destroyed) {
                 this.fadeRaf = scheduleFrame(tick);
             } else {
-                try { fromAudio.pause(); } catch { /* ignored */ }
+                try {
+                    fromAudio.pause();
+                } catch {
+                    /* ignored */
+                }
                 fromAudio.src = '';
                 upcoming.addEventListener('ended', () => this.handleEnded(upcoming));
                 upcoming.addEventListener('timeupdate', () => this.handleTimeUpdate(upcoming));
@@ -282,9 +288,10 @@ export class MusicManager {
         if (this.webAudioFailed) return null;
         if (typeof window === 'undefined') return null;
         const Ctor: typeof AudioContext | undefined =
-            (typeof AudioContext !== 'undefined'
+            typeof AudioContext !== 'undefined'
                 ? AudioContext
-                : (window as unknown as { webkitAudioContext?: typeof AudioContext }).webkitAudioContext);
+                : (window as unknown as { webkitAudioContext?: typeof AudioContext })
+                      .webkitAudioContext;
         if (!Ctor) {
             this.webAudioFailed = true;
             return null;
@@ -333,7 +340,11 @@ export class MusicManager {
     setVolume(value: number): void {
         const clamped = Math.max(0, Math.min(1, value));
         this._volume = clamped;
-        try { localStorage.setItem(VOLUME_KEY, String(clamped)); } catch { /* ignored */ }
+        try {
+            localStorage.setItem(VOLUME_KEY, String(clamped));
+        } catch {
+            /* ignored */
+        }
         this.applyVolume();
     }
 
@@ -343,7 +354,11 @@ export class MusicManager {
 
     setMuted(muted: boolean): void {
         this._muted = muted;
-        try { localStorage.setItem(MUTED_KEY, muted ? '1' : '0'); } catch { /* ignored */ }
+        try {
+            localStorage.setItem(MUTED_KEY, muted ? '1' : '0');
+        } catch {
+            /* ignored */
+        }
         this.applyVolume();
     }
 
@@ -359,18 +374,30 @@ export class MusicManager {
             cancelAnimationFrame(this.fadeRaf);
         }
         if (this.current) {
-            try { this.current.pause(); } catch { /* ignored */ }
+            try {
+                this.current.pause();
+            } catch {
+                /* ignored */
+            }
             this.current.src = '';
             this.current = null;
         }
         if (this.next) {
-            try { this.next.pause(); } catch { /* ignored */ }
+            try {
+                this.next.pause();
+            } catch {
+                /* ignored */
+            }
             this.next.src = '';
             this.next = null;
         }
         this.detachAutoStart();
         if (this.audioContext) {
-            try { this.audioContext.close(); } catch { /* ignored */ }
+            try {
+                this.audioContext.close();
+            } catch {
+                /* ignored */
+            }
             this.audioContext = null;
             this.masterGain = null;
         }

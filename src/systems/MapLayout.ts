@@ -30,7 +30,11 @@ export function nodeX(node: MapNode): number {
 
 export function nodeY(node: MapNode, siblingsAtDepth: number): number {
     const row = Math.floor(node.depth / MAP_LAYOUT.segmentLength);
-    return MAP_LAYOUT.originY + row * MAP_LAYOUT.bandHeight + (node.slot - (siblingsAtDepth - 1) / 2) * MAP_LAYOUT.rowHeight;
+    return (
+        MAP_LAYOUT.originY +
+        row * MAP_LAYOUT.bandHeight +
+        (node.slot - (siblingsAtDepth - 1) / 2) * MAP_LAYOUT.rowHeight
+    );
 }
 
 export function mapOffset(node: MapNode, siblingsAtDepth: number): Point {
@@ -46,7 +50,13 @@ export function edgePath(from: Point, to: Point, edgeIndex: number, totalEdges: 
         const laneY = from.y + direction * (MAP_LAYOUT.nodeSize + 18 + edgeIndex * 10);
         const laneX = from.x + (edgeIndex - (totalEdges - 1) / 2) * 14;
         return {
-            points: [from, { x: from.x, y: laneY }, { x: laneX, y: laneY }, { x: laneX, y: to.y }, to],
+            points: [
+                from,
+                { x: from.x, y: laneY },
+                { x: laneX, y: laneY },
+                { x: laneX, y: to.y },
+                to,
+            ],
         };
     }
 

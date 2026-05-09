@@ -4,5 +4,11 @@
   "semi": true,
   "trailingComma": "es5",
   "printWidth": 100,
-  "endOfLine": "lf"
+  "endOfLine": "lf",
+  "overrides": [
+    {
+      "files": ["*.json", "*.yml", "*.yaml", "*.html", "*.css", "*.md"],
+      "options": { "tabWidth": 2 }
+    }
+  ]
 }

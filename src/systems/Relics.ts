@@ -24,11 +24,7 @@ export type RelicId =
 
 export type RelicRarity = 'common' | 'rare' | 'unique';
 
-export type RelicSetId =
-    | 'wanderer'
-    | 'flesh'
-    | 'recruit'
-    | 'minor_cursed';
+export type RelicSetId = 'wanderer' | 'flesh' | 'recruit' | 'minor_cursed';
 
 export interface RelicSetDef {
     id: RelicSetId;
@@ -311,9 +307,7 @@ function applyRelic(agg: RelicAggregate, id: RelicId) {
 function applyUnconditionalSetBonuses(agg: RelicAggregate, ids: RelicId[]) {
     const owned = new Set(ids);
     const isFullSet = (set: RelicSetId): boolean =>
-        RELIC_ORDER
-            .filter((rid) => RELICS[rid].set === set)
-            .every((rid) => owned.has(rid));
+        RELIC_ORDER.filter((rid) => RELICS[rid].set === set).every((rid) => owned.has(rid));
 
     agg.sets.wanderer = isFullSet('wanderer');
     agg.sets.flesh = isFullSet('flesh');

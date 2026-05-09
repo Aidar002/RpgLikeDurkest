@@ -96,21 +96,14 @@ export function maybeAdvancePhase(enemy: ActiveEnemy, log: EventLog, loc: Locali
  * boss turn. When the timer hits zero we drop any leftover block pool
  * and log expiry so the player understands the shield is gone.
  */
-export function tickBossBlockAtTurnEnd(
-    enemy: ActiveEnemy,
-    log: EventLog,
-    loc: Localization
-): void {
+export function tickBossBlockAtTurnEnd(enemy: ActiveEnemy, log: EventLog, loc: Localization): void {
     if (!enemy.bossPhase) return;
     const state = enemy.bossPhase;
     if (state.pendingBlockTurns <= 0) return;
     state.pendingBlockTurns -= 1;
     if (state.pendingBlockTurns <= 0 && state.pendingBlock > 0) {
         state.pendingBlock = 0;
-        log.addMessage(
-            loc.t('combatBossDeathShieldExpired', { name: enemy.name }),
-            '#9aa6b3'
-        );
+        log.addMessage(loc.t('combatBossDeathShieldExpired', { name: enemy.name }), '#9aa6b3');
     }
 }
 
@@ -130,8 +123,5 @@ export function breakBossBlockOnSkillDamage(
     if (state.pendingBlock <= 0) return;
     state.pendingBlock = 0;
     state.pendingBlockTurns = 0;
-    log.addMessage(
-        loc.t('combatBossDeathShieldBroken', { name: enemy.name }),
-        '#b893ff'
-    );
+    log.addMessage(loc.t('combatBossDeathShieldBroken', { name: enemy.name }), '#b893ff');
 }

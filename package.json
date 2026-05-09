@@ -3,19 +3,27 @@
   "private": true,
   "version": "0.0.0",
   "type": "module",
+  "engines": {
+    "node": ">=20.0.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
     "lint": "eslint .",
     "format": "prettier --check .",
     "format:write": "prettier --write .",
     "test": "vitest run",
-    "test:watch": "vitest"
+    "test:watch": "vitest",
+    "prepare": "husky"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.4",
     "eslint": "^9.39.4",
+    "globals": "^15.14.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^15.2.10",
     "prettier": "^3.8.3",
     "tsx": "^4.21.0",
     "typescript": "~6.0.2",
@@ -25,5 +33,14 @@
   },
   "dependencies": {
     "phaser": "3.90.0"
+  },
+  "lint-staged": {
+    "*.{ts,js,mjs,cjs}": [
+      "eslint --fix",
+      "prettier --write"
+    ],
+    "*.{json,md,yml,yaml,html,css}": [
+      "prettier --write"
+    ]
   }
 }

@@ -32,7 +32,14 @@ export class EventLog {
     private contentTop = 48;
     private contentPadding = 16;
 
-    constructor(scene: Phaser.Scene, x: number, y: number, width: number, height: number, title: string = 'EVENT LOG') {
+    constructor(
+        scene: Phaser.Scene,
+        x: number,
+        y: number,
+        width: number,
+        height: number,
+        title: string = 'EVENT LOG'
+    ) {
         this.scene = scene;
         this.width = width;
         this.height = height;
@@ -41,7 +48,9 @@ export class EventLog {
         const background = scene.add.rectangle(0, 0, width, height, 0x0a0b0d, 0.82).setOrigin(0);
         background.setStrokeStyle(2, 0x2b343d);
 
-        const inner = scene.add.rectangle(12, 44, width - 24, height - 58, 0x050607, 0.26).setOrigin(0);
+        const inner = scene.add
+            .rectangle(12, 44, width - 24, height - 58, 0x050607, 0.26)
+            .setOrigin(0);
         inner.setStrokeStyle(1, 0x171d23);
 
         const header = scene.add.text(16, 12, title.toUpperCase(), {
@@ -93,7 +102,9 @@ export class EventLog {
 
         const entryHeight = Math.max(20, body.height + 2);
         const rail = this.scene.add.rectangle(-8, 2, 3, entryHeight, meta.rail, 0.9).setOrigin(0);
-        const rule = this.scene.add.rectangle(22, entryHeight + 5, entryWidth - 26, 1, 0x1c242b, 0.55).setOrigin(0);
+        const rule = this.scene.add
+            .rectangle(22, entryHeight + 5, entryWidth - 26, 1, 0x1c242b, 0.55)
+            .setOrigin(0);
 
         entryContainer.add([rail, marker, body, rule]);
         entryContainer.setAlpha(0);
@@ -143,7 +154,7 @@ export class EventLog {
             const entryHeight = Math.max(entry.text.height, entry.rail.height) + 8;
             const targetY = currentY;
             const age = this.entries.length - 1 - index;
-            const alpha = Math.max(0.42, 1 - age * 0.10);
+            const alpha = Math.max(0.42, 1 - age * 0.1);
 
             if (targetY + entryHeight > this.height - 16 && this.entries.length > 1) {
                 const removed = this.entries.shift();

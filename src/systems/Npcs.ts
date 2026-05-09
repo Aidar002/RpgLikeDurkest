@@ -69,17 +69,9 @@ export const NPCS: Record<NpcId, NpcProfile> = {
         ),
         voice: {
             bossIntro: v(
-                lt(
-                    'Сара: "Удачи. Надеюсь, ты выживешь."',
-                    'Sara: "Good luck. I hope you survive."'
-                )
+                lt('Сара: "Удачи. Надеюсь, ты выживешь."', 'Sara: "Good luck. I hope you survive."')
             ),
-            farewell: v(
-                lt(
-                    'Сара: "Ступай осторожно."',
-                    'Sara: "Tread carefully."'
-                )
-            ),
+            farewell: v(lt('Сара: "Ступай осторожно."', 'Sara: "Tread carefully."')),
             lowHpRecall: v(
                 lt(
                     'Голос Сары из памяти: "Надеюсь, ты выживешь."',
@@ -97,10 +89,7 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             },
             {
                 stage: 'return',
-                text: lt(
-                    'Сара: "Снова ты. Рада видеть."',
-                    'Sara: "You again. Glad to see you."'
-                ),
+                text: lt('Сара: "Снова ты. Рада видеть."', 'Sara: "You again. Glad to see you."'),
             },
             {
                 stage: 'deep',
@@ -112,28 +101,19 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             },
             {
                 stage: 'farewell',
-                text: lt(
-                    'Сара: "Ступай осторожно."',
-                    'Sara: "Tread carefully."'
-                ),
+                text: lt('Сара: "Ступай осторожно."', 'Sara: "Tread carefully."'),
             },
         ],
         offers: [
             {
                 id: 'sara_where',
                 label: lt('[{index}] Где я?', '[{index}] Where am I?'),
-                flavor: lt(
-                    'Сара: "Мне бы кто сказал."',
-                    'Sara: "I wish someone would tell me."'
-                ),
+                flavor: lt('Сара: "Мне бы кто сказал."', 'Sara: "I wish someone would tell me."'),
             },
             {
                 id: 'sara_who',
                 label: lt('[{index}] Кто ты?', '[{index}] Who are you?'),
-                flavor: lt(
-                    'Сара: "Я? Да никто."',
-                    'Sara: "Me? Nobody."'
-                ),
+                flavor: lt('Сара: "Я? Да никто."', 'Sara: "Me? Nobody."'),
             },
             {
                 id: 'sara_right',
@@ -168,12 +148,7 @@ export const NPCS: Record<NpcId, NpcProfile> = {
                     'Gogi: "Good luck, pal. You are my favourite customer."'
                 )
             ),
-            farewell: v(
-                lt(
-                    'Гоги: "Приходи ещё, ахах."',
-                    'Gogi: "Come back again, haha."'
-                )
-            ),
+            farewell: v(lt('Гоги: "Приходи ещё, ахах."', 'Gogi: "Come back again, haha."')),
             lowHpRecall: v(
                 lt(
                     'Голос Гоги: "Надо было покупать, ахах."',
@@ -206,10 +181,7 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             },
             {
                 stage: 'farewell',
-                text: lt(
-                    'Гоги: "Удачи, клиент."',
-                    'Gogi: "Good luck, customer."'
-                ),
+                text: lt('Гоги: "Удачи, клиент."', 'Gogi: "Good luck, customer."'),
             },
         ],
         offers: [

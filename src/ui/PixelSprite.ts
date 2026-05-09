@@ -80,14 +80,12 @@ function setPixel(g: Grid, x: number, y: number, c: string) {
 }
 
 function fillRect(g: Grid, x: number, y: number, w: number, h: number, c: string) {
-    for (let dy = 0; dy < h; dy++)
-        for (let dx = 0; dx < w; dx++)
-            setPixel(g, x + dx, y + dy, c);
+    for (let dy = 0; dy < h; dy++) for (let dx = 0; dx < w; dx++) setPixel(g, x + dx, y + dy, c);
 }
 
 function mirrorH(g: Grid): Grid {
     const halfW = Math.floor(g[0].length / 2);
-    return g.map(row => {
+    return g.map((row) => {
         const mirrored = [...row];
         for (let x = 0; x < halfW; x++) {
             mirrored[row.length - 1 - x] = mirrored[x];
@@ -122,8 +120,10 @@ function drawBrute(): Grid {
     // head
     fillRect(g, 5, 1, 6, 4, P.bruteBody);
     fillRect(g, 6, 2, 4, 2, P.bruteLight);
-    setPixel(g, 6, 2, P.white); setPixel(g, 9, 2, P.white);
-    setPixel(g, 7, 3, P.bruteDark); setPixel(g, 8, 3, P.bruteDark);
+    setPixel(g, 6, 2, P.white);
+    setPixel(g, 9, 2, P.white);
+    setPixel(g, 7, 3, P.bruteDark);
+    setPixel(g, 8, 3, P.bruteDark);
     // neck
     fillRect(g, 6, 5, 4, 1, P.bruteDark);
     // body (wide)
@@ -147,29 +147,37 @@ function drawStalker(): Grid {
     const g = createGrid(16, 16);
     // head (small, hunched)
     fillRect(g, 6, 2, 4, 3, P.stalkerBody);
-    setPixel(g, 6, 3, P.stalkerLight); setPixel(g, 9, 3, P.stalkerLight);
-    setPixel(g, 7, 3, P.red); setPixel(g, 8, 3, P.red);
+    setPixel(g, 6, 3, P.stalkerLight);
+    setPixel(g, 9, 3, P.stalkerLight);
+    setPixel(g, 7, 3, P.red);
+    setPixel(g, 8, 3, P.red);
     // ears
-    setPixel(g, 5, 1, P.stalkerBody); setPixel(g, 10, 1, P.stalkerBody);
+    setPixel(g, 5, 1, P.stalkerBody);
+    setPixel(g, 10, 1, P.stalkerBody);
     // body (lean, hunched forward)
     fillRect(g, 5, 5, 6, 4, P.stalkerBody);
     fillRect(g, 6, 6, 4, 2, P.stalkerLight);
     // arms with claws
     fillRect(g, 3, 5, 2, 3, P.stalkerDark);
     fillRect(g, 11, 5, 2, 3, P.stalkerDark);
-    setPixel(g, 2, 7, P.stalkerClaw); setPixel(g, 3, 8, P.stalkerClaw);
-    setPixel(g, 12, 7, P.stalkerClaw); setPixel(g, 13, 8, P.stalkerClaw);
+    setPixel(g, 2, 7, P.stalkerClaw);
+    setPixel(g, 3, 8, P.stalkerClaw);
+    setPixel(g, 12, 7, P.stalkerClaw);
+    setPixel(g, 13, 8, P.stalkerClaw);
     // legs (digitigrade)
     fillRect(g, 5, 9, 2, 4, P.stalkerDark);
     fillRect(g, 9, 9, 2, 4, P.stalkerDark);
-    setPixel(g, 4, 13, P.stalkerClaw); setPixel(g, 5, 13, P.stalkerClaw);
-    setPixel(g, 10, 13, P.stalkerClaw); setPixel(g, 11, 13, P.stalkerClaw);
+    setPixel(g, 4, 13, P.stalkerClaw);
+    setPixel(g, 5, 13, P.stalkerClaw);
+    setPixel(g, 10, 13, P.stalkerClaw);
+    setPixel(g, 11, 13, P.stalkerClaw);
     // feet
     fillRect(g, 4, 14, 3, 1, P.stalkerDark);
     fillRect(g, 9, 14, 3, 1, P.stalkerDark);
     // mirror symmetric parts, then add asymmetric tail
     const m = mirrorH(g);
-    setPixel(m, 11, 8, P.stalkerDark); setPixel(m, 12, 7, P.stalkerDark);
+    setPixel(m, 11, 8, P.stalkerDark);
+    setPixel(m, 12, 7, P.stalkerDark);
     setPixel(m, 13, 6, P.stalkerDark);
     return m;
 }
@@ -177,22 +185,27 @@ function drawStalker(): Grid {
 function drawBoss(): Grid {
     const g = createGrid(16, 16);
     // crown
-    setPixel(g, 5, 0, P.bossCrown); setPixel(g, 7, 0, P.bossCrown);
-    setPixel(g, 9, 0, P.bossCrown); setPixel(g, 11, 0, P.bossCrown);
+    setPixel(g, 5, 0, P.bossCrown);
+    setPixel(g, 7, 0, P.bossCrown);
+    setPixel(g, 9, 0, P.bossCrown);
+    setPixel(g, 11, 0, P.bossCrown);
     fillRect(g, 5, 1, 7, 1, P.bossCrown);
     // head (large)
     fillRect(g, 4, 2, 8, 4, P.bossBody);
     fillRect(g, 5, 3, 6, 2, P.bossLight);
     // eyes (menacing)
-    setPixel(g, 6, 3, P.red); setPixel(g, 9, 3, P.red);
-    setPixel(g, 7, 4, P.bossBody); setPixel(g, 8, 4, P.bossBody);
+    setPixel(g, 6, 3, P.red);
+    setPixel(g, 9, 3, P.red);
+    setPixel(g, 7, 4, P.bossBody);
+    setPixel(g, 8, 4, P.bossBody);
     // body (massive)
     fillRect(g, 2, 6, 12, 5, P.bossBody);
     fillRect(g, 3, 7, 10, 3, P.bossLight);
     // shoulder pauldrons
     fillRect(g, 1, 6, 2, 3, P.bossDark);
     fillRect(g, 13, 6, 2, 3, P.bossDark);
-    setPixel(g, 0, 6, P.bossCrown); setPixel(g, 15, 6, P.bossCrown);
+    setPixel(g, 0, 6, P.bossCrown);
+    setPixel(g, 15, 6, P.bossCrown);
     // belt
     fillRect(g, 3, 11, 10, 1, P.bossCrown);
     // legs
@@ -210,21 +223,27 @@ function drawBleeder(): Grid {
     fillRect(g, 5, 2, 6, 5, P.bleederBody);
     fillRect(g, 6, 3, 4, 3, P.bleederLight);
     // eyes
-    setPixel(g, 6, 3, P.red); setPixel(g, 9, 3, P.red);
+    setPixel(g, 6, 3, P.red);
+    setPixel(g, 9, 3, P.red);
     // mouth
-    setPixel(g, 7, 5, P.bleederDrip); setPixel(g, 8, 5, P.bleederDrip);
+    setPixel(g, 7, 5, P.bleederDrip);
+    setPixel(g, 8, 5, P.bleederDrip);
     // tendrils/arms
     fillRect(g, 3, 4, 2, 5, P.bleederBody);
     fillRect(g, 11, 4, 2, 5, P.bleederBody);
-    setPixel(g, 2, 8, P.bleederDrip); setPixel(g, 3, 9, P.bleederDrip);
-    setPixel(g, 12, 8, P.bleederDrip); setPixel(g, 13, 9, P.bleederDrip);
+    setPixel(g, 2, 8, P.bleederDrip);
+    setPixel(g, 3, 9, P.bleederDrip);
+    setPixel(g, 12, 8, P.bleederDrip);
+    setPixel(g, 13, 9, P.bleederDrip);
     // lower body
     fillRect(g, 4, 7, 8, 4, P.bleederBody);
     fillRect(g, 5, 8, 6, 2, P.bleederDark);
     // dripping
-    setPixel(g, 5, 11, P.bleederDrip); setPixel(g, 8, 11, P.bleederDrip);
+    setPixel(g, 5, 11, P.bleederDrip);
+    setPixel(g, 8, 11, P.bleederDrip);
     setPixel(g, 10, 11, P.bleederDrip);
-    setPixel(g, 6, 12, P.bleederDrip); setPixel(g, 9, 12, P.bleederDrip);
+    setPixel(g, 6, 12, P.bleederDrip);
+    setPixel(g, 9, 12, P.bleederDrip);
     // legs (short, stubby)
     fillRect(g, 4, 12, 3, 2, P.bleederDark);
     fillRect(g, 9, 12, 3, 2, P.bleederDark);
@@ -240,19 +259,28 @@ function drawSkull(): Grid {
     fillRect(g, 3, 1, 6, 5, P.skull);
     fillRect(g, 4, 2, 4, 3, P.bone);
     // eye sockets
-    setPixel(g, 4, 3, P.outline); setPixel(g, 5, 3, P.outline);
-    setPixel(g, 6, 3, P.outline); setPixel(g, 7, 3, P.outline);
+    setPixel(g, 4, 3, P.outline);
+    setPixel(g, 5, 3, P.outline);
+    setPixel(g, 6, 3, P.outline);
+    setPixel(g, 7, 3, P.outline);
     // nose
-    setPixel(g, 5, 5, P.skullDark); setPixel(g, 6, 5, P.skullDark);
+    setPixel(g, 5, 5, P.skullDark);
+    setPixel(g, 6, 5, P.skullDark);
     // jaw
     fillRect(g, 4, 6, 4, 2, P.skull);
-    setPixel(g, 4, 7, P.outline); setPixel(g, 5, 7, P.skullDark);
-    setPixel(g, 6, 7, P.skullDark); setPixel(g, 7, 7, P.outline);
+    setPixel(g, 4, 7, P.outline);
+    setPixel(g, 5, 7, P.skullDark);
+    setPixel(g, 6, 7, P.skullDark);
+    setPixel(g, 7, 7, P.outline);
     // crossbones
-    setPixel(g, 2, 8, P.bone); setPixel(g, 3, 9, P.bone);
-    setPixel(g, 8, 9, P.bone); setPixel(g, 9, 8, P.bone);
-    setPixel(g, 2, 10, P.bone); setPixel(g, 9, 10, P.bone);
-    setPixel(g, 3, 9, P.bone); setPixel(g, 8, 9, P.bone);
+    setPixel(g, 2, 8, P.bone);
+    setPixel(g, 3, 9, P.bone);
+    setPixel(g, 8, 9, P.bone);
+    setPixel(g, 9, 8, P.bone);
+    setPixel(g, 2, 10, P.bone);
+    setPixel(g, 9, 10, P.bone);
+    setPixel(g, 3, 9, P.bone);
+    setPixel(g, 8, 9, P.bone);
     return mirrorH(g);
 }
 
@@ -262,12 +290,14 @@ function drawChest(): Grid {
     fillRect(g, 1, 2, 10, 3, P.chest);
     fillRect(g, 2, 3, 8, 1, P.chestLight);
     // lock
-    setPixel(g, 5, 4, P.gold); setPixel(g, 6, 4, P.gold);
+    setPixel(g, 5, 4, P.gold);
+    setPixel(g, 6, 4, P.gold);
     // body
     fillRect(g, 1, 5, 10, 5, P.chestDark);
     fillRect(g, 2, 6, 8, 3, P.chest);
     // clasp
-    setPixel(g, 5, 5, P.gold); setPixel(g, 6, 5, P.gold);
+    setPixel(g, 5, 5, P.gold);
+    setPixel(g, 6, 5, P.gold);
     // bottom
     fillRect(g, 1, 10, 10, 1, P.outline);
     return g;
@@ -276,35 +306,50 @@ function drawChest(): Grid {
 function drawCampfire(): Grid {
     const g = createGrid(12, 12);
     // flames
-    setPixel(g, 5, 1, P.fireTip); setPixel(g, 6, 1, P.fireTip);
-    setPixel(g, 4, 2, P.fireTip); setPixel(g, 7, 2, P.fireTip);
+    setPixel(g, 5, 1, P.fireTip);
+    setPixel(g, 6, 1, P.fireTip);
+    setPixel(g, 4, 2, P.fireTip);
+    setPixel(g, 7, 2, P.fireTip);
     fillRect(g, 4, 3, 4, 2, P.fire);
-    setPixel(g, 5, 2, P.fire); setPixel(g, 6, 2, P.fire);
+    setPixel(g, 5, 2, P.fire);
+    setPixel(g, 6, 2, P.fire);
     fillRect(g, 3, 5, 6, 2, P.fireBase);
     // embers
-    setPixel(g, 3, 3, P.fireTip); setPixel(g, 8, 4, P.fireTip);
+    setPixel(g, 3, 3, P.fireTip);
+    setPixel(g, 8, 4, P.fireTip);
     // logs
     fillRect(g, 2, 7, 8, 2, P.chest);
-    setPixel(g, 1, 8, P.chestDark); setPixel(g, 10, 8, P.chestDark);
+    setPixel(g, 1, 8, P.chestDark);
+    setPixel(g, 10, 8, P.chestDark);
     // stones
-    setPixel(g, 2, 9, P.shadow); setPixel(g, 4, 9, P.shadow);
-    setPixel(g, 6, 9, P.shadow); setPixel(g, 8, 9, P.shadow);
+    setPixel(g, 2, 9, P.shadow);
+    setPixel(g, 4, 9, P.shadow);
+    setPixel(g, 6, 9, P.shadow);
+    setPixel(g, 8, 9, P.shadow);
     return g;
 }
 
 function drawTrapIcon(): Grid {
     const g = createGrid(12, 12);
     // spikes
-    setPixel(g, 2, 2, P.trapSpike); setPixel(g, 2, 3, P.trapSpike);
-    setPixel(g, 5, 1, P.trapSpike); setPixel(g, 5, 2, P.trapSpike); setPixel(g, 5, 3, P.trapSpike);
-    setPixel(g, 6, 1, P.trapSpike); setPixel(g, 6, 2, P.trapSpike); setPixel(g, 6, 3, P.trapSpike);
-    setPixel(g, 9, 2, P.trapSpike); setPixel(g, 9, 3, P.trapSpike);
+    setPixel(g, 2, 2, P.trapSpike);
+    setPixel(g, 2, 3, P.trapSpike);
+    setPixel(g, 5, 1, P.trapSpike);
+    setPixel(g, 5, 2, P.trapSpike);
+    setPixel(g, 5, 3, P.trapSpike);
+    setPixel(g, 6, 1, P.trapSpike);
+    setPixel(g, 6, 2, P.trapSpike);
+    setPixel(g, 6, 3, P.trapSpike);
+    setPixel(g, 9, 2, P.trapSpike);
+    setPixel(g, 9, 3, P.trapSpike);
     // base plate
     fillRect(g, 1, 4, 10, 2, P.trap);
     fillRect(g, 2, 6, 8, 1, P.shadow);
     // jaw teeth (bottom)
-    setPixel(g, 3, 7, P.trapSpike); setPixel(g, 5, 7, P.trapSpike);
-    setPixel(g, 7, 7, P.trapSpike); setPixel(g, 9, 7, P.trapSpike);
+    setPixel(g, 3, 7, P.trapSpike);
+    setPixel(g, 5, 7, P.trapSpike);
+    setPixel(g, 7, 7, P.trapSpike);
+    setPixel(g, 9, 7, P.trapSpike);
     fillRect(g, 1, 8, 10, 2, P.trap);
     return g;
 }
@@ -312,12 +357,16 @@ function drawTrapIcon(): Grid {
 function drawAltar(): Grid {
     const g = createGrid(12, 12);
     // cross/symbol at top
-    setPixel(g, 5, 0, P.shrine); setPixel(g, 6, 0, P.shrine);
+    setPixel(g, 5, 0, P.shrine);
+    setPixel(g, 6, 0, P.shrine);
     fillRect(g, 4, 1, 4, 1, P.shrine);
-    setPixel(g, 5, 2, P.shrine); setPixel(g, 6, 2, P.shrine);
-    setPixel(g, 5, 3, P.shrineDark); setPixel(g, 6, 3, P.shrineDark);
+    setPixel(g, 5, 2, P.shrine);
+    setPixel(g, 6, 2, P.shrine);
+    setPixel(g, 5, 3, P.shrineDark);
+    setPixel(g, 6, 3, P.shrineDark);
     // glow
-    setPixel(g, 3, 1, P.mageGlow); setPixel(g, 8, 1, P.mageGlow);
+    setPixel(g, 3, 1, P.mageGlow);
+    setPixel(g, 8, 1, P.mageGlow);
     // altar body
     fillRect(g, 2, 4, 8, 3, P.shrine);
     fillRect(g, 3, 5, 6, 1, P.shrineDark);
@@ -336,9 +385,12 @@ function drawMerchantIcon(): Grid {
     // counter
     fillRect(g, 1, 3, 10, 1, P.shadow);
     // goods (potions, coins)
-    setPixel(g, 3, 4, P.potionGreen); setPixel(g, 3, 5, P.potionGreen);
-    setPixel(g, 5, 5, P.gold); setPixel(g, 6, 5, P.gold);
-    setPixel(g, 8, 4, P.shardBlue); setPixel(g, 8, 5, P.shardBlue);
+    setPixel(g, 3, 4, P.potionGreen);
+    setPixel(g, 3, 5, P.potionGreen);
+    setPixel(g, 5, 5, P.gold);
+    setPixel(g, 6, 5, P.gold);
+    setPixel(g, 8, 4, P.shardBlue);
+    setPixel(g, 8, 5, P.shardBlue);
     // counter body
     fillRect(g, 1, 6, 10, 3, P.merchantDark);
     fillRect(g, 2, 7, 8, 1, P.merchant);
@@ -349,21 +401,27 @@ function drawMerchantIcon(): Grid {
 function drawEliteSkull(): Grid {
     const g = drawSkull();
     // add horns
-    setPixel(g, 2, 0, P.red); setPixel(g, 1, 1, P.red);
-    setPixel(g, 9, 0, P.red); setPixel(g, 10, 1, P.red);
+    setPixel(g, 2, 0, P.red);
+    setPixel(g, 1, 1, P.red);
+    setPixel(g, 9, 0, P.red);
+    setPixel(g, 10, 1, P.red);
     // red eyes
-    setPixel(g, 4, 3, P.red); setPixel(g, 7, 3, P.red);
+    setPixel(g, 4, 3, P.red);
+    setPixel(g, 7, 3, P.red);
     return g;
 }
 
 function drawBossSkull(): Grid {
     const g = drawSkull();
     // crown
-    setPixel(g, 3, 0, P.bossCrown); setPixel(g, 5, 0, P.bossCrown);
-    setPixel(g, 7, 0, P.bossCrown); setPixel(g, 9, 0, P.bossCrown);
+    setPixel(g, 3, 0, P.bossCrown);
+    setPixel(g, 5, 0, P.bossCrown);
+    setPixel(g, 7, 0, P.bossCrown);
+    setPixel(g, 9, 0, P.bossCrown);
     fillRect(g, 3, 1, 6, 1, P.bossCrown);
     // red eyes
-    setPixel(g, 4, 3, P.red); setPixel(g, 7, 3, P.red);
+    setPixel(g, 4, 3, P.red);
+    setPixel(g, 7, 3, P.red);
     return g;
 }
 
@@ -385,11 +443,14 @@ function drawDoor(): Grid {
 function drawEmpty(): Grid {
     const g = createGrid(12, 12);
     // footprints
-    setPixel(g, 3, 3, P.shadow); setPixel(g, 4, 3, P.shadow);
+    setPixel(g, 3, 3, P.shadow);
+    setPixel(g, 4, 3, P.shadow);
     setPixel(g, 3, 4, P.shadow);
-    setPixel(g, 7, 6, P.shadow); setPixel(g, 8, 6, P.shadow);
+    setPixel(g, 7, 6, P.shadow);
+    setPixel(g, 8, 6, P.shadow);
     setPixel(g, 7, 7, P.shadow);
-    setPixel(g, 4, 9, P.shadow); setPixel(g, 5, 9, P.shadow);
+    setPixel(g, 4, 9, P.shadow);
+    setPixel(g, 5, 9, P.shadow);
     setPixel(g, 4, 10, P.shadow);
     return g;
 }
@@ -425,14 +486,16 @@ function drawLantern(): Grid {
     const g = createGrid(10, 10);
     // handle
     fillRect(g, 4, 0, 2, 1, P.shadow);
-    setPixel(g, 3, 1, P.shadow); setPixel(g, 6, 1, P.shadow);
+    setPixel(g, 3, 1, P.shadow);
+    setPixel(g, 6, 1, P.shadow);
     // top
     fillRect(g, 3, 2, 4, 1, P.lanternDark);
     // glass body
     fillRect(g, 2, 3, 6, 4, P.lanternYellow);
     fillRect(g, 3, 4, 4, 2, P.fireTip);
     // flame
-    setPixel(g, 4, 4, P.fire); setPixel(g, 5, 4, P.fire);
+    setPixel(g, 4, 4, P.fire);
+    setPixel(g, 5, 4, P.fire);
     // base
     fillRect(g, 2, 7, 6, 1, P.lanternDark);
     fillRect(g, 3, 8, 4, 1, P.shadow);
@@ -446,7 +509,8 @@ function drawShard(): Grid {
     fillRect(g, 2, 3, 6, 3, P.shardDark);
     fillRect(g, 3, 3, 4, 2, P.shardBlue);
     fillRect(g, 3, 6, 4, 2, P.shardDark);
-    setPixel(g, 4, 8, P.shardDark); setPixel(g, 5, 8, P.shardDark);
+    setPixel(g, 4, 8, P.shardDark);
+    setPixel(g, 5, 8, P.shardDark);
     // highlight
     setPixel(g, 4, 2, P.white);
     return g;
@@ -459,11 +523,14 @@ function drawResolve(): Grid {
     fillRect(g, 2, 2, 7, 4, P.fist);
     fillRect(g, 3, 4, 5, 3, P.fistDark);
     // thumb
-    setPixel(g, 2, 5, P.fist); setPixel(g, 2, 6, P.fist);
+    setPixel(g, 2, 5, P.fist);
+    setPixel(g, 2, 6, P.fist);
     // wrist
     fillRect(g, 3, 7, 4, 2, P.fistDark);
     // knuckle highlights
-    setPixel(g, 3, 2, P.white); setPixel(g, 5, 2, P.white); setPixel(g, 7, 2, P.white);
+    setPixel(g, 3, 2, P.white);
+    setPixel(g, 5, 2, P.white);
+    setPixel(g, 7, 2, P.white);
     return g;
 }
 
@@ -487,7 +554,8 @@ const ROOM_ICON_DRAWERS: Record<string, () => Grid> = {
     ELITE: drawEliteSkull,
     BOSS: drawBossSkull,
     'ARTIFACT GUARDIAN': drawBossSkull,
-    '\u0421\u0422\u0420\u0410\u0416 \u0410\u0420\u0422\u0415\u0424\u0410\u041a\u0422\u0410': drawBossSkull,
+    '\u0421\u0422\u0420\u0410\u0416 \u0410\u0420\u0422\u0415\u0424\u0410\u041a\u0422\u0410':
+        drawBossSkull,
     EMPTY: drawEmpty,
     START: drawDoor,
 };

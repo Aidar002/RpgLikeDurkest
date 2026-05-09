@@ -32,13 +32,7 @@ import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET } from './Layout';
  * a variant get 'default' unless their legacy `fill` value can be
  * heuristically mapped (see {@link variantFromFill}).
  */
-export type RoomButtonVariant =
-    | 'default'
-    | 'gold'
-    | 'dark'
-    | 'silver'
-    | 'positive'
-    | 'danger';
+export type RoomButtonVariant = 'default' | 'gold' | 'dark' | 'silver' | 'positive' | 'danger';
 
 const BUTTON_TEXTURES: Record<RoomButtonVariant, string> = {
     default: 'btn_default',
@@ -131,7 +125,7 @@ export interface RoomButtonsHandle {
 export function createRoomButtons(
     scene: Phaser.Scene,
     parent: Phaser.GameObjects.Container,
-    sfx: SoundManager,
+    sfx: SoundManager
 ): RoomButtonsHandle {
     const buttons: ActionButton[] = [];
 
@@ -166,7 +160,7 @@ export function createRoomButtons(
                 BUTTON_SLICE.left,
                 BUTTON_SLICE.right,
                 BUTTON_SLICE.top,
-                BUTTON_SLICE.bottom,
+                BUTTON_SLICE.bottom
             )
             .setInteractive({ useHandCursor: true });
 
@@ -255,9 +249,7 @@ export function createRoomButtons(
         // Disabled buttons render at half alpha so the carved frame
         // still reads but the variant colour is visibly muted.
         button.background.setAlpha(enabled ? 1 : 0.5);
-        button.label.setText(
-            compactText(action.label, button.defaultWidth > 200 ? 42 : 24),
-        );
+        button.label.setText(compactText(action.label, button.defaultWidth > 200 ? 42 : 24));
         button.label.setColor(enabled ? '#f0f0f0' : '#686868');
     }
 

@@ -1,15 +1,22 @@
 import { pickLocalized } from './LocalizedText';
 import { ALL_NPC_IDS, NPCS } from './Npcs';
-import type { NpcDialogBeat, NpcId, NpcOfferTemplate, NpcProfile, NpcRole, NpcStateTag } from './Npcs';
+import type {
+    NpcDialogBeat,
+    NpcId,
+    NpcOfferTemplate,
+    NpcProfile,
+    NpcRole,
+    NpcStateTag,
+} from './Npcs';
 
 // State the player accumulates *across* runs about each NPC. This is the
 // reason NPCs feel like characters: they remember, and the player remembers
 // they remember. Persistence is handled by MetaProgressionManager.
 export interface NpcMemory {
     metCount: number;
-    affinity: number;     // -5..+5; positive = warmth, negative = wary
+    affinity: number; // -5..+5; positive = warmth, negative = wary
     lastDepthMet: number; // most recent depth they were encountered at
-    flags: string[];      // free-form tags ("gave-token", "refused-pact", ...)
+    flags: string[]; // free-form tags ("gave-token", "refused-pact", ...)
 }
 
 export type NpcMemoryMap = Record<NpcId, NpcMemory>;
@@ -29,7 +36,9 @@ export function makeDefaultNpcMemoryMap(): NpcMemoryMap {
     return out;
 }
 
-export function sanitizeNpcMemoryMap(raw: Partial<Record<string, Partial<NpcMemory>>> | undefined): NpcMemoryMap {
+export function sanitizeNpcMemoryMap(
+    raw: Partial<Record<string, Partial<NpcMemory>>> | undefined
+): NpcMemoryMap {
     const out = makeDefaultNpcMemoryMap();
     if (!raw) return out;
     for (const id of ALL_NPC_IDS) {
@@ -47,7 +56,7 @@ export function sanitizeNpcMemoryMap(raw: Partial<Record<string, Partial<NpcMemo
 
 export interface NpcEvalContext {
     depth: number;
-    hpFrac: number;          // 0..1
+    hpFrac: number; // 0..1
     bleedDamageDealt: number;
     relicsFound: number;
     bossesKilledEver: number;
@@ -150,7 +159,8 @@ export class NpcManager {
         const farewell = npc.beats.find((b) => b.stage === 'farewell') ?? null;
         const visibleOffers = npc.offers.filter((o) => {
             if (o.onlyAfterMet !== undefined && memory.metCount < o.onlyAfterMet) return false;
-            if (o.requiresAffinity !== undefined && memory.affinity < o.requiresAffinity) return false;
+            if (o.requiresAffinity !== undefined && memory.affinity < o.requiresAffinity)
+                return false;
             return true;
         });
 
@@ -195,13 +205,11 @@ export class NpcManager {
     // Pick a boss-intro line from the most-known NPC (highest met OR affinity).
     // Returns null if the player has met no one yet.
     pickBossIntro(language: 'ru' | 'en' = 'en'): { npc: NpcProfile; line: string } | null {
-        const known = ALL_NPC_IDS
-            .filter((id) => this.memory[id].metCount > 0)
-            .sort((a, b) => {
-                const ma = this.memory[a];
-                const mb = this.memory[b];
-                return (mb.metCount + mb.affinity) - (ma.metCount + ma.affinity);
-            });
+        const known = ALL_NPC_IDS.filter((id) => this.memory[id].metCount > 0).sort((a, b) => {
+            const ma = this.memory[a];
+            const mb = this.memory[b];
+            return mb.metCount + mb.affinity - (ma.metCount + ma.affinity);
+        });
         if (known.length === 0) return null;
         const npc = NPCS[known[0]];
         const lines = npc.voice.bossIntro;

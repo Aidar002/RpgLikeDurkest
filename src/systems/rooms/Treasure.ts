@@ -9,7 +9,9 @@ export function handleTreasureRoom(scene: GameScene): void {
     let goldGained = 0;
     let potionGained = 0;
     if (goldUnlocked) {
-        goldGained = scene.player.gainGold(randomInt(defaultRng, ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax));
+        goldGained = scene.player.gainGold(
+            randomInt(defaultRng, ROOM_CONFIG.treasure.goldMin, ROOM_CONFIG.treasure.goldMax)
+        );
         if (goldGained > 0) scene.tracker.record('goldEarned', goldGained);
         if (chance(defaultRng, ROOM_CONFIG.treasure.potionChance)) {
             potionGained = scene.player.gainPotions(1);
@@ -33,7 +35,10 @@ export function handleTreasureRoom(scene: GameScene): void {
         scene.loc.t('roomTreasureHint'),
         'TREASURE'
     );
-    scene.log.addMessage(scene.loc.t('treasureSecured', { parts: rewardParts.join(', ') }), '#f7d46b');
+    scene.log.addMessage(
+        scene.loc.t('treasureSecured', { parts: rewardParts.join(', ') }),
+        '#f7d46b'
+    );
     scene.sfx.play('treasure');
     scene.maybeDropRelic('treasure');
     scene.showReturnButton();

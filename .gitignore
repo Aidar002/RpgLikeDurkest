@@ -22,3 +22,8 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local env files (project ships without a backend; keep them out of git just in case)
+.env
+.env.*
+!.env.example

@@ -44,17 +44,13 @@ const PANEL_SLICE = {
 export function drawTopFrame(
     scene: Phaser.Scene,
     width: number,
-    height: number,
+    height: number
 ): Phaser.GameObjects.GameObject {
     return withTexture(
         scene,
         'hud_top_bar',
-        () =>
-            scene.add
-                .image(0, 0, 'hud_top_bar')
-                .setOrigin(0, 0)
-                .setDisplaySize(width, height),
-        () => drawProceduralTopBar(scene, 0, 0, width, height),
+        () => scene.add.image(0, 0, 'hud_top_bar').setOrigin(0, 0).setDisplaySize(width, height),
+        () => drawProceduralTopBar(scene, 0, 0, width, height)
     );
 }
 
@@ -63,7 +59,7 @@ export function drawBottomFrame(
     scene: Phaser.Scene,
     y: number,
     width: number,
-    height: number,
+    height: number
 ): Phaser.GameObjects.GameObject {
     return withTexture(
         scene,
@@ -80,10 +76,10 @@ export function drawBottomFrame(
                     PANEL_SLICE.left,
                     PANEL_SLICE.right,
                     PANEL_SLICE.top,
-                    PANEL_SLICE.bottom,
+                    PANEL_SLICE.bottom
                 )
                 .setOrigin(0, 0),
-        () => drawFallbackPanel(scene, 0, y, width, height),
+        () => drawFallbackPanel(scene, 0, y, width, height)
     );
 }
 
@@ -105,7 +101,7 @@ export function drawCarvedPanel(
     x: number,
     y: number,
     width: number,
-    height: number,
+    height: number
 ): Phaser.GameObjects.NineSlice | Phaser.GameObjects.Container {
     return withTexture(
         scene,
@@ -122,10 +118,10 @@ export function drawCarvedPanel(
                     PANEL_SLICE.left,
                     PANEL_SLICE.right,
                     PANEL_SLICE.top,
-                    PANEL_SLICE.bottom,
+                    PANEL_SLICE.bottom
                 )
                 .setOrigin(0, 0),
-        () => drawFallbackPanel(scene, x, y, width, height),
+        () => drawFallbackPanel(scene, x, y, width, height)
     );
 }
 
@@ -141,7 +137,7 @@ export function drawTopBarPanel(
     x: number,
     y: number,
     width: number,
-    height: number,
+    height: number
 ): Phaser.GameObjects.NineSlice | Phaser.GameObjects.Container {
     return withTexture(
         scene,
@@ -158,10 +154,10 @@ export function drawTopBarPanel(
                     PANEL_SLICE.left,
                     PANEL_SLICE.right,
                     PANEL_SLICE.top,
-                    PANEL_SLICE.bottom,
+                    PANEL_SLICE.bottom
                 )
                 .setOrigin(0, 0),
-        () => drawFallbackPanel(scene, x, y, width, height),
+        () => drawFallbackPanel(scene, x, y, width, height)
     );
 }
 
@@ -177,7 +173,7 @@ export function drawStoneBackdrop(
     scene: Phaser.Scene,
     y: number,
     width: number,
-    height: number,
+    height: number
 ): Phaser.GameObjects.Image {
     if (hasTexture(scene, 'hud_stone_wall')) {
         return scene.add
@@ -202,7 +198,7 @@ function drawProceduralTopBar(
     x: number,
     y: number,
     w: number,
-    h: number,
+    h: number
 ): Phaser.GameObjects.Container {
     const g = scene.add.graphics();
     // Outer rim — same colour as the panel border tokens.
@@ -241,7 +237,7 @@ function drawFallbackPanel(
     x: number,
     y: number,
     w: number,
-    h: number,
+    h: number
 ): Phaser.GameObjects.Container {
     const g = scene.add.graphics();
     // Outer rim.

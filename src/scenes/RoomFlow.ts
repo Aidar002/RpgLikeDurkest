@@ -78,7 +78,9 @@ export class RoomFlowController {
                         : 'The entry is behind you. The Wish Artifact waits at the very bottom.',
                     0x555555,
                     '@',
-                    scene.loc.language === 'ru' ? 'Иди, когда выдохнешь.' : 'Continue when you are ready.'
+                    scene.loc.language === 'ru'
+                        ? 'Иди, когда выдохнешь.'
+                        : 'Continue when you are ready.'
                 );
                 scene.showReturnButton();
                 return;

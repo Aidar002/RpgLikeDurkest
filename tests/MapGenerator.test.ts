@@ -130,8 +130,16 @@ describe('MapGenerator', () => {
     });
 
     it('keeps the crossing-edge rate well under 5% across many seeds', () => {
-        interface Point { x: number; y: number }
-        interface Segment { src: string; tgt: string; a: Point; b: Point }
+        interface Point {
+            x: number;
+            y: number;
+        }
+        interface Segment {
+            src: string;
+            tgt: string;
+            a: Point;
+            b: Point;
+        }
 
         const ccw = (a: Point, b: Point, c: Point) =>
             (b.x - a.x) * (c.y - a.y) - (b.y - a.y) * (c.x - a.x);
@@ -211,7 +219,7 @@ describe('MapGenerator', () => {
         const pointSegmentDistanceSq = (
             p: { x: number; y: number },
             a: { x: number; y: number },
-            b: { x: number; y: number },
+            b: { x: number; y: number }
         ): number => {
             const dx = b.x - a.x;
             const dy = b.y - a.y;
@@ -262,11 +270,7 @@ describe('MapGenerator', () => {
             outer: for (const seg of segments) {
                 for (const n of nodes) {
                     if (n.id === seg.srcId || n.id === seg.tgtId) continue;
-                    const distSq = pointSegmentDistanceSq(
-                        { x: n.x, y: n.y },
-                        seg.a,
-                        seg.b,
-                    );
+                    const distSq = pointSegmentDistanceSq({ x: n.x, y: n.y }, seg.a, seg.b);
                     if (distSq < blockerRadSq) {
                         failingSeeds += 1;
                         break outer;
@@ -289,9 +293,7 @@ describe('MapGenerator', () => {
                 const targets = nodes.filter((n) => n.depth === d);
                 const sources = nodes.filter((n) => n.depth === d - 1);
                 for (const target of targets) {
-                    const hasParent = sources.some((s) =>
-                        s.edges.includes(target.id),
-                    );
+                    const hasParent = sources.some((s) => s.edges.includes(target.id));
                     expect(hasParent).toBe(true);
                 }
             }
@@ -334,9 +336,7 @@ describe('MapGenerator', () => {
             for (const node of nodes) {
                 if (node.depth === maxDepth) continue; // leaves
                 expect(node.edges.length).toBeGreaterThanOrEqual(1);
-                expect(node.edges.length).toBeLessThanOrEqual(
-                    MAP_CONFIG.maxEdgesPerNode,
-                );
+                expect(node.edges.length).toBeLessThanOrEqual(MAP_CONFIG.maxEdgesPerNode);
                 seenFanouts.add(node.edges.length);
             }
         }
@@ -430,11 +430,7 @@ describe('MapGenerator', () => {
 
         it('reports unfinished invariants as null when the final layer is not yet generated', () => {
             const runLength = 25;
-            const gen = new MapGenerator(
-                undefined,
-                new Mulberry32(1),
-                runLength,
-            );
+            const gen = new MapGenerator(undefined, new Mulberry32(1), runLength);
             const partial = gen.generateInitialMap(5);
             const report = validateMap(partial, runLength);
             expect(report.finalLayerGenerated).toBe(false);
@@ -458,8 +454,7 @@ describe('MapGenerator', () => {
                 for (let seed = 0; seed < 25; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
                     const midRunBosses = nodes.filter(
-                        (n) =>
-                            n.bossKind === 'major' || n.bossKind === 'mini',
+                        (n) => n.bossKind === 'major' || n.bossKind === 'mini'
                     );
                     if (midRunBosses.length >= 1) seedsWithMidRunBoss++;
                 }
@@ -475,14 +470,8 @@ describe('MapGenerator', () => {
                 // mini target is a soft pacing hint. Major budget
                 // remains a hard cap (the pass never promotes to
                 // major).
-                const targetMajor = Math.max(
-                    1,
-                    Math.min(4, Math.round(runLength / 18)),
-                );
-                const targetMini = Math.max(
-                    1,
-                    Math.min(6, Math.round(runLength / 12)),
-                );
+                const targetMajor = Math.max(1, Math.min(4, Math.round(runLength / 18)));
+                const targetMini = Math.max(1, Math.min(6, Math.round(runLength / 12)));
                 // Cap on extra minis the seal pass may add — at
                 // most one per `requiredSeals` "cut" through the
                 // map plus a slack. The slack scales with the
@@ -502,11 +491,9 @@ describe('MapGenerator', () => {
                 for (let seed = 0; seed < 20; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
                     const report = validateMap(nodes, runLength);
-                    expect(report.majorBossCount).toBeLessThanOrEqual(
-                        targetMajor,
-                    );
+                    expect(report.majorBossCount).toBeLessThanOrEqual(targetMajor);
                     expect(report.miniBossCount).toBeLessThanOrEqual(
-                        targetMini + sealCoverageSlack,
+                        targetMini + sealCoverageSlack
                     );
                 }
             });
@@ -545,10 +532,7 @@ describe('MapGenerator', () => {
             it(`places no mid-run boss before the pressure window opens for runLength=${runLength}`, () => {
                 // Pressure window opens at max(4, round(runLength * 0.10)).
                 // So no mid-run boss may sit at depth < windowStart.
-                const windowStart = Math.max(
-                    4,
-                    Math.round(runLength * 0.10),
-                );
+                const windowStart = Math.max(4, Math.round(runLength * 0.1));
                 for (let seed = 0; seed < 25; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
                     for (const node of nodes) {
@@ -591,10 +575,7 @@ describe('MapGenerator', () => {
             for (const rl of [20, 25, 35, 50, 75, 80]) {
                 const expected = Math.max(
                     cfg.requiredSealsMin,
-                    Math.min(
-                        cfg.requiredSealsMax,
-                        Math.round(rl / cfg.requiredSealsFactor),
-                    ),
+                    Math.min(cfg.requiredSealsMax, Math.round(rl / cfg.requiredSealsFactor))
                 );
                 expect(getRequiredSeals(rl)).toBe(expected);
             }

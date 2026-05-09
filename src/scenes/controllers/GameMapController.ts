@@ -1,12 +1,6 @@
 import type * as Phaser from 'phaser';
 
-import {
-    CENTER_X,
-    CENTER_Y,
-    Depths,
-    GAME_HEIGHT,
-    GAME_WIDTH,
-} from '../../ui/Layout';
+import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../../ui/Layout';
 import { MapView } from '../../ui/MapView';
 import { RoomType } from '../../systems/MapGenerator';
 import type { MapNode, RoomType as RoomTypeValue } from '../../systems/MapGenerator';
@@ -89,7 +83,12 @@ export class GameMapController {
     }
 
     public getUnlockedRoomTypes(unlocks: ContentUnlockState): RoomTypeValue[] {
-        const roomTypes: RoomTypeValue[] = [RoomType.ENEMY, RoomType.EMPTY, RoomType.REST, RoomType.TREASURE];
+        const roomTypes: RoomTypeValue[] = [
+            RoomType.ENEMY,
+            RoomType.EMPTY,
+            RoomType.REST,
+            RoomType.TREASURE,
+        ];
 
         if (unlocks.room_trap) {
             roomTypes.push(RoomType.TRAP);
@@ -140,11 +139,11 @@ export class GameMapController {
                     if (scene.hud.torchlight) {
                         scene.hud.torchlight.setPosition(
                             scene.hud.torchlightHomeX,
-                            scene.hud.torchlightHomeY,
+                            scene.hud.torchlightHomeY
                         );
                     }
                     this.fadeToRoom(node);
-                },
+                }
             );
         });
     }
@@ -237,7 +236,8 @@ export class GameMapController {
         const scene = this.scene;
         const tl = scene.hud.torchlight;
         if (!tl) return;
-        const delta = direction === 'forward' ? scene.hud.torchlightSweepPx : -scene.hud.torchlightSweepPx;
+        const delta =
+            direction === 'forward' ? scene.hud.torchlightSweepPx : -scene.hud.torchlightSweepPx;
         scene.tweens.killTweensOf(tl);
         scene.tweens.add({
             targets: tl,
@@ -257,16 +257,26 @@ export class GameMapController {
 
     private roomTintColor(type: RoomTypeValue): { color: number; alpha: number } {
         switch (type) {
-            case RoomType.ENEMY: return { color: 0x331111, alpha: 0.12 };
-            case RoomType.ELITE: return { color: 0x442211, alpha: 0.15 };
-            case RoomType.BOSS: return { color: 0x440000, alpha: 0.18 };
-            case RoomType.MINI_BOSS: return { color: 0x441111, alpha: 0.16 };
-            case RoomType.TREASURE: return { color: 0x332800, alpha: 0.10 };
-            case RoomType.TRAP: return { color: 0x220033, alpha: 0.14 };
-            case RoomType.REST: return { color: 0x003311, alpha: 0.10 };
-            case RoomType.SHRINE: return { color: 0x111133, alpha: 0.10 };
-            case RoomType.MERCHANT: return { color: 0x112233, alpha: 0.10 };
-            default: return { color: 0x111111, alpha: 0.06 };
+            case RoomType.ENEMY:
+                return { color: 0x331111, alpha: 0.12 };
+            case RoomType.ELITE:
+                return { color: 0x442211, alpha: 0.15 };
+            case RoomType.BOSS:
+                return { color: 0x440000, alpha: 0.18 };
+            case RoomType.MINI_BOSS:
+                return { color: 0x441111, alpha: 0.16 };
+            case RoomType.TREASURE:
+                return { color: 0x332800, alpha: 0.1 };
+            case RoomType.TRAP:
+                return { color: 0x220033, alpha: 0.14 };
+            case RoomType.REST:
+                return { color: 0x003311, alpha: 0.1 };
+            case RoomType.SHRINE:
+                return { color: 0x111133, alpha: 0.1 };
+            case RoomType.MERCHANT:
+                return { color: 0x112233, alpha: 0.1 };
+            default:
+                return { color: 0x111111, alpha: 0.06 };
         }
     }
 
@@ -345,4 +355,3 @@ export class GameMapController {
         scene.dungeon.moveTo(node.id);
     }
 }
-

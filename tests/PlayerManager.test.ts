@@ -57,9 +57,7 @@ describe('PlayerManager — damage and death', () => {
 
         player.takeDamage(5);
 
-        expect(player.stats.hp).toBe(
-            before - Math.max(COMBAT_CONFIG.minDamage, 5 - def),
-        );
+        expect(player.stats.hp).toBe(before - Math.max(COMBAT_CONFIG.minDamage, 5 - def));
     });
 
     it('emits hpChange with the new hp/max when damaged', () => {
@@ -106,9 +104,7 @@ describe('PlayerManager — damage and death', () => {
         // 5 raw - 3 block - def, with the minDamage clamp on the floor.
         player.takeDamage(5, 3);
 
-        expect(player.stats.hp).toBe(
-            before - Math.max(COMBAT_CONFIG.minDamage, 5 - 3 - def),
-        );
+        expect(player.stats.hp).toBe(before - Math.max(COMBAT_CONFIG.minDamage, 5 - 3 - def));
     });
 });
 
@@ -175,12 +171,8 @@ describe('PlayerManager — xp and level up', () => {
 
         expect(player.stats.level).toBe(2);
         expect(levelUps).toBe(1);
-        expect(player.stats.maxHp).toBe(
-            startingMaxHp + LEVEL_UP_CONFIG.hpGainPerLevel,
-        );
-        expect(player.stats.attack).toBe(
-            startingAttack + LEVEL_UP_CONFIG.attackGainPerLevel,
-        );
+        expect(player.stats.maxHp).toBe(startingMaxHp + LEVEL_UP_CONFIG.hpGainPerLevel);
+        expect(player.stats.attack).toBe(startingAttack + LEVEL_UP_CONFIG.attackGainPerLevel);
     });
 
     it('healOnLevelUp restores hp to max', () => {

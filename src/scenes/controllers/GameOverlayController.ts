@@ -1,8 +1,4 @@
-import {
-    showDeathScreen,
-    showVictoryScreen,
-    type EndScreenContext,
-} from '../../ui/EndScreens';
+import { showDeathScreen, showVictoryScreen, type EndScreenContext } from '../../ui/EndScreens';
 import type { GameScene } from '../GameScene';
 
 /**

@@ -62,11 +62,11 @@ export class Localization {
     }
 
     enemyName(name: string): string {
-        return this.language === 'ru' ? RU_ENEMY_TEXT[name]?.name ?? name : name;
+        return this.language === 'ru' ? (RU_ENEMY_TEXT[name]?.name ?? name) : name;
     }
 
     enemyDescription(name: string, fallback: string): string {
-        return this.language === 'ru' ? RU_ENEMY_TEXT[name]?.description ?? fallback : fallback;
+        return this.language === 'ru' ? (RU_ENEMY_TEXT[name]?.description ?? fallback) : fallback;
     }
 
     /** Toggle language, persist to `localStorage`, return the new value. */

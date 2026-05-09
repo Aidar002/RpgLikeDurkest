@@ -137,7 +137,7 @@ function simulateRun(seed: number, language: Language): SimResult {
         const dungeon = new DungeonManager(
             nodes,
             () => undefined,
-            () => undefined,
+            () => undefined
         );
 
         const loc = new Localization(language);
@@ -264,7 +264,7 @@ describe('Smoke run — headless walk through a deterministic seed', () => {
         // same enemies.
         expect(a.combatsStarted).toBe(b.combatsStarted);
         expect(a.combatEnds.map((c) => c.enemyCanonicalName)).toEqual(
-            b.combatEnds.map((c) => c.enemyCanonicalName),
+            b.combatEnds.map((c) => c.enemyCanonicalName)
         );
     });
 
@@ -314,7 +314,10 @@ interface FakeSceneRecord {
     relicDrops: number;
 }
 
-function makeFakeScene(language: Language, seed: number): {
+function makeFakeScene(
+    language: Language,
+    seed: number
+): {
     scene: GameScene;
     record: FakeSceneRecord;
 } {
@@ -339,7 +342,11 @@ function makeFakeScene(language: Language, seed: number): {
     const mapRng = new Mulberry32(seed);
     const gen = new MapGenerator(undefined, mapRng);
     const nodes = gen.generateInitialMap(8);
-    const dungeon = new DungeonManager(nodes, () => undefined, () => undefined);
+    const dungeon = new DungeonManager(
+        nodes,
+        () => undefined,
+        () => undefined
+    );
 
     const log: EventLog = {
         addMessage: (text: string, _color?: string) => {
@@ -377,7 +384,7 @@ function makeFakeScene(language: Language, seed: number): {
             _color: number,
             _icon: string,
             intel?: string,
-            _spriteKey?: string,
+            _spriteKey?: string
         ) => {
             record.rooms.push({
                 header,
@@ -421,7 +428,7 @@ function makeFakeScene(language: Language, seed: number): {
 function captureRoomHandlerOutput(
     runHandler: (scene: GameScene) => void,
     language: Language,
-    seed: number,
+    seed: number
 ): string[] {
     const captured: string[] = [];
 

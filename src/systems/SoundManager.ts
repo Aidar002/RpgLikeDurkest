@@ -93,7 +93,11 @@ export class SoundManager {
 
     setVolume(v: number) {
         this._volume = Math.max(0, Math.min(1, v));
-        try { localStorage.setItem(VOLUME_KEY, String(this._volume)); } catch { /* ignored */ }
+        try {
+            localStorage.setItem(VOLUME_KEY, String(this._volume));
+        } catch {
+            /* ignored */
+        }
         if (this.master && !this._muted) {
             this.master.gain.value = this._volume;
         }
@@ -121,7 +125,11 @@ export class SoundManager {
         return { osc: o, gain: g };
     }
 
-    private noise(duration: number, volume = 0.15, dest?: AudioNode): { src: AudioBufferSourceNode; gain: GainNode } {
+    private noise(
+        duration: number,
+        volume = 0.15,
+        dest?: AudioNode
+    ): { src: AudioBufferSourceNode; gain: GainNode } {
         const ctx = this.ensure();
         const len = Math.round(ctx.sampleRate * duration);
         const buf = ctx.createBuffer(1, len, ctx.sampleRate);
@@ -147,7 +155,13 @@ export class SoundManager {
         gain.gain.linearRampToValueAtTime(0, t + attack + decay + release);
     }
 
-    private sweep(from: number, to: number, duration: number, type: OscillatorType = 'sine', volume = 0.2) {
+    private sweep(
+        from: number,
+        to: number,
+        duration: number,
+        type: OscillatorType = 'sine',
+        volume = 0.2
+    ) {
         const ctx = this.ensure();
         const o = ctx.createOscillator();
         const g = ctx.createGain();
@@ -167,30 +181,54 @@ export class SoundManager {
     play(id: SoundId) {
         this.ensure();
         switch (id) {
-            case 'hit': return this.playHit();
-            case 'crit': return this.playCrit();
-            case 'defend': return this.playDefend();
-            case 'enemyHit': return this.playEnemyHit();
-            case 'evade': return this.playEvade();
-            case 'skillUse': return this.playSkillUse();
-            case 'potion': return this.playPotion();
-            case 'treasure': return this.playTreasure();
-            case 'trapTrigger': return this.playTrapTrigger();
-            case 'trapDisarm': return this.playTrapDisarm();
-            case 'rest': return this.playRest();
-            case 'shrine': return this.playShrine();
-            case 'merchant': return this.playMerchant();
-            case 'bossAppear': return this.playBossAppear();
-            case 'eliteAppear': return this.playEliteAppear();
-            case 'buttonClick': return this.playButtonClick();
-            case 'buttonHover': return this.playButtonHover();
-            case 'levelUp': return this.playLevelUp();
-            case 'death': return this.playDeath();
-            case 'victory': return this.playVictory();
-            case 'whisper': return this.playWhisper();
-            case 'nodeSelect': return this.playNodeSelect();
-            case 'relicDrop': return this.playRelicDrop();
-            case 'footstep': return this.playFootstep();
+            case 'hit':
+                return this.playHit();
+            case 'crit':
+                return this.playCrit();
+            case 'defend':
+                return this.playDefend();
+            case 'enemyHit':
+                return this.playEnemyHit();
+            case 'evade':
+                return this.playEvade();
+            case 'skillUse':
+                return this.playSkillUse();
+            case 'potion':
+                return this.playPotion();
+            case 'treasure':
+                return this.playTreasure();
+            case 'trapTrigger':
+                return this.playTrapTrigger();
+            case 'trapDisarm':
+                return this.playTrapDisarm();
+            case 'rest':
+                return this.playRest();
+            case 'shrine':
+                return this.playShrine();
+            case 'merchant':
+                return this.playMerchant();
+            case 'bossAppear':
+                return this.playBossAppear();
+            case 'eliteAppear':
+                return this.playEliteAppear();
+            case 'buttonClick':
+                return this.playButtonClick();
+            case 'buttonHover':
+                return this.playButtonHover();
+            case 'levelUp':
+                return this.playLevelUp();
+            case 'death':
+                return this.playDeath();
+            case 'victory':
+                return this.playVictory();
+            case 'whisper':
+                return this.playWhisper();
+            case 'nodeSelect':
+                return this.playNodeSelect();
+            case 'relicDrop':
+                return this.playRelicDrop();
+            case 'footstep':
+                return this.playFootstep();
         }
     }
 
@@ -557,8 +595,14 @@ export class SoundManager {
             this.footstepsFadeGain = gain;
         }
         const audio = this.footstepsAudio;
-        try { audio.currentTime = 0; } catch { /* file may not be ready yet */ }
-        void audio.play().catch(() => { /* autoplay race; safe to ignore */ });
+        try {
+            audio.currentTime = 0;
+        } catch {
+            /* file may not be ready yet */
+        }
+        void audio.play().catch(() => {
+            /* autoplay race; safe to ignore */
+        });
         this.fadeFootsteps(this.footstepsPeakGain, fadeInMs);
     }
 
@@ -567,7 +611,11 @@ export class SoundManager {
         if (!this.footstepsAudio) return;
         const audio = this.footstepsAudio;
         this.fadeFootsteps(0, fadeOutMs, () => {
-            try { audio.pause(); } catch { /* ignored */ }
+            try {
+                audio.pause();
+            } catch {
+                /* ignored */
+            }
         });
     }
 
@@ -575,7 +623,7 @@ export class SoundManager {
         if (!this.footstepsFadeGain) return;
         const gain = this.footstepsFadeGain;
         const startValue = gain.gain.value;
-        const startTime = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+        const startTime = typeof performance !== 'undefined' ? performance.now() : Date.now();
         if (this.footstepsFadeRaf != null && typeof cancelAnimationFrame !== 'undefined') {
             cancelAnimationFrame(this.footstepsFadeRaf);
         }
@@ -583,13 +631,14 @@ export class SoundManager {
         const safeDuration = Math.max(1, durationMs);
         const tick = () => {
             if (!this.footstepsFadeGain) return;
-            const now = (typeof performance !== 'undefined' ? performance.now() : Date.now());
+            const now = typeof performance !== 'undefined' ? performance.now() : Date.now();
             const t = Math.max(0, Math.min(1, (now - startTime) / safeDuration));
             this.footstepsFadeGain.gain.value = startValue + (target - startValue) * t;
             if (t < 1) {
-                this.footstepsFadeRaf = (typeof requestAnimationFrame !== 'undefined'
-                    ? requestAnimationFrame(tick)
-                    : (setTimeout(tick, 16) as unknown as number));
+                this.footstepsFadeRaf =
+                    typeof requestAnimationFrame !== 'undefined'
+                        ? requestAnimationFrame(tick)
+                        : (setTimeout(tick, 16) as unknown as number);
             } else {
                 this.footstepsFadeRaf = null;
                 onComplete?.();
@@ -658,7 +707,11 @@ export class SoundManager {
 
     stopAmbient() {
         for (const n of this.ambientNodes) {
-            try { n.osc.stop(); } catch { /* already stopped */ }
+            try {
+                n.osc.stop();
+            } catch {
+                /* already stopped */
+            }
         }
         this.ambientNodes = [];
         this.ambientRunning = false;

@@ -20,7 +20,10 @@ export function handleRestRoom(scene: GameScene): void {
                 const healed = scene.player.heal(ROOM_CONFIG.rest.recoverHeal);
                 if (healed > 0) scene.tracker.record('healingDone', healed);
                 const summary = [`${healed} ${scene.loc.t('hp')}`];
-                scene.log.addMessage(scene.loc.t('restRecover', { parts: summary.join(', ') }), '#79e28f');
+                scene.log.addMessage(
+                    scene.loc.t('restRecover', { parts: summary.join(', ') }),
+                    '#79e28f'
+                );
                 scene.enemyIntelText.setText(scene.loc.t('restAfterHint'));
                 scene.showReturnButton();
             },

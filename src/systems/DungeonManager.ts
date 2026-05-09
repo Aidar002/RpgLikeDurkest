@@ -21,7 +21,7 @@ export class DungeonManager {
         this.onMove = onMove;
         this.onNeedNodes = onNeedNodes;
 
-        const start = nodes.find(n => n.depth === 0)!;
+        const start = nodes.find((n) => n.depth === 0)!;
         this.currentNode = start;
         start.visited = true;
     }
@@ -37,12 +37,12 @@ export class DungeonManager {
     // nodes reachable from current position (forward only)
     getForwardNodes(): MapNode[] {
         return this.currentNode.edges
-            .map(id => this.nodes.find(n => n.id === id)!)
+            .map((id) => this.nodes.find((n) => n.id === id)!)
             .filter(Boolean);
     }
 
     getMaxDepth(): number {
-        return Math.max(...this.nodes.map(n => n.depth));
+        return Math.max(...this.nodes.map((n) => n.depth));
     }
 
     canMoveTo(nodeId: string): boolean {
@@ -51,14 +51,16 @@ export class DungeonManager {
 
     moveTo(nodeId: string) {
         if (!this.canMoveTo(nodeId)) return;
-        const target = this.nodes.find(n => n.id === nodeId);
+        const target = this.nodes.find((n) => n.id === nodeId);
         if (!target) return;
 
         const prev = this.currentNode;
         // Mark prev and everything before as cleared (no going back)
         this.nodes
-            .filter(n => n.depth <= prev.depth)
-            .forEach(n => { n.cleared = true; });
+            .filter((n) => n.depth <= prev.depth)
+            .forEach((n) => {
+                n.cleared = true;
+            });
 
         this.currentNode = target;
         this.currentNode.visited = true;

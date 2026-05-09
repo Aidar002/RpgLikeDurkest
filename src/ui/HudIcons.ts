@@ -90,7 +90,7 @@ export function createHudIcon(
     x: number,
     y: number,
     key: IconKey,
-    options: { pixelSize?: number; tint?: number; fontSize?: string } = {},
+    options: { pixelSize?: number; tint?: number; fontSize?: string } = {}
 ): Phaser.GameObjects.GameObject {
     const pixelSize = options.pixelSize ?? 18;
 

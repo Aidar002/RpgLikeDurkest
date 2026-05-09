@@ -118,7 +118,7 @@ describe('DungeonManager — construction', () => {
         const dungeon = new DungeonManager(
             nodes,
             () => {},
-            () => {},
+            () => {}
         );
 
         expect(dungeon.currentNode.id).toBe('n0');
@@ -134,7 +134,7 @@ describe('DungeonManager — construction', () => {
         const dungeon = new DungeonManager(
             nodes,
             () => {},
-            () => {},
+            () => {}
         );
 
         expect(dungeon.getAllNodes()).toHaveLength(4);
@@ -147,7 +147,7 @@ describe('DungeonManager — movement validation', () => {
         const dungeon = new DungeonManager(
             makeForkedGraph(),
             () => {},
-            () => {},
+            () => {}
         );
 
         expect(dungeon.canMoveTo('a')).toBe(true);
@@ -159,11 +159,7 @@ describe('DungeonManager — movement validation', () => {
 
     it('moveTo to a non-edge id is a no-op (current node unchanged)', () => {
         const onMove = vi.fn();
-        const dungeon = new DungeonManager(
-            makeLinearGraph(3),
-            onMove,
-            () => {},
-        );
+        const dungeon = new DungeonManager(makeLinearGraph(3), onMove, () => {});
 
         dungeon.moveTo('n2'); // not adjacent to n0 in a linear graph
 
@@ -192,7 +188,7 @@ describe('DungeonManager — movement validation', () => {
         const dungeon = new DungeonManager(
             nodes,
             () => {},
-            () => {},
+            () => {}
         );
 
         dungeon.moveTo('n1');
@@ -213,10 +209,13 @@ describe('DungeonManager — forward enumeration', () => {
         const dungeon = new DungeonManager(
             makeForkedGraph(),
             () => {},
-            () => {},
+            () => {}
         );
 
-        const ids = dungeon.getForwardNodes().map((n) => n.id).sort();
+        const ids = dungeon
+            .getForwardNodes()
+            .map((n) => n.id)
+            .sort();
         expect(ids).toEqual(['a', 'b', 'c']);
     });
 
@@ -224,7 +223,7 @@ describe('DungeonManager — forward enumeration', () => {
         const dungeon = new DungeonManager(
             makeForkedGraph(),
             () => {},
-            () => {},
+            () => {}
         );
 
         dungeon.moveTo('a');
@@ -237,11 +236,7 @@ describe('DungeonManager — lookahead callback', () => {
         const onNeed = vi.fn();
         // Linear graph just barely under the buffer: max depth 2,
         // moving to depth 1 means lookahead is 2-1=1 < buffer (3).
-        const dungeon = new DungeonManager(
-            makeLinearGraph(3),
-            () => {},
-            onNeed,
-        );
+        const dungeon = new DungeonManager(makeLinearGraph(3), () => {}, onNeed);
 
         dungeon.moveTo('n1');
 
@@ -268,7 +263,7 @@ describe('DungeonManager — lookahead callback', () => {
         const dungeon = new DungeonManager(
             nodes,
             () => {},
-            () => {},
+            () => {}
         );
 
         dungeon.addNodes([
@@ -282,8 +277,8 @@ describe('DungeonManager — lookahead callback', () => {
                 y: 0,
                 type: RoomType.ENEMY,
                 bossKind: null,
-            grantsSeal: false,
-            sealType: null,
+                grantsSeal: false,
+                sealType: null,
                 visited: false,
                 cleared: false,
                 edges: [],

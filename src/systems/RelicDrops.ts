@@ -22,13 +22,7 @@ import type { EventLog } from '../ui/EventLog';
 import type { Localization } from './Localization';
 import type { MetaProgressionManager } from './MetaProgressionManager';
 import type { PlayerManager } from './PlayerManager';
-import {
-    RELICS,
-    rollRelicFor,
-    rollRelicForEnemy,
-    type RelicId,
-    type RelicRarity,
-} from './Relics';
+import { RELICS, rollRelicFor, rollRelicForEnemy, type RelicId, type RelicRarity } from './Relics';
 import { defaultRng, type Rng } from './Rng';
 import type { RunTracker } from './RunTracker';
 import type { SoundManager } from './SoundManager';
@@ -134,8 +128,5 @@ export function maybeDropRelic(
  */
 export function relicSummary(player: PlayerManager, loc: Localization): string {
     if (player.relics.length === 0) return '';
-    return (
-        loc.t('relicsLabel') +
-        player.relics.map((id) => loc.pick(RELICS[id].short)).join(', ')
-    );
+    return loc.t('relicsLabel') + player.relics.map((id) => loc.pick(RELICS[id].short)).join(', ');
 }
