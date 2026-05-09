@@ -8,7 +8,7 @@ import { describe, expect, it, vi } from 'vitest';
 
 import { MAP_CONFIG } from '../src/data/GameConfig';
 import { DungeonManager } from '../src/systems/DungeonManager';
-import { RoomType, type MapNode } from '../src/systems/MapGenerator';
+import { RoomType, type MapNode } from '../src/data/MapTypes';
 
 /**
  * Build a small linear graph: 0 → 1 → 2 → ... → (depth-1). Each

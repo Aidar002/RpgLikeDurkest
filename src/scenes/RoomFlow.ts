@@ -1,6 +1,5 @@
 import { MAP_CONFIG } from '../data/GameConfig';
-import { RoomType } from '../systems/MapGenerator';
-import type { MapNode } from '../systems/MapGenerator';
+import { RoomType, type MapNode } from '../data/MapTypes';
 import { handleTreasureRoom } from '../systems/rooms/Treasure';
 import { handleTrapRoom } from '../systems/rooms/Trap';
 import { handleRestRoom } from '../systems/rooms/Rest';

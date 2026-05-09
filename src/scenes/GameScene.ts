@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { DungeonManager } from '../systems/DungeonManager';
 import { MapGenerator } from '../systems/MapGenerator';
-import type { MapNode, RoomType as RoomTypeValue } from '../systems/MapGenerator';
+import type { MapNode, RoomType as RoomTypeValue } from '../data/MapTypes';
 import { CombatManager } from '../systems/CombatManager';
 import {
     MetaProgressionManager,

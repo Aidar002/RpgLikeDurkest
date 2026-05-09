@@ -24,7 +24,7 @@ import * as Phaser from 'phaser';
 
 import type { DungeonManager } from '../systems/DungeonManager';
 import type { Localization } from '../systems/Localization';
-import type { MapNode } from '../systems/MapGenerator';
+import type { MapNode } from '../data/MapTypes';
 import type { MetaProgressionManager, UiUnlockState } from '../systems/MetaProgressionManager';
 import { hasTexture } from './AssetGuard';
 import { PixelSprite } from './PixelSprite';
