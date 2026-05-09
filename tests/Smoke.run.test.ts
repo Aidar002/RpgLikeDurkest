@@ -28,10 +28,18 @@ import { DungeonManager } from '../src/systems/DungeonManager';
 import { Localization, type Language } from '../src/systems/Localization';
 import { MapGenerator, RoomType, type MapNode } from '../src/systems/MapGenerator';
 import { PlayerManager } from '../src/systems/PlayerManager';
+import { RunTracker } from '../src/systems/RunTracker';
 import { Mulberry32 } from '../src/systems/Rng';
+import { handleEmptyRoom } from '../src/systems/rooms/Empty';
+import { handleMerchantRoom } from '../src/systems/rooms/Merchant';
+import { handleRestRoom } from '../src/systems/rooms/Rest';
+import { handleShrineRoom } from '../src/systems/rooms/Shrine';
+import { handleTrapRoom } from '../src/systems/rooms/Trap';
+import { handleTreasureRoom } from '../src/systems/rooms/Treasure';
 import { roomTypeName } from '../src/ui/RoomVisuals';
 import type { EventLog } from '../src/ui/EventLog';
 import type { CombatEndPayload } from '../src/systems/CombatManager';
+import type { GameScene, RoomButtonAction } from '../src/scenes/GameScene';
 
 // `Localization.getSavedLanguage()` reads `window.localStorage`.
 // The vitest default environment is jsdom, but other tests that
@@ -278,5 +286,242 @@ describe('Smoke run — headless walk through a deterministic seed', () => {
         // it.
         const cyrillic = /[\u0400-\u04FF]/;
         expect(ru.logs.some((line) => cyrillic.test(line))).toBe(true);
+    });
+});
+
+// ---------------------------------------------------------------------------
+// Room-handler smoke coverage.
+//
+// The walk above visits non-combat rooms but does NOT execute the room
+// handlers (Treasure / Trap / Rest / Shrine / Merchant / Empty) because
+// those handlers were originally GameScene methods and required Phaser.
+// After Task C extracted them into pure functions in `src/systems/rooms/*`,
+// they only depend on a small surface of the scene (player, log, loc,
+// dungeon, meta, tracker, npcs, sfx, plus a handful of UI shims).
+//
+// These tests fake that surface, run each handler with a fully-stocked
+// player, and click every enabled button — then assert on the same
+// log-shape contract as the rest of this file (no `undefined`, no
+// `[missing:`, no unsubstituted `{token}`, every label non-empty).
+// ---------------------------------------------------------------------------
+
+interface FakeSceneRecord {
+    logs: string[];
+    intel: string[];
+    rooms: Array<{ header: string; title: string; description: string; intel: string }>;
+    buttonLabels: string[];
+    returnButtonShown: number;
+    relicDrops: number;
+}
+
+function makeFakeScene(language: Language, seed: number): {
+    scene: GameScene;
+    record: FakeSceneRecord;
+} {
+    const record: FakeSceneRecord = {
+        logs: [],
+        intel: [],
+        rooms: [],
+        buttonLabels: [],
+        returnButtonShown: 0,
+        relicDrops: 0,
+    };
+
+    const loc = new Localization(language);
+    const player = new PlayerManager();
+    // Stock the player so every "buy" / "spend" path is reachable.
+    player.gainGold(500);
+    player.gainPotions(3);
+
+    const tracker = new RunTracker();
+
+    // Minimal DungeonManager — `currentDepth` is what the handlers read.
+    const mapRng = new Mulberry32(seed);
+    const gen = new MapGenerator(undefined, mapRng);
+    const nodes = gen.generateInitialMap(8);
+    const dungeon = new DungeonManager(nodes, () => undefined, () => undefined);
+
+    const log: EventLog = {
+        addMessage: (text: string, _color?: string) => {
+            record.logs.push(text);
+        },
+    } as unknown as EventLog;
+
+    // The handlers also reach into `scene.npcs`, `scene.meta`, `scene.sfx`
+    // and a couple of text widgets. We stub each as just enough to keep
+    // the call sites happy. NPC paths are intentionally suppressed
+    // (`pickForRole` returns null) so we exercise the generic empty /
+    // generic merchant branches; the NPC presentation path needs the
+    // full `npcs.pickDialog` graph and is covered by NpcRegistry tests.
+    const fakeScene = {
+        loc,
+        player,
+        dungeon,
+        tracker,
+        meta: {
+            isUnlocked: (_id: string) => true,
+            bossesKilledEver: 0,
+        },
+        npcs: {
+            pickForRole: () => null,
+        },
+        sfx: {
+            play: () => undefined,
+            updateAmbientDepth: () => undefined,
+        },
+        log,
+        showRoomCard: (
+            header: string,
+            title: string,
+            description: string,
+            _color: number,
+            _icon: string,
+            intel?: string,
+            _spriteKey?: string,
+        ) => {
+            record.rooms.push({
+                header,
+                title,
+                description,
+                intel: intel ?? '',
+            });
+        },
+        setRoomButtons: (actions: RoomButtonAction[], _useWideOnly?: boolean) => {
+            for (const a of actions) record.buttonLabels.push(a.label);
+        },
+        showReturnButton: () => {
+            record.returnButtonShown += 1;
+        },
+        applyTrapDamage: (rawDamage: number) => {
+            // Mirror GameRoomController.applyTrapDamage: take the damage
+            // through the player so HP / death narration paths run.
+            return player.takeDamage(rawDamage, 0, 'trap');
+        },
+        maybeDropRelic: (_kind: string) => {
+            record.relicDrops += 1;
+            return false;
+        },
+        enemyIntelText: {
+            setText: (text: string) => {
+                record.intel.push(text);
+            },
+        },
+    };
+
+    const scene = fakeScene as unknown as GameScene;
+    return { scene, record };
+}
+
+/**
+ * Execute a room handler against a fake scene, then click every
+ * enabled button (each on a fresh fake) so the callback path is
+ * exercised too. Returns the union of all logs, intel lines, room
+ * card text, and button labels seen during the runs.
+ */
+function captureRoomHandlerOutput(
+    runHandler: (scene: GameScene) => void,
+    language: Language,
+    seed: number,
+): string[] {
+    const captured: string[] = [];
+
+    const collect = (rec: FakeSceneRecord) => {
+        captured.push(...rec.logs);
+        captured.push(...rec.intel);
+        for (const r of rec.rooms) {
+            captured.push(r.header, r.title, r.description, r.intel);
+        }
+        captured.push(...rec.buttonLabels);
+    };
+
+    // First pass: run the handler, capture initial output, remember
+    // buttons.
+    const first = makeFakeScene(language, seed);
+    runHandler(first.scene);
+    collect(first.record);
+
+    // Second-Nth pass: re-run from a fresh fake and click each
+    // enabled button, capturing whatever it logs.
+    // We snapshot button labels from the first run; on each replay we
+    // pick the matching action by index from a fresh setRoomButtons
+    // call.
+    const seenLabels = [...first.record.buttonLabels];
+    for (let i = 0; i < seenLabels.length; i += 1) {
+        // Re-run handler so buttons are constructed fresh.
+        let captured2: RoomButtonAction[] = [];
+        const second = makeFakeScene(language, seed);
+        // Patch setRoomButtons to grab the action list.
+        const sceneAny = second.scene as unknown as {
+            setRoomButtons: (actions: RoomButtonAction[]) => void;
+        };
+        const originalSet = sceneAny.setRoomButtons;
+        sceneAny.setRoomButtons = (actions: RoomButtonAction[]) => {
+            captured2 = actions;
+            originalSet(actions);
+        };
+        runHandler(second.scene);
+        // Reset records that were filled by the initial run; we only
+        // want output produced by the button callback.
+        second.record.logs = [];
+        second.record.intel = [];
+        second.record.rooms = [];
+        second.record.buttonLabels = [];
+        const action = captured2[i];
+        if (!action) continue;
+        if (action.enabled === false) continue;
+        action.callback();
+        collect(second.record);
+    }
+
+    return captured;
+}
+
+const ROOM_SMOKE_HANDLERS: Array<{
+    name: string;
+    run: (scene: GameScene) => void;
+}> = [
+    { name: 'treasure', run: handleTreasureRoom },
+    { name: 'trap', run: handleTrapRoom },
+    { name: 'rest', run: handleRestRoom },
+    { name: 'shrine', run: handleShrineRoom },
+    { name: 'merchant', run: handleMerchantRoom },
+    { name: 'empty', run: handleEmptyRoom },
+];
+
+describe('Smoke — room-handler outputs', () => {
+    for (const handler of ROOM_SMOKE_HANDLERS) {
+        for (const lang of ['en', 'ru'] as const) {
+            it(`${handler.name} (${lang}): clean output across handler + every enabled button`, () => {
+                const lines = captureRoomHandlerOutput(handler.run, lang, 1);
+
+                // The handler always renders a room card and at least
+                // one action button. If a handler ever short-circuits
+                // out without surfacing anything, that's itself a bug
+                // worth catching.
+                expect(lines.length).toBeGreaterThan(0);
+
+                for (const line of lines) {
+                    expect(typeof line).toBe('string');
+                    expect(line.length).toBeGreaterThan(0);
+                    expect(line.includes('undefined')).toBe(false);
+                    expect(line.includes('[missing:')).toBe(false);
+                    const unsubstituted = line.match(/\{[a-zA-Z][a-zA-Z0-9_]*\}/);
+                    expect(unsubstituted, `unsubstituted placeholder in: ${line}`).toBeNull();
+                }
+            });
+        }
+    }
+
+    it('shrine produces 5 buttons (4 altar effects + leave)', () => {
+        const first = makeFakeScene('en', 1);
+        handleShrineRoom(first.scene);
+        // Altars: blessing, prayer, speech, counsel + Leave.
+        expect(first.record.buttonLabels.length).toBe(5);
+    });
+
+    it('rest produces 2 buttons (recover + focus)', () => {
+        const first = makeFakeScene('en', 1);
+        handleRestRoom(first.scene);
+        expect(first.record.buttonLabels.length).toBe(2);
     });
 });
