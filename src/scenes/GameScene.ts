@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { DungeonManager } from '../systems/DungeonManager';
 import { MapGenerator } from '../systems/MapGenerator';
-import type { MapNode, RoomType as RoomTypeValue } from '../data/MapTypes';
+import type { RoomType as RoomTypeValue } from '../data/MapTypes';
 import { CombatManager } from '../systems/CombatManager';
 import {
     MetaProgressionManager,
@@ -272,8 +272,8 @@ export class GameScene extends Phaser.Scene {
         this.combat.enemyUpdate.on(({ hp, maxHp, color, name, icon }) =>
             this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon)
         );
-        this.combat.playerStatusChange.on(() => this.updatePlayerStatusUI());
-        this.combat.enemyStatusChange.on(() => this.updateEnemyStatusUI());
+        this.combat.playerStatusChange.on(() => this.hud.updatePlayerStatus());
+        this.combat.enemyStatusChange.on(() => this.hud.updateEnemyStatus());
 
         this.hud.wire();
 
@@ -328,21 +328,6 @@ export class GameScene extends Phaser.Scene {
         this.hud.refresh();
     }
 
-    /** Forward to {@link GameHudController.updatePlayerStatus}. */
-    public updatePlayerStatusUI() {
-        this.hud.updatePlayerStatus();
-    }
-
-    /** Forward to {@link GameHudController.updateEnemyStatus}. */
-    public updateEnemyStatusUI() {
-        this.hud.updateEnemyStatus();
-    }
-
-    /** Forward to {@link GameHudController.relicSummary}. */
-    public relicSummary(): string {
-        return this.hud.relicSummary();
-    }
-
     /**
      * Roll-and-grant a relic for a reward `kind`. Thin wrapper around
      * {@link maybeDropRelicImpl} (in `../systems/RelicDrops`) — exists
@@ -377,11 +362,6 @@ export class GameScene extends Phaser.Scene {
     /** Forward to {@link GameMapController.applyRoomTint}. */
     public applyRoomTint(type: RoomTypeValue) {
         this.map.applyRoomTint(type);
-    }
-
-    /** Forward to {@link GameMapController.clearRoomTint}. */
-    public clearRoomTint() {
-        this.map.clearRoomTint();
     }
 
     /** Forward to {@link GameMapController.handleMilestoneUnlocks}. */
@@ -419,15 +399,6 @@ export class GameScene extends Phaser.Scene {
     /** Forward to {@link GameMapController.returnToMap}. */
     public returnToMap() {
         this.map.returnToMap();
-    }
-
-    /** Forward to {@link GameMapController.advanceToNode}. */
-    public advanceToNode(node: MapNode) {
-        this.map.advanceToNode(node);
-    }
-
-    public updateEnemyUI(hp: number, maxHp: number, color: number, name: string, icon: string) {
-        this.combatHud.updateEnemyUI(hp, maxHp, color, name, icon);
     }
 
     /** Forward to {@link GameOverlayController.showVictoryScreen}. */

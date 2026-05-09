@@ -43,10 +43,12 @@ import type { GameScene } from '../GameScene';
  *
  * The controller holds every HUD widget reference and owns the
  * subscriptions to `PlayerManager` events (hp/stats/resources/level/death).
- * `GameScene` keeps a thin shim API (`refreshUI`, `relicSummary`,
- * `updatePlayerStatusUI`, `updateEnemyStatusUI`) that forwards into the
- * controller so existing call sites in `RoomFlow` / `CombatHud` keep
- * compiling unchanged.
+ * `GameScene` keeps a thin shim API (`refreshUI`) that forwards into
+ * the controller so existing call sites in `RoomFlow` / `CombatHud`
+ * keep compiling unchanged. The HUD controller's own methods
+ * (`updatePlayerStatus`, `updateEnemyStatus`, `relicSummary`, …) are
+ * called directly from the scene (e.g. from emitter listeners on
+ * `CombatManager.playerStatusChange` / `enemyStatusChange`).
  */
 export class GameHudController {
     private readonly scene: GameScene;
