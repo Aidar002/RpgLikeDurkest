@@ -27,6 +27,7 @@ import {
     GAME_HEIGHT,
     GAME_WIDTH,
     HUD_BOTTOM_OFFSET,
+    RoomLayout,
     TOP_BAR_H,
 } from '../ui/Layout';
 import { setupSceneChrome } from '../ui/SceneChrome';
@@ -256,9 +257,9 @@ export class GameScene extends Phaser.Scene {
 
         this.log = new EventLog(
             this,
-            18,
+            RoomLayout.logX,
             TOP_BAR_H + 12,
-            530,
+            RoomLayout.logWidth,
             GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12
         );
         this.roomContainer.add(this.log.view);
