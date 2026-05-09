@@ -17,10 +17,9 @@ import type { GameScene } from '../GameScene';
  * the appendLayer / refreshAvailableRoomPool helpers driven by
  * {@link DungeonManager} callbacks.
  *
- * `GameScene` keeps thin shim methods (`applyRoomTint`, `clearRoomTint`,
- * `returnToMap`, `advanceToNode`, `handleMilestoneUnlocks`) that forward
- * here so existing call sites in `RoomFlow` / `CombatHud` keep compiling
- * unchanged.
+ * `GameScene` keeps thin shim methods (`applyRoomTint`, `returnToMap`,
+ * `handleMilestoneUnlocks`) that forward here so existing call sites
+ * in `RoomFlow` / `CombatHud` keep compiling unchanged.
  */
 export class GameMapController {
     private readonly scene: GameScene;
