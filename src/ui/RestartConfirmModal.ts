@@ -22,10 +22,7 @@ import type { Localization } from '../systems/Localization';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 import { drawUiButton } from './UiButton';
 
-type Widget =
-    | Phaser.GameObjects.Rectangle
-    | Phaser.GameObjects.Text
-    | Phaser.GameObjects.NineSlice;
+type Widget = Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.NineSlice;
 
 interface RestartConfirmModalOptions {
     /** Localisation runtime; used to translate the four user-facing

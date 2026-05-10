@@ -133,14 +133,10 @@ function drawTiledNineSlice(
 
     // Flat fill behind the rim picks up any sub-pixel gap at the seams
     // so the canvas colour never bleeds through.
-    const fill = scene.add
-        .rectangle(0, 0, width, height, PANEL_CENTER_FILL, 1)
-        .setOrigin(0, 0);
+    const fill = scene.add.rectangle(0, 0, width, height, PANEL_CENTER_FILL, 1).setOrigin(0, 0);
 
     // Four corners — exact rim pieces, never scaled.
-    const cornerTL = scene.add
-        .image(0, 0, key, `${SLICE_FRAME_PREFIX}corner_tl`)
-        .setOrigin(0, 0);
+    const cornerTL = scene.add.image(0, 0, key, `${SLICE_FRAME_PREFIX}corner_tl`).setOrigin(0, 0);
     const cornerTR = scene.add
         .image(width - right, 0, key, `${SLICE_FRAME_PREFIX}corner_tr`)
         .setOrigin(0, 0);

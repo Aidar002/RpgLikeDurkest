@@ -123,20 +123,12 @@ export class RelicSwapModal {
             this.cards.push(this.createCard(x, CARD_ROW_Y, role));
         }
 
-        const skipUi = drawUiButton(
-            scene,
-            CENTER_X,
-            CENTER_Y + PANEL_H / 2 - 40,
-            200,
-            38,
-            '',
-            {
-                variant: 'dark',
-                fontSize: '14px',
-                color: HudHex.textPrimary,
-                depth: Depths.ConfirmContent,
-            }
-        );
+        const skipUi = drawUiButton(scene, CENTER_X, CENTER_Y + PANEL_H / 2 - 40, 200, 38, '', {
+            variant: 'dark',
+            fontSize: '14px',
+            color: HudHex.textPrimary,
+            depth: Depths.ConfirmContent,
+        });
         this.skipBg = skipUi.background;
         this.skipLabel = skipUi.label;
         this.skipLabel.setDepth(Depths.ConfirmForeground);
