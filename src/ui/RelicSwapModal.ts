@@ -23,6 +23,7 @@ import type { PlayerManager } from '../systems/PlayerManager';
 import { RELICS, type RelicId, type RelicRarity } from '../systems/Relics';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
+import { drawUiButton, type ButtonBackground } from './UiButton';
 
 const PANEL_W = 720;
 const PANEL_H = 360;
@@ -53,7 +54,11 @@ interface RelicSwapModalOptions {
     onSkip: (candidateId: RelicId) => void;
 }
 
-type Widget = Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.Container;
+type Widget =
+    | Phaser.GameObjects.Rectangle
+    | Phaser.GameObjects.Text
+    | Phaser.GameObjects.Container
+    | Phaser.GameObjects.NineSlice;
 
 export class RelicSwapModal {
     private readonly scene: Phaser.Scene;
@@ -62,7 +67,7 @@ export class RelicSwapModal {
     private readonly title: Phaser.GameObjects.Text;
     private readonly body: Phaser.GameObjects.Text;
     private readonly cards: CardHandle[];
-    private readonly skipBg: Phaser.GameObjects.Rectangle;
+    private readonly skipBg: ButtonBackground;
     private readonly skipLabel: Phaser.GameObjects.Text;
     private candidate: RelicId | null = null;
 
@@ -118,21 +123,15 @@ export class RelicSwapModal {
             this.cards.push(this.createCard(x, CARD_ROW_Y, role));
         }
 
-        this.skipBg = scene.add
-            .rectangle(CENTER_X, CENTER_Y + PANEL_H / 2 - 40, 200, 38, 0x252025)
-            .setDepth(Depths.ConfirmContent)
-            .setStrokeStyle(1, 0x8a8a8a)
-            .setInteractive({ useHandCursor: true });
-        this.skipLabel = scene.add
-            .text(CENTER_X, CENTER_Y + PANEL_H / 2 - 40, '', {
-                fontFamily: HUD_FONT,
-                fontSize: '14px',
-                color: HudHex.textPrimary,
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmForeground);
-        this.skipBg.on('pointerover', () => this.skipBg.setStrokeStyle(2, 0xffffff));
-        this.skipBg.on('pointerout', () => this.skipBg.setStrokeStyle(1, 0x8a8a8a));
+        const skipUi = drawUiButton(scene, CENTER_X, CENTER_Y + PANEL_H / 2 - 40, 200, 38, '', {
+            variant: 'dark',
+            fontSize: '14px',
+            color: HudHex.textPrimary,
+            depth: Depths.ConfirmContent,
+        });
+        this.skipBg = skipUi.background;
+        this.skipLabel = skipUi.label;
+        this.skipLabel.setDepth(Depths.ConfirmForeground);
         this.skipBg.on('pointerdown', () => this.handleSkip());
 
         this.widgets = [

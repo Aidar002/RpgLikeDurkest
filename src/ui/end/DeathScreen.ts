@@ -20,6 +20,7 @@ import type { UpgradeId } from '../../systems/MetaProgressionManager';
 import { drawCarvedPanel, drawTopBarPanel } from '../HudFrame';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
+import { drawUiButton } from '../UiButton';
 import { bankSkillPointsOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
@@ -345,40 +346,41 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     // ── Action buttons (side-by-side at panel bottom) ───────
     const buttonsY = panelBottom - 40;
-    const restartButton = scene.add
-        .rectangle(CENTER_X + 130, buttonsY, 240, 42, 0x1f3a25)
-        .setDepth(Depths.EndScreenContent);
-    restartButton.setStrokeStyle(1, 0x6acb7f);
-    restartButton.setInteractive({ useHandCursor: true });
-    const restartText = scene.add
-        .text(CENTER_X + 130, buttonsY, loc.t('shopBeginRun'), {
-            fontFamily: 'Courier New',
+    const restartUi = drawUiButton(
+        scene,
+        CENTER_X + 130,
+        buttonsY,
+        240,
+        42,
+        loc.t('shopBeginRun'),
+        {
+            variant: 'positive',
             fontSize: '17px',
             color: '#f0f0f0',
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.EndScreenForeground);
+            depth: Depths.EndScreenContent,
+        }
+    );
+    const restartButton = restartUi.background;
+    const restartText = restartUi.label;
 
-    const resetButton = scene.add
-        .rectangle(CENTER_X - 130, buttonsY, 240, 36, 0x3a1818)
-        .setDepth(Depths.EndScreenContent);
-    resetButton.setStrokeStyle(1, 0xa35a5a);
-    resetButton.setInteractive({ useHandCursor: true });
-    const resetText = scene.add
-        .text(CENTER_X - 130, buttonsY, loc.t('shopResetSouls'), {
-            fontFamily: 'Courier New',
+    const resetUi = drawUiButton(
+        scene,
+        CENTER_X - 130,
+        buttonsY,
+        240,
+        36,
+        loc.t('shopResetSouls'),
+        {
+            variant: 'danger',
             fontSize: '14px',
             color: '#ffd0d0',
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.EndScreenForeground);
+            depth: Depths.EndScreenContent,
+        }
+    );
+    const resetButton = resetUi.background;
+    const resetText = resetUi.label;
 
-    restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xa8e0b8));
-    restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x6acb7f));
     restartButton.on('pointerdown', () => ctx.safeRestart());
-
-    resetButton.on('pointerover', () => resetButton.setStrokeStyle(2, 0xffd7d7));
-    resetButton.on('pointerout', () => resetButton.setStrokeStyle(1, 0xa35a5a));
 
     const refreshShop = () => {
         if (!escaped) {
@@ -445,32 +447,40 @@ export function showDeathScreen(ctx: EndScreenContext) {
         })
         .setOrigin(0.5)
         .setDepth(Depths.ConfirmContent);
-    const confirmResetButton = scene.add
-        .rectangle(CENTER_X - 90, CENTER_Y + 66, 170, 38, 0x5a1d1d)
-        .setDepth(Depths.ConfirmContent);
-    confirmResetButton.setStrokeStyle(1, 0xc57d7d);
-    confirmResetButton.setInteractive({ useHandCursor: true });
-    const confirmResetText = scene.add
-        .text(CENTER_X - 90, CENTER_Y + 66, loc.t('shopResetConfirm'), {
-            fontFamily: 'Courier New',
+    const confirmResetUi = drawUiButton(
+        scene,
+        CENTER_X - 90,
+        CENTER_Y + 66,
+        170,
+        38,
+        loc.t('shopResetConfirm'),
+        {
+            variant: 'danger',
             fontSize: '14px',
             color: '#ffe8e8',
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.ConfirmForeground);
-    const cancelResetButton = scene.add
-        .rectangle(CENTER_X + 90, CENTER_Y + 66, 170, 38, 0x252525)
-        .setDepth(Depths.ConfirmContent);
-    cancelResetButton.setStrokeStyle(1, 0x8a8a8a);
-    cancelResetButton.setInteractive({ useHandCursor: true });
-    const cancelResetText = scene.add
-        .text(CENTER_X + 90, CENTER_Y + 66, loc.t('shopResetCancel'), {
-            fontFamily: 'Courier New',
+            depth: Depths.ConfirmContent,
+        }
+    );
+    const confirmResetButton = confirmResetUi.background;
+    const confirmResetText = confirmResetUi.label;
+    confirmResetText.setDepth(Depths.ConfirmForeground);
+    const cancelResetUi = drawUiButton(
+        scene,
+        CENTER_X + 90,
+        CENTER_Y + 66,
+        170,
+        38,
+        loc.t('shopResetCancel'),
+        {
+            variant: 'dark',
             fontSize: '14px',
             color: '#f0f0f0',
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.ConfirmForeground);
+            depth: Depths.ConfirmContent,
+        }
+    );
+    const cancelResetButton = cancelResetUi.background;
+    const cancelResetText = cancelResetUi.label;
+    cancelResetText.setDepth(Depths.ConfirmForeground);
 
     const confirmWidgets = [
         confirmOverlay,
