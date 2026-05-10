@@ -208,8 +208,17 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenForeground)
         .setVisible(escaped);
 
+    // ── Upgrade card grid (2 rows × 2 cols, 4 cards) ───────
+    const cardsStartY = bannerY + 64;
+    const CARD_W = 380;
+    const CARD_H = 70;
+    const CARD_GAP_Y = 12;
+    const cardsBottomY = cardsStartY + (CARD_H + CARD_GAP_Y) + CARD_H / 2;
+
+    // The next-discovery hint sits below the upgrade grid so it
+    // stays clear of the card backgrounds.
     const unlockText = scene.add
-        .text(CENTER_X, bannerY + 28, '', {
+        .text(CENTER_X, cardsBottomY + 22, '', {
             fontFamily: 'Courier New',
             fontSize: '11px',
             color: '#8fb8ff',
@@ -219,12 +228,6 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setOrigin(0.5, 0)
         .setDepth(Depths.EndScreenContent)
         .setVisible(escaped);
-
-    // ── Upgrade card grid (2 rows × 2 cols, 4 cards) ───────
-    const cardsStartY = bannerY + 64;
-    const CARD_W = 380;
-    const CARD_H = 70;
-    const CARD_GAP_Y = 12;
     const cards: UpgradeCardVisual[] = [];
     const cardPositions = [
         { x: CENTER_X - CARD_W / 2 - 12, y: cardsStartY },
