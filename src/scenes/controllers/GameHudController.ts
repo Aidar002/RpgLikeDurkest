@@ -672,15 +672,23 @@ export class GameHudController {
      * icons share the `uiContainer`.
      */
     private buildRelicSlots(botY: number, botH: number) {
-        // Geometry mirrors `buildBottomBar`: shardStat ends at
-        // resStart + resW = 36 + 112 = 148, pillar sits at 600.
-        // Centre the slot row in [148, 600] so the icons sit between
-        // the shard cell and the progress block.
+        // Anchor the relic row to the left side of the bottom bar so
+        // the player's collected items get a dedicated, prominent
+        // slot block — mirroring the depth/kills/bosses block on the
+        // right. Leftmost slot edge sits at the same `resStart = 36`
+        // safe-area inset that `buildBottomBar` uses for `shardStat`,
+        // so when `FEATURES.shards` re-enables that cell later the
+        // shard pill can move under or above this row without a clash.
+        // Slots are 60×60 with an 18 px gap (1.5× the original 40/12),
+        // so the row spans `MAX_RELICS * 60 + (MAX_RELICS - 1) * 18`
+        // = 372 px, leaving plenty of room before the pillar at 600.
         const cellH = 110;
         const cellTop = botY + Math.round((botH - cellH) / 2);
-        const SHARD_RIGHT = 36 + 112;
-        const PILLAR_LEFT = 600;
-        const centerX = Math.round((SHARD_RIGHT + PILLAR_LEFT) / 2);
+        const SLOT_SIZE = 60;
+        const SLOT_GAP = 18;
+        const ROW_LEFT = 36;
+        const totalW = MAX_RELICS * SLOT_SIZE + (MAX_RELICS - 1) * SLOT_GAP;
+        const centerX = ROW_LEFT + Math.round(totalW / 2);
         const centerY = cellTop + Math.round(cellH / 2);
         this.relicSlots = new RelicSlots(this.scene, this.scene.player, this.scene.loc, {
             centerX,
