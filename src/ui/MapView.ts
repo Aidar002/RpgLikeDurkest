@@ -699,8 +699,12 @@ export class MapView {
 
             // Tiny fire embers above campfire/altar nodes
             // (REST/START/SHRINE). Skipped on cleared rooms because
-            // their fire is "out".
-            if (!node.cleared && hasFireEffect(node.type)) {
+            // their fire is "out", and skipped on the player's
+            // current node — the embers competed with the framed
+            // "you are here" affordance and read as a fake forward
+            // option. See `arrivedNodeId` for why this lags behind
+            // `dungeon.currentNode` during walk animations.
+            if (!node.cleared && id !== this.arrivedNodeId && hasFireEffect(node.type)) {
                 const fire = VFX.nodeFire(
                     this.scene,
                     this.container,
