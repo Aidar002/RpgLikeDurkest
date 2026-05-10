@@ -78,6 +78,10 @@ export class GameMapController {
         this.mapView.redrawEdges();
         this.mapView.refresh();
         this.mapView.centerOnNode(this.scene.dungeon.currentNode);
+        // Pin the player on the starting node so its room pictogram
+        // is suppressed from the very first frame — the carved frame
+        // alone marks "you are here". See `MapView.arrivedNodeId`.
+        this.mapView.setArrivedNode(this.scene.dungeon.currentNode.id);
     }
 
     public getUnlockedRoomTypes(unlocks: ContentUnlockState): RoomTypeValue[] {
@@ -140,6 +144,12 @@ export class GameMapController {
                             scene.hud.torchlightHomeY
                         );
                     }
+                    // Player has fully arrived — drop the destination's
+                    // room pictogram so the slot reads as "you are
+                    // here". The icon stayed visible during the 2 s
+                    // walk so the player could see what they were
+                    // walking toward. See `MapView.arrivedNodeId`.
+                    this.mapView.setArrivedNode(node.id);
                     this.fadeToRoom(node);
                 }
             );

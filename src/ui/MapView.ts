@@ -103,6 +103,22 @@ export class MapView {
      */
     private lastVisibleIds = new Set<string>();
 
+    /**
+     * Id of the node the player is *visually* sitting in. The room
+     * icon (sprite or text glyph) is suppressed for that node — only
+     * the carved frame and the dark backdrop remain — so the slot
+     * reads as "you are here" without a redundant pictogram.
+     *
+     * Intentionally lags behind {@link DungeonManager.currentNode}:
+     * `dungeon.currentNode` flips to the destination the moment the
+     * click handler fires, but the player isn't *visually* there
+     * until the walk animation completes. The host scene calls
+     * {@link setArrivedNode} from the walk's `onComplete` callback so
+     * the destination keeps showing its icon during the 2 s walk and
+     * only loses it once the player has fully arrived.
+     */
+    private arrivedNodeId: string | null = null;
+
     /** Duration (ms) of the per-node reveal/hide fade. */
     private readonly REVEAL_DURATION = 380;
 
@@ -146,6 +162,17 @@ export class MapView {
     centerOnNode(node: MapNode): void {
         const { x, y } = this.getMapOffset(node);
         this.container.setPosition(x, y);
+    }
+
+    /**
+     * Pin which node currently holds the player. Suppresses the room
+     * icon on that node via {@link refresh}. See the field doc on
+     * {@link arrivedNodeId} for why this is decoupled from
+     * `dungeon.currentNode` and lags behind during walk animations.
+     */
+    setArrivedNode(id: string): void {
+        this.arrivedNodeId = id;
+        this.refresh();
     }
 
     /**
@@ -617,6 +644,17 @@ export class MapView {
                 visual.icon.setVisible(false);
             } else {
                 visual.icon.setText(iconText).setColor('#ffffff').setAlpha(1).setVisible(true);
+                if (visual.sprite) visual.sprite.setVisible(false);
+            }
+
+            // "You are here" — suppress the room pictogram on the
+            // node the player has visually arrived at. The carved
+            // frame and dark backdrop stay visible, so the slot still
+            // reads as a room without the redundant pictogram. See
+            // the field doc on `arrivedNodeId` for why this is
+            // delayed past the walk animation.
+            if (id === this.arrivedNodeId) {
+                visual.icon.setVisible(false);
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
