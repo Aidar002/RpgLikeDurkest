@@ -344,11 +344,15 @@ export function showDeathScreen(ctx: EndScreenContext) {
     skillPointsPanel.setDepth(Depths.EndScreenPanel);
     skillPointsPanel.setVisible(escaped);
 
-    // ── Action buttons (side-by-side at panel bottom) ───────
+    // ── Action buttons (panel bottom) ───────────────────────
+    // On death the reset button is suppressed: `meta.resetProgress()`
+    // is fired by GameScene before this screen mounts, so the entire
+    // profile (skill-points bank + every upgrade) is already wiped.
+    // A second "Wipe memory" button would be a no-op confuser.
     const buttonsY = panelBottom - 40;
     const restartUi = drawUiButton(
         scene,
-        CENTER_X + 130,
+        escaped ? CENTER_X + 130 : CENTER_X,
         buttonsY,
         240,
         42,
@@ -363,22 +367,16 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const restartButton = restartUi.background;
     const restartText = restartUi.label;
 
-    const resetUi = drawUiButton(
-        scene,
-        CENTER_X - 130,
-        buttonsY,
-        240,
-        36,
-        loc.t('shopResetSouls'),
-        {
-            variant: 'danger',
-            fontSize: '14px',
-            color: '#ffd0d0',
-            depth: Depths.EndScreenContent,
-        }
-    );
-    const resetButton = resetUi.background;
-    const resetText = resetUi.label;
+    const resetUi = escaped
+        ? drawUiButton(scene, CENTER_X - 130, buttonsY, 240, 36, loc.t('shopResetSouls'), {
+              variant: 'danger',
+              fontSize: '14px',
+              color: '#ffd0d0',
+              depth: Depths.EndScreenContent,
+          })
+        : null;
+    const resetButton = resetUi?.background ?? null;
+    const resetText = resetUi?.label ?? null;
 
     restartButton.on('pointerdown', () => ctx.safeRestart());
 
@@ -420,91 +418,96 @@ export function showDeathScreen(ctx: EndScreenContext) {
         });
     };
 
-    const confirmOverlay = scene.add
-        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
-        .setDepth(Depths.ConfirmOverlay)
-        .setInteractive();
-    const confirmPanel = scene.add
-        .rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818)
-        .setDepth(Depths.ConfirmPanel);
-    confirmPanel.setStrokeStyle(2, 0x8a4d4d);
-    const confirmTitle = scene.add
-        .text(CENTER_X, CENTER_Y - 50, loc.t('confirmResetTitle'), {
-            fontFamily: 'Courier New',
-            fontSize: '22px',
-            color: '#ffd2d2',
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.ConfirmContent);
-    const confirmBody = scene.add
-        .text(CENTER_X, CENTER_Y, loc.t('confirmResetBody'), {
-            fontFamily: 'Courier New',
-            fontSize: '14px',
-            color: '#d6d6d6',
-            align: 'center',
-            lineSpacing: 8,
-            wordWrap: { width: 360 },
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.ConfirmContent);
-    const confirmResetUi = drawUiButton(
-        scene,
-        CENTER_X - 90,
-        CENTER_Y + 66,
-        170,
-        38,
-        loc.t('shopResetConfirm'),
-        {
-            variant: 'danger',
-            fontSize: '14px',
-            color: '#ffe8e8',
-            depth: Depths.ConfirmContent,
-        }
-    );
-    const confirmResetButton = confirmResetUi.background;
-    const confirmResetText = confirmResetUi.label;
-    confirmResetText.setDepth(Depths.ConfirmForeground);
-    const cancelResetUi = drawUiButton(
-        scene,
-        CENTER_X + 90,
-        CENTER_Y + 66,
-        170,
-        38,
-        loc.t('shopResetCancel'),
-        {
-            variant: 'dark',
-            fontSize: '14px',
-            color: '#f0f0f0',
-            depth: Depths.ConfirmContent,
-        }
-    );
-    const cancelResetButton = cancelResetUi.background;
-    const cancelResetText = cancelResetUi.label;
-    cancelResetText.setDepth(Depths.ConfirmForeground);
+    // The reset confirmation modal is only mounted when the reset
+    // button is on screen. On death the button is suppressed (see
+    // above), so the entire confirm overlay is skipped too.
+    if (resetButton && escaped) {
+        const confirmOverlay = scene.add
+            .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
+            .setDepth(Depths.ConfirmOverlay)
+            .setInteractive();
+        const confirmPanel = scene.add
+            .rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818)
+            .setDepth(Depths.ConfirmPanel);
+        confirmPanel.setStrokeStyle(2, 0x8a4d4d);
+        const confirmTitle = scene.add
+            .text(CENTER_X, CENTER_Y - 50, loc.t('confirmResetTitle'), {
+                fontFamily: 'Courier New',
+                fontSize: '22px',
+                color: '#ffd2d2',
+            })
+            .setOrigin(0.5)
+            .setDepth(Depths.ConfirmContent);
+        const confirmBody = scene.add
+            .text(CENTER_X, CENTER_Y, loc.t('confirmResetBody'), {
+                fontFamily: 'Courier New',
+                fontSize: '14px',
+                color: '#d6d6d6',
+                align: 'center',
+                lineSpacing: 8,
+                wordWrap: { width: 360 },
+            })
+            .setOrigin(0.5)
+            .setDepth(Depths.ConfirmContent);
+        const confirmResetUi = drawUiButton(
+            scene,
+            CENTER_X - 90,
+            CENTER_Y + 66,
+            170,
+            38,
+            loc.t('shopResetConfirm'),
+            {
+                variant: 'danger',
+                fontSize: '14px',
+                color: '#ffe8e8',
+                depth: Depths.ConfirmContent,
+            }
+        );
+        const confirmResetButton = confirmResetUi.background;
+        const confirmResetText = confirmResetUi.label;
+        confirmResetText.setDepth(Depths.ConfirmForeground);
+        const cancelResetUi = drawUiButton(
+            scene,
+            CENTER_X + 90,
+            CENTER_Y + 66,
+            170,
+            38,
+            loc.t('shopResetCancel'),
+            {
+                variant: 'dark',
+                fontSize: '14px',
+                color: '#f0f0f0',
+                depth: Depths.ConfirmContent,
+            }
+        );
+        const cancelResetButton = cancelResetUi.background;
+        const cancelResetText = cancelResetUi.label;
+        cancelResetText.setDepth(Depths.ConfirmForeground);
 
-    const confirmWidgets = [
-        confirmOverlay,
-        confirmPanel,
-        confirmTitle,
-        confirmBody,
-        confirmResetButton,
-        confirmResetText,
-        cancelResetButton,
-        cancelResetText,
-    ];
-    confirmWidgets.forEach((widget) => widget.setVisible(false));
+        const confirmWidgets = [
+            confirmOverlay,
+            confirmPanel,
+            confirmTitle,
+            confirmBody,
+            confirmResetButton,
+            confirmResetText,
+            cancelResetButton,
+            cancelResetText,
+        ];
+        confirmWidgets.forEach((widget) => widget.setVisible(false));
 
-    const setConfirmVisible = (visible: boolean) => {
-        confirmWidgets.forEach((widget) => widget.setVisible(visible));
-    };
+        const setConfirmVisible = (visible: boolean) => {
+            confirmWidgets.forEach((widget) => widget.setVisible(visible));
+        };
 
-    resetButton.on('pointerdown', () => setConfirmVisible(true));
-    cancelResetButton.on('pointerdown', () => setConfirmVisible(false));
-    confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
-    confirmResetButton.on('pointerdown', () => {
-        meta.resetProgress();
-        ctx.safeRestart();
-    });
+        resetButton.on('pointerdown', () => setConfirmVisible(true));
+        cancelResetButton.on('pointerdown', () => setConfirmVisible(false));
+        confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
+        confirmResetButton.on('pointerdown', () => {
+            meta.resetProgress();
+            ctx.safeRestart();
+        });
+    }
 
     refreshShop();
 
@@ -522,9 +525,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
         rightBody,
         restartButton,
         restartText,
-        resetButton,
-        resetText,
     ];
+    if (resetButton && resetText) {
+        fadeTargets.push(resetButton, resetText);
+    }
     if (escaped) {
         fadeTargets.push(skillPointsPanel, divider2, skillPointsBanner, pointsText, unlockText);
     }
