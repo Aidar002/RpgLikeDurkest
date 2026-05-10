@@ -31,8 +31,8 @@ import { RELICS, type RelicId, type RelicRarity } from '../systems/Relics';
 import { Depths } from './Layout';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 
-const SLOT_SIZE = 40;
-const SLOT_GAP = 12;
+const SLOT_SIZE = 60;
+const SLOT_GAP = 18;
 const TOOLTIP_PAD = 12;
 const TOOLTIP_W = 240;
 const TOOLTIP_LINE_GAP = 4;
@@ -56,7 +56,7 @@ const RARITY_TEXT: Record<RelicRarity, string> = {
 interface RelicSlotsOptions {
     /** Slot row centred on this x in the HUD coordinate space. */
     centerX: number;
-    /** Vertical centre of every slot (slots are 40×40). */
+    /** Vertical centre of every slot (slots are 60×60). */
     centerY: number;
     /** Hard cap; matches `MAX_RELICS` from PlayerManager. */
     capacity: number;
@@ -153,7 +153,7 @@ export class RelicSlots {
         const label = this.scene.add
             .text(0, 1, '', {
                 fontFamily: HUD_FONT,
-                fontSize: '18px',
+                fontSize: '24px',
                 color: HudHex.textMuted,
                 stroke: HUD_STROKE,
                 strokeThickness: 2,
