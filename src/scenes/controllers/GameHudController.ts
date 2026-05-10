@@ -32,6 +32,7 @@ import { createHudIcon } from '../../ui/HudIcons';
 import { RelicSlots } from '../../ui/RelicSlots';
 import { RelicSwapModal } from '../../ui/RelicSwapModal';
 import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
+import { drawUiButton, type ButtonBackground } from '../../ui/UiButton';
 import { VFX } from '../../ui/VFX';
 import { statusSummary } from '../../systems/StatusEffects';
 import { MAX_RELICS } from '../../systems/PlayerManager';
@@ -105,9 +106,9 @@ export class GameHudController {
     private hintText!: Phaser.GameObjects.Text;
     private playerStatusText!: Phaser.GameObjects.Text;
     private enemyStatusText!: Phaser.GameObjects.Text;
-    private escapeButtonBg!: Phaser.GameObjects.Rectangle;
+    private escapeButtonBg!: ButtonBackground;
     private escapeButtonLabel!: Phaser.GameObjects.Text;
-    private restartButtonBg!: Phaser.GameObjects.Rectangle;
+    private restartButtonBg!: ButtonBackground;
     private restartButtonLabel!: Phaser.GameObjects.Text;
 
     /** Restart-confirm modal. Built once in `build()` and toggled
@@ -778,73 +779,49 @@ export class GameHudController {
      */
     private buildHudButtons(topH: number, pad: number) {
         const ESCAPE_BTN_W = 110;
-        const ESCAPE_BTN_H = 26;
+        const ESCAPE_BTN_H = 28;
         const ESCAPE_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W / 2;
         const ESCAPE_BTN_Y = topH + 18;
-        this.escapeButtonBg = this.scene.add
-            .rectangle(
-                ESCAPE_BTN_X,
-                ESCAPE_BTN_Y,
-                ESCAPE_BTN_W,
-                ESCAPE_BTN_H,
-                HudColors.panelBg,
-                0.92
-            )
-            .setStrokeStyle(1, HudColors.panelHi)
-            .setOrigin(0.5)
-            .setDepth(220)
-            .setInteractive({ useHandCursor: true });
-        this.escapeButtonLabel = this.scene.add
-            .text(ESCAPE_BTN_X, ESCAPE_BTN_Y - 1, this.scene.loc.t('escapeButton'), {
-                fontFamily: HUD_FONT,
+        const escapeUi = drawUiButton(
+            this.scene,
+            ESCAPE_BTN_X,
+            ESCAPE_BTN_Y,
+            ESCAPE_BTN_W,
+            ESCAPE_BTN_H,
+            this.scene.loc.t('escapeButton'),
+            {
+                variant: 'silver',
                 fontSize: '12px',
                 color: HudHex.textSecondary,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setDepth(221);
-        this.escapeButtonBg.on('pointerover', () => {
-            this.escapeButtonBg.setStrokeStyle(2, HudColors.accentExp);
-        });
-        this.escapeButtonBg.on('pointerout', () => {
-            this.escapeButtonBg.setStrokeStyle(1, HudColors.panelHi);
-        });
+                depth: 220,
+            }
+        );
+        this.escapeButtonBg = escapeUi.background;
+        this.escapeButtonLabel = escapeUi.label;
+        this.escapeButtonLabel.setY(ESCAPE_BTN_Y - 1);
         this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
 
         const RESTART_BTN_W = 130;
-        const RESTART_BTN_H = 26;
+        const RESTART_BTN_H = 28;
         const RESTART_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
         const RESTART_BTN_Y = ESCAPE_BTN_Y;
-        this.restartButtonBg = this.scene.add
-            .rectangle(
-                RESTART_BTN_X,
-                RESTART_BTN_Y,
-                RESTART_BTN_W,
-                RESTART_BTN_H,
-                HudColors.panelBg,
-                0.92
-            )
-            .setStrokeStyle(1, HudColors.panelHi)
-            .setOrigin(0.5)
-            .setDepth(220)
-            .setInteractive({ useHandCursor: true });
-        this.restartButtonLabel = this.scene.add
-            .text(RESTART_BTN_X, RESTART_BTN_Y - 1, this.scene.loc.t('restartButton'), {
-                fontFamily: HUD_FONT,
+        const restartUi = drawUiButton(
+            this.scene,
+            RESTART_BTN_X,
+            RESTART_BTN_Y,
+            RESTART_BTN_W,
+            RESTART_BTN_H,
+            this.scene.loc.t('restartButton'),
+            {
+                variant: 'silver',
                 fontSize: '12px',
                 color: HudHex.textSecondary,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setDepth(221);
-        this.restartButtonBg.on('pointerover', () => {
-            this.restartButtonBg.setStrokeStyle(2, HudColors.accentExp);
-        });
-        this.restartButtonBg.on('pointerout', () => {
-            this.restartButtonBg.setStrokeStyle(1, HudColors.panelHi);
-        });
+                depth: 220,
+            }
+        );
+        this.restartButtonBg = restartUi.background;
+        this.restartButtonLabel = restartUi.label;
+        this.restartButtonLabel.setY(RESTART_BTN_Y - 1);
         this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
     }
 

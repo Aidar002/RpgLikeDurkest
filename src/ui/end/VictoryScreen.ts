@@ -7,6 +7,7 @@
  */
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
+import { drawUiButton } from '../UiButton';
 import { bankSkillPointsOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
@@ -100,22 +101,16 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         .setOrigin(0.5, 0)
         .setDepth(Depths.EndScreenContent);
 
-    const restartButton = scene.add
-        .rectangle(CENTER_X, 590, 280, 44, 0x1c2a3a)
-        .setDepth(Depths.EndScreenContent);
-    restartButton.setStrokeStyle(1, 0x6a8fcc);
-    restartButton.setInteractive({ useHandCursor: true });
-    const restartLabel = scene.add
-        .text(CENTER_X, 590, loc.t('victoryNewRun'), {
-            fontFamily: 'Courier New',
-            fontSize: '17px',
-            color: '#f0f0f0',
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.EndScreenForeground);
+    const restartUi = drawUiButton(scene, CENTER_X, 590, 280, 44, loc.t('victoryNewRun'), {
+        variant: 'gold',
+        fontSize: '17px',
+        color: '#f0f0f0',
+        depth: Depths.EndScreenContent,
+    });
+    const restartButton = restartUi.background;
+    const restartLabel = restartUi.label;
+    restartLabel.setDepth(Depths.EndScreenForeground);
 
-    restartButton.on('pointerover', () => restartButton.setStrokeStyle(2, 0xffffff));
-    restartButton.on('pointerout', () => restartButton.setStrokeStyle(1, 0x6a8fcc));
     restartButton.on('pointerdown', () => ctx.safeRestart());
 
     scene.tweens.add({

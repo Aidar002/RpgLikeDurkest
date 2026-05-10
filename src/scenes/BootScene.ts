@@ -5,6 +5,7 @@ import { SoundManager } from '../systems/SoundManager';
 import { parseDevSeedQuery } from '../systems/DevSeed';
 import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { createStoneBackdrop } from '../ui/StoneBackdrop';
+import { drawUiButton } from '../ui/UiButton';
 
 export class BootScene extends Phaser.Scene {
     constructor() {
@@ -202,23 +203,16 @@ export class BootScene extends Phaser.Scene {
             duration: 600,
         });
 
-        const startBtn = this.add
-            .rectangle(CENTER_X, 480, 260, 48, 0x1c1c1c)
-            .setStrokeStyle(1, 0x5a5a5a)
-            .setInteractive({ useHandCursor: true })
-            .setAlpha(0)
-            .setDepth(3);
-        const startText = this.add
-            .text(CENTER_X, 480, loc.t('bootStart'), {
-                fontFamily: 'Lucida Console, Consolas, monospace',
-                fontSize: '18px',
-                color: '#ffffff',
-                stroke: '#000000',
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setAlpha(0)
-            .setDepth(4);
+        const startUi = drawUiButton(this, CENTER_X, 480, 260, 48, loc.t('bootStart'), {
+            variant: 'gold',
+            fontSize: '18px',
+            color: '#ffffff',
+            depth: 3,
+        });
+        const startBtn = startUi.background;
+        const startText = startUi.label;
+        startBtn.setAlpha(0);
+        startText.setAlpha(0);
 
         this.tweens.add({
             targets: [startBtn, startText],
@@ -227,11 +221,7 @@ export class BootScene extends Phaser.Scene {
             duration: 500,
         });
 
-        startBtn.on('pointerover', () => {
-            startBtn.setStrokeStyle(2, 0xffffff);
-            sfx.play('buttonHover');
-        });
-        startBtn.on('pointerout', () => startBtn.setStrokeStyle(1, 0x5a5a5a));
+        startBtn.on('pointerover', () => sfx.play('buttonHover'));
         startBtn.on('pointerdown', () => {
             sfx.play('buttonClick');
             // The first reliable user gesture — kick music off here so audio
