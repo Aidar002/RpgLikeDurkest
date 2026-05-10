@@ -100,6 +100,15 @@ function ensureSliceFrames(scene: Phaser.Scene, key: string): boolean {
     texture.add(`${SLICE_FRAME_PREFIX}edge_bottom`, 0, midX, h - bottom, EDGE_TILE, bottom);
     texture.add(`${SLICE_FRAME_PREFIX}edge_left`, 0, 0, midY, left, EDGE_TILE);
     texture.add(`${SLICE_FRAME_PREFIX}edge_right`, 0, w - right, midY, right, EDGE_TILE);
+
+    // `Texture.add` re-points `firstFrame` to the first user-added
+    // frame whenever the texture had only `__BASE` registered, which
+    // means any subsequent `scene.add.image('key')` (no frame arg)
+    // would resolve to one of the 32×22 corner pieces instead of the
+    // full bar — manifesting as a visibly garbled HUD after the
+    // death-screen mounts. Pin it back so the default frame keeps
+    // representing the whole texture.
+    texture.firstFrame = '__BASE';
     return true;
 }
 
@@ -194,7 +203,14 @@ export function drawTopFrame(
     return withTexture(
         scene,
         'hud_top_bar',
-        () => scene.add.image(0, 0, 'hud_top_bar').setOrigin(0, 0).setDisplaySize(width, height),
+        () =>
+            // Pass `'__BASE'` explicitly so the image always resolves to
+            // the full bar, even after `ensureSliceFrames` has registered
+            // sub-frames on this texture for the death-screen panels.
+            scene.add
+                .image(0, 0, 'hud_top_bar', '__BASE')
+                .setOrigin(0, 0)
+                .setDisplaySize(width, height),
         () => drawProceduralTopBar(scene, 0, 0, width, height)
     );
 }
@@ -210,12 +226,15 @@ export function drawBottomFrame(
         scene,
         'hud_bottom_bar',
         () =>
+            // Same `'__BASE'` belt-and-braces as `drawTopFrame` — the
+            // texture may have nine-slice sub-frames registered if the
+            // death screen has been mounted earlier in the run.
             scene.add
                 .nineslice(
                     0,
                     y,
                     'hud_bottom_bar',
-                    undefined,
+                    '__BASE',
                     width,
                     height,
                     PANEL_SLICE.left,
