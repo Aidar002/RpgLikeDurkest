@@ -17,7 +17,7 @@
 import * as Phaser from 'phaser';
 
 import type { UpgradeId } from '../../systems/MetaProgressionManager';
-import { drawCarvedPanel, drawTopBarPanel } from '../HudFrame';
+import { drawCarvedPanel } from '../HudFrame';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
 import { drawUiButton } from '../UiButton';
@@ -175,21 +175,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     // The two columns can be different heights (lots of stats, no
     // NPCs / no NPCs, lots of stats) — use the taller one as the
-    // anchor for everything below.
+    // anchor for everything below. The previous build wrapped the
+    // body section in a nested `drawTopBarPanel` sub-frame; we now
+    // render the text directly on the outer carved panel so the
+    // composition reads as one block instead of a card inside a card.
     const bodyEndY = Math.max(leftBody.y + leftBody.height, rightBody.y + rightBody.height);
-
-    // ── General summary sub-panel (top_bar.png) ──────────────
-    const summaryPanelPad = 16;
-    const summaryPanelTop = COL_HEADER_Y - summaryPanelPad;
-    const summaryPanelH = bodyEndY - summaryPanelTop + summaryPanelPad;
-    const summaryPanel = drawTopBarPanel(
-        scene,
-        panelLeft + 28,
-        summaryPanelTop,
-        PANEL_W - 56,
-        summaryPanelH
-    );
-    summaryPanel.setDepth(Depths.EndScreenPanel);
 
     // ── Skill-point banner + upgrade grid (escape only) ─────
     // On a death run the meta profile has already been wiped, so we
@@ -229,9 +219,6 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setOrigin(0.5, 0)
         .setDepth(Depths.EndScreenContent)
         .setVisible(escaped);
-
-    const skillPointsPanelPad = 14;
-    const skillPointsPanelTop = bannerY - 24 - skillPointsPanelPad;
 
     // ── Upgrade card grid (2 rows × 2 cols, 4 cards) ───────
     const cardsStartY = bannerY + 64;
@@ -329,20 +316,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
         });
     }
 
-    // Size the skill-point sub-panel so it spans the banner through
-    // the last card row. Hidden entirely on death runs since there
-    // are no cards to frame.
-    const lastCardY = cardsStartY + 1 * (CARD_H + CARD_GAP_Y) + CARD_H / 2;
-    const skillPointsPanelH = lastCardY - skillPointsPanelTop + skillPointsPanelPad;
-    const skillPointsPanel = drawTopBarPanel(
-        scene,
-        panelLeft + 28,
-        skillPointsPanelTop,
-        PANEL_W - 56,
-        skillPointsPanelH
-    );
-    skillPointsPanel.setDepth(Depths.EndScreenPanel);
-    skillPointsPanel.setVisible(escaped);
+    // The skill-point banner + 4 upgrade cards used to live inside a
+    // second `drawTopBarPanel` sub-frame. They now sit directly on
+    // the outer carved panel so the screen reads as one continuous
+    // block; only the dividers + the banner's own gold-rimmed
+    // rectangle group the section visually.
 
     // ── Action buttons (panel bottom) ───────────────────────
     // On death the reset button is suppressed: `meta.resetProgress()`
@@ -515,7 +493,6 @@ export function showDeathScreen(ctx: EndScreenContext) {
         stoneBackdrop,
         overlay,
         panel,
-        summaryPanel,
         title,
         subtitle,
         divider1,
@@ -530,7 +507,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         fadeTargets.push(resetButton, resetText);
     }
     if (escaped) {
-        fadeTargets.push(skillPointsPanel, divider2, skillPointsBanner, pointsText, unlockText);
+        fadeTargets.push(divider2, skillPointsBanner, pointsText, unlockText);
     }
     scene.tweens.add({
         targets: fadeTargets,
