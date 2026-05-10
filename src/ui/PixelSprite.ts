@@ -60,8 +60,6 @@ const P = {
     potionDark: '#228844',
     lanternYellow: '#ffcc44',
     lanternDark: '#cc9922',
-    shardBlue: '#6699ff',
-    shardDark: '#3366cc',
     fist: '#cc9977',
     fistDark: '#996644',
     // generic
@@ -389,8 +387,8 @@ function drawMerchantIcon(): Grid {
     setPixel(g, 3, 5, P.potionGreen);
     setPixel(g, 5, 5, P.gold);
     setPixel(g, 6, 5, P.gold);
-    setPixel(g, 8, 4, P.shardBlue);
-    setPixel(g, 8, 5, P.shardBlue);
+    setPixel(g, 8, 4, P.gold);
+    setPixel(g, 8, 5, P.gold);
     // counter body
     fillRect(g, 1, 6, 10, 3, P.merchantDark);
     fillRect(g, 2, 7, 8, 1, P.merchant);
@@ -502,20 +500,6 @@ function drawLantern(): Grid {
     return g;
 }
 
-function drawShard(): Grid {
-    const g = createGrid(10, 10);
-    setPixel(g, 4, 0, P.shardBlue);
-    fillRect(g, 3, 1, 4, 2, P.shardBlue);
-    fillRect(g, 2, 3, 6, 3, P.shardDark);
-    fillRect(g, 3, 3, 4, 2, P.shardBlue);
-    fillRect(g, 3, 6, 4, 2, P.shardDark);
-    setPixel(g, 4, 8, P.shardDark);
-    setPixel(g, 5, 8, P.shardDark);
-    // highlight
-    setPixel(g, 4, 2, P.white);
-    return g;
-}
-
 function drawResolve(): Grid {
     const g = createGrid(10, 10);
     // fist shape
@@ -564,7 +548,6 @@ const RESOURCE_ICON_DRAWERS: Record<string, () => Grid> = {
     gold: drawCoin,
     potion: drawPotion,
     lantern: drawLantern,
-    shard: drawShard,
     resolve: drawResolve,
 };
 

@@ -121,7 +121,6 @@ interface CombatRewards {
     gold: number;
     potions: number;
     attackBonus: number;
-    relicShards: number;
 }
 
 export interface CombatEndPayload {
@@ -819,12 +818,6 @@ export class CombatManager {
                 gold: enemy.gold + (enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusGold : 0),
                 potions: enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusPotions : 0,
                 attackBonus: enemy.kind === 'elite' ? ROOM_CONFIG.elite.bonusAttack : 0,
-                relicShards:
-                    enemy.kind === 'elite'
-                        ? ROOM_CONFIG.elite.shardReward
-                        : enemy.kind === 'boss'
-                          ? ROOM_CONFIG.boss.shardReward
-                          : 0,
             },
         };
     }

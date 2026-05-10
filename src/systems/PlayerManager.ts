@@ -26,7 +26,6 @@ interface RunResources {
     potions: number;
     resolve: number;
     maxResolve: number;
-    relicShards: number;
 }
 
 /**
@@ -84,7 +83,6 @@ export class PlayerManager {
             potions: EXPEDITION_CONFIG.startingPotions,
             resolve: EXPEDITION_CONFIG.startingResolve,
             maxResolve: PLAYER_CONFIG.maxResolve,
-            relicShards: 0,
         };
 
         this.goldGainMult = bonuses.goldGainMult ?? 1;
@@ -233,20 +231,6 @@ export class PlayerManager {
             0,
             Math.min(this.resources.maxResolve, this.resources.resolve - amount)
         );
-        this.emitResources();
-        return true;
-    }
-
-    gainRelicShards(amount: number): number {
-        if (amount <= 0) return 0;
-        this.resources.relicShards += amount;
-        this.emitResources();
-        return amount;
-    }
-
-    spendRelicShard(amount: number): boolean {
-        if (amount > this.resources.relicShards) return false;
-        this.resources.relicShards -= amount;
         this.emitResources();
         return true;
     }
