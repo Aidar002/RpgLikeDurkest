@@ -210,9 +210,13 @@ export class BootScene extends Phaser.Scene {
         if (devSeed?.lang) {
             loc.language = devSeed.lang;
         }
-        const audioBase = `${import.meta.env.BASE_URL}audio`;
-        music.setPlaylist([{ url: `${audioBase}/dungeon_sound_2.mp3` }]);
-        music.start();
+        // The boot screen intentionally has no music — it's silent
+        // except for the procedural torch crackle started below. The
+        // dungeon track is set up + kicked off by `GameScene.startGame`
+        // instead. We still call `music.stop()` here so a *restart*
+        // (death / escape -> back to title) doesn't bleed the dungeon
+        // music into the title screen.
+        music.stop();
         // Fetch + decode the UI hover/click samples in the background
         // so the first map-node hover and the first button click after
         // boot fire instantly. Memoised inside SoundManager, so calling
@@ -275,7 +279,21 @@ export class BootScene extends Phaser.Scene {
                 duration: ROOM_BRIGHTEN_MS,
                 ease: 'Quad.out',
             });
+            // Procedural crackle ambience — kicks in the moment both
+            // torches catch and the room visibly brightens, so the
+            // sound and the lighting beat land together. Idempotent;
+            // a re-mount of BootScene (restart from GameScene) calls
+            // it again but the loop guard inside SoundManager makes
+            // that a no-op.
+            sfx.startTorchAmbient(700);
         });
+        // Phaser fires `shutdown` whenever the scene stops — both on
+        // the normal "click Start -> GameScene" transition (we also
+        // explicitly call `stopTorchAmbient` in the click handler so
+        // the fade-out begins *before* the camera fade) and on
+        // unexpected teardowns (e.g. hot-reload in dev). Belt-and-
+        // braces silence either way.
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => sfx.stopTorchAmbient(300));
 
         // Ambient embers on title
         for (let i = 0; i < 12; i++) {
@@ -393,9 +411,11 @@ export class BootScene extends Phaser.Scene {
             if (starting) return;
             starting = true;
             sfx.play('buttonClick');
-            // The first reliable user gesture — kick music off here so audio
-            // playback starts even on browsers with strict autoplay policy.
-            music.kick();
+            // Begin fading the torch crackle now (before the camera
+            // fades) so by the time GameScene takes over it has fully
+            // cleared the master gain and the dungeon ambience +
+            // music start in silence.
+            sfx.stopTorchAmbient(500);
 
             // Door-open beat: play creak SFX, swing the door to frame 1
             // partway through the creak so visual and audio land together,

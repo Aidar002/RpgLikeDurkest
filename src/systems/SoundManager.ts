@@ -954,4 +954,161 @@ export class SoundManager {
         this.ambientNodes = [];
         this.ambientRunning = false;
     }
+
+    // ─── torch crackle ambient (boot screen) ───────────────────
+
+    /**
+     * Holds the source nodes + per-layer gain envelopes for the boot
+     * screen's torch-crackle ambience. The layers are: (1) a band-
+     * passed white-noise hiss centred where fire crackle naturally
+     * lives, (2) a low-passed brown-noise rumble for the room
+     * presence, and (3) a stream of short noise "pops" scheduled by
+     * {@link torchPopTimer} that read as oil hitting flame.
+     */
+    private torchLayers: { src: AudioBufferSourceNode; gain: GainNode }[] = [];
+    private torchAmbientRunning = false;
+    private torchPopTimer: ReturnType<typeof setTimeout> | null = null;
+
+    /**
+     * Loop a continuous "torch crackle" ambience. Fades in over
+     * `fadeInMs` so the boot screen doesn't start with an audible
+     * click. Idempotent — if the loop is already running, the second
+     * call is a no-op.
+     *
+     * The cue is built from synthesised noise routed through filters
+     * (no audio file dependency) so it never blocks on a fetch, and
+     * is intentionally quiet so it sits under any voice-over or
+     * music a player adds later.
+     */
+    startTorchAmbient(fadeInMs = 600): void {
+        if (this.torchAmbientRunning) return;
+        const ctx = this.ensure();
+        if (!this.master) return;
+        this.torchAmbientRunning = true;
+
+        // 1. Mid-range hiss: 4 s of white noise looped, band-passed
+        //    around 1.5 kHz then softened by a low-pass at 3.5 kHz.
+        //    Reads as the continuous fire hiss.
+        const hissBuf = ctx.createBuffer(1, Math.round(ctx.sampleRate * 4), ctx.sampleRate);
+        const hiss = hissBuf.getChannelData(0);
+        for (let i = 0; i < hiss.length; i++) hiss[i] = (Math.random() * 2 - 1) * 0.5;
+        const hissSrc = ctx.createBufferSource();
+        hissSrc.buffer = hissBuf;
+        hissSrc.loop = true;
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.value = 1500;
+        bp.Q.value = 0.8;
+        const lp = ctx.createBiquadFilter();
+        lp.type = 'lowpass';
+        lp.frequency.value = 3500;
+        const hissGain = ctx.createGain();
+        hissGain.gain.value = 0;
+        hissSrc.connect(bp);
+        bp.connect(lp);
+        lp.connect(hissGain);
+        hissGain.connect(this.master);
+        hissSrc.start();
+        this.torchLayers.push({ src: hissSrc, gain: hissGain });
+
+        // 2. Low rumble: 3 s of brown-noise loop, low-passed at
+        //    200 Hz. Gives the cue a body so it doesn't sound like
+        //    just static.
+        const rumbleBuf = ctx.createBuffer(1, Math.round(ctx.sampleRate * 3), ctx.sampleRate);
+        const rumble = rumbleBuf.getChannelData(0);
+        let last = 0;
+        for (let i = 0; i < rumble.length; i++) {
+            const w = Math.random() * 2 - 1;
+            last = (last + 0.02 * w) / 1.02;
+            rumble[i] = last * 3;
+        }
+        const rumbleSrc = ctx.createBufferSource();
+        rumbleSrc.buffer = rumbleBuf;
+        rumbleSrc.loop = true;
+        const rumbleLp = ctx.createBiquadFilter();
+        rumbleLp.type = 'lowpass';
+        rumbleLp.frequency.value = 200;
+        const rumbleGain = ctx.createGain();
+        rumbleGain.gain.value = 0;
+        rumbleSrc.connect(rumbleLp);
+        rumbleLp.connect(rumbleGain);
+        rumbleGain.connect(this.master);
+        rumbleSrc.start();
+        this.torchLayers.push({ src: rumbleSrc, gain: rumbleGain });
+
+        // Fade the loops up so we don't start with a transient click.
+        const t = ctx.currentTime;
+        const fadeS = Math.max(0.01, fadeInMs / 1000);
+        hissGain.gain.linearRampToValueAtTime(0.16, t + fadeS);
+        rumbleGain.gain.linearRampToValueAtTime(0.06, t + fadeS);
+
+        // 3. Schedule random "pops" — short bursts of high-passed
+        //    noise — every 200–900 ms. These are what sells the cue
+        //    as fire crackle rather than generic radio noise.
+        const scheduleNext = () => {
+            if (!this.torchAmbientRunning) return;
+            const delayMs = 200 + Math.random() * 700;
+            this.torchPopTimer = setTimeout(() => {
+                if (!this.torchAmbientRunning) return;
+                this.playTorchPop();
+                scheduleNext();
+            }, delayMs);
+        };
+        scheduleNext();
+    }
+
+    /** One short crackle pop, ~50–90 ms, high-passed so it sits on top of the hiss. */
+    private playTorchPop(): void {
+        const ctx = this.ensure();
+        if (!this.master) return;
+        const len = 0.04 + Math.random() * 0.05;
+        const samples = Math.round(ctx.sampleRate * len);
+        const buf = ctx.createBuffer(1, samples, ctx.sampleRate);
+        const data = buf.getChannelData(0);
+        for (let i = 0; i < samples; i++) {
+            // Linear fade so each pop has a sharp attack and decay.
+            const env = 1 - i / samples;
+            data[i] = (Math.random() * 2 - 1) * env;
+        }
+        const src = ctx.createBufferSource();
+        src.buffer = buf;
+        const hp = ctx.createBiquadFilter();
+        hp.type = 'highpass';
+        hp.frequency.value = 800;
+        const gain = ctx.createGain();
+        gain.gain.value = 0.06 + Math.random() * 0.07;
+        src.connect(hp);
+        hp.connect(gain);
+        gain.connect(this.master);
+        src.start();
+    }
+
+    /**
+     * Stop the torch crackle ambience. Fades all layers to silence
+     * over `fadeOutMs`, then schedules the underlying source nodes
+     * to stop so they GC. Safe to call when nothing is running.
+     */
+    stopTorchAmbient(fadeOutMs = 400): void {
+        if (!this.torchAmbientRunning) return;
+        this.torchAmbientRunning = false;
+        if (this.torchPopTimer != null) {
+            clearTimeout(this.torchPopTimer);
+            this.torchPopTimer = null;
+        }
+        const ctx = this.ensure();
+        const t = ctx.currentTime;
+        const fadeS = Math.max(0.01, fadeOutMs / 1000);
+        const layers = this.torchLayers;
+        this.torchLayers = [];
+        for (const layer of layers) {
+            try {
+                layer.gain.gain.cancelScheduledValues(t);
+                layer.gain.gain.setValueAtTime(layer.gain.gain.value, t);
+                layer.gain.gain.linearRampToValueAtTime(0, t + fadeS);
+                layer.src.stop(t + fadeS + 0.05);
+            } catch {
+                /* already stopped */
+            }
+        }
+    }
 }

@@ -288,6 +288,12 @@ export class GameScene extends Phaser.Scene {
 
         setupSceneChrome(this, this.sfx, this.loc, () => this.safeRestart(), this.music);
         this.sfx.startAmbient(0);
+        // Music setup lives here (not in BootScene) so the title
+        // screen stays silent except for the procedural torch
+        // crackle. `setPlaylist` is safe to call on every restart —
+        // it just rewinds the (single-track) playlist.
+        const audioBase = `${import.meta.env.BASE_URL}audio`;
+        this.music.setPlaylist([{ url: `${audioBase}/dungeon_sound_2.mp3` }]);
         this.music.start();
 
         this.log.addMessage(
