@@ -26,8 +26,26 @@ const DOOR_DISPLAY_HEIGHT = 442;
 const DOOR_AMBIENT_TINT = 0x707078;
 
 export class BootScene extends Phaser.Scene {
+    /** Managers re-used across restarts. When the player wipes the
+     *  run from the HUD escape menu, `GameHudController` passes the
+     *  active `loc`/`sfx`/`music` instances back into BootScene so
+     *  their state survives (preloaded SFX buffers, language choice,
+     *  master volume) *and* — critically — so `music.stop()` below
+     *  acts on the instance that is actually playing the dungeon
+     *  track instead of a fresh empty one. Without this the dungeon
+     *  music kept playing on the title screen after restart. */
+    private bootLoc?: Localization;
+    private bootSfx?: SoundManager;
+    private bootMusic?: MusicManager;
+
     constructor() {
         super('BootScene');
+    }
+
+    init(data?: { loc?: Localization; sfx?: SoundManager; music?: MusicManager }) {
+        this.bootLoc = data?.loc;
+        this.bootSfx = data?.sfx;
+        this.bootMusic = data?.music;
     }
 
     preload() {
@@ -196,9 +214,13 @@ export class BootScene extends Phaser.Scene {
     }
 
     create() {
-        const loc = new Localization();
-        const sfx = new SoundManager();
-        const music = new MusicManager();
+        // Re-use managers handed in by a previous scene (e.g. a
+        // GameScene → BootScene restart) so audio state, language,
+        // and the SFX buffer cache survive. Falls back to fresh
+        // instances on cold boot where `init` got no payload.
+        const loc = this.bootLoc ?? new Localization();
+        const sfx = this.bootSfx ?? new SoundManager();
+        const music = this.bootMusic ?? new MusicManager();
 
         // Dev-only `?seed=...&inv=...&lang=...` cheat string. Picked up
         // *before* the title-screen widgets render so the language
