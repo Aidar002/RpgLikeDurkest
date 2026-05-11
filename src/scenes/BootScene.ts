@@ -213,6 +213,11 @@ export class BootScene extends Phaser.Scene {
         const audioBase = `${import.meta.env.BASE_URL}audio`;
         music.setPlaylist([{ url: `${audioBase}/dungeon_sound_2.mp3` }]);
         music.start();
+        // Fetch + decode the UI hover/click samples in the background
+        // so the first map-node hover and the first button click after
+        // boot fire instantly. Memoised inside SoundManager, so calling
+        // it on every BootScene restart is a no-op after the first run.
+        void sfx.preloadUiSfx();
         this.cameras.main.setBackgroundColor('#050505');
         // Brand name. Identical in every locale — the colon splits the
         // string onto two lines so the layout matches the previous

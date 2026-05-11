@@ -57,6 +57,7 @@ export class GameMapController {
             scene,
             container: scene.mapContainer,
             dungeon: scene.dungeon,
+            sfx: scene.sfx,
             meta: scene.meta,
             loc: scene.loc,
             tooltipText: scene.tooltipText,

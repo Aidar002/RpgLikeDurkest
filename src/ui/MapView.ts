@@ -26,6 +26,7 @@ import type { DungeonManager } from '../systems/DungeonManager';
 import type { Localization } from '../systems/Localization';
 import type { MapNode } from '../data/MapTypes';
 import type { MetaProgressionManager, UiUnlockState } from '../systems/MetaProgressionManager';
+import type { SoundManager } from '../systems/SoundManager';
 import { hasTexture } from './AssetGuard';
 import { BODY_FONT } from './HudTheme';
 import { PixelSprite } from './PixelSprite';
@@ -71,6 +72,7 @@ interface MapViewDeps {
     scene: Phaser.Scene;
     container: Phaser.GameObjects.Container;
     dungeon: DungeonManager;
+    sfx: SoundManager;
     meta: MetaProgressionManager;
     loc: Localization;
     tooltipText: Phaser.GameObjects.Text;
@@ -84,6 +86,7 @@ export class MapView {
     private scene: Phaser.Scene;
     public readonly container: Phaser.GameObjects.Container;
     private dungeon: DungeonManager;
+    private sfx: SoundManager;
     private meta: MetaProgressionManager;
     private loc: Localization;
     private tooltipText: Phaser.GameObjects.Text;
@@ -127,6 +130,7 @@ export class MapView {
         this.scene = deps.scene;
         this.container = deps.container;
         this.dungeon = deps.dungeon;
+        this.sfx = deps.sfx;
         this.meta = deps.meta;
         this.loc = deps.loc;
         this.tooltipText = deps.tooltipText;
@@ -311,6 +315,10 @@ export class MapView {
         rect.on('pointerover', () => {
             if (this.canUseNode(node)) {
                 this.applyHover(node, true);
+                // Sampled hover chime; only fires for reachable nodes
+                // so clicks-required rooms (visited / locked) don't
+                // chatter at the player as the cursor passes over.
+                this.sfx.play('roomHover');
             }
             const unlocks = this.meta.getUiUnlockState();
             const revealed =
