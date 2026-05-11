@@ -5,8 +5,8 @@
  * exactly once (escape-only, idempotent via `bankSkillPointsOnce`) and
  * tracks per-run max stats before the scene resets.
  */
+import { drawCarvedPanel } from '../HudFrame';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
-import { createStoneBackdrop } from '../StoneBackdrop';
 import { drawUiButton } from '../UiButton';
 import { BODY_FONT } from '../HudTheme';
 import { bankSkillPointsOnce, hideLiveContainers } from './shared';
@@ -23,16 +23,13 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     tracker.trackMax('bestDepth', runState.runBestDepth);
     tracker.trackMax('levelReached', player.stats.level);
 
-    // Stone backdrop sits below the dimming overlay so the dungeon
-    // wall reads through the dark wash. Different seed than the death
-    // screen so the two don't repeat the same brick layout.
-    createStoneBackdrop(scene, 0, 0, GAME_WIDTH, GAME_HEIGHT, {
-        keySuffix: 'victory_screen',
-        seed: 0x1c8d,
-        brightness: 0.7,
-    }).setDepth(Depths.EndScreenOverlay - 1);
+    // Full-screen carved-stone backdrop — same `hud_bottom_bar`
+    // nine-slice as the in-game bottom HUD, so the end screen reads
+    // as a continuation of the world surface rather than a flat
+    // dialog box.
+    drawCarvedPanel(scene, 0, 0, GAME_WIDTH, GAME_HEIGHT).setDepth(Depths.EndScreenOverlay - 1);
     const overlay = scene.add
-        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.55)
+        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.35)
         .setDepth(Depths.EndScreenOverlay);
     const panel = scene.add
         .rectangle(CENTER_X, CENTER_Y, 700, 500, 0x0a0a18)
