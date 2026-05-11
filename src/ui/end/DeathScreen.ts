@@ -34,6 +34,13 @@ interface UpgradeCardVisual {
     canPurchase: boolean;
 }
 
+interface MilestoneRowVisual {
+    label: Phaser.GameObjects.Text;
+    barBg: Phaser.GameObjects.Rectangle;
+    barFill: Phaser.GameObjects.Rectangle;
+    status: Phaser.GameObjects.Text;
+}
+
 export function showDeathScreen(ctx: EndScreenContext) {
     const { scene, loc, meta, tracker, player, npcs, runState } = ctx;
 
@@ -185,8 +192,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // On a death run the meta profile has already been wiped, so we
     // hide the entire shop section and let the player just hit
     // “start over”. On an escape run we render the bank header, the 4
-    // upgrade cards (damage / hp / defense / goldGain) and the next-
-    // discovery hint.
+    // upgrade cards (damage / hp / defense / goldGain) and the
+    // discovery-progress block.
     const divider2Y = bodyEndY + 20;
     const divider2 = scene.add
         .rectangle(CENTER_X, divider2Y, PANEL_W - 96, 1, 0x6a4f38, 0.6)
@@ -208,23 +215,12 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenForeground)
         .setVisible(escaped);
 
-    const unlockText = scene.add
-        .text(CENTER_X, bannerY + 28, '', {
-            fontFamily: 'Courier New',
-            fontSize: '11px',
-            color: '#8fb8ff',
-            align: 'center',
-            wordWrap: { width: PANEL_W - 96 },
-        })
-        .setOrigin(0.5, 0)
-        .setDepth(Depths.EndScreenContent)
-        .setVisible(escaped);
-
     // ── Upgrade card grid (2 rows × 2 cols, 4 cards) ───────
     const cardsStartY = bannerY + 64;
     const CARD_W = 380;
     const CARD_H = 70;
     const CARD_GAP_Y = 12;
+    const cardsBottomY = cardsStartY + (CARD_H + CARD_GAP_Y) + CARD_H / 2;
     const cards: UpgradeCardVisual[] = [];
     const cardPositions = [
         { x: CENTER_X - CARD_W / 2 - 12, y: cardsStartY },
@@ -322,6 +318,92 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // block; only the dividers + the banner's own gold-rimmed
     // rectangle group the section visually.
 
+    // ── Discovery progress block (escape only) ──────────────
+    // One row per content-unlock milestone; each row has a label, a
+    // gold/blue progress bar showing how close `highestDepthEver` /
+    // `bossesKilledEver` is to the target, and a textual `current/
+    // target` readout (with a `✓` for already-unlocked rows). The
+    // fill scales from 0 to its real fraction on mount so the player
+    // sees their progress animate in. `resetProgress` zeroes the
+    // source counters, so a post-wipe escape screen will start every
+    // bar at 0 again.
+    const PROGRESS_HEADER_GAP = 22;
+    const PROGRESS_ROW_GAP = 16;
+    const PROGRESS_LABEL_FONT = '12px';
+    const PROGRESS_BAR_W = 260;
+    const PROGRESS_BAR_H = 6;
+    const PROGRESS_LABEL_X = panelLeft + 60;
+    const PROGRESS_BAR_X = CENTER_X + 70;
+    const PROGRESS_STATUS_X = panelLeft + PANEL_W - 60;
+    const progressHeaderY = cardsBottomY + PROGRESS_HEADER_GAP;
+    const progressFirstRowY = progressHeaderY + 18;
+
+    const progressHeader = scene.add
+        .text(CENTER_X, progressHeaderY, loc.t('shopDiscoveryProgressHeader').toUpperCase(), {
+            fontFamily: 'Courier New',
+            fontSize: '12px',
+            color: '#9a8a6a',
+        })
+        .setOrigin(0.5, 0)
+        .setDepth(Depths.EndScreenContent)
+        .setVisible(escaped);
+
+    const progressRows: MilestoneRowVisual[] = [];
+    const progressEntries = escaped ? meta.getMilestoneProgressList(loc.language) : [];
+    progressEntries.forEach((entry, index) => {
+        const rowY = progressFirstRowY + index * PROGRESS_ROW_GAP;
+
+        const label = scene.add
+            .text(PROGRESS_LABEL_X, rowY, entry.label, {
+                fontFamily: 'Courier New',
+                fontSize: PROGRESS_LABEL_FONT,
+                color: entry.unlocked ? '#d8c89a' : '#a8a09a',
+                wordWrap: { width: PROGRESS_BAR_X - PROGRESS_LABEL_X - 220 },
+            })
+            .setOrigin(0, 0.5)
+            .setDepth(Depths.EndScreenContent);
+
+        const barBg = scene.add
+            .rectangle(PROGRESS_BAR_X, rowY, PROGRESS_BAR_W, PROGRESS_BAR_H, 0x2a201a)
+            .setStrokeStyle(1, 0x4a3a28)
+            .setOrigin(0, 0.5)
+            .setDepth(Depths.EndScreenContent);
+
+        const fraction = entry.target > 0 ? Math.min(1, entry.current / entry.target) : 0;
+        const barFill = scene.add
+            .rectangle(
+                PROGRESS_BAR_X,
+                rowY,
+                PROGRESS_BAR_W,
+                PROGRESS_BAR_H,
+                entry.unlocked ? 0xc9a050 : 0x6f8fb8
+            )
+            .setOrigin(0, 0.5)
+            .setDepth(Depths.EndScreenForeground);
+        barFill.scaleX = 0;
+        scene.tweens.add({
+            targets: barFill,
+            scaleX: { from: 0, to: fraction },
+            duration: 520,
+            delay: 180 + index * 80,
+            ease: 'Quad.out',
+        });
+
+        const statusText = entry.unlocked
+            ? `${entry.current}/${entry.target}  \u2713`
+            : `${entry.current}/${entry.target}`;
+        const status = scene.add
+            .text(PROGRESS_STATUS_X, rowY, statusText, {
+                fontFamily: 'Courier New',
+                fontSize: '12px',
+                color: entry.unlocked ? '#ffd36e' : '#a8a09a',
+            })
+            .setOrigin(1, 0.5)
+            .setDepth(Depths.EndScreenContent);
+
+        progressRows.push({ label, barBg, barFill, status });
+    });
+
     // ── Action buttons (panel bottom) ───────────────────────
     // On death the reset button is suppressed: `meta.resetProgress()`
     // is fired by GameScene before this screen mounts, so the entire
@@ -363,13 +445,6 @@ export function showDeathScreen(ctx: EndScreenContext) {
             return;
         }
         pointsText.setText(`${loc.t('shopSkillPointsBank')}: ${meta.availableSkillPoints}`);
-
-        const nextUnlock = meta.getNextContentUnlock();
-        unlockText.setText(
-            nextUnlock
-                ? `${loc.t('shopNextDiscovery')}: ${loc.pick(nextUnlock.requirement)} -> ${loc.pick(nextUnlock.label)}.`
-                : loc.t('shopAllUnlocked')
-        );
 
         const upgradeCards = meta.getUpgradeCards(loc.language);
         cards.forEach((card) => {
@@ -507,7 +582,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
         fadeTargets.push(resetButton, resetText);
     }
     if (escaped) {
-        fadeTargets.push(divider2, skillPointsBanner, pointsText, unlockText);
+        fadeTargets.push(divider2, skillPointsBanner, pointsText, progressHeader);
+        progressRows.forEach((row) => {
+            fadeTargets.push(row.label, row.barBg, row.barFill, row.status);
+        });
     }
     scene.tweens.add({
         targets: fadeTargets,
