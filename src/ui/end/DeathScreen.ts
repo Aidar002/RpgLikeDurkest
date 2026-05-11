@@ -21,12 +21,15 @@ import { drawCarvedPanel } from '../HudFrame';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
 import { drawUiButton } from '../UiButton';
+import type { PanelBackground } from '../UiPanel';
+import { applyPanelState, drawPanel } from '../UiPanel';
 import { bankSkillPointsOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
 interface UpgradeCardVisual {
     id: UpgradeId;
-    background: Phaser.GameObjects.Rectangle;
+    background: PanelBackground;
+    textured: boolean;
     title: Phaser.GameObjects.Text;
     level: Phaser.GameObjects.Text;
     body: Phaser.GameObjects.Text;
@@ -200,11 +203,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenContent)
         .setVisible(escaped);
     const bannerY = divider2Y + 24;
-    const skillPointsBanner = scene.add
-        .rectangle(CENTER_X, bannerY, 380, 34, 0x261c10, 0.95)
-        .setStrokeStyle(1, 0xc9a050)
-        .setDepth(Depths.EndScreenContent)
-        .setVisible(escaped);
+    const skillPointsBannerHandle = drawPanel(scene, CENTER_X, bannerY, 380, 34, {
+        depth: Depths.EndScreenContent,
+    });
+    const skillPointsBanner = skillPointsBannerHandle.background;
+    skillPointsBanner.setVisible(escaped);
     const pointsText = scene.add
         .text(CENTER_X, bannerY, '', {
             fontFamily: 'Courier New',
@@ -236,11 +239,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 return;
             }
 
-            const background = scene.add
-                .rectangle(position.x, position.y, CARD_W, CARD_H, 0x1c1c1c)
-                .setStrokeStyle(1, 0x4a4a4a)
-                .setDepth(Depths.EndScreenContent)
-                .setInteractive({ useHandCursor: true });
+            const panel = drawPanel(scene, position.x, position.y, CARD_W, CARD_H, {
+                depth: Depths.EndScreenContent,
+                interactive: true,
+            });
+            const background = panel.background;
 
             const cardTitle = scene.add
                 .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 10, card.title, {
@@ -280,6 +283,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             const visual: UpgradeCardVisual = {
                 id: card.id,
                 background,
+                textured: panel.textured,
                 title: cardTitle,
                 level: cardLevel,
                 body: cardBody,
@@ -289,11 +293,15 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
             background.on('pointerover', () => {
                 if (visual.canPurchase) {
-                    background.setStrokeStyle(2, 0xffffff);
+                    applyPanelState(background, 'hover', visual.textured);
                 }
             });
             background.on('pointerout', () => {
-                background.setStrokeStyle(1, visual.canPurchase ? 0x8a8a8a : 0x4a4a4a);
+                applyPanelState(
+                    background,
+                    visual.canPurchase ? 'idle' : 'disabled',
+                    visual.textured
+                );
             });
             background.on('pointerdown', () => {
                 const info = meta
@@ -468,8 +476,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                     ? loc.t('shopMaxLabel')
                     : `${loc.t('shopCostLabel')} ${info.cost}`
             );
-            card.background.setFillStyle(info.canPurchase ? 0x242424 : 0x1c1c1c);
-            card.background.setStrokeStyle(1, info.canPurchase ? 0x8a8a8a : 0x4a4a4a);
+            applyPanelState(card.background, info.canPurchase ? 'idle' : 'disabled', card.textured);
             card.canPurchase = info.canPurchase;
             card.cost.setColor(
                 info.cost === null ? '#6acb7f' : info.canPurchase ? '#ffd36e' : '#6f6f6f'

@@ -89,6 +89,12 @@ export class BootScene extends Phaser.Scene {
         this.load.image('btn_positive', `${base}assets/ui/buttons/btn_positive.png`);
         this.load.image('btn_danger', `${base}assets/ui/buttons/btn_danger.png`);
 
+        // Stylised small panel — used by upgrade-shop cards and the
+        // skill-points pilule on the escape screen. Same nine-slice
+        // pipeline as the button skins; ornate corners stay crisp
+        // while the dark navy centre stretches to the panel size.
+        this.load.image('panel_small', `${base}assets/ui/panel_small.png`);
+
         // Suppress noisy warnings if any of the optional UI assets are
         // missing — the HUD already falls back gracefully.
         this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
