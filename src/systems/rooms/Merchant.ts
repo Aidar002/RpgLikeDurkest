@@ -54,33 +54,6 @@ function showGenericMerchantOptions(scene: GameScene): void {
         fill: 0x355070,
     });
 
-    if (scene.meta.isUnlocked('merchant_premium')) {
-        actions.push({
-            label: scene.loc.t('actionRelic', {
-                num: actions.length + 1,
-                cost: ROOM_CONFIG.merchant.premiumShardCost,
-            }),
-            callback: () => {
-                if (!scene.player.spendRelicShard(ROOM_CONFIG.merchant.premiumShardCost)) {
-                    return;
-                }
-                scene.player.addAttackBonus(ROOM_CONFIG.merchant.premiumAttackBonus);
-                scene.player.gainPotions(ROOM_CONFIG.merchant.premiumPotionBonus);
-                scene.log.addMessage(
-                    scene.loc.t('buyRelic', {
-                        attack: ROOM_CONFIG.merchant.premiumAttackBonus,
-                        potions: ROOM_CONFIG.merchant.premiumPotionBonus,
-                    }),
-                    '#ffd9f7'
-                );
-                scene.enemyIntelText.setText(scene.loc.t('npcMerchantSmile'));
-                scene.showReturnButton();
-            },
-            enabled: scene.player.resources.relicShards >= ROOM_CONFIG.merchant.premiumShardCost,
-            fill: 0x6b4c96,
-        });
-    }
-
     actions.push({
         label: scene.loc.t('actionDynamicLeave', { num: actions.length + 1 }),
         callback: () => scene.showReturnButton(),

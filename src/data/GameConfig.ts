@@ -7,8 +7,6 @@
 export const FEATURES = {
     /** Boss / mini-boss `grantsSeal` tagging and seal-coverage validation. */
     seals: false,
-    /** Relic shards currency + premium shrine/merchant offers. */
-    shards: false,
 } as const;
 
 // Enemy profile is purely a visual / sprite category. Mob behaviour
@@ -331,9 +329,6 @@ export const ROOM_CONFIG = {
         potionCost: 14,
         armorCost: 24,
         armorDefenseGain: 1,
-        premiumShardCost: 1,
-        premiumAttackBonus: 2,
-        premiumPotionBonus: 1,
     },
     empty: {
         scoutGoldChance: 0.3,
@@ -345,11 +340,9 @@ export const ROOM_CONFIG = {
         bonusAttack: 1,
         bonusPotions: 1,
         bonusGold: 14,
-        shardReward: 1,
         relicChance: 0.6,
     },
     boss: {
-        shardReward: 2,
         relicChance: 1,
     },
 } as const;

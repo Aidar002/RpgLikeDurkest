@@ -30,7 +30,6 @@ describe('PlayerManager — construction', () => {
         expect(player.resources.gold).toBe(EXPEDITION_CONFIG.startingGold);
         expect(player.resources.potions).toBe(EXPEDITION_CONFIG.startingPotions);
         expect(player.resources.resolve).toBe(EXPEDITION_CONFIG.startingResolve);
-        expect(player.resources.relicShards).toBe(0);
 
         expect(player.killCount).toBe(0);
         expect(player.relics).toEqual([]);

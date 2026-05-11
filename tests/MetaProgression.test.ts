@@ -164,9 +164,9 @@ describe('MetaProgressionManager.getMilestoneProgressList', () => {
         expect(entries).toHaveLength(4);
         const targets = entries.map((e) => ({ id: e.id, target: e.target }));
         expect(targets).toEqual([
-            { id: 'depth-3', target: 3 },
-            { id: 'depth-5', target: 5 },
-            { id: 'depth-7', target: 7 },
+            { id: 'depth-6', target: 6 },
+            { id: 'depth-8', target: 8 },
+            { id: 'depth-10', target: 10 },
             { id: 'first-boss', target: 1 },
         ]);
         entries.forEach((entry) => {
@@ -177,14 +177,14 @@ describe('MetaProgressionManager.getMilestoneProgressList', () => {
 
     it('clamps depth progress to the milestone target and lights up unlocked rows', () => {
         const manager = new MetaProgressionManager();
-        manager.unlockDepthMilestones(5);
-        manager.bankSkillPoints(0, 5);
+        manager.unlockDepthMilestones(8);
+        manager.bankSkillPoints(0, 8);
 
         const entries = manager.getMilestoneProgressList('en');
         const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
-        expect(byId['depth-3']).toMatchObject({ current: 3, target: 3, unlocked: true });
-        expect(byId['depth-5']).toMatchObject({ current: 5, target: 5, unlocked: true });
-        expect(byId['depth-7']).toMatchObject({ current: 5, target: 7, unlocked: false });
+        expect(byId['depth-6']).toMatchObject({ current: 6, target: 6, unlocked: true });
+        expect(byId['depth-8']).toMatchObject({ current: 8, target: 8, unlocked: true });
+        expect(byId['depth-10']).toMatchObject({ current: 8, target: 10, unlocked: false });
         expect(byId['first-boss']).toMatchObject({ current: 0, target: 1, unlocked: false });
     });
 
