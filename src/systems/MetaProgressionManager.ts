@@ -1,4 +1,3 @@
-import { FEATURES } from '../data/GameConfig';
 import { lt, pickLocalized } from './LocalizedText';
 import type { LocalizedText } from './LocalizedText';
 import type { Language } from './Localization';
@@ -39,9 +38,6 @@ type UnlockId =
     | 'ui_enemy_hp'
     | 'ui_run_metrics'
     | 'ui_kill_counter'
-    | 'currency_relic_shards'
-    | 'merchant_premium'
-    | 'shrine_premium'
     | 'skill_cleave'
     | 'skill_bleed_strike'
     | 'skill_preparation'
@@ -69,7 +65,6 @@ export interface UiUnlockState {
     showEnemyHp: boolean;
     showRunMetrics: boolean;
     showKillCounter: boolean;
-    showRelicShards: boolean;
 }
 
 export type ContentUnlockState = Record<UnlockId, boolean>;
@@ -157,9 +152,6 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     ui_enemy_hp: true,
     ui_run_metrics: true,
     ui_kill_counter: true,
-    currency_relic_shards: true,
-    merchant_premium: true,
-    shrine_premium: true,
     skill_cleave: false,
     skill_bleed_strike: false,
     skill_preparation: false,
@@ -469,7 +461,6 @@ export class MetaProgressionManager {
             showEnemyHp: true,
             showRunMetrics: true,
             showKillCounter: true,
-            showRelicShards: FEATURES.shards,
         };
     }
 

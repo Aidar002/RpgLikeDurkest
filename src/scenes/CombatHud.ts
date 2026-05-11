@@ -306,11 +306,6 @@ export class CombatHudController {
             rewardLines.push(scene.loc.t('plusAttack', { value: payload.rewards.attackBonus }));
         }
 
-        const gainedShards = scene.player.gainRelicShards(payload.rewards.relicShards);
-        if (gainedShards > 0) {
-            rewardLines.push(scene.loc.t('plusShard', { value: gainedShards }));
-        }
-
         scene.player.registerKill();
         scene.log.addMessage(
             scene.loc.t('victoryRewards', { parts: rewardLines.join(', ') }),

@@ -24,7 +24,6 @@ export const HudColors = {
     accentResolve: 0x7da8d9,
     accentLight: 0xf0a050,
     accentGold: 0xc8a060,
-    accentShard: 0xb89cd8,
 
     /** Bright gold rim used for the highlighted "PRESTIGE" cell. */
     cellGoldEdge: 0xe2b04a,
@@ -43,7 +42,6 @@ export const HudHex = {
     accentLight: '#f0a050',
     accentMoon: '#9bb6d8',
     accentGold: '#d4b070',
-    accentShard: '#c4abdf',
     accentPotion: '#86d49a',
     accentBoss: '#e08a7a',
     accentKills: '#c0a0a0',

@@ -87,13 +87,12 @@ export class GameHudController {
     private resolveStat!: HudInlineSlotHandle;
 
     // Bottom-bar cells.
-    private shardStat!: HudCellHandle;
     private depthStat!: HudCellHandle;
     private killsStat!: HudCellHandle;
     private bossStat!: HudCellHandle;
 
-    /** Inline relic-icon row that lives between the shard cell and
-     *  the pillar divider. Hover-aware; tooltips are owned by the
+    /** Inline relic-icon row that lives in the bottom bar before the
+     *  pillar divider. Hover-aware; tooltips are owned by the
      *  widget itself. */
     private relicSlots!: RelicSlots;
 
@@ -177,7 +176,6 @@ export class GameHudController {
 
         const bottomWidgets: Phaser.GameObjects.GameObject[] = [
             bottom.botFrame,
-            this.shardStat.root,
             bottom.pillarG,
             this.depthStat.root,
             this.killsStat.root,
@@ -312,8 +310,6 @@ export class GameHudController {
         this.potionStat.setVisible(unlocks.showPotions);
         this.resolveStat.setValue(`${resources.resolve}/${resources.maxResolve}`);
         this.resolveStat.setVisible(unlocks.showResolve);
-        this.shardStat.setValue(`${resources.relicShards}`);
-        this.shardStat.setVisible(unlocks.showRelicShards);
 
         // Run progress cells (depth / kills / bosses). The legacy
         // PRESTIGE forecast cell was removed when the meta-progression
@@ -620,16 +616,7 @@ export class GameHudController {
         const STAT_LABEL_FONT = '12px';
         const STAT_VALUE_FONT = '17px';
 
-        this.shardStat = createHudCell(this.scene, resStart + 0 * resW, cellTop, resW, cellH, {
-            icon: 'shard',
-            label: this.scene.loc.t('shardShort').toUpperCase(),
-            valueColor: HudHex.accentShard,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
-        });
-
-        // Pillar divider between the resource block and the progress block.
+        // Pillar divider between the relic-slot block and the progress block.
         const pillarG = this.scene.add.graphics();
         pillarG.fillStyle(HudColors.panelOuter, 0.95);
         pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, cellH - 12);
@@ -676,13 +663,11 @@ export class GameHudController {
         // Anchor the relic row to the left side of the bottom bar so
         // the player's collected items get a dedicated, prominent
         // slot block — mirroring the depth/kills/bosses block on the
-        // right. Leftmost slot edge sits at the same `resStart = 36`
-        // safe-area inset that `buildBottomBar` uses for `shardStat`,
-        // so when `FEATURES.shards` re-enables that cell later the
-        // shard pill can move under or above this row without a clash.
-        // Slots are 60×60 with an 18 px gap (1.5× the original 40/12),
-        // so the row spans `MAX_RELICS * 60 + (MAX_RELICS - 1) * 18`
-        // = 372 px, leaving plenty of room before the pillar at 600.
+        // right. Leftmost slot edge sits at the `resStart = 36`
+        // safe-area inset. Slots are 60×60 with an 18 px gap
+        // (1.5× the original 40/12), so the row spans
+        // `MAX_RELICS * 60 + (MAX_RELICS - 1) * 18` = 372 px,
+        // leaving plenty of room before the pillar at 600.
         const cellH = 110;
         const cellTop = botY + Math.round((botH - cellH) / 2);
         const SLOT_SIZE = 60;
