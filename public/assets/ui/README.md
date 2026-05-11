@@ -13,6 +13,7 @@ glyph for icons.
 | `hud_icons.png` | 512×128 | yes | 8×2 grid of 64×64 frames in `IconFrame` order |
 | `room_frames.png` | 192×64 | yes | 3×1 grid of 64×64 frames (gold / red / grey) for map nodes |
 | `room_icons.png` | 576×64 | yes | 9×1 grid of 64×64 room-type icons. Frame order matches `ROOM_ICON_FRAME` in `src/ui/RoomVisuals.ts`: 0 campfire (START/REST), 1 enemy skull, 2 stone "?" (EMPTY), 3 elite skull, 4 boss crown skull (BOSS/MINI_BOSS), 5 chest (TREASURE), 6 sigil (TRAP), 7 tombstone (SHRINE), 8 coin pouch (MERCHANT) |
+| `torch.png` | 288×288 (3×3 grid of 96×96) | yes | Boot-screen wall torch flame loop. Square cells laid out row-major (left → right, top → bottom). `BootScene.preload` re-binds the texture as a spritesheet with cell size from `BOOT_TORCH_FRAME_SIZE` (96 px), and Phaser auto-derives the frame count from the texture dimensions, so 4 / 9 / 16-frame variants work without code changes. Used by `src/ui/BootTorch.ts`. |
 
 ## `hud_icons.png` frame order
 

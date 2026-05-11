@@ -27,7 +27,8 @@ type SoundId =
     | 'whisper'
     | 'nodeSelect'
     | 'relicDrop'
-    | 'footstep';
+    | 'footstep'
+    | 'torchIgnite';
 
 const STORAGE_KEY = 'dd_sound_muted';
 const VOLUME_KEY = 'dd_sound_volume';
@@ -229,6 +230,8 @@ export class SoundManager {
                 return this.playRelicDrop();
             case 'footstep':
                 return this.playFootstep();
+            case 'torchIgnite':
+                return this.playTorchIgnite();
         }
     }
 
@@ -372,6 +375,77 @@ export class SoundManager {
             src.stop(start + len);
         }
         this.osc('sine', 200, 0.3, 0.04);
+    }
+
+    /**
+     * Torch catching fire: tiny flint click followed by a low "fwoom"
+     * of burning air. ~0.5 s total. Filed under SFX so it respects
+     * the same mute/volume controls as the rest of the bank.
+     */
+    private playTorchIgnite() {
+        const ctx = this.ensure();
+        const t = ctx.currentTime;
+
+        // 1) Flint click — very short, slightly metallic crack.
+        const clickBuf = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.03), ctx.sampleRate);
+        const clickData = clickBuf.getChannelData(0);
+        for (let i = 0; i < clickData.length; i++) {
+            clickData[i] = (Math.random() * 2 - 1) * (1 - i / clickData.length);
+        }
+        const clickSrc = ctx.createBufferSource();
+        clickSrc.buffer = clickBuf;
+        const clickGain = ctx.createGain();
+        clickGain.gain.setValueAtTime(0.18, t);
+        clickGain.gain.linearRampToValueAtTime(0, t + 0.03);
+        clickSrc.connect(clickGain);
+        clickGain.connect(this.master!);
+        clickSrc.start(t);
+        clickSrc.stop(t + 0.03);
+
+        // 2) Whoosh — band-passed noise that ramps in over 60 ms,
+        //    decays over ~0.45 s. Reads as the body of the flame.
+        const whooshLen = 0.5;
+        const whooshBuf = ctx.createBuffer(
+            1,
+            Math.round(ctx.sampleRate * whooshLen),
+            ctx.sampleRate
+        );
+        const whooshData = whooshBuf.getChannelData(0);
+        for (let i = 0; i < whooshData.length; i++) {
+            whooshData[i] = Math.random() * 2 - 1;
+        }
+        const whooshSrc = ctx.createBufferSource();
+        whooshSrc.buffer = whooshBuf;
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(380, t + 0.02);
+        bp.frequency.exponentialRampToValueAtTime(180, t + whooshLen);
+        bp.Q.value = 0.9;
+        const whooshGain = ctx.createGain();
+        const start = t + 0.02;
+        whooshGain.gain.setValueAtTime(0, start);
+        whooshGain.gain.linearRampToValueAtTime(0.22, start + 0.06);
+        whooshGain.gain.linearRampToValueAtTime(0.05, start + 0.3);
+        whooshGain.gain.linearRampToValueAtTime(0, start + whooshLen);
+        whooshSrc.connect(bp);
+        bp.connect(whooshGain);
+        whooshGain.connect(this.master!);
+        whooshSrc.start(start);
+        whooshSrc.stop(start + whooshLen);
+
+        // 3) Sub-bass "thump" so the ignition lands with weight.
+        const sub = ctx.createOscillator();
+        const subGain = ctx.createGain();
+        sub.type = 'sine';
+        sub.frequency.setValueAtTime(110, t + 0.02);
+        sub.frequency.exponentialRampToValueAtTime(60, t + 0.35);
+        subGain.gain.setValueAtTime(0, t + 0.02);
+        subGain.gain.linearRampToValueAtTime(0.12, t + 0.05);
+        subGain.gain.linearRampToValueAtTime(0, t + 0.4);
+        sub.connect(subGain);
+        subGain.connect(this.master!);
+        sub.start(t + 0.02);
+        sub.stop(t + 0.4);
     }
 
     /** Ethereal chime. */
