@@ -15,7 +15,14 @@ const DOOR_TEXTURE_KEY = 'boot_door';
 const DOOR_FRAME_SIZE = 887;
 /** On-screen height used to scale the door inside the BootScene
  *  layout. Width matches because the source frames are square. */
-const DOOR_DISPLAY_HEIGHT = 340;
+const DOOR_DISPLAY_HEIGHT = 442;
+
+/** Tint multiplier applied to the door so the lit stone arch + wood
+ *  read as part of the dim torch-lit room behind it rather than
+ *  floating brighter than its surroundings. Phaser's tint multiplies
+ *  every channel by `tint/0xff`; 0x707078 ≈ 44 % brightness with a
+ *  faint cool cast that matches the surrounding stonework. */
+const DOOR_AMBIENT_TINT = 0x707078;
 
 export class BootScene extends Phaser.Scene {
     constructor() {
@@ -300,8 +307,11 @@ export class BootScene extends Phaser.Scene {
             ease: 'Quad.out',
         });
 
+        // Tagline anchor moved up (was 215) so the +30 % door below
+        // can extend its arch upward without colliding with the
+        // single-line tagline.
         const tagline = this.add
-            .text(CENTER_X, 215, loc.t('bootTagline'), {
+            .text(CENTER_X, 175, loc.t('bootTagline'), {
                 fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '14px',
                 color: '#c8cdd2',
@@ -322,6 +332,7 @@ export class BootScene extends Phaser.Scene {
                   .sprite(CENTER_X, 410, DOOR_TEXTURE_KEY, 0)
                   .setOrigin(0.5, 0.5)
                   .setDisplaySize(DOOR_DISPLAY_HEIGHT, DOOR_DISPLAY_HEIGHT)
+                  .setTint(DOOR_AMBIENT_TINT)
                   .setDepth(3)
                   .setAlpha(0)
             : null;
@@ -342,7 +353,10 @@ export class BootScene extends Phaser.Scene {
             duration: 600,
         });
 
-        const startUi = drawUiButton(this, CENTER_X, 660, 260, 48, loc.t('bootStart'), {
+        // Start button anchor moved down (was 660) so the taller
+        // door above has clearance to its lower foundation stones
+        // without overlapping the gold button frame.
+        const startUi = drawUiButton(this, CENTER_X, 705, 260, 48, loc.t('bootStart'), {
             variant: 'gold',
             fontSize: '18px',
             color: '#ffffff',
