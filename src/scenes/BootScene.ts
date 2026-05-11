@@ -196,22 +196,44 @@ export class BootScene extends Phaser.Scene {
         bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         bg.setDepth(1);
 
-        // Two animated wall torches flanking the title. Each torch
-        // starts hidden, ignites with a procedural fwoom + warm halo,
-        // then loops its flame animation forever. Stagger the two
-        // ignitions slightly so they read as separate events instead
-        // of one synchronized flash.
+        // Darkness overlay — sits above the backdrop / title / glow
+        // but below the torch sprites and chrome. Starts at high alpha
+        // so the room reads as pitch-black on first frame, then tweens
+        // to zero as the torches ignite to mimic the wall lighting up.
+        const IGNITION_DELAY = 800;
+        const ROOM_BRIGHTEN_MS = 1500;
+        const dimOverlay = this.add
+            .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.82)
+            .setOrigin(0, 0)
+            .setDepth(5);
+
+        // Two animated wall torches flanking the title. Both ignite
+        // simultaneously after `IGNITION_DELAY` with a slow fade and
+        // matching procedural fwoom; the dim overlay then drops to
+        // zero so the rest of the scene resolves to its normal colour.
         createBootTorch(this, 170, 420, {
             sfx,
-            delayMs: 420,
+            delayMs: IGNITION_DELAY,
             displayHeight: 168,
-            depth: 4,
+            depth: 7,
+            fadeDuration: 1200,
+            glowFadeDuration: 1500,
         });
         createBootTorch(this, GAME_WIDTH - 170, 420, {
             sfx,
-            delayMs: 720,
+            delayMs: IGNITION_DELAY,
             displayHeight: 168,
-            depth: 4,
+            depth: 7,
+            fadeDuration: 1200,
+            glowFadeDuration: 1500,
+        });
+        this.time.delayedCall(IGNITION_DELAY, () => {
+            this.tweens.add({
+                targets: dimOverlay,
+                alpha: { from: 0.82, to: 0 },
+                duration: ROOM_BRIGHTEN_MS,
+                ease: 'Quad.out',
+            });
         });
 
         // Ambient embers on title

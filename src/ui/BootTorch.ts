@@ -63,6 +63,16 @@ export interface BootTorchOptions {
      * torch; bump to 14–16 for a more frantic flame).
      */
     frameRate?: number;
+    /**
+     * Fade-in duration (ms) for the torch sprite when it ignites.
+     * Default 800.
+     */
+    fadeDuration?: number;
+    /**
+     * Fade-in duration (ms) for the glow halo when the torch ignites.
+     * Default 1000.
+     */
+    glowFadeDuration?: number;
 }
 
 export interface BootTorch {
@@ -90,6 +100,8 @@ export function createBootTorch(
     const glowRadius = opts.glowRadius ?? 140;
     const glowColor = opts.glowColor ?? { r: 255, g: 170, b: 70 };
     const frameRate = opts.frameRate ?? 10;
+    const fadeDuration = opts.fadeDuration ?? 800;
+    const glowFadeDuration = opts.glowFadeDuration ?? 1000;
 
     ensureBootTorchAnim(scene, frameRate);
 
@@ -144,7 +156,7 @@ export function createBootTorch(
         igniteFadeTween = scene.tweens.add({
             targets: sprite,
             alpha: { from: 0, to: 1 },
-            duration: 220,
+            duration: fadeDuration,
             ease: 'Quad.out',
         });
         if (!hasTexture) {
@@ -158,14 +170,14 @@ export function createBootTorch(
             scene.tweens.add({
                 targets: placeholderGfx,
                 alpha: 1,
-                duration: 220,
+                duration: fadeDuration,
             });
         }
         scene.tweens.add({
             targets: glow,
             alpha: { from: 0, to: 1 },
             scale: { from: 0.55, to: 1.0 },
-            duration: 280,
+            duration: glowFadeDuration,
             ease: 'Quad.out',
             onComplete: () => {
                 // Once lit, breathe the glow gently (sine flicker)
