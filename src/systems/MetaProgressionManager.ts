@@ -1,6 +1,7 @@
 import { FEATURES } from '../data/GameConfig';
 import { lt, pickLocalized } from './LocalizedText';
 import type { LocalizedText } from './LocalizedText';
+import type { Language } from './Localization';
 import type { SkillId } from './Skills';
 import {
     NpcManager,
@@ -91,6 +92,20 @@ interface UpgradeCardInfo {
     maxLevel: number;
     cost: number | null;
     canPurchase: boolean;
+}
+
+/**
+ * Localised snapshot of one content-unlock milestone for the
+ * end-screen 'discovery progress' block. `current` and `target`
+ * live in the milestone's natural unit (depth, boss kills, ...).
+ */
+export interface MilestoneProgressEntry {
+    id: string;
+    label: string;
+    requirement: string;
+    current: number;
+    target: number;
+    unlocked: boolean;
 }
 
 export interface ContentUnlockMilestone {
@@ -405,12 +420,40 @@ export class MetaProgressionManager {
         return unlocked;
     }
 
-    getNextContentUnlock(): ContentUnlockMilestone | null {
-        return (
-            ALL_MILESTONES.find((milestone) =>
-                milestone.unlocks.some((unlockId) => !this.profile.contentUnlocks[unlockId])
-            ) ?? null
-        );
+    /**
+     * Snapshot of every content-unlock milestone for end-screen
+     * rendering. The list is stable across runs (one entry per
+     * milestone, in display order); each entry carries the localised
+     * label, the natural-unit progress (`current`/`target`) and the
+     * unlocked flag. `resetProgress` zeroes the source counters so a
+     * post-wipe snapshot reports every entry at `0/target` again.
+     */
+    getMilestoneProgressList(language: Language): MilestoneProgressEntry[] {
+        return ALL_MILESTONES.map((milestone) => {
+            const unlocked = milestone.unlocks.every((id) => this.profile.contentUnlocks[id]);
+
+            let current: number;
+            let target: number;
+            if (milestone.depth !== undefined) {
+                target = milestone.depth;
+                current = Math.min(this.profile.highestDepthEver, target);
+            } else if (milestone.requiresFirstBossKill) {
+                target = 1;
+                current = Math.min(this.profile.bossesKilledEver, target);
+            } else {
+                target = 1;
+                current = unlocked ? 1 : 0;
+            }
+
+            return {
+                id: milestone.id,
+                label: pickLocalized(language, milestone.label),
+                requirement: pickLocalized(language, milestone.requirement),
+                current,
+                target,
+                unlocked,
+            };
+        });
     }
 
     getUiUnlockState(): UiUnlockState {

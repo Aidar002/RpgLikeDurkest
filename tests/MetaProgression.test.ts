@@ -157,6 +157,61 @@ describe('MetaProgressionManager.resetProgress', () => {
     });
 });
 
+describe('MetaProgressionManager.getMilestoneProgressList', () => {
+    it('returns one entry per milestone with current/target in the natural unit', () => {
+        const manager = new MetaProgressionManager();
+        const entries = manager.getMilestoneProgressList('en');
+        expect(entries).toHaveLength(4);
+        const targets = entries.map((e) => ({ id: e.id, target: e.target }));
+        expect(targets).toEqual([
+            { id: 'depth-3', target: 3 },
+            { id: 'depth-5', target: 5 },
+            { id: 'depth-7', target: 7 },
+            { id: 'first-boss', target: 1 },
+        ]);
+        entries.forEach((entry) => {
+            expect(entry.current).toBe(0);
+            expect(entry.unlocked).toBe(false);
+        });
+    });
+
+    it('clamps depth progress to the milestone target and lights up unlocked rows', () => {
+        const manager = new MetaProgressionManager();
+        manager.unlockDepthMilestones(5);
+        manager.bankSkillPoints(0, 5);
+
+        const entries = manager.getMilestoneProgressList('en');
+        const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+        expect(byId['depth-3']).toMatchObject({ current: 3, target: 3, unlocked: true });
+        expect(byId['depth-5']).toMatchObject({ current: 5, target: 5, unlocked: true });
+        expect(byId['depth-7']).toMatchObject({ current: 5, target: 7, unlocked: false });
+        expect(byId['first-boss']).toMatchObject({ current: 0, target: 1, unlocked: false });
+    });
+
+    it('treats the first boss kill as a 0/1 -> 1/1 ✓ row', () => {
+        const manager = new MetaProgressionManager();
+        manager.registerBossKill();
+        const boss = manager
+            .getMilestoneProgressList('en')
+            .find((entry) => entry.id === 'first-boss');
+        expect(boss).toMatchObject({ current: 1, target: 1, unlocked: true });
+    });
+
+    it('zeroes every entry after resetProgress', () => {
+        const manager = new MetaProgressionManager();
+        manager.unlockDepthMilestones(9);
+        manager.registerBossKill();
+        manager.bankSkillPoints(0, 9);
+        manager.resetProgress();
+
+        const entries = manager.getMilestoneProgressList('en');
+        entries.forEach((entry) => {
+            expect(entry.current).toBe(0);
+            expect(entry.unlocked).toBe(false);
+        });
+    });
+});
+
 describe('MetaProgressionManager localStorage migration', () => {
     it('drops any pre-v4 snapshot on first load and starts from defaults', () => {
         LEGACY_KEYS.forEach((key) => window.localStorage.setItem(key, '{"prestigePoints":99}'));
