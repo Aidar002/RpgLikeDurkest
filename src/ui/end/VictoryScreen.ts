@@ -8,6 +8,7 @@
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
 import { drawUiButton } from '../UiButton';
+import { BODY_FONT } from '../HudTheme';
 import { bankSkillPointsOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
@@ -43,7 +44,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
 
     const title = scene.add
         .text(CENTER_X, 150, loc.t(titleKey), {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '32px',
             color: '#ffd36e',
         })
@@ -55,7 +56,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenContent);
     const artifactIcon = scene.add
         .text(CENTER_X, 280, '\u2726', {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '40px',
             color: '#ffd36e',
         })
@@ -79,7 +80,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     });
     const summaryText = scene.add
         .text(CENTER_X, 370, summaryBody, {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '13px',
             color: '#c8cdd2',
             align: 'center',
@@ -92,7 +93,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
     const statLines = tracker.getSummaryLines(loc.language);
     const statsText = scene.add
         .text(CENTER_X, 460, statLines.join('\n'), {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '11px',
             color: '#9a9a9a',
             align: 'center',

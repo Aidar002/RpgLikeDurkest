@@ -17,6 +17,7 @@ import { Localization } from '../systems/Localization';
 import type { NpcManager } from '../systems/NpcManager';
 import type { NpcOfferTemplate } from '../systems/Npcs';
 import { EventLog } from '../ui/EventLog';
+import { BODY_FONT } from '../ui/HudTheme';
 import { VFX } from '../ui/VFX';
 import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
@@ -244,7 +245,7 @@ export class GameScene extends Phaser.Scene {
         // before MapView so the constructor can capture it.
         this.tooltipText = this.add
             .text(0, 0, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '11px',
                 color: '#d0d0d0',
                 backgroundColor: '#1a1a1aee',

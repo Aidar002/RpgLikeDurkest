@@ -48,7 +48,25 @@ export const HudHex = {
     accentDepth: '#b0b8c0',
 } as const;
 
+/**
+ * Centralised font stacks for the UI. Two roles:
+ *
+ *  - `HUD_FONT` — moderately compact monospace used by the HUD,
+ *    bottom-bar resource cells, event log, relic slots / modal,
+ *    boot-screen widgets, and anywhere columnar alignment matters
+ *    (numbers, stat tables, segmented bars).
+ *  - `BODY_FONT` — wider monospace used by room descriptions,
+ *    combat action button labels, end-screen narrative copy, and
+ *    other "prose" surfaces where readability of full sentences
+ *    matters more than digit alignment.
+ *
+ * Both stacks currently point at OS-installed fonts so this file is
+ * the single switching point if/when we drop a web font into
+ * `public/fonts/` and want to swap the visual identity. Update the
+ * string here and every UI surface follows.
+ */
 export const HUD_FONT = 'Lucida Console, Consolas, monospace';
+export const BODY_FONT = 'Courier New';
 export const HUD_STROKE = '#020304';
 
 /**

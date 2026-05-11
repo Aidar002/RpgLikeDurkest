@@ -7,6 +7,7 @@ import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
 import { BOOT_TORCH_FRAME_SIZE, BOOT_TORCH_TEXTURE_KEY, createBootTorch } from '../ui/BootTorch';
 import { createStoneBackdrop } from '../ui/StoneBackdrop';
 import { drawUiButton } from '../ui/UiButton';
+import { HUD_FONT } from '../ui/HudTheme';
 
 /** Boot-screen door spritesheet binding. Two frames (closed / open)
  *  laid out horizontally; each frame is a square of this size. The
@@ -288,7 +289,7 @@ export class BootScene extends Phaser.Scene {
 
         const title = this.add
             .text(CENTER_X, 110, titleText(), {
-                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontFamily: HUD_FONT,
                 fontSize: '48px',
                 color: '#f1c75d',
                 align: 'center',
@@ -312,7 +313,7 @@ export class BootScene extends Phaser.Scene {
         // single-line tagline.
         const tagline = this.add
             .text(CENTER_X, 175, loc.t('bootTagline'), {
-                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontFamily: HUD_FONT,
                 fontSize: '14px',
                 color: '#c8cdd2',
                 stroke: '#030507',
@@ -401,7 +402,7 @@ export class BootScene extends Phaser.Scene {
 
         this.add
             .text(GAME_WIDTH - 20, GAME_HEIGHT - 20, 'v0.3', {
-                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontFamily: HUD_FONT,
                 fontSize: '11px',
                 color: '#68717a',
             })
@@ -410,7 +411,7 @@ export class BootScene extends Phaser.Scene {
         // Language toggle button
         const langLabel = this.add
             .text(20, GAME_HEIGHT - 20, loc.language === 'ru' ? 'RU' : 'EN', {
-                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontFamily: HUD_FONT,
                 fontSize: '13px',
                 color: '#aaaaaa',
             })

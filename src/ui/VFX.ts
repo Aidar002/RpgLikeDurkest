@@ -8,6 +8,7 @@ import {
     HUD_BOTTOM_OFFSET,
     TOP_BAR_H,
 } from './Layout';
+import { HUD_FONT } from './HudTheme';
 
 export class VFX {
     /**
@@ -56,7 +57,7 @@ export class VFX {
     static floatText(scene: Phaser.Scene, x: number, y: number, text: string, color = '#ffffff') {
         const t = scene.add
             .text(x, y, text, {
-                fontFamily: 'Lucida Console, Consolas, monospace',
+                fontFamily: HUD_FONT,
                 fontSize: '22px',
                 color,
                 stroke: '#000000',

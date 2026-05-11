@@ -19,6 +19,7 @@
 import * as Phaser from 'phaser';
 
 import type { Localization } from '../systems/Localization';
+import { BODY_FONT } from './HudTheme';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 import { drawUiButton } from './UiButton';
 
@@ -49,7 +50,7 @@ export class RestartConfirmModal {
         panel.setStrokeStyle(2, 0x8a4d4d);
         const title = scene.add
             .text(CENTER_X, CENTER_Y - 50, loc.t('confirmRestartTitle'), {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '22px',
                 color: '#ffd2d2',
             })
@@ -57,7 +58,7 @@ export class RestartConfirmModal {
             .setDepth(Depths.ConfirmContent);
         const body = scene.add
             .text(CENTER_X, CENTER_Y, loc.t('confirmRestartBody'), {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '14px',
                 color: '#d6d6d6',
                 align: 'center',

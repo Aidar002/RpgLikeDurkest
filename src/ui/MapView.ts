@@ -27,6 +27,7 @@ import type { Localization } from '../systems/Localization';
 import type { MapNode } from '../data/MapTypes';
 import type { MetaProgressionManager, UiUnlockState } from '../systems/MetaProgressionManager';
 import { hasTexture } from './AssetGuard';
+import { BODY_FONT } from './HudTheme';
 import { PixelSprite } from './PixelSprite';
 import {
     fitRoomSprite,
@@ -228,7 +229,7 @@ export class MapView {
 
             const icon = this.scene.add
                 .text(x, y, revealed && knowsType ? roomIcon(node.type) : '?', {
-                    fontFamily: 'Courier New',
+                    fontFamily: BODY_FONT,
                     fontSize: '28px',
                     color: node.cleared ? '#888888' : '#ffffff',
                 })

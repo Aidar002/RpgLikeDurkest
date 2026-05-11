@@ -18,6 +18,7 @@ import * as Phaser from 'phaser';
 
 import type { UpgradeId } from '../../systems/MetaProgressionManager';
 import { drawCarvedPanel } from '../HudFrame';
+import { BODY_FONT } from '../HudTheme';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
 import { drawUiButton } from '../UiButton';
@@ -91,7 +92,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const titleColor = escaped ? '#c9a050' : '#d65a5a';
     const title = scene.add
         .text(CENTER_X, panelTop + 40, titleText, {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '28px',
             color: titleColor,
         })
@@ -115,7 +116,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
           });
     const subtitle = scene.add
         .text(CENTER_X, panelTop + 78, subtitleText, {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '14px',
             color: '#c9a880',
             align: 'center',
@@ -138,7 +139,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     const leftHeader = scene.add
         .text(COL_LEFT_X, COL_HEADER_Y, isRu ? 'ПРОГРЕСС ЗАБЕГА' : 'RUN PROGRESS', {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '12px',
             color: '#9a8a6a',
         })
@@ -146,7 +147,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     const rightHeader = scene.add
         .text(COL_RIGHT_X, COL_HEADER_Y, loc.t('shopAcquaintances').toUpperCase(), {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '12px',
             color: '#9a8a6a',
         })
@@ -157,7 +158,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     const leftBody = scene.add
         .text(COL_LEFT_X, COL_BODY_Y, statLines.join('\n'), {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '12px',
             color: '#a8a09a',
             align: 'left',
@@ -174,7 +175,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
               : '— no one was met —';
     const rightBody = scene.add
         .text(COL_RIGHT_X, COL_BODY_Y, rightBodyText, {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '12px',
             color: '#a8a09a',
             align: 'left',
@@ -210,7 +211,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     skillPointsBanner.setVisible(escaped);
     const pointsText = scene.add
         .text(CENTER_X, bannerY, '', {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '15px',
             color: '#ffd36e',
         })
@@ -247,7 +248,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
             const cardTitle = scene.add
                 .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 10, card.title, {
-                    fontFamily: 'Courier New',
+                    fontFamily: BODY_FONT,
                     fontSize: '15px',
                     color: '#f0f0f0',
                 })
@@ -255,7 +256,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
             const cardLevel = scene.add
                 .text(position.x + CARD_W / 2 - 14, position.y - CARD_H / 2 + 10, '', {
-                    fontFamily: 'Courier New',
+                    fontFamily: BODY_FONT,
                     fontSize: '14px',
                     color: '#a8a8a8',
                 })
@@ -264,7 +265,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
             const cardBody = scene.add
                 .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 30, '', {
-                    fontFamily: 'Courier New',
+                    fontFamily: BODY_FONT,
                     fontSize: '12px',
                     color: '#9a9a9a',
                     wordWrap: { width: CARD_W - 110 },
@@ -273,7 +274,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
             const cardCost = scene.add
                 .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 22, '', {
-                    fontFamily: 'Courier New',
+                    fontFamily: BODY_FONT,
                     fontSize: '13px',
                     color: '#ffd36e',
                 })
@@ -353,7 +354,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     const progressHeader = scene.add
         .text(CENTER_X, progressHeaderY, loc.t('shopDiscoveryProgressHeader').toUpperCase(), {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '12px',
             color: '#9a8a6a',
         })
@@ -367,7 +368,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     progressEntries.forEach((entry, index) => {
         const label = scene.add
             .text(PROGRESS_LABEL_X, progressCursorY, entry.label, {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: PROGRESS_LABEL_FONT,
                 color: entry.unlocked ? '#d8c89a' : '#a8a09a',
                 wordWrap: { width: PROGRESS_BAR_X - PROGRESS_LABEL_X - 220 },
@@ -409,7 +410,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             : `${entry.current}/${entry.target}`;
         const status = scene.add
             .text(PROGRESS_STATUS_X, centerY, statusText, {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '12px',
                 color: entry.unlocked ? '#ffd36e' : '#a8a09a',
             })
@@ -500,7 +501,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         confirmPanel.setStrokeStyle(2, 0x8a4d4d);
         const confirmTitle = scene.add
             .text(CENTER_X, CENTER_Y - 50, loc.t('confirmResetTitle'), {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '22px',
                 color: '#ffd2d2',
             })
@@ -508,7 +509,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             .setDepth(Depths.ConfirmContent);
         const confirmBody = scene.add
             .text(CENTER_X, CENTER_Y, loc.t('confirmResetBody'), {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '14px',
                 color: '#d6d6d6',
                 align: 'center',

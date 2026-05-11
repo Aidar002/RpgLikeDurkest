@@ -23,6 +23,7 @@ import * as Phaser from 'phaser';
 
 import type { SoundManager } from '../systems/SoundManager';
 import { compactText } from './TextHelpers';
+import { BODY_FONT } from './HudTheme';
 import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, RoomLayout } from './Layout';
 
 /**
@@ -179,7 +180,7 @@ export function createRoomButtons(
 
         const label = scene.add
             .text(spec.x, spec.y, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '16px',
                 color: '#dddddd',
             })

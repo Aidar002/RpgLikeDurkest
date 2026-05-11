@@ -6,6 +6,7 @@ import {
     TOP_BAR_H,
 } from '../../ui/Layout';
 import { hasTexture } from '../../ui/AssetGuard';
+import { BODY_FONT } from '../../ui/HudTheme';
 import { PixelSprite } from '../../ui/PixelSprite';
 import { fitEnemySprite } from '../../ui/RoomVisuals';
 import { compactText } from '../../ui/TextHelpers';
@@ -51,7 +52,7 @@ export class GameRoomController {
         panel.setStrokeStyle(2, 0x353535);
 
         scene.roomHeaderText = scene.add.text(panelX + 20, panelY + 6, '', {
-            fontFamily: 'Courier New',
+            fontFamily: BODY_FONT,
             fontSize: '14px',
             color: '#8b8b8b',
         });
@@ -68,7 +69,7 @@ export class GameRoomController {
             .setStrokeStyle(2, 0x555555);
         scene.enemyIconText = scene.add
             .text(cx, portraitCY + 14, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '52px',
                 color: '#ffffff',
             })
@@ -80,7 +81,7 @@ export class GameRoomController {
 
         scene.enemyNameText = scene.add
             .text(cx, portraitCY + 84, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '20px',
                 color: '#f4f0e0',
                 align: 'center',
@@ -102,7 +103,7 @@ export class GameRoomController {
             .setOrigin(0, 0.5);
         scene.enemyHpText = scene.add
             .text(cx, hpBarY + 1, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '14px',
                 color: '#ffd9d2',
                 stroke: '#000000',
@@ -115,7 +116,7 @@ export class GameRoomController {
         // (was 11px subtle; bumped to 14px and brighter blue).
         scene.enemyIntelText = scene.add
             .text(cx, hpBarY + 22, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '14px',
                 color: '#9ec3ff',
                 align: 'center',
@@ -131,7 +132,7 @@ export class GameRoomController {
         // dialogue lines read naturally inside the wider panel.
         scene.roomFlavorText = scene.add
             .text(cx, hpBarY + 58, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '13px',
                 color: '#b0b0b0',
                 align: 'center',
