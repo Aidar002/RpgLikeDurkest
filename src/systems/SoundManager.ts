@@ -1,6 +1,12 @@
 /**
  * Procedural sound engine using Web Audio API.
- * All sounds are synthesized at runtime — no audio files required.
+ *
+ * Most cues are synthesized at runtime via short oscillator + noise
+ * chains routed through the master gain. A small set of UI feedback
+ * sounds (hover / click) are loaded from OGG files in `public/audio/`
+ * because the procedural versions read as "beeps" — see
+ * {@link SoundManager.preloadUiSfx}. The footsteps loop also uses a
+ * file (`steps_sound1.ogg`); see {@link SoundManager.startFootstepsLoop}.
  */
 
 type SoundId =
@@ -26,10 +32,19 @@ type SoundId =
     | 'victory'
     | 'whisper'
     | 'nodeSelect'
+    | 'roomHover'
     | 'relicDrop'
     | 'footstep'
     | 'torchIgnite'
     | 'doorOpen';
+
+/**
+ * Keys for the small set of sampled UI SFX preloaded from
+ * `public/audio/*.ogg`. Kept distinct from {@link SoundId} so the
+ * compile-time exhaustiveness check on `play()` doesn't need to know
+ * about the buffer cache.
+ */
+type SampleKey = 'uiHover' | 'uiClick';
 
 const STORAGE_KEY = 'dd_sound_muted';
 const VOLUME_KEY = 'dd_sound_volume';
@@ -56,6 +71,18 @@ export class SoundManager {
     private footstepsAudio: HTMLAudioElement | null = null;
     private footstepsFadeGain: GainNode | null = null;
     private footstepsFadeRaf: number | null = null;
+    /**
+     * Decoded AudioBuffers for the sampled UI SFX (hover / click).
+     * Populated by {@link preloadUiSfx}; missing entries make the
+     * corresponding `play(...)` call fall back to the procedural synth.
+     */
+    private sampleBuffers: Map<SampleKey, AudioBuffer> = new Map();
+    /**
+     * Tracks an in-flight `preloadUiSfx()` call so repeat invocations
+     * (e.g. BootScene's create + a future scene-restart) share the
+     * same fetch instead of re-downloading the OGG files.
+     */
+    private samplePreloadPromise: Promise<void> | null = null;
 
     constructor() {
         this._muted = localStorage.getItem(STORAGE_KEY) === '1';
@@ -178,6 +205,71 @@ export class SoundManager {
         o.stop(ctx.currentTime + duration);
     }
 
+    // ─── sampled UI SFX ────────────────────────────────────────
+
+    /**
+     * Eagerly load the OGG-encoded UI samples (hover / click) so the
+     * first hover / click after boot fires without a fetch-latency
+     * gap. Safe to call multiple times — the underlying fetch +
+     * decode is memoised by {@link samplePreloadPromise}.
+     *
+     * Resolves even if individual files 404 — missing buffers stay
+     * out of the cache and the corresponding `play(...)` call falls
+     * back to the synth (or stays silent for `roomHover`).
+     */
+    preloadUiSfx(): Promise<void> {
+        if (this.samplePreloadPromise) return this.samplePreloadPromise;
+        const base = import.meta.env.BASE_URL;
+        const ctx = this.ensure();
+        const samples: Array<{ key: SampleKey; url: string }> = [
+            { key: 'uiHover', url: `${base}audio/ui_hover.ogg` },
+            { key: 'uiClick', url: `${base}audio/ui_click.ogg` },
+        ];
+        this.samplePreloadPromise = Promise.all(
+            samples.map(async ({ key, url }) => {
+                try {
+                    const res = await fetch(url);
+                    if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                    const arrayBuffer = await res.arrayBuffer();
+                    const buffer = await ctx.decodeAudioData(arrayBuffer);
+                    this.sampleBuffers.set(key, buffer);
+                } catch (err) {
+                    console.warn(`[sfx] failed to preload ${key} from ${url}:`, err);
+                }
+            })
+        ).then(() => undefined);
+        return this.samplePreloadPromise;
+    }
+
+    /**
+     * Play a one-shot sampled SFX through the master gain so it
+     * obeys the mute toggle and the SFX volume slider. Each call
+     * creates a fresh `AudioBufferSourceNode`, so rapid repeat plays
+     * (e.g. mouse darting across map nodes) overlap cleanly without
+     * cutting each other off.
+     *
+     * Returns `true` if the buffer was found and a source was
+     * scheduled — callers use this to decide whether to run a synth
+     * fallback. Returns `false` if the buffer hasn't been preloaded
+     * yet, the audio engine isn't ready, or the mute toggle is on
+     * (no point feeding a source through a 0-gain master node).
+     */
+    private playSample(key: SampleKey, gainValue: number): boolean {
+        const buffer = this.sampleBuffers.get(key);
+        if (!buffer) return false;
+        if (this._muted) return false;
+        const ctx = this.ensure();
+        if (!this.master) return false;
+        const source = ctx.createBufferSource();
+        source.buffer = buffer;
+        const gain = ctx.createGain();
+        gain.gain.value = Math.max(0, gainValue);
+        source.connect(gain);
+        gain.connect(this.master);
+        source.start(0);
+        return true;
+    }
+
     // ─── public play ───────────────────────────────────────────
 
     play(id: SoundId) {
@@ -227,6 +319,8 @@ export class SoundManager {
                 return this.playWhisper();
             case 'nodeSelect':
                 return this.playNodeSelect();
+            case 'roomHover':
+                return this.playRoomHover();
             case 'relicDrop':
                 return this.playRelicDrop();
             case 'footstep':
@@ -568,9 +662,25 @@ export class SoundManager {
         this.env(gain, 0.05, 0.1, 0.3, 0.15);
     }
 
-    /** Subtle click. */
+    /**
+     * Click feedback for any UI button. Uses the sampled
+     * `ui_click.ogg` once {@link preloadUiSfx} resolves; until then
+     * (and as a permanent fallback if the file is missing) it falls
+     * back to the short square-wave tick we used historically.
+     */
     private playButtonClick() {
+        if (this.playSample('uiClick', 0.55)) return;
         this.osc('square', 800, 0.03, 0.08);
+    }
+
+    /**
+     * Soft chime fired when the cursor enters a reachable map node.
+     * Sampled-only — there is no synth fallback because the hover
+     * affordance is non-critical and a silent hover is preferable to
+     * a beep that doesn't match the rest of the SFX bed.
+     */
+    private playRoomHover() {
+        this.playSample('uiHover', 0.4);
     }
 
     /** Very soft tick on hover. */
