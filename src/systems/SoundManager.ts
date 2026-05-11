@@ -28,7 +28,8 @@ type SoundId =
     | 'nodeSelect'
     | 'relicDrop'
     | 'footstep'
-    | 'torchIgnite';
+    | 'torchIgnite'
+    | 'doorOpen';
 
 const STORAGE_KEY = 'dd_sound_muted';
 const VOLUME_KEY = 'dd_sound_volume';
@@ -232,6 +233,8 @@ export class SoundManager {
                 return this.playFootstep();
             case 'torchIgnite':
                 return this.playTorchIgnite();
+            case 'doorOpen':
+                return this.playDoorOpen();
         }
     }
 
@@ -446,6 +449,57 @@ export class SoundManager {
         subGain.connect(this.master!);
         sub.start(t + 0.02);
         sub.stop(t + 0.4);
+    }
+
+    /**
+     * Heavy wooden door swinging open: low creak ramp + thud at the
+     * end of the swing. ~0.9 s total. Used by the boot-screen door
+     * sprite when the player clicks "Start expedition".
+     */
+    private playDoorOpen() {
+        const ctx = this.ensure();
+        const t = ctx.currentTime;
+
+        // 1) Creak — narrow band-passed noise sweeping down from
+        //    ~280 Hz to ~120 Hz over ~0.7 s. Reads as old hinges.
+        const creakLen = 0.7;
+        const creakBuf = ctx.createBuffer(1, Math.round(ctx.sampleRate * creakLen), ctx.sampleRate);
+        const creakData = creakBuf.getChannelData(0);
+        for (let i = 0; i < creakData.length; i++) {
+            creakData[i] = Math.random() * 2 - 1;
+        }
+        const creakSrc = ctx.createBufferSource();
+        creakSrc.buffer = creakBuf;
+        const bp = ctx.createBiquadFilter();
+        bp.type = 'bandpass';
+        bp.frequency.setValueAtTime(280, t);
+        bp.frequency.exponentialRampToValueAtTime(120, t + creakLen);
+        bp.Q.value = 4.2;
+        const creakGain = ctx.createGain();
+        creakGain.gain.setValueAtTime(0, t);
+        creakGain.gain.linearRampToValueAtTime(0.28, t + 0.08);
+        creakGain.gain.linearRampToValueAtTime(0.18, t + 0.45);
+        creakGain.gain.linearRampToValueAtTime(0, t + creakLen);
+        creakSrc.connect(bp);
+        bp.connect(creakGain);
+        creakGain.connect(this.master!);
+        creakSrc.start(t);
+        creakSrc.stop(t + creakLen);
+
+        // 2) Wood thud — low sine pulse landing at the end of the
+        //    swing so the door settles with weight.
+        const thud = ctx.createOscillator();
+        const thudGain = ctx.createGain();
+        thud.type = 'sine';
+        thud.frequency.setValueAtTime(90, t + creakLen - 0.05);
+        thud.frequency.exponentialRampToValueAtTime(45, t + creakLen + 0.25);
+        thudGain.gain.setValueAtTime(0, t + creakLen - 0.05);
+        thudGain.gain.linearRampToValueAtTime(0.24, t + creakLen);
+        thudGain.gain.linearRampToValueAtTime(0, t + creakLen + 0.3);
+        thud.connect(thudGain);
+        thudGain.connect(this.master!);
+        thud.start(t + creakLen - 0.05);
+        thud.stop(t + creakLen + 0.3);
     }
 
     /** Ethereal chime. */
