@@ -85,6 +85,37 @@ export class MusicManager {
         else this.attemptPlay();
     }
 
+    /**
+     * Pause whatever is currently playing without tearing the manager
+     * down. Unlike {@link destroy}, the playlist and volume state are
+     * preserved so a later {@link start} or {@link kick} resumes
+     * playback. Used when transitioning into a scene that should be
+     * musically silent (e.g. BootScene).
+     */
+    stop(): void {
+        this.playRequested = false;
+        this.playing = false;
+        if (this.fadeRaf != null && typeof cancelAnimationFrame !== 'undefined') {
+            cancelAnimationFrame(this.fadeRaf);
+            this.fadeRaf = null;
+        }
+        if (this.current) {
+            try {
+                this.current.pause();
+            } catch {
+                /* ignored */
+            }
+        }
+        if (this.next) {
+            try {
+                this.next.pause();
+            } catch {
+                /* ignored */
+            }
+        }
+        this.detachAutoStart();
+    }
+
     private bindAutoStart(): void {
         if (this.autoStartBound || typeof window === 'undefined') return;
         this.autoStartBound = true;
