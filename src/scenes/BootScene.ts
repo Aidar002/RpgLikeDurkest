@@ -4,6 +4,7 @@ import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
 import { parseDevSeedQuery } from '../systems/DevSeed';
 import { CENTER_X, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
+import { BOOT_TORCH_FRAME_SIZE, BOOT_TORCH_TEXTURE_KEY, createBootTorch } from '../ui/BootTorch';
 import { createStoneBackdrop } from '../ui/StoneBackdrop';
 import { drawUiButton } from '../ui/UiButton';
 
@@ -95,10 +96,20 @@ export class BootScene extends Phaser.Scene {
         // while the dark navy centre stretches to the panel size.
         this.load.image('panel_small', `${base}assets/ui/panel_small.png`);
 
+        // Boot-screen torch spritesheet — square-cell grid laid out
+        // row-major (frame 0 top-left, advancing left→right then
+        // top→bottom). Loaded as a plain image first so we can inspect
+        // the source in FILE_COMPLETE and re-register it as a
+        // spritesheet with the canonical cell size. Phaser derives
+        // the frame count from the resulting (imageWidth × imageHeight
+        // / cellSize²), so the artist can ship 4 / 9 / 16 frames
+        // without changes here.
+        this.load.image(BOOT_TORCH_TEXTURE_KEY, `${base}assets/ui/torch.png`);
+
         // Suppress noisy warnings if any of the optional UI assets are
         // missing — the HUD already falls back gracefully.
         this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
-            if (file.key.startsWith('hud_')) {
+            if (file.key.startsWith('hud_') || file.key === BOOT_TORCH_TEXTURE_KEY) {
                 console.info(
                     `[hud] optional asset missing: ${file.key} — using procedural fallback`
                 );
@@ -114,7 +125,41 @@ export class BootScene extends Phaser.Scene {
                 const tex = this.textures.get(key);
                 tex.setFilter(Phaser.Textures.FilterMode.NEAREST);
             }
+            if (key === BOOT_TORCH_TEXTURE_KEY) {
+                this.upgradeBootTorchToSpritesheet();
+            }
         });
+    }
+
+    /**
+     * The boot-torch PNG is authored as a square-cell grid (row-major,
+     * left→right, top→bottom). We load it as a plain image first,
+     * then here we re-register it as a spritesheet with the canonical
+     * cell size from {@link BOOT_TORCH_FRAME_SIZE}; Phaser computes
+     * the frame count automatically from the texture dimensions.
+     */
+    private upgradeBootTorchToSpritesheet() {
+        if (!this.textures.exists(BOOT_TORCH_TEXTURE_KEY)) return;
+        const tex = this.textures.get(BOOT_TORCH_TEXTURE_KEY);
+        const src = tex.getSourceImage();
+        const w = (src as HTMLImageElement).width ?? 0;
+        const h = (src as HTMLImageElement).height ?? 0;
+        const cell = BOOT_TORCH_FRAME_SIZE;
+        if (w < cell || h < cell || w % cell !== 0 || h % cell !== 0) {
+            console.info(
+                `[boot] torch.png is ${w}×${h}; expected multiple of ${cell}. Skipping spritesheet upgrade.`
+            );
+            return;
+        }
+        // Phaser's TextureManager lets us replace the entry; remove
+        // the plain-image variant first so addSpriteSheet binds the
+        // same key cleanly.
+        this.textures.remove(BOOT_TORCH_TEXTURE_KEY);
+        this.textures.addSpriteSheet(BOOT_TORCH_TEXTURE_KEY, src as HTMLImageElement, {
+            frameWidth: cell,
+            frameHeight: cell,
+        });
+        this.textures.get(BOOT_TORCH_TEXTURE_KEY).setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
     create() {
@@ -150,6 +195,24 @@ export class BootScene extends Phaser.Scene {
         bg.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x151520, 0x151520, 0.55, 0.55, 0.7, 0.7);
         bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         bg.setDepth(1);
+
+        // Two animated wall torches flanking the title. Each torch
+        // starts hidden, ignites with a procedural fwoom + warm halo,
+        // then loops its flame animation forever. Stagger the two
+        // ignitions slightly so they read as separate events instead
+        // of one synchronized flash.
+        createBootTorch(this, 170, 420, {
+            sfx,
+            delayMs: 420,
+            displayHeight: 168,
+            depth: 4,
+        });
+        createBootTorch(this, GAME_WIDTH - 170, 420, {
+            sfx,
+            delayMs: 720,
+            displayHeight: 168,
+            depth: 4,
+        });
 
         // Ambient embers on title
         for (let i = 0; i < 12; i++) {

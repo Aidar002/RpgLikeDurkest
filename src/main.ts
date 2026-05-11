@@ -24,4 +24,11 @@ const config: Phaser.Types.Core.GameConfig = {
     scene: [BootScene, GameScene],
 };
 
-new Phaser.Game(config);
+const game = new Phaser.Game(config);
+if (import.meta.env.DEV) {
+    // Dev-only escape hatch so devs/AI can inspect Phaser state from
+    // the browser console (`window.__game.scene.scenes[0].textures…`).
+    // Stripped from production builds by Vite's `import.meta.env.DEV`
+    // tree-shake.
+    (window as unknown as { __game?: Phaser.Game }).__game = game;
+}
