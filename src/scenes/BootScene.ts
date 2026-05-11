@@ -8,6 +8,15 @@ import { BOOT_TORCH_FRAME_SIZE, BOOT_TORCH_TEXTURE_KEY, createBootTorch } from '
 import { createStoneBackdrop } from '../ui/StoneBackdrop';
 import { drawUiButton } from '../ui/UiButton';
 
+/** Boot-screen door spritesheet binding. Two frames (closed / open)
+ *  laid out horizontally; each frame is a square of this size. The
+ *  source asset is 1774×887, so each cell is 887×887. */
+const DOOR_TEXTURE_KEY = 'boot_door';
+const DOOR_FRAME_SIZE = 887;
+/** On-screen height used to scale the door inside the BootScene
+ *  layout. Width matches because the source frames are square. */
+const DOOR_DISPLAY_HEIGHT = 340;
+
 export class BootScene extends Phaser.Scene {
     constructor() {
         super('BootScene');
@@ -96,6 +105,18 @@ export class BootScene extends Phaser.Scene {
         // while the dark navy centre stretches to the panel size.
         this.load.image('panel_small', `${base}assets/ui/panel_small.png`);
 
+        // Boot-screen door spritesheet — 2 frames laid out
+        // horizontally: frame 0 is the closed door, frame 1 is the
+        // door swung open into the dungeon. The source is square per
+        // frame; we load it as a spritesheet so a single `Sprite` can
+        // flip frames on click. If the file is missing, the boot scene
+        // simply renders without the door (handled by the optional-
+        // asset path below).
+        this.load.spritesheet(DOOR_TEXTURE_KEY, `${base}assets/ui/door.png`, {
+            frameWidth: DOOR_FRAME_SIZE,
+            frameHeight: DOOR_FRAME_SIZE,
+        });
+
         // Boot-screen torch spritesheet — square-cell grid laid out
         // row-major (frame 0 top-left, advancing left→right then
         // top→bottom). Loaded as a plain image first so we can inspect
@@ -109,7 +130,11 @@ export class BootScene extends Phaser.Scene {
         // Suppress noisy warnings if any of the optional UI assets are
         // missing — the HUD already falls back gracefully.
         this.load.on(Phaser.Loader.Events.FILE_LOAD_ERROR, (file: Phaser.Loader.File) => {
-            if (file.key.startsWith('hud_') || file.key === BOOT_TORCH_TEXTURE_KEY) {
+            if (
+                file.key.startsWith('hud_') ||
+                file.key === BOOT_TORCH_TEXTURE_KEY ||
+                file.key === DOOR_TEXTURE_KEY
+            ) {
                 console.info(
                     `[hud] optional asset missing: ${file.key} — using procedural fallback`
                 );
@@ -255,7 +280,7 @@ export class BootScene extends Phaser.Scene {
         }
 
         const title = this.add
-            .text(CENTER_X, 260, titleText(), {
+            .text(CENTER_X, 110, titleText(), {
                 fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '48px',
                 color: '#f1c75d',
@@ -270,13 +295,13 @@ export class BootScene extends Phaser.Scene {
         this.tweens.add({
             targets: title,
             alpha: { from: 0, to: 1 },
-            y: { from: 280, to: 260 },
+            y: { from: 130, to: 110 },
             duration: 1200,
             ease: 'Quad.out',
         });
 
         const tagline = this.add
-            .text(CENTER_X, 380, loc.t('bootTagline'), {
+            .text(CENTER_X, 215, loc.t('bootTagline'), {
                 fontFamily: 'Lucida Console, Consolas, monospace',
                 fontSize: '14px',
                 color: '#c8cdd2',
@@ -287,6 +312,29 @@ export class BootScene extends Phaser.Scene {
             .setAlpha(0)
             .setDepth(3);
 
+        // Stone-arched door between the torches. Sits below the dim
+        // overlay (depth 3) so it brightens together with the rest of
+        // the room as the torches ignite. Frame 0 is the closed door;
+        // we flip to frame 1 in the click handler below to play the
+        // "opens into the dungeon" beat before transitioning out.
+        const door = this.textures.exists(DOOR_TEXTURE_KEY)
+            ? this.add
+                  .sprite(CENTER_X, 410, DOOR_TEXTURE_KEY, 0)
+                  .setOrigin(0.5, 0.5)
+                  .setDisplaySize(DOOR_DISPLAY_HEIGHT, DOOR_DISPLAY_HEIGHT)
+                  .setDepth(3)
+                  .setAlpha(0)
+            : null;
+        if (door) {
+            this.tweens.add({
+                targets: door,
+                alpha: { from: 0, to: 1 },
+                delay: 600,
+                duration: 1000,
+                ease: 'Quad.out',
+            });
+        }
+
         this.tweens.add({
             targets: tagline,
             alpha: 1,
@@ -294,7 +342,7 @@ export class BootScene extends Phaser.Scene {
             duration: 600,
         });
 
-        const startUi = drawUiButton(this, CENTER_X, 480, 260, 48, loc.t('bootStart'), {
+        const startUi = drawUiButton(this, CENTER_X, 660, 260, 48, loc.t('bootStart'), {
             variant: 'gold',
             fontSize: '18px',
             color: '#ffffff',
@@ -312,16 +360,29 @@ export class BootScene extends Phaser.Scene {
             duration: 500,
         });
 
+        let starting = false;
         startBtn.on('pointerover', () => sfx.play('buttonHover'));
         startBtn.on('pointerdown', () => {
+            if (starting) return;
+            starting = true;
             sfx.play('buttonClick');
             // The first reliable user gesture — kick music off here so audio
             // playback starts even on browsers with strict autoplay policy.
             music.kick();
-            this.cameras.main.fadeOut(400, 0, 0, 0);
-            this.time.delayedCall(400, () =>
-                this.scene.start('GameScene', { loc, sfx, music, devSeed })
-            );
+
+            // Door-open beat: play creak SFX, swing the door to frame 1
+            // partway through the creak so visual and audio land together,
+            // then fade to GameScene once the thud has settled.
+            const proceed = () => this.scene.start('GameScene', { loc, sfx, music, devSeed });
+            if (door) {
+                sfx.play('doorOpen');
+                this.time.delayedCall(300, () => door.setFrame(1));
+                this.time.delayedCall(900, () => this.cameras.main.fadeOut(400, 0, 0, 0));
+                this.time.delayedCall(1300, proceed);
+            } else {
+                this.cameras.main.fadeOut(400, 0, 0, 0);
+                this.time.delayedCall(400, proceed);
+            }
         });
 
         this.add
