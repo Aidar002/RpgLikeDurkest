@@ -176,24 +176,24 @@ const DEFAULT_PROFILE: MetaProfile = {
 
 const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
     {
-        id: 'depth-6',
+        id: 'depth-5',
         label: lt('Навык: Рубка', 'Skill: Cleave'),
-        requirement: lt('Достигни глубины 6', 'Reach depth 6'),
-        depth: 6,
+        requirement: lt('Достигни глубины 5', 'Reach depth 5'),
+        depth: 5,
         unlocks: ['skill_cleave'],
     },
     {
-        id: 'depth-8',
+        id: 'depth-15',
         label: lt('Навык: Кровавый разрез', 'Skill: Bleed Strike'),
-        requirement: lt('Достигни глубины 8', 'Reach depth 8'),
-        depth: 8,
+        requirement: lt('Достигни глубины 15', 'Reach depth 15'),
+        depth: 15,
         unlocks: ['skill_bleed_strike'],
     },
     {
-        id: 'depth-10',
+        id: 'depth-25',
         label: lt('Редкие реликвии в добыче', 'Rare relic rolls'),
-        requirement: lt('Достигни глубины 10', 'Reach depth 10'),
-        depth: 10,
+        requirement: lt('Достигни глубины 25', 'Reach depth 25'),
+        depth: 25,
         unlocks: ['relic_pool_rare'],
     },
 ];
