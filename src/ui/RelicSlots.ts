@@ -30,6 +30,7 @@ import type { PlayerManager } from '../systems/PlayerManager';
 import { RELICS, type RelicId, type RelicRarity } from '../systems/Relics';
 import { Depths } from './Layout';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
+import { drawPanel, type PanelBackground } from './UiPanel';
 
 const SLOT_SIZE = 60;
 const SLOT_GAP = 18;
@@ -63,7 +64,13 @@ interface RelicSlotsOptions {
 }
 
 interface SlotHandle {
-    bg: Phaser.GameObjects.Rectangle;
+    /** Carved-bronze backdrop (panel_small.png nine-slice with procedural
+     *  fallback). Filled slots paint it at near-full alpha; empty slots
+     *  fade it so the row reads as available-but-empty capacity. */
+    bg: PanelBackground;
+    /** Whether `bg` is the textured NineSlice path — controls how we
+     *  modulate state (tint+alpha vs fillStyle). */
+    bgTextured: boolean;
     border: Phaser.GameObjects.Rectangle;
     label: Phaser.GameObjects.Text;
     container: Phaser.GameObjects.Container;
@@ -143,9 +150,8 @@ export class RelicSlots {
 
     private createSlot(x: number, y: number): SlotHandle {
         const container = this.scene.add.container(x, y).setDepth(Depths.UiBase + 1);
-        const bg = this.scene.add
-            .rectangle(0, 0, SLOT_SIZE, SLOT_SIZE, HudColors.panelBg, 0.92)
-            .setOrigin(0.5);
+        const panel = drawPanel(this.scene, 0, 0, SLOT_SIZE, SLOT_SIZE);
+        const bg = panel.background;
         const border = this.scene.add
             .rectangle(0, 0, SLOT_SIZE, SLOT_SIZE)
             .setOrigin(0.5)
@@ -160,13 +166,20 @@ export class RelicSlots {
             })
             .setOrigin(0.5);
         container.add([bg, border, label]);
-        return { container, bg, border, label, relicId: null };
+        return {
+            container,
+            bg,
+            bgTextured: panel.textured,
+            border,
+            label,
+            relicId: null,
+        };
     }
 
     private applySlot(slot: SlotHandle, id: RelicId | null): void {
         slot.relicId = id;
         if (!id) {
-            slot.bg.setFillStyle(HudColors.panelBg, 0.55);
+            paintSlotBg(slot, 0.45);
             slot.border.setStrokeStyle(1, HudColors.divider, 0.6);
             slot.label.setText('');
             slot.container.disableInteractive();
@@ -175,7 +188,7 @@ export class RelicSlots {
         }
         const relic = RELICS[id];
         const rarityColor = RARITY_BORDER[relic.rarity as RelicRarity];
-        slot.bg.setFillStyle(HudColors.panelBg, 0.95);
+        paintSlotBg(slot, 1);
         slot.border.setStrokeStyle(2, rarityColor, 1);
         slot.label.setText(letterFor(this.loc, id));
         slot.label.setColor(RARITY_TEXT[relic.rarity as RelicRarity]);
@@ -291,6 +304,21 @@ function createTooltip(scene: Phaser.Scene): TooltipHandle {
 
     [bg, title, rarity, body].forEach((w) => w.setVisible(false));
     return { bg, title, rarity, body };
+}
+
+/**
+ * Apply a brightness state to the slot backdrop. The textured
+ * NineSlice path uses `setAlpha` so the carved-bronze art reads
+ * through; the procedural Rectangle fallback re-applies the same
+ * fill colour at a matching alpha so it visually approximates the
+ * textured version.
+ */
+function paintSlotBg(slot: SlotHandle, alpha: number): void {
+    if (slot.bgTextured) {
+        (slot.bg as Phaser.GameObjects.NineSlice).setAlpha(alpha);
+    } else {
+        (slot.bg as Phaser.GameObjects.Rectangle).setFillStyle(HudColors.panelBg, alpha);
+    }
 }
 
 function letterFor(loc: Localization, id: RelicId): string {
