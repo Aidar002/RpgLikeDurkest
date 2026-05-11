@@ -328,7 +328,12 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // source counters, so a post-wipe escape screen will start every
     // bar at 0 again.
     const PROGRESS_HEADER_GAP = 22;
-    const PROGRESS_ROW_GAP = 16;
+    // Minimum row height for single-line labels. When the localised
+    // milestone label wraps to 2+ lines (e.g. RU "Навык: Подготовка и
+    // уникальные реликвии") the row grows to fit the rendered text
+    // height so adjacent rows don't visually overlap.
+    const PROGRESS_MIN_ROW_HEIGHT = 16;
+    const PROGRESS_ROW_PADDING = 4;
     const PROGRESS_LABEL_FONT = '12px';
     const PROGRESS_BAR_W = 260;
     const PROGRESS_BAR_H = 6;
@@ -350,21 +355,23 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     const progressRows: MilestoneRowVisual[] = [];
     const progressEntries = escaped ? meta.getMilestoneProgressList(loc.language) : [];
+    let progressCursorY = progressFirstRowY;
     progressEntries.forEach((entry, index) => {
-        const rowY = progressFirstRowY + index * PROGRESS_ROW_GAP;
-
         const label = scene.add
-            .text(PROGRESS_LABEL_X, rowY, entry.label, {
+            .text(PROGRESS_LABEL_X, progressCursorY, entry.label, {
                 fontFamily: 'Courier New',
                 fontSize: PROGRESS_LABEL_FONT,
                 color: entry.unlocked ? '#d8c89a' : '#a8a09a',
                 wordWrap: { width: PROGRESS_BAR_X - PROGRESS_LABEL_X - 220 },
             })
-            .setOrigin(0, 0.5)
+            .setOrigin(0, 0)
             .setDepth(Depths.EndScreenContent);
 
+        const rowH = Math.max(PROGRESS_MIN_ROW_HEIGHT, label.height);
+        const centerY = progressCursorY + rowH / 2;
+
         const barBg = scene.add
-            .rectangle(PROGRESS_BAR_X, rowY, PROGRESS_BAR_W, PROGRESS_BAR_H, 0x2a201a)
+            .rectangle(PROGRESS_BAR_X, centerY, PROGRESS_BAR_W, PROGRESS_BAR_H, 0x2a201a)
             .setStrokeStyle(1, 0x4a3a28)
             .setOrigin(0, 0.5)
             .setDepth(Depths.EndScreenContent);
@@ -373,7 +380,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         const barFill = scene.add
             .rectangle(
                 PROGRESS_BAR_X,
-                rowY,
+                centerY,
                 PROGRESS_BAR_W,
                 PROGRESS_BAR_H,
                 entry.unlocked ? 0xc9a050 : 0x6f8fb8
@@ -384,8 +391,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
         scene.tweens.add({
             targets: barFill,
             scaleX: { from: 0, to: fraction },
-            duration: 520,
-            delay: 180 + index * 80,
+            duration: 900,
+            delay: 240 + index * 160,
             ease: 'Quad.out',
         });
 
@@ -393,7 +400,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             ? `${entry.current}/${entry.target}  \u2713`
             : `${entry.current}/${entry.target}`;
         const status = scene.add
-            .text(PROGRESS_STATUS_X, rowY, statusText, {
+            .text(PROGRESS_STATUS_X, centerY, statusText, {
                 fontFamily: 'Courier New',
                 fontSize: '12px',
                 color: entry.unlocked ? '#ffd36e' : '#a8a09a',
@@ -402,6 +409,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             .setDepth(Depths.EndScreenContent);
 
         progressRows.push({ label, barBg, barFill, status });
+        progressCursorY += rowH + PROGRESS_ROW_PADDING;
     });
 
     // ── Action buttons (panel bottom) ───────────────────────
