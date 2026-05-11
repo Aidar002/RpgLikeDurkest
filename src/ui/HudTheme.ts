@@ -51,22 +51,24 @@ export const HudHex = {
 /**
  * Centralised font stacks for the UI. Two roles:
  *
- *  - `HUD_FONT` — moderately compact monospace used by the HUD,
- *    bottom-bar resource cells, event log, relic slots / modal,
- *    boot-screen widgets, and anywhere columnar alignment matters
- *    (numbers, stat tables, segmented bars).
- *  - `BODY_FONT` — wider monospace used by room descriptions,
- *    combat action button labels, end-screen narrative copy, and
- *    other "prose" surfaces where readability of full sentences
- *    matters more than digit alignment.
+ *  - `HUD_FONT` — JetBrains Mono, used wherever columnar alignment
+ *    matters: bottom-bar resource cells, top-bar stats, event log,
+ *    relic slots / modal, boot-screen widgets, volume panel, scene
+ *    chrome. The fallback stack keeps the column-alignment property
+ *    if the web font fails to load.
+ *  - `BODY_FONT` — EB Garamond, a proportional serif used for room
+ *    descriptions, combat action button labels, end-screen narrative
+ *    copy, and other "prose" surfaces where readability of full
+ *    sentences matters more than digit alignment.
  *
- * Both stacks currently point at OS-installed fonts so this file is
- * the single switching point if/when we drop a web font into
- * `public/fonts/` and want to swap the visual identity. Update the
- * string here and every UI surface follows.
+ * The actual font files live in `public/fonts/` and are registered
+ * via `@font-face` in `src/style.css`. `main.ts` blocks on
+ * `document.fonts.ready` before booting Phaser so the canvas Text
+ * objects render with the web font from the very first frame rather
+ * than starting on a system fallback and snapping.
  */
-export const HUD_FONT = 'Lucida Console, Consolas, monospace';
-export const BODY_FONT = 'Courier New';
+export const HUD_FONT = "'JetBrains Mono', 'Lucida Console', Consolas, monospace";
+export const BODY_FONT = "'EB Garamond', 'Times New Roman', Georgia, serif";
 export const HUD_STROKE = '#020304';
 
 /**
