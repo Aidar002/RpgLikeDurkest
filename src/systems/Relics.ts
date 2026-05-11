@@ -54,8 +54,8 @@ export const RELICS: Record<RelicId, RelicDef> = {
         description: lt('+1 урон.', '+1 attack.'),
         set: 'wanderer',
         drops: [
-            { enemyName: 'Rat', chance: 0.2 },
-            { enemyName: 'Slime', chance: 0.2 },
+            { enemyName: 'Rat', chance: 0.1 },
+            { enemyName: 'Slime', chance: 0.1 },
         ],
     },
     cracked_shield: {
@@ -65,7 +65,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
         rarity: 'common',
         description: lt('+1 защита.', '+1 defense.'),
         set: 'wanderer',
-        drops: [{ enemyName: 'Skeleton', chance: 0.2 }],
+        drops: [{ enemyName: 'Skeleton', chance: 0.1 }],
     },
     tattered_cloak: {
         id: 'tattered_cloak',
@@ -74,7 +74,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
         rarity: 'common',
         description: lt('+1 жизнь.', '+1 max HP.'),
         set: 'wanderer',
-        drops: [{ enemyName: 'Skeleton', chance: 0.2 }],
+        drops: [{ enemyName: 'Skeleton', chance: 0.1 }],
     },
     cracked_amulet: {
         id: 'cracked_amulet',
@@ -86,7 +86,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
             '+1 max HP. 15% chance to restore 1 HP on attack.'
         ),
         set: 'flesh',
-        drops: [{ enemyName: 'Bat', chance: 0.2 }],
+        drops: [{ enemyName: 'Bat', chance: 0.1 }],
     },
     holey_chestplate: {
         id: 'holey_chestplate',
@@ -98,7 +98,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
             '+1 max HP. 15% chance to block 2 damage.'
         ),
         set: 'flesh',
-        drops: [{ enemyName: 'Ghoul', chance: 0.3 }],
+        drops: [{ enemyName: 'Ghoul', chance: 0.15 }],
     },
     simple_sword: {
         id: 'simple_sword',
@@ -107,7 +107,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
         rarity: 'common',
         description: lt('+3 урон.', '+3 attack.'),
         set: 'recruit',
-        drops: [{ enemyName: 'Skeleton Swordsman', chance: 0.3 }],
+        drops: [{ enemyName: 'Skeleton Swordsman', chance: 0.15 }],
     },
     simple_chestplate: {
         id: 'simple_chestplate',
@@ -116,7 +116,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
         rarity: 'common',
         description: lt('+3 защита.', '+3 defense.'),
         set: 'recruit',
-        drops: [{ enemyName: 'Steel Lynx', chance: 0.3 }],
+        drops: [{ enemyName: 'Steel Lynx', chance: 0.15 }],
     },
     simple_helmet: {
         id: 'simple_helmet',
@@ -125,7 +125,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
         rarity: 'common',
         description: lt('+5 жизней.', '+5 max HP.'),
         set: 'recruit',
-        drops: [{ enemyName: 'Skeleton Swordsman', chance: 0.3 }],
+        drops: [{ enemyName: 'Skeleton Swordsman', chance: 0.15 }],
     },
     cursed_amulet: {
         id: 'cursed_amulet',
@@ -137,7 +137,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
             '+6 attack. 10% chance to miss on attack.'
         ),
         set: 'minor_cursed',
-        drops: [{ enemyName: 'Death Knight', chance: 0.5 }],
+        drops: [{ enemyName: 'Death Knight', chance: 0.25 }],
     },
     cursed_ring: {
         id: 'cursed_ring',
@@ -149,7 +149,7 @@ export const RELICS: Record<RelicId, RelicDef> = {
             '+3 defense, +3 max HP. 10% chance a skill becomes a basic attack.'
         ),
         set: 'minor_cursed',
-        drops: [{ enemyName: 'Death Knight', chance: 0.5 }],
+        drops: [{ enemyName: 'Death Knight', chance: 0.25 }],
     },
 };
 
