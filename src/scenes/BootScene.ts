@@ -214,7 +214,10 @@ export class BootScene extends Phaser.Scene {
         music.setPlaylist([{ url: `${audioBase}/dungeon_sound_2.mp3` }]);
         music.start();
         this.cameras.main.setBackgroundColor('#050505');
-        const titleText = () => (loc.language === 'ru' ? 'НИЖНИЙ\nСПУСК' : 'DARKEST\nDESCENT');
+        // Brand name. Identical in every locale — the colon splits the
+        // string onto two lines so the layout matches the previous
+        // two-word title without changing y-anchors.
+        const titleText = () => 'WISHBOUND:\nETERNAL DUNGEON';
 
         // Procedural carved-stone backdrop sets the dungeon mood; the
         // faint blue/violet wash on top keeps the existing colour-graded
@@ -287,10 +290,14 @@ export class BootScene extends Phaser.Scene {
             });
         }
 
+        // The longer second line ("ETERNAL DUNGEON" — 15 chars in
+        // JetBrains Mono) is what bounds the font size; 40 px keeps
+        // it under ~360 px wide and leaves a comfortable gap to the
+        // tagline at y=175.
         const title = this.add
             .text(CENTER_X, 110, titleText(), {
                 fontFamily: HUD_FONT,
-                fontSize: '48px',
+                fontSize: '40px',
                 color: '#f1c75d',
                 align: 'center',
                 lineSpacing: 8,
