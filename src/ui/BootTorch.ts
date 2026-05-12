@@ -59,8 +59,11 @@ export interface BootTorchOptions {
     /** Radius of the glow at peak (px). Default 140. */
     glowRadius?: number;
     /**
-     * Flame-loop frame rate. Default 10 fps (reads as a calm wall
-     * torch; bump to 14–16 for a more frantic flame).
+     * Flame-loop frame rate. Default 7 fps (reads as a calm wall
+     * torch; bump to 12–16 for a more frantic flame). Each spawned
+     * sprite further jitters its playback speed by ±15 % through
+     * `sprite.anims.timeScale` so the two flanking torches on the
+     * boot screen drift out of phase as they loop.
      */
     frameRate?: number;
     /**
@@ -99,7 +102,7 @@ export function createBootTorch(
     const depth = opts.depth ?? 5;
     const glowRadius = opts.glowRadius ?? 140;
     const glowColor = opts.glowColor ?? { r: 255, g: 170, b: 70 };
-    const frameRate = opts.frameRate ?? 10;
+    const frameRate = opts.frameRate ?? 7;
     const fadeDuration = opts.fadeDuration ?? 800;
     const glowFadeDuration = opts.glowFadeDuration ?? 1000;
 
@@ -180,24 +183,60 @@ export function createBootTorch(
             duration: glowFadeDuration,
             ease: 'Quad.out',
             onComplete: () => {
-                // Once lit, breathe the glow gently (sine flicker)
-                // so the halo doesn't read as a frozen sticker.
+                // Once lit, fall through to a self-rescheduling
+                // "ragged flicker" instead of a clean sinusoidal
+                // yoyo. Each cycle picks a fresh random target
+                // alpha / scale / duration / ease, with an
+                // occasional sharp "gust" dip mixed in. Two
+                // independent BootTorch instances therefore never
+                // share a flicker phase — each one rolls its own
+                // schedule — and the eye reads them as live flames
+                // rather than identical breathing halos.
                 if (glow == null) return;
-                glowTween = scene.tweens.add({
-                    targets: glow,
-                    alpha: { from: 0.85, to: 1.0 },
-                    scale: { from: 0.95, to: 1.05 },
-                    duration: 850,
-                    ease: 'Sine.inOut',
-                    yoyo: true,
-                    repeat: -1,
-                });
+                scheduleGlowFlicker();
             },
         });
 
         if (hasTexture && scene.anims.exists(BOOT_TORCH_ANIM_KEY)) {
-            sprite.play(BOOT_TORCH_ANIM_KEY);
+            const anim = scene.anims.get(BOOT_TORCH_ANIM_KEY);
+            const frameCount = Math.max(1, anim?.frames.length ?? 1);
+            // Per-instance start frame + playback-rate jitter so the
+            // two flanking torches step through the same loop out of
+            // phase. The ±15 % rate spread also guarantees they
+            // never re-sync over time — even if they happened to
+            // ignite on the same frame, the drift accumulates.
+            const startFrame = Math.floor(Math.random() * frameCount);
+            sprite.play({ key: BOOT_TORCH_ANIM_KEY, startFrame });
+            sprite.anims.timeScale = 0.85 + Math.random() * 0.3;
         }
+    };
+
+    /**
+     * Drive an irregular flame flicker by chaining short tweens, each
+     * with randomised targets / duration / ease. Cancels itself when
+     * the glow has been destroyed (see {@link BootTorch.destroy}).
+     * Called inside {@link ignite} once the initial halo fade-in
+     * resolves.
+     */
+    const scheduleGlowFlicker = (): void => {
+        if (glow == null || !glow.active) return;
+        // ~12 % chance of a sharp "gust" dip — fast alpha drop that
+        // reads as a draught hitting the flame, then the next cycle
+        // recovers via the regular range. Without this the flicker
+        // can settle into a too-even oscillation.
+        const gust = Math.random() < 0.12;
+        const targetAlpha = gust ? 0.45 + Math.random() * 0.15 : 0.78 + Math.random() * 0.22;
+        const targetScale = gust ? 0.85 + Math.random() * 0.06 : 0.94 + Math.random() * 0.16;
+        const duration = gust ? 70 + Math.random() * 90 : 180 + Math.random() * 520;
+        const ease = Math.random() < 0.5 ? 'Sine.inOut' : 'Quad.inOut';
+        glowTween = scene.tweens.add({
+            targets: glow,
+            alpha: targetAlpha,
+            scale: targetScale,
+            duration,
+            ease,
+            onComplete: scheduleGlowFlicker,
+        });
     };
 
     igniteTimer = scene.time.delayedCall(opts.delayMs, ignite);
@@ -218,6 +257,11 @@ export function createBootTorch(
             glowTween?.remove();
             sprite.destroy();
             glow?.destroy();
+            // Null the local ref so any in-flight `scheduleGlowFlicker`
+            // re-entry (e.g. from a tween onComplete that fires the
+            // same tick as destroy) early-returns instead of pushing
+            // a new tween onto a destroyed halo.
+            glow = null;
             placeholderGfx?.destroy();
         },
     };
