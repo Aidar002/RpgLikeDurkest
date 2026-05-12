@@ -39,12 +39,18 @@ type SoundId =
     | 'doorOpen';
 
 /**
- * Keys for the small set of sampled UI SFX preloaded from
- * `public/audio/*.ogg`. Kept distinct from {@link SoundId} so the
+ * Keys for the small set of sampled SFX preloaded from
+ * `public/audio/`. Kept distinct from {@link SoundId} so the
  * compile-time exhaustiveness check on `play()` doesn't need to know
  * about the buffer cache.
+ *
+ * - `uiHover` / `uiClick` — short one-shot UI feedback.
+ * - `torchIgnite` — one-shot ignition transient played by
+ *   {@link playTorchIgnite}.
+ * - `torchLoop` — long-form burning loop played by
+ *   {@link startTorchAmbient} when the sample is available.
  */
-type SampleKey = 'uiHover' | 'uiClick';
+type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop';
 
 const STORAGE_KEY = 'dd_sound_muted';
 const VOLUME_KEY = 'dd_sound_volume';
@@ -224,6 +230,8 @@ export class SoundManager {
         const samples: Array<{ key: SampleKey; url: string }> = [
             { key: 'uiHover', url: `${base}audio/ui_hover.ogg` },
             { key: 'uiClick', url: `${base}audio/ui_click.ogg` },
+            { key: 'torchIgnite', url: `${base}audio/torch_ignite.mp3` },
+            { key: 'torchLoop', url: `${base}audio/torch_loop.mp3` },
         ];
         this.samplePreloadPromise = Promise.all(
             samples.map(async ({ key, url }) => {
@@ -480,6 +488,13 @@ export class SoundManager {
      * the same mute/volume controls as the rest of the bank.
      */
     private playTorchIgnite() {
+        // Prefer the sampled ignition transient when it's preloaded —
+        // it carries the body of the cue. The synthesised flint /
+        // whoosh / sub triplet below remains as a fallback for the
+        // first frame after boot (before {@link preloadUiSfx}
+        // resolves) and as a permanent fallback when the file 404s.
+        if (this.playSample('torchIgnite', 0.9)) return;
+
         const ctx = this.ensure();
         const t = ctx.currentTime;
 
@@ -996,6 +1011,46 @@ export class SoundManager {
         const ctx = this.ensure();
         if (!this.master) return;
         this.torchAmbientRunning = true;
+
+        // Prefer the sampled `torch_loop.mp3` once it's preloaded.
+        // Two looped sources are layered with different start offsets
+        // and slightly different playback rates so:
+        //   - the two torches on screen sound independent rather than
+        //     phase-locked,
+        //   - the audio cycle never aligns cleanly with the ~10 fps
+        //     visual flame animation (the rate drift desyncs them
+        //     over time even if they happened to start in phase).
+        // Tracked in `torchLayers` like the procedural layers so
+        // `stopTorchAmbient` can fade everything together.
+        const loopBuffer = this.sampleBuffers.get('torchLoop');
+        if (loopBuffer) {
+            const t = ctx.currentTime;
+            const fadeS = Math.max(0.01, fadeInMs / 1000);
+            const layers: Array<{ baseOffset: number; rate: number; gain: number }> = [
+                { baseOffset: 0, rate: 1.0, gain: 0.42 },
+                { baseOffset: loopBuffer.duration * 0.5, rate: 0.96, gain: 0.32 },
+            ];
+            for (const { baseOffset, rate, gain } of layers) {
+                const src = ctx.createBufferSource();
+                src.buffer = loopBuffer;
+                src.loop = true;
+                src.playbackRate.value = rate;
+                const g = ctx.createGain();
+                g.gain.value = 0;
+                g.gain.linearRampToValueAtTime(gain, t + fadeS);
+                src.connect(g);
+                g.connect(this.master);
+                // A second of jitter on top of the fixed half-buffer
+                // offset so re-mounting BootScene doesn't restart
+                // both torches from the same crackle moment every
+                // time.
+                const jitter = Math.random() * 1.0;
+                const offset = (baseOffset + jitter) % loopBuffer.duration;
+                src.start(0, offset);
+                this.torchLayers.push({ src, gain: g });
+            }
+            return;
+        }
 
         // 1. Mid-range hiss: 4 s of white noise looped, band-passed
         //    around 1.5 kHz then softened by a low-pass at 3.5 kHz.
