@@ -669,7 +669,7 @@ export class SoundManager {
      * back to the short square-wave tick we used historically.
      */
     private playButtonClick() {
-        if (this.playSample('uiClick', 0.55)) return;
+        if (this.playSample('uiClick', 1.1)) return;
         this.osc('square', 800, 0.03, 0.08);
     }
 
@@ -680,7 +680,7 @@ export class SoundManager {
      * a beep that doesn't match the rest of the SFX bed.
      */
     private playRoomHover() {
-        this.playSample('uiHover', 0.4);
+        this.playSample('uiHover', 0.8);
     }
 
     /** Very soft tick on hover. */
@@ -770,8 +770,12 @@ export class SoundManager {
         this.osc('sine', 300, 0.2, 0.03);
     }
 
-    /** Map node selection pip. */
+    /** Map node selection. Uses the same `ui_click.ogg` sample as
+     *  buttonClick so the room-pick feedback matches the rest of the
+     *  UI. Falls back to the historical sine pip when the sample
+     *  hasn't preloaded yet. */
     private playNodeSelect() {
+        if (this.playSample('uiClick', 1.1)) return;
         this.osc('sine', 660, 0.05, 0.1);
     }
 
