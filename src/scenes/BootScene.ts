@@ -274,10 +274,17 @@ export class BootScene extends Phaser.Scene {
             .setOrigin(0, 0)
             .setDepth(5);
 
-        // Two animated wall torches flanking the title. Both ignite
-        // simultaneously after `IGNITION_DELAY` with a slow fade and
-        // matching procedural fwoom; the dim overlay then drops to
-        // zero so the rest of the scene resolves to its normal colour.
+        // Two animated wall torches flanking the title. They ignite
+        // ~110 ms apart so the sampled `torch_ignite` cue layers as
+        // two distinct flint cracks instead of doubling its own
+        // volume; the dim overlay then drops to zero so the rest of
+        // the scene resolves to its normal colour. The per-torch
+        // burning loops live inside `startTorchAmbient` (which picks
+        // the sampled `torch_loop` when available) and are mixed at
+        // different offsets + playback rates there, so the two
+        // torches keep sounding independent without any extra wiring
+        // here.
+        const IGNITION_STAGGER = 110;
         createBootTorch(this, 170, 420, {
             sfx,
             delayMs: IGNITION_DELAY,
@@ -288,7 +295,7 @@ export class BootScene extends Phaser.Scene {
         });
         createBootTorch(this, GAME_WIDTH - 170, 420, {
             sfx,
-            delayMs: IGNITION_DELAY,
+            delayMs: IGNITION_DELAY + IGNITION_STAGGER,
             displayHeight: 168,
             depth: 7,
             fadeDuration: 1200,
