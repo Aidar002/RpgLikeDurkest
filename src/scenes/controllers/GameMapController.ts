@@ -32,7 +32,7 @@ export class GameMapController {
      *  Total transition = 2 × this value. */
     private readonly roomTransitionPhaseMs = 550;
     /** Duration of the walk along the map edge before the room fade. */
-    private readonly walkDurationMs = 2000;
+    private readonly walkDurationMs = 1500;
     /** Fade-in / fade-out duration for the looped footsteps SFX that
      *  plays during the camera-pan room transition. */
     private readonly footstepsFadeMs = 500;
@@ -148,9 +148,9 @@ export class GameMapController {
                     }
                     // Player has fully arrived — drop the destination's
                     // room pictogram so the slot reads as "you are
-                    // here". The icon stayed visible during the 2 s
-                    // walk so the player could see what they were
-                    // walking toward. See `MapView.arrivedNodeId`.
+                    // here". The icon stayed visible during the walk
+                    // so the player could see what they were walking
+                    // toward. See `MapView.arrivedNodeId`.
                     this.mapView.setArrivedNode(node.id);
                     this.fadeToRoom(node);
                 }
