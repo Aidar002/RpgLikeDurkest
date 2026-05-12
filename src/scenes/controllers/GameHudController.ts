@@ -690,6 +690,7 @@ export class GameHudController {
         const scene = this.scene;
         this.relicSwapModal = new RelicSwapModal(scene, {
             loc: scene.loc,
+            sfx: scene.sfx,
             player: scene.player,
             onSwap: (droppedId: RelicId, candidateId: RelicId) => {
                 scene.player.removeRelic(droppedId);
@@ -779,6 +780,7 @@ export class GameHudController {
                 fontSize: '12px',
                 color: HudHex.textSecondary,
                 depth: 220,
+                sfx: this.scene.sfx,
             }
         );
         this.escapeButtonBg = escapeUi.background;
@@ -802,6 +804,7 @@ export class GameHudController {
                 fontSize: '12px',
                 color: HudHex.textSecondary,
                 depth: 220,
+                sfx: this.scene.sfx,
             }
         );
         this.restartButtonBg = restartUi.background;
@@ -821,6 +824,7 @@ export class GameHudController {
     private buildRestartConfirmModal() {
         this.restartConfirmModal = new RestartConfirmModal(this.scene, {
             loc: this.scene.loc,
+            sfx: this.scene.sfx,
             onConfirm: () => this.confirmRestart(),
         });
     }

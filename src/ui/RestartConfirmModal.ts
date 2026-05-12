@@ -19,6 +19,7 @@
 import * as Phaser from 'phaser';
 
 import type { Localization } from '../systems/Localization';
+import type { SoundManager } from '../systems/SoundManager';
 import { BODY_FONT } from './HudTheme';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 import { drawUiButton } from './UiButton';
@@ -29,6 +30,11 @@ interface RestartConfirmModalOptions {
     /** Localisation runtime; used to translate the four user-facing
      *  strings on the modal. */
     loc: Localization;
+    /** Shared SFX bank; when supplied the Yes/Cancel buttons inherit
+     *  the standard `buttonHover` / `buttonClick` cues via
+     *  {@link drawUiButton}'s `sfx` option. Optional so tests can
+     *  mount the modal without a full audio stack. */
+    sfx?: SoundManager;
     /** Invoked when the player accepts the wipe. The caller is
      *  responsible for actually resetting progress and switching
      *  scenes — the modal only hides itself before delegating. */
@@ -39,7 +45,7 @@ export class RestartConfirmModal {
     private readonly widgets: Widget[];
 
     constructor(scene: Phaser.Scene, options: RestartConfirmModalOptions) {
-        const { loc, onConfirm } = options;
+        const { loc, sfx, onConfirm } = options;
         const overlay = scene.add
             .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
             .setDepth(Depths.ConfirmOverlay)
@@ -79,6 +85,7 @@ export class RestartConfirmModal {
                 fontSize: '14px',
                 color: '#ffe8e8',
                 depth: Depths.ConfirmContent,
+                sfx,
             }
         );
         const yesBtn = yesUi.background;
@@ -90,6 +97,7 @@ export class RestartConfirmModal {
             fontSize: '14px',
             color: '#f0f0f0',
             depth: Depths.ConfirmContent,
+            sfx,
         });
         const noBtn = noUi.background;
         const noText = noUi.label;

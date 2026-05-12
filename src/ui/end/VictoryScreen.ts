@@ -107,6 +107,7 @@ export function showVictoryScreen(ctx: EndScreenContext) {
         fontSize: '17px',
         color: '#f0f0f0',
         depth: Depths.EndScreenContent,
+        sfx,
     });
     const restartButton = restartUi.background;
     const restartLabel = restartUi.label;
