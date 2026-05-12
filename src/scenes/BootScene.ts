@@ -269,16 +269,19 @@ export class BootScene extends Phaser.Scene {
         // to zero as the torches ignite to mimic the wall lighting up.
         //
         // Boot-screen timeline (anchored on the camera fade-in):
-        //   t=0       title starts fading in (~2.5 s long)
+        //   t=0       title starts fading in (~3 s long, alpha-only)
         //   t=2.0 s   torches ignite + dim overlay drops
         //   t=3.0 s   burning loop starts (1 s after ignition)
         //   t=3.0 s   door starts fading in (1 s after ignition)
         //   t=3.6 s   Start button fades in
-        // The title fade deliberately runs longer than the dim-overlay
-        // drop so the apparent brightness curve (title.alpha × (1 -
-        // dim.alpha)) stays smooth across the t=2.0–3.5 s window
-        // instead of "popping" the moment the dim layer starts to
-        // lift.
+        // The title sits *above* the dim overlay (see depth choices
+        // below) so its visible brightness is just its own alpha
+        // curve — we deliberately do NOT compound it with the dim-
+        // overlay drop, otherwise the curve plateaus in the middle
+        // (title.alpha saturates ~t=2 s before the dim layer starts
+        // to lift) and then jumps when the dim overlay's Quad.out
+        // drop kicks in. Everything else on screen (door, embers,
+        // backdrop) is still dimmed and brightens with the room.
         // The 1-second gap between ignition and the burning loop lets
         // the sampled flint / whoosh cue land cleanly before the
         // continuous loop kicks in; the door appearing a beat later
@@ -366,6 +369,11 @@ export class BootScene extends Phaser.Scene {
         // JetBrains Mono) is what bounds the font size; 40 px keeps
         // it under ~360 px wide and leaves a comfortable gap to the
         // door arch below.
+        // Depth 6 puts the title above the dim overlay (depth 5) and
+        // below the torch sprites (depth 7). That makes its visible
+        // brightness a clean function of its own alpha alone —
+        // critical for the smooth fade-in below, see the timeline
+        // comment near the dim-overlay block for the full rationale.
         const title = this.add
             .text(CENTER_X, 110, titleText(), {
                 fontFamily: HUD_FONT,
@@ -377,20 +385,18 @@ export class BootScene extends Phaser.Scene {
                 strokeThickness: 4,
             })
             .setOrigin(0.5)
-            .setDepth(3);
+            .setDepth(6);
 
-        // Title fade is intentionally long + symmetric (Sine.inOut)
-        // and free of any y-motion. The previous Quad.out + y-rise
-        // read as a "flash" once the dim overlay started lifting at
-        // t=2.0 s, because most of the title's intrinsic alpha had
-        // already finished by then — stretching the fade to 2.5 s
-        // keeps the title still gaining brightness while the room
-        // brightens, so the two motions feel like a single smooth
-        // dawn rather than two separate cues.
+        // Title fade is a single 3 s Sine.inOut alpha ramp — no
+        // y-motion, no compounding with the dim overlay. The 3 s
+        // duration lands the title at full brightness almost exactly
+        // as the dim layer finishes lifting at t=3.5 s, so the whole
+        // intro reads as one continuous dawn cue rather than a fade
+        // followed by a flash.
         this.tweens.add({
             targets: title,
             alpha: { from: 0, to: 1 },
-            duration: 2500,
+            duration: 3000,
             ease: 'Sine.inOut',
         });
 
