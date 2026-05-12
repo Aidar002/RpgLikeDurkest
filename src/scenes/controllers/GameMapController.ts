@@ -28,8 +28,9 @@ export class GameMapController {
     private animating = false;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
-    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`). */
-    private readonly roomTransitionPhaseMs = 800;
+    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`).
+     *  Total transition = 2 × this value. */
+    private readonly roomTransitionPhaseMs = 550;
     /** Duration of the walk along the map edge before the room fade. */
     private readonly walkDurationMs = 2000;
     /** Fade-in / fade-out duration for the looped footsteps SFX that
