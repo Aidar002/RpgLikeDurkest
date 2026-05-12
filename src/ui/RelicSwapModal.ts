@@ -21,6 +21,7 @@ import * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
 import type { PlayerManager } from '../systems/PlayerManager';
 import { RELICS, type RelicId, type RelicRarity } from '../systems/Relics';
+import type { SoundManager } from '../systems/SoundManager';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 import { drawUiButton, type ButtonBackground } from './UiButton';
@@ -46,6 +47,11 @@ const RARITY_TEXT: Record<RelicRarity, string> = {
 interface RelicSwapModalOptions {
     loc: Localization;
     player: PlayerManager;
+    /** Shared SFX bank; when supplied the Skip button inherits the
+     *  standard `buttonHover` / `buttonClick` cues via
+     *  {@link drawUiButton}'s `sfx` option. Optional so tests can
+     *  mount the modal without a full audio stack. */
+    sfx?: SoundManager;
     /** Fired when the player picks a relic to drop in favour of the
      *  candidate. The caller is responsible for the actual
      *  `removeRelic`/`addRelic` swap so this widget stays UI-only. */
@@ -128,6 +134,7 @@ export class RelicSwapModal {
             fontSize: '14px',
             color: HudHex.textPrimary,
             depth: Depths.ConfirmContent,
+            sfx: options.sfx,
         });
         this.skipBg = skipUi.background;
         this.skipLabel = skipUi.label;

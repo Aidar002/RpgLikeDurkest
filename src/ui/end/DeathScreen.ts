@@ -46,7 +46,7 @@ interface MilestoneRowVisual {
 }
 
 export function showDeathScreen(ctx: EndScreenContext) {
-    const { scene, loc, meta, tracker, player, npcs, runState } = ctx;
+    const { scene, loc, sfx, meta, tracker, player, npcs, runState } = ctx;
 
     hideLiveContainers(ctx);
     bankSkillPointsOnce(ctx);
@@ -439,6 +439,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             fontSize: '17px',
             color: '#f0f0f0',
             depth: Depths.EndScreenContent,
+            sfx,
         }
     );
     const restartButton = restartUi.background;
@@ -450,6 +451,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
               fontSize: '14px',
               color: '#ffd0d0',
               depth: Depths.EndScreenContent,
+              sfx,
           })
         : null;
     const resetButton = resetUi?.background ?? null;
@@ -530,6 +532,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 fontSize: '14px',
                 color: '#ffe8e8',
                 depth: Depths.ConfirmContent,
+                sfx,
             }
         );
         const confirmResetButton = confirmResetUi.background;
@@ -547,6 +550,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 fontSize: '14px',
                 color: '#f0f0f0',
                 depth: Depths.ConfirmContent,
+                sfx,
             }
         );
         const cancelResetButton = cancelResetUi.background;

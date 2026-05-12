@@ -683,8 +683,15 @@ export class SoundManager {
         this.playSample('uiHover', 0.8);
     }
 
-    /** Very soft tick on hover. */
+    /**
+     * Hover feedback for any UI button. Uses the sampled
+     * `ui_hover.ogg` once {@link preloadUiSfx} resolves — same
+     * source file as the map-node hover so the two affordances
+     * share one acoustic identity. Falls back to the historical
+     * sine pip when the sample hasn't preloaded yet (or 404s).
+     */
     private playButtonHover() {
+        if (this.playSample('uiHover', 0.8)) return;
         this.osc('sine', 1000, 0.02, 0.04);
     }
 

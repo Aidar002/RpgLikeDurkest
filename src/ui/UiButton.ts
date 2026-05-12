@@ -26,6 +26,7 @@
  */
 import * as Phaser from 'phaser';
 
+import type { SoundManager } from '../systems/SoundManager';
 import { hasTexture } from './AssetGuard';
 import { HUD_FONT, HUD_STROKE, HudHex } from './HudTheme';
 
@@ -121,6 +122,17 @@ export interface DrawButtonOptions {
      *  when the call-site wants its own custom hover behaviour
      *  (e.g. arming a confirm window). Defaults to true. */
     autoHover?: boolean;
+    /** When provided, the button auto-plays the shared UI SFX —
+     *  `buttonHover` on pointerover and `buttonClick` on
+     *  pointerdown — so call-sites don't have to wire those
+     *  listeners themselves. Set {@link autoSfx} to `false` to
+     *  opt out of a single call-site (e.g. when the action
+     *  fires its own bespoke audio cue and a `buttonClick` would
+     *  layer on top). */
+    sfx?: SoundManager;
+    /** Opt out of the {@link sfx} auto-binding even when the
+     *  manager is provided. Defaults to true. */
+    autoSfx?: boolean;
 }
 
 /**
@@ -190,6 +202,12 @@ export function drawUiButton(
         .setDepth(depth + 1);
 
     background.setInteractive({ useHandCursor: true });
+
+    if (opts.sfx && opts.autoSfx !== false) {
+        const sfx = opts.sfx;
+        background.on('pointerover', () => sfx.play('buttonHover'));
+        background.on('pointerdown', () => sfx.play('buttonClick'));
+    }
 
     if (autoHover) {
         // Default hover styling. Both NineSlice and Rectangle support

@@ -414,6 +414,7 @@ export class BootScene extends Phaser.Scene {
             fontSize: '18px',
             color: '#ffffff',
             depth: 3,
+            sfx,
         });
         const startBtn = startUi.background;
         const startText = startUi.label;
@@ -428,11 +429,9 @@ export class BootScene extends Phaser.Scene {
         });
 
         let starting = false;
-        startBtn.on('pointerover', () => sfx.play('buttonHover'));
         startBtn.on('pointerdown', () => {
             if (starting) return;
             starting = true;
-            sfx.play('buttonClick');
             // Begin fading the torch crackle now (before the camera
             // fades) so by the time GameScene takes over it has fully
             // cleared the master gain and the dungeon ambience +
