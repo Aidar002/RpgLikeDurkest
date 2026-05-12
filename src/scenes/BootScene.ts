@@ -270,9 +270,8 @@ export class BootScene extends Phaser.Scene {
         //
         // Boot-screen timeline (anchored on the camera fade-in):
         //   t=0       title starts fading in (~3 s long, alpha-only)
-        //   t=2.0 s   torches ignite + dim overlay drops
+        //   t=2.0 s   torches ignite + dim overlay drops + door starts fading in
         //   t=3.0 s   burning loop starts (1 s after ignition)
-        //   t=3.0 s   door starts fading in (1 s after ignition)
         //   t=3.6 s   Start button fades in
         // The title sits *above* the dim overlay (see depth choices
         // below) so its visible brightness is just its own alpha
@@ -284,12 +283,15 @@ export class BootScene extends Phaser.Scene {
         // backdrop) is still dimmed and brightens with the room.
         // The 1-second gap between ignition and the burning loop lets
         // the sampled flint / whoosh cue land cleanly before the
-        // continuous loop kicks in; the door appearing a beat later
-        // sells the room "resolving" as the torches catch.
+        // continuous loop kicks in.
         const IGNITION_DELAY = 2000;
         const ROOM_BRIGHTEN_MS = 1500;
         const AMBIENT_AFTER_IGNITE_MS = 1000;
-        const DOOR_AFTER_IGNITE_MS = 1000;
+        // Door starts fading in on the same beat as the torch
+        // ignition — the room "reveals" the closed door as the
+        // flames catch, instead of the door arriving as a separate
+        // later cue.
+        const DOOR_AFTER_IGNITE_MS = 0;
         const START_BUTTON_DELAY = IGNITION_DELAY + 1600;
         const dimOverlay = this.add
             .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.82)
