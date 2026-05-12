@@ -338,7 +338,7 @@ export class BootScene extends Phaser.Scene {
         // The longer second line ("ETERNAL DUNGEON" — 15 chars in
         // JetBrains Mono) is what bounds the font size; 40 px keeps
         // it under ~360 px wide and leaves a comfortable gap to the
-        // tagline at y=175.
+        // door arch below.
         const title = this.add
             .text(CENTER_X, 110, titleText(), {
                 fontFamily: HUD_FONT,
@@ -359,21 +359,6 @@ export class BootScene extends Phaser.Scene {
             duration: 1200,
             ease: 'Quad.out',
         });
-
-        // Tagline anchor moved up (was 215) so the +30 % door below
-        // can extend its arch upward without colliding with the
-        // single-line tagline.
-        const tagline = this.add
-            .text(CENTER_X, 175, loc.t('bootTagline'), {
-                fontFamily: HUD_FONT,
-                fontSize: '14px',
-                color: '#c8cdd2',
-                stroke: '#030507',
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setAlpha(0)
-            .setDepth(3);
 
         // Stone-arched door between the torches. Sits below the dim
         // overlay (depth 3) so it brightens together with the rest of
@@ -398,13 +383,6 @@ export class BootScene extends Phaser.Scene {
                 ease: 'Quad.out',
             });
         }
-
-        this.tweens.add({
-            targets: tagline,
-            alpha: 1,
-            delay: 800,
-            duration: 600,
-        });
 
         // Start button anchor moved down (was 660) so the taller
         // door above has clearance to its lower foundation stones
@@ -476,7 +454,6 @@ export class BootScene extends Phaser.Scene {
             const next = loc.toggle();
             langLabel.setText(next === 'ru' ? 'RU' : 'EN');
             title.setText(titleText());
-            tagline.setText(loc.t('bootTagline'));
             startText.setText(loc.t('bootStart'));
         });
         langLabel.on('pointerover', () => langLabel.setColor('#ffffff'));
