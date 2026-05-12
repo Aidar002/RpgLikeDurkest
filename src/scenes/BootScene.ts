@@ -267,24 +267,39 @@ export class BootScene extends Phaser.Scene {
         // but below the torch sprites and chrome. Starts at high alpha
         // so the room reads as pitch-black on first frame, then tweens
         // to zero as the torches ignite to mimic the wall lighting up.
-        const IGNITION_DELAY = 800;
+        //
+        // Boot-screen timeline (anchored on the camera fade-in):
+        //   t=0       title starts fading in (~1.2 s long)
+        //   t=2.0 s   torches ignite + dim overlay drops
+        //   t=3.0 s   burning loop starts (1 s after ignition)
+        //   t=3.0 s   door starts fading in (1 s after ignition)
+        //   t=3.6 s   Start button fades in
+        // The 1-second gap between ignition and the burning loop lets
+        // the sampled flint / whoosh cue land cleanly before the
+        // continuous loop kicks in; the door appearing a beat later
+        // sells the room "resolving" as the torches catch.
+        const IGNITION_DELAY = 2000;
         const ROOM_BRIGHTEN_MS = 1500;
+        const AMBIENT_AFTER_IGNITE_MS = 1000;
+        const DOOR_AFTER_IGNITE_MS = 1000;
+        const START_BUTTON_DELAY = IGNITION_DELAY + 1600;
         const dimOverlay = this.add
             .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.82)
             .setOrigin(0, 0)
             .setDepth(5);
 
         // Two animated wall torches flanking the title. They ignite
-        // ~110 ms apart so the sampled `torch_ignite` cue layers as
+        // ~250 ms apart so the sampled `torch_ignite` cue layers as
         // two distinct flint cracks instead of doubling its own
-        // volume; the dim overlay then drops to zero so the rest of
-        // the scene resolves to its normal colour. The per-torch
-        // burning loops live inside `startTorchAmbient` (which picks
-        // the sampled `torch_loop` when available) and are mixed at
-        // different offsets + playback rates there, so the two
-        // torches keep sounding independent without any extra wiring
-        // here.
-        const IGNITION_STAGGER = 110;
+        // volume and the two flame loops are visibly out of phase
+        // from frame one; the dim overlay then drops to zero so the
+        // rest of the scene resolves to its normal colour. The
+        // per-torch burning loops live inside `startTorchAmbient`
+        // (which picks the sampled `torch_loop` when available) and
+        // are mixed at different offsets + playback rates there, so
+        // the two torches keep sounding independent without any
+        // extra wiring here.
+        const IGNITION_STAGGER = 250;
         createBootTorch(this, 170, 420, {
             sfx,
             delayMs: IGNITION_DELAY,
@@ -308,12 +323,12 @@ export class BootScene extends Phaser.Scene {
                 duration: ROOM_BRIGHTEN_MS,
                 ease: 'Quad.out',
             });
-            // Procedural crackle ambience — kicks in the moment both
-            // torches catch and the room visibly brightens, so the
-            // sound and the lighting beat land together. Idempotent;
-            // a re-mount of BootScene (restart from GameScene) calls
-            // it again but the loop guard inside SoundManager makes
-            // that a no-op.
+        });
+        // Burning loop deliberately trails the ignition by a full
+        // second so the sampled `torch_ignite` transient lands
+        // cleanly before the continuous `torch_loop` cue (or the
+        // procedural crackle fallback) takes over.
+        this.time.delayedCall(IGNITION_DELAY + AMBIENT_AFTER_IGNITE_MS, () => {
             sfx.startTorchAmbient(700);
         });
         // Phaser fires `shutdown` whenever the scene stops — both on
@@ -385,7 +400,7 @@ export class BootScene extends Phaser.Scene {
             this.tweens.add({
                 targets: door,
                 alpha: { from: 0, to: 1 },
-                delay: 600,
+                delay: IGNITION_DELAY + DOOR_AFTER_IGNITE_MS,
                 duration: 1000,
                 ease: 'Quad.out',
             });
@@ -409,7 +424,7 @@ export class BootScene extends Phaser.Scene {
         this.tweens.add({
             targets: [startBtn, startText],
             alpha: 1,
-            delay: 1300,
+            delay: START_BUTTON_DELAY,
             duration: 500,
         });
 
