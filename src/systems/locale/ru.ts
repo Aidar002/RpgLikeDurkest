@@ -6,7 +6,6 @@ import type { LocaleKey } from './en';
  * a new English string is added without a Russian counterpart.
  */
 export const RU_STRINGS: Record<LocaleKey, string> = {
-    bootTagline: 'Говорят, внизу лежит артефакт, исполняющий желания. Спустись и проверь.',
     bootStart: 'Начать экспедицию',
     hp: 'ОЗ',
     level: 'УР',

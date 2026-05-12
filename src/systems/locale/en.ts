@@ -12,7 +12,6 @@
  * `Localization.t(key, vars)` substitutes at render time.
  */
 export const EN_STRINGS = {
-    bootTagline: 'They say a wish-granting artifact lies at the bottom. Go find it.',
     bootStart: 'Begin Expedition',
     hp: 'HP',
     level: 'LVL',
