@@ -269,11 +269,16 @@ export class BootScene extends Phaser.Scene {
         // to zero as the torches ignite to mimic the wall lighting up.
         //
         // Boot-screen timeline (anchored on the camera fade-in):
-        //   t=0       title starts fading in (~1.2 s long)
+        //   t=0       title starts fading in (~2.5 s long)
         //   t=2.0 s   torches ignite + dim overlay drops
         //   t=3.0 s   burning loop starts (1 s after ignition)
         //   t=3.0 s   door starts fading in (1 s after ignition)
         //   t=3.6 s   Start button fades in
+        // The title fade deliberately runs longer than the dim-overlay
+        // drop so the apparent brightness curve (title.alpha × (1 -
+        // dim.alpha)) stays smooth across the t=2.0–3.5 s window
+        // instead of "popping" the moment the dim layer starts to
+        // lift.
         // The 1-second gap between ignition and the burning loop lets
         // the sampled flint / whoosh cue land cleanly before the
         // continuous loop kicks in; the door appearing a beat later
@@ -374,22 +379,40 @@ export class BootScene extends Phaser.Scene {
             .setOrigin(0.5)
             .setDepth(3);
 
+        // Title fade is intentionally long + symmetric (Sine.inOut)
+        // and free of any y-motion. The previous Quad.out + y-rise
+        // read as a "flash" once the dim overlay started lifting at
+        // t=2.0 s, because most of the title's intrinsic alpha had
+        // already finished by then — stretching the fade to 2.5 s
+        // keeps the title still gaining brightness while the room
+        // brightens, so the two motions feel like a single smooth
+        // dawn rather than two separate cues.
         this.tweens.add({
             targets: title,
             alpha: { from: 0, to: 1 },
-            y: { from: 130, to: 110 },
-            duration: 1200,
-            ease: 'Quad.out',
+            duration: 2500,
+            ease: 'Sine.inOut',
         });
 
         // Stone-arched door between the torches. Sits below the dim
         // overlay (depth 3) so it brightens together with the rest of
         // the room as the torches ignite. Frame 0 is the closed door;
-        // we flip to frame 1 in the click handler below to play the
+        // a second sprite stacked on top at frame 1 ("open") stays
+        // invisible during the title screen and is cross-faded with
+        // the closed door in the click handler below to play the
         // "opens into the dungeon" beat before transitioning out.
         const door = this.textures.exists(DOOR_TEXTURE_KEY)
             ? this.add
                   .sprite(CENTER_X, 410, DOOR_TEXTURE_KEY, 0)
+                  .setOrigin(0.5, 0.5)
+                  .setDisplaySize(DOOR_DISPLAY_HEIGHT, DOOR_DISPLAY_HEIGHT)
+                  .setTint(DOOR_AMBIENT_TINT)
+                  .setDepth(3)
+                  .setAlpha(0)
+            : null;
+        const doorOpenSprite = door
+            ? this.add
+                  .sprite(CENTER_X, 410, DOOR_TEXTURE_KEY, 1)
                   .setOrigin(0.5, 0.5)
                   .setDisplaySize(DOOR_DISPLAY_HEIGHT, DOOR_DISPLAY_HEIGHT)
                   .setTint(DOOR_AMBIENT_TINT)
@@ -438,18 +461,37 @@ export class BootScene extends Phaser.Scene {
             // music start in silence.
             sfx.stopTorchAmbient(500);
 
-            // Door-open beat: play creak SFX, swing the door to frame 1
-            // partway through the creak so visual and audio land together,
-            // then fade to GameScene once the thud has settled.
+            // Door-open beat: play creak SFX, then cross-fade the
+            // closed door into the open-door sprite over 3 s so the
+            // door visibly "swings open" through transparency
+            // instead of snapping to the open frame. Camera fade-out
+            // begins toward the end of the cross-fade so the dungeon
+            // transition lands the moment the open door is fully
+            // resolved.
             const proceed = () => this.scene.start('GameScene', { loc, sfx, music, devSeed });
-            if (door) {
+            const DOOR_OPEN_MS = 3000;
+            const CAMERA_FADE_MS = 400;
+            if (door && doorOpenSprite) {
                 sfx.play('doorOpen');
-                this.time.delayedCall(300, () => door.setFrame(1));
-                this.time.delayedCall(900, () => this.cameras.main.fadeOut(400, 0, 0, 0));
-                this.time.delayedCall(1300, proceed);
+                this.tweens.add({
+                    targets: door,
+                    alpha: 0,
+                    duration: DOOR_OPEN_MS,
+                    ease: 'Sine.inOut',
+                });
+                this.tweens.add({
+                    targets: doorOpenSprite,
+                    alpha: 1,
+                    duration: DOOR_OPEN_MS,
+                    ease: 'Sine.inOut',
+                });
+                this.time.delayedCall(DOOR_OPEN_MS - CAMERA_FADE_MS, () =>
+                    this.cameras.main.fadeOut(CAMERA_FADE_MS, 0, 0, 0)
+                );
+                this.time.delayedCall(DOOR_OPEN_MS, proceed);
             } else {
-                this.cameras.main.fadeOut(400, 0, 0, 0);
-                this.time.delayedCall(400, proceed);
+                this.cameras.main.fadeOut(CAMERA_FADE_MS, 0, 0, 0);
+                this.time.delayedCall(CAMERA_FADE_MS, proceed);
             }
         });
 
