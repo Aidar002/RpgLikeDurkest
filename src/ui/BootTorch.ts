@@ -3,12 +3,17 @@
  * intro and a steady burning loop after. Used on the title screen to
  * flank the game logo with two lit torches.
  *
- * Lifecycle, driven by `delayMs`:
+ * Lifecycle, driven by `delayMs` and optionally `sfxLeadMs`:
  *
  *   1. Hidden  (alpha 0)
- *   2. delayMs: play `torchIgnite` SFX, fade in over ~150 ms, spawn an
- *      additive glow halo (also fades in), kick the loop animation.
- *   3. After ignition the sprite keeps cycling the loop animation; the
+ *   2. delayMs - sfxLeadMs (only if `sfxLeadMs > 0`): play `torchIgnite`
+ *      SFX. This lets the host pre-roll the flint/whoosh cue so the
+ *      audible spark lands a beat before the visible flame.
+ *   3. delayMs: fade the torch sprite in, spawn an additive glow halo
+ *      (also fades in), kick the loop animation. If the SFX has not
+ *      yet been triggered above, it fires here so single-step ignition
+ *      still works without configuring a lead.
+ *   4. After ignition the sprite keeps cycling the loop animation; the
  *      glow gently flickers (sine-wave alpha breathing) to read as a
  *      live flame instead of a static halo.
  *
@@ -76,6 +81,15 @@ export interface BootTorchOptions {
      * Default 1000.
      */
     glowFadeDuration?: number;
+    /**
+     * If > 0, fire the `torchIgnite` SFX this many milliseconds
+     * *before* the visible ignition tween starts. Lets the host
+     * schedule the spark/flint cue so the audible click lands before
+     * the flame visibly catches, instead of both popping in on the
+     * same frame. Clamped against `delayMs`: never fires earlier than
+     * the torch's own scheduling window.
+     */
+    sfxLeadMs?: number;
 }
 
 export interface BootTorch {
@@ -105,6 +119,7 @@ export function createBootTorch(
     const frameRate = opts.frameRate ?? 7;
     const fadeDuration = opts.fadeDuration ?? 800;
     const glowFadeDuration = opts.glowFadeDuration ?? 1000;
+    const sfxLeadMs = Math.max(0, Math.min(opts.sfxLeadMs ?? 0, opts.delayMs));
 
     ensureBootTorchAnim(scene, frameRate);
 
@@ -134,14 +149,26 @@ export function createBootTorch(
     let glow: Phaser.GameObjects.Image | null = null;
     let glowTween: Phaser.Tweens.Tween | null = null;
     let igniteTimer: Phaser.Time.TimerEvent | null = null;
+    let sfxLeadTimer: Phaser.Time.TimerEvent | null = null;
     let igniteFadeTween: Phaser.Tweens.Tween | null = null;
     let placeholderGfx: Phaser.GameObjects.Graphics | null = null;
     let ignited = false;
+    let sfxFired = false;
+
+    // Single funnel for the ignition SFX so the pre-roll path and the
+    // in-line ignite path never double-trigger when both run (e.g.
+    // pre-roll fires, then a subsequent `igniteNow` rushes the visual
+    // half of the cue).
+    const fireIgniteSfx = () => {
+        if (sfxFired) return;
+        sfxFired = true;
+        opts.sfx.play('torchIgnite');
+    };
 
     const ignite = () => {
         if (ignited) return;
         ignited = true;
-        opts.sfx.play('torchIgnite');
+        fireIgniteSfx();
 
         // Glow halo (additive blend so the stone wall brightens
         // around the flame without occluding it).
@@ -239,6 +266,13 @@ export function createBootTorch(
         });
     };
 
+    // Optional SFX pre-roll: fire the ignite cue a touch before the
+    // visible flame catches, so the audible spark lands ahead of the
+    // sprite/glow fade-in. No-op when `sfxLeadMs` is 0 or larger than
+    // `delayMs` (clamped above).
+    if (sfxLeadMs > 0) {
+        sfxLeadTimer = scene.time.delayedCall(opts.delayMs - sfxLeadMs, fireIgniteSfx);
+    }
     igniteTimer = scene.time.delayedCall(opts.delayMs, ignite);
 
     return {
@@ -247,11 +281,15 @@ export function createBootTorch(
             return glow;
         },
         igniteNow() {
+            sfxLeadTimer?.remove();
+            sfxLeadTimer = null;
             igniteTimer?.remove();
             igniteTimer = null;
             ignite();
         },
         destroy() {
+            sfxLeadTimer?.remove();
+            sfxLeadTimer = null;
             igniteTimer?.remove();
             igniteFadeTween?.remove();
             glowTween?.remove();
