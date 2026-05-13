@@ -49,8 +49,8 @@ type SoundId =
  *   {@link playTorchIgnite}.
  * - `torchLoop` — long-form burning loop played by
  *   {@link startTorchAmbient} when the sample is available.
- * - `doorOpen` — heavy stone-door swing played by {@link playDoorOpen}
- *   when the boot-screen door begins its open animation.
+ * - `doorOpen` — sampled "door swinging open" cue layered on top
+ *   of the procedural creak/thud by {@link playDoorOpen}.
  */
 type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop' | 'doorOpen';
 
@@ -564,15 +564,22 @@ export class SoundManager {
     }
 
     /**
-     * Heavy wooden door swinging open. Plays the sampled
-     * `door_in_dungeon2.mp3` once {@link preloadUiSfx} resolves so
-     * the boot-screen door has a real recorded swing; falls back to
-     * the historical procedural creak + thud (~0.9 s) when the
-     * sample hasn't preloaded yet or 404s. Triggered by
+     * Heavy wooden door swinging open. Layers the sampled
+     * `door_in_dungeon2.mp3` (once {@link preloadUiSfx} resolves) on
+     * top of the historical procedural creak + thud (~0.9 s) so the
+     * boot-screen door carries both the wooden weight of the synth
+     * and the recorded dungeon swing. Missing sample falls through
+     * silently, leaving the synth-only path. Triggered by
      * {@link BootScene} the moment the open-door cross-fade begins.
      */
     private playDoorOpen() {
-        if (this.playSample('doorOpen', 1.0)) return;
+        // Layered sampled cue — when `door_in_dungeon2.mp3` is
+        // preloaded it plays alongside the procedural creak/thud
+        // below so the door swing carries both the wooden weight
+        // and the recorded dungeon ambience. Missing buffer falls
+        // through silently to the synth-only path.
+        this.playSample('doorOpen', 1.0);
+
         const ctx = this.ensure();
         const t = ctx.currentTime;
 
@@ -692,7 +699,7 @@ export class SoundManager {
      */
     private playButtonClick() {
         if (this.playSample('uiClick', 2.2)) return;
-        this.osc('square', 800, 0.03, 0.08);
+        this.osc('square', 800, 0.03, 0.16);
     }
 
     /**
@@ -714,7 +721,7 @@ export class SoundManager {
      */
     private playButtonHover() {
         if (this.playSample('uiHover', 1.6)) return;
-        this.osc('sine', 1000, 0.02, 0.04);
+        this.osc('sine', 1000, 0.02, 0.08);
     }
 
     /** Ascending fanfare. */
