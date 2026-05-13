@@ -32,7 +32,6 @@ export function handleTreasureRoom(scene: GameScene): void {
         scene.loc.t('roomTreasureDesc', { value: rewardParts.join(', ') }),
         0x8d6a21,
         '$',
-        scene.loc.t('roomTreasureHint'),
         'TREASURE'
     );
     scene.log.addMessage(

@@ -24,7 +24,7 @@ function showGenericMerchantOptions(scene: GameScene): void {
                 scene.tracker.record('goldSpent', ROOM_CONFIG.merchant.potionCost);
                 scene.player.gainPotions(1);
                 scene.log.addMessage(scene.loc.t('buyPotion'), '#9be0a7');
-                scene.enemyIntelText.setText(scene.loc.t('npcMerchantPay'));
+                scene.roomFlavorText.setText(scene.loc.t('npcMerchantPay'));
                 scene.showReturnButton();
             },
             enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.potionCost,
@@ -47,7 +47,7 @@ function showGenericMerchantOptions(scene: GameScene): void {
                 scene.loc.t('buyArmor', { value: ROOM_CONFIG.merchant.armorDefenseGain }),
                 '#b8d3ff'
             );
-            scene.enemyIntelText.setText(scene.loc.t('npcMerchantFair'));
+            scene.roomFlavorText.setText(scene.loc.t('npcMerchantFair'));
             scene.showReturnButton();
         },
         enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.armorCost,
@@ -66,7 +66,6 @@ function showGenericMerchantOptions(scene: GameScene): void {
         scene.loc.t('roomShadowTraderDesc'),
         0x2e6c87,
         'M',
-        scene.loc.t('roomShadowTraderHint'),
         'MERCHANT'
     );
     scene.setRoomButtons(actions);

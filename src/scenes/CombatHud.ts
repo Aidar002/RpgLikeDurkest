@@ -63,7 +63,6 @@ export class CombatHudController {
             card.description,
             card.color,
             card.icon,
-            scene.loc.t('chooseMove'),
             kind === 'boss' ? 'BOSS' : kind === 'elite' ? 'ELITE' : 'ENEMY'
         );
         scene.combat.startCombat(scene.dungeon.currentDepth, kind);

@@ -42,7 +42,6 @@ export function handleEmptyRoom(scene: GameScene): void {
         event.desc,
         0x444444,
         event.icon,
-        scene.loc.t('roomEmptyHint'),
         'EMPTY'
     );
 
@@ -73,7 +72,7 @@ export function handleEmptyRoom(scene: GameScene): void {
                     scene.loc.t('emptyScout', { parts: gains.join(', ') }),
                     '#bbbbbb'
                 );
-                scene.enemyIntelText.setText(scene.loc.t('roomEmptyAfterSearch'));
+                scene.roomFlavorText.setText(scene.loc.t('roomEmptyAfterSearch'));
                 scene.showReturnButton();
             },
             fill: 0x3d3d3d,
@@ -83,7 +82,7 @@ export function handleEmptyRoom(scene: GameScene): void {
             callback: () => {
                 const gained = scene.player.gainResolve(ROOM_CONFIG.empty.steadyResolveGain);
                 scene.log.addMessage(scene.loc.t('emptySteady', { value: gained }), '#9bc8ff');
-                scene.enemyIntelText.setText(scene.loc.t('roomEmptyAfterSkip'));
+                scene.roomFlavorText.setText(scene.loc.t('roomEmptyAfterSkip'));
                 scene.showReturnButton();
             },
             fill: 0x2b2b2b,
