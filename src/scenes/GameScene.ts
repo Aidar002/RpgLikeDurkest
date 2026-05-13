@@ -179,6 +179,15 @@ export class GameScene extends Phaser.Scene {
     }
 
     create() {
+        // Fade the dungeon in from black so the hand-off from BootScene
+        // (which fades the camera out to black just before transitioning)
+        // reads as one continuous dissolve instead of a hard pop. 1400 ms
+        // mirrors `CAMERA_FADE_MS` in BootScene so the in/out beats are
+        // symmetric. The map / HUD / player setup below runs while the
+        // screen is still black, so the player only sees the dungeon
+        // once the fade-in completes.
+        this.cameras.main.fadeIn(1400, 0, 0, 0);
+
         this.meta = new MetaProgressionManager();
         this.npcs = this.meta.getNpcManager();
         const metaBonuses = this.meta.getBonuses();
