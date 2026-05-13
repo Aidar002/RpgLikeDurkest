@@ -14,17 +14,29 @@ import { createRoomButtons, type RoomButtonAction } from '../../ui/RoomButtons';
 import type { GameScene } from '../GameScene';
 
 /**
- * Blue tone shared by all dialog speech (NPC and player lines) so a
- * spoken line reads visually distinct from the white/grey room
- * description text. Matches the legacy `enemyIntelText` blue so the
- * eye doesn't have to relearn the colour when switching rooms.
+ * Dialog speech colours. NPC lines render in the warm accent orange
+ * (same hex the HUD uses for the accent-light tone) so the speaker
+ * reads as an active voice; the player's own replies stay muted grey
+ * so they read as the silent side of the conversation.
  */
-const DIALOG_SPEECH_COLOR = '#9ec3ff';
+const DIALOG_NPC_COLOR = '#f0a050';
+const DIALOG_PLAYER_COLOR = '#a09898';
 
 /** Strip the leading `[1] ` / `[2] ` button index off a localized
  *  offer label so the dialog window shows only the spoken phrase. */
 function stripChoicePrefix(label: string): string {
     return label.replace(/^\[\d+\]\s*/, '');
+}
+
+/** Dash markers framing dialog lines so the speaker is unambiguous
+ *  even at a glance: NPC line ends with ` -`, player line starts with
+ *  `- `. Matches the styling brief from the room-card redesign. */
+function formatNpcLine(line: string): string {
+    return line ? `${line} -` : '';
+}
+function formatPlayerLine(line: string): string {
+    const trimmed = line ? stripChoicePrefix(line) : '';
+    return trimmed ? `- ${trimmed}` : '';
 }
 
 /**
@@ -46,6 +58,16 @@ export class GameRoomController {
     constructor(scene: GameScene) {
         this.scene = scene;
     }
+
+    /** Portrait centre when no NPC dialog is active (combat, generic
+     *  room cards). Computed in `build()`. */
+    private centerLayoutCx = 0;
+    /** Portrait centre when an NPC dialog window is open — portrait
+     *  shifts to the right column so the dialog can fill the left
+     *  half of the panel. Computed in `build()`. */
+    private rightLayoutCx = 0;
+    /** Cached Y of the portrait centre, shared by both layouts. */
+    private portraitCY = 0;
 
     /**
      * Build the room-panel widgets and attach them to
@@ -78,6 +100,12 @@ export class GameRoomController {
         // beneath for the name + HP + intent + flavour stack above
         // the taller action buttons.
         const portraitCY = panelY + 82;
+        // For NPC rooms the portrait slides over to the right side of
+        // the panel so the dialog window can claim the left half.
+        const rightCx = panelX + panelW - 160;
+        this.centerLayoutCx = cx;
+        this.rightLayoutCx = rightCx;
+        this.portraitCY = portraitCY;
         scene.enemyPortrait = scene.add
             .rectangle(cx, portraitCY, 140, 140, 0x333333)
             .setStrokeStyle(2, 0x555555);
@@ -155,60 +183,57 @@ export class GameRoomController {
             })
             .setOrigin(0.5, 0);
 
-        // NPC dialog window. Replaces the description block whenever
-        // the player is talking to an NPC: the NPC's current line
-        // sits on the right (right-aligned, blue), the player's last
-        // line sits on the left (left-aligned, blue). Sized to fit
-        // between the name row and the top action-button row without
-        // ever overlapping the buttons, regardless of how long either
-        // speech line wraps. Hidden by default — shown via
-        // showRoomNpcCard() / updateRoomDialog().
-        const dialogTop = hpBarY - 6; // ~y=300, just under the name row
-        const dialogH = 130;
-        const dialogX = panelX + 18;
-        const dialogW = panelW - 36;
-        const dialogColGap = 18;
-        const dialogColW = Math.floor((dialogW - dialogColGap) / 2);
-        const dialogPad = 12;
+        // NPC dialog window. Fills the LEFT half of the panel between
+        // the header and the action-button row. The portrait/name
+        // stack moves over to the RIGHT half (see showRoomNpcCard).
+        // Two stacked text lines:
+        //   • NPC speech on top, orange, suffixed with " -"
+        //   • Player reply below, grey, prefixed with "- "
+        // The player text re-positions itself dynamically below the
+        // NPC text on every dialog update so a long NPC line never
+        // collides with the player reply. Hidden by default — shown
+        // via showRoomNpcCard() / updateRoomDialog().
+        const dialogX = panelX + 16;
+        const dialogW = 320;
+        const dialogTop = panelY + 26;
+        const dialogBottom = panelY + 312;
+        const dialogH = dialogBottom - dialogTop;
+        const dialogPad = 14;
 
         const dialogBg = scene.add.graphics();
         dialogBg.fillStyle(0x16131c, 1);
         dialogBg.fillRect(dialogX, dialogTop, dialogW, dialogH);
         dialogBg.lineStyle(1, 0x2c2738, 1);
         dialogBg.strokeRect(dialogX + 0.5, dialogTop + 0.5, dialogW - 1, dialogH - 1);
-        const dividerX = dialogX + dialogColW + dialogColGap / 2;
-        dialogBg.lineStyle(1, 0x2c2738, 1);
-        dialogBg.beginPath();
-        dialogBg.moveTo(dividerX, dialogTop + 14);
-        dialogBg.lineTo(dividerX, dialogTop + dialogH - 14);
-        dialogBg.strokePath();
 
         const dialogTextStyle = {
             fontFamily: BODY_FONT,
-            fontSize: '14px',
-            color: DIALOG_SPEECH_COLOR,
+            fontSize: '17px',
             stroke: '#0c1828',
             strokeThickness: 2,
-            lineSpacing: 3,
+            lineSpacing: 4,
         } as const;
+        const wrapWidth = dialogW - dialogPad * 2;
 
+        scene.dialogNpcText = scene.add
+            .text(dialogX + dialogPad, dialogTop + dialogPad, '', {
+                ...dialogTextStyle,
+                color: DIALOG_NPC_COLOR,
+                align: 'left',
+                wordWrap: { width: wrapWidth },
+            })
+            .setOrigin(0, 0);
         scene.dialogPlayerText = scene.add
             .text(dialogX + dialogPad, dialogTop + dialogPad, '', {
                 ...dialogTextStyle,
+                color: DIALOG_PLAYER_COLOR,
                 align: 'left',
-                wordWrap: { width: dialogColW - dialogPad * 2 },
+                wordWrap: { width: wrapWidth },
             })
             .setOrigin(0, 0);
-        scene.dialogNpcText = scene.add
-            .text(dialogX + dialogW - dialogPad, dialogTop + dialogPad, '', {
-                ...dialogTextStyle,
-                align: 'right',
-                wordWrap: { width: dialogColW - dialogPad * 2 },
-            })
-            .setOrigin(1, 0);
 
         scene.roomDialogContainer = scene.add
-            .container(0, 0, [dialogBg, scene.dialogPlayerText, scene.dialogNpcText])
+            .container(0, 0, [dialogBg, scene.dialogNpcText, scene.dialogPlayerText])
             .setVisible(false);
 
         scene.roomPanelGroup = scene.add.container(0, 0, [
@@ -247,6 +272,19 @@ export class GameRoomController {
         this.scene.roomButtons.setActions(actions, useWideOnly);
     }
 
+    /** Move the portrait/name/sprite block to either the panel centre
+     *  (combat + generic rooms) or the right column (NPC dialog).
+     *  Internal helper for show* methods. */
+    private positionPortrait(toRight: boolean): void {
+        const scene = this.scene;
+        const targetCx = toRight ? this.rightLayoutCx : this.centerLayoutCx;
+        const y = this.portraitCY;
+        scene.enemyPortrait.setPosition(targetCx, y);
+        scene.enemyIconText.setPosition(targetCx, y + 14);
+        scene.enemySpriteImage.setPosition(targetCx, y);
+        scene.enemyNameText.setPosition(targetCx, y + 84);
+    }
+
     public showRoomCard(
         header: string,
         title: string,
@@ -256,6 +294,7 @@ export class GameRoomController {
         spriteKey: string = header
     ): void {
         const scene = this.scene;
+        this.positionPortrait(false);
         scene.roomHeaderText.setText(header);
         scene.enemyPortrait.setFillStyle(color);
         scene.enemyIconText.setText(icon);
@@ -299,6 +338,7 @@ export class GameRoomController {
         npcSpeech: string
     ): void {
         const scene = this.scene;
+        this.positionPortrait(true);
         scene.roomHeaderText.setText(header);
         scene.enemyPortrait.setFillStyle(color);
         scene.enemyIconText.setText(icon);
@@ -313,7 +353,8 @@ export class GameRoomController {
         scene.enemySpriteImage.setVisible(false);
         scene.enemyIconText.setVisible(true);
         scene.dialogPlayerText.setText('');
-        scene.dialogNpcText.setText(compactText(npcSpeech, 220));
+        scene.dialogNpcText.setText(formatNpcLine(compactText(npcSpeech, 220)));
+        this.layoutDialogTexts();
         scene.roomDialogContainer.setVisible(true);
         scene.roomPanelGroup.setVisible(true);
     }
@@ -326,14 +367,25 @@ export class GameRoomController {
     public updateRoomDialog(opts: { npc?: string; player?: string }): void {
         const scene = this.scene;
         if (opts.player !== undefined) {
-            scene.dialogPlayerText.setText(
-                opts.player ? compactText(stripChoicePrefix(opts.player), 160) : ''
-            );
+            scene.dialogPlayerText.setText(formatPlayerLine(compactText(opts.player, 160)));
         }
         if (opts.npc !== undefined) {
-            scene.dialogNpcText.setText(opts.npc ? compactText(opts.npc, 220) : '');
+            scene.dialogNpcText.setText(formatNpcLine(compactText(opts.npc, 220)));
         }
+        this.layoutDialogTexts();
         scene.roomDialogContainer.setVisible(true);
+    }
+
+    /** Re-flow the dialog window so the player line sits just below
+     *  the NPC line regardless of how long either wraps. Keeps the
+     *  two speech blocks visually grouped without overlapping. */
+    private layoutDialogTexts(): void {
+        const scene = this.scene;
+        const npc = scene.dialogNpcText;
+        const player = scene.dialogPlayerText;
+        const gap = 14;
+        const npcBottom = npc.text.length > 0 ? npc.y + npc.height + gap : npc.y;
+        player.setPosition(npc.x, npcBottom);
     }
 
     public showReturnButton(): void {
