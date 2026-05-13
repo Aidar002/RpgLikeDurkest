@@ -320,24 +320,33 @@ export class BootScene extends Phaser.Scene {
         // the two torches keep sounding independent without any
         // extra wiring here.
         const IGNITION_STAGGER = 250;
-        // Anchor torches 70 px nearer to the central door than before
-        // (was 170 / GAME_WIDTH - 170) so the lit pair frames the
-        // arch more tightly during the title screen.
-        createBootTorch(this, 240, 420, {
+        // Anchor torches 105 px nearer the central door than the
+        // original (170 / GAME_WIDTH - 170 -> 240 -> 275) so the lit
+        // pair hugs the arch tightly on the title screen. `sfxLeadMs`
+        // pre-rolls the flint/whoosh cue 500 ms before the visible
+        // flame catches, and the sprite/glow fade-ins are shortened
+        // (1200/1500 -> 500/500) so the room reads as lighting up
+        // crisply instead of slowly brightening.
+        const TORCH_SFX_LEAD_MS = 500;
+        const TORCH_FADE_MS = 500;
+        const TORCH_GLOW_FADE_MS = 500;
+        createBootTorch(this, 275, 420, {
             sfx,
             delayMs: IGNITION_DELAY,
             displayHeight: 168,
             depth: 7,
-            fadeDuration: 1200,
-            glowFadeDuration: 1500,
+            fadeDuration: TORCH_FADE_MS,
+            glowFadeDuration: TORCH_GLOW_FADE_MS,
+            sfxLeadMs: TORCH_SFX_LEAD_MS,
         });
-        createBootTorch(this, GAME_WIDTH - 240, 420, {
+        createBootTorch(this, GAME_WIDTH - 275, 420, {
             sfx,
             delayMs: IGNITION_DELAY + IGNITION_STAGGER,
             displayHeight: 168,
             depth: 7,
-            fadeDuration: 1200,
-            glowFadeDuration: 1500,
+            fadeDuration: TORCH_FADE_MS,
+            glowFadeDuration: TORCH_GLOW_FADE_MS,
+            sfxLeadMs: TORCH_SFX_LEAD_MS,
         });
         this.time.delayedCall(IGNITION_DELAY, () => {
             this.tweens.add({
@@ -397,7 +406,11 @@ export class BootScene extends Phaser.Scene {
             ? this.add
                   .image(CENTER_X, 100, 'boot_title_logo')
                   .setOrigin(0.5)
-                  .setDisplaySize(350, 197)
+                  // Display size scaled up ~30 % (was 350 x 197) so
+                  // the brand reads roughly the same width as the
+                  // door arch below it. Source aspect (1672 x 941)
+                  // preserved.
+                  .setDisplaySize(455, 256)
                   .setDepth(6)
             : this.add
                   .text(CENTER_X, 110, 'WISHBOUND:\nETERNAL DUNGEON', {
@@ -466,12 +479,12 @@ export class BootScene extends Phaser.Scene {
             });
         }
 
-        // Start button pulled back up close to the door (was 740 —
-        // too far below the lower arch). With the door at y=430 and
-        // 530 px tall its lower foundation stones land at y=695, so
-        // anchoring the 48 px-tall button at y=725 keeps a ~6 px gap
-        // to the door without overlapping the gold button frame.
-        const startUi = drawUiButton(this, CENTER_X, 725, 260, 48, loc.t('bootStart'), {
+        // Start button pulled even closer to the door (was 725 -> 695).
+        // The door texture has padding inside its display rectangle,
+        // so anchoring the button at the bottom of the door bbox
+        // (y=695) still tucks it just under the visible foundation
+        // stones instead of overlapping them.
+        const startUi = drawUiButton(this, CENTER_X, 695, 260, 48, loc.t('bootStart'), {
             variant: 'gold',
             fontSize: '18px',
             color: '#ffffff',
