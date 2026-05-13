@@ -232,18 +232,28 @@ export class BootScene extends Phaser.Scene {
         if (devSeed?.lang) {
             loc.language = devSeed.lang;
         }
-        // The boot screen intentionally has no music — it's silent
-        // except for the procedural torch crackle started below. The
-        // dungeon track is set up + kicked off by `GameScene.startGame`
-        // instead. We still call `music.stop()` here so a *restart*
-        // (death / escape -> back to title) doesn't bleed the dungeon
-        // music into the title screen.
-        music.stop();
-        // Fetch + decode the UI hover/click samples in the background
-        // so the first map-node hover and the first button click after
-        // boot fire instantly. Memoised inside SoundManager, so calling
-        // it on every BootScene restart is a no-op after the first run.
-        void sfx.preloadUiSfx();
+        // Swap to the title-screen music loop. On a fresh boot the
+        // manager has nothing playing and `fadeOut(0)` is a no-op; on
+        // a restart (death / escape -> back to title) the inherited
+        // dungeon track is cleared so the new playlist takes effect.
+        // `start()` here fades the menu loop in via the manager's
+        // built-in initial fade.
+        const audioBase = `${import.meta.env.BASE_URL}audio`;
+        music.fadeOut(0);
+        music.setPlaylist([{ url: `${audioBase}/menu_sound2.ogg` }]);
+        music.start();
+        // Fetch + decode the UI hover/click + title-reveal samples in
+        // the background so the first map-node hover, the first
+        // button click, and the title cue all fire without a fetch
+        // gap. Memoised inside SoundManager, so calling it on every
+        // BootScene restart is a no-op after the first run.
+        void sfx.preloadUiSfx().then(() => {
+            // Guard against the scene shutting down between preload
+            // start and resolution (e.g. instant restart through the
+            // HUD menu) — only play the cue if BootScene is still the
+            // active scene.
+            if (this.scene.isActive('BootScene')) sfx.playShowName(800);
+        });
         this.cameras.main.setBackgroundColor('#050505');
         // Brand name. Identical in every locale — the colon splits the
         // string onto two lines so the layout matches the previous
@@ -394,7 +404,9 @@ export class BootScene extends Phaser.Scene {
         // duration lands the title at full brightness almost exactly
         // as the dim layer finishes lifting at t=3.5 s, so the whole
         // intro reads as one continuous dawn cue rather than a fade
-        // followed by a flash.
+        // followed by a flash. The `show_name.ogg` cue is scheduled
+        // alongside the preload chain above and uses its own ~0.8 s
+        // fade-in so it rises with the title rather than punching in.
         this.tweens.add({
             targets: title,
             alpha: { from: 0, to: 1 },
@@ -468,17 +480,25 @@ export class BootScene extends Phaser.Scene {
             // cleared the master gain and the dungeon ambience +
             // music start in silence.
             sfx.stopTorchAmbient(500);
+            // Fade the menu music out alongside the door swing so
+            // the title loop tapers off cleanly before GameScene
+            // starts the dungeon track. The fade duration matches
+            // the door swing so the music ends at the same beat the
+            // camera fade kicks in.
+            music.fadeOut(3500);
 
             // Door-open beat: play creak SFX, then cross-fade the
-            // closed door into the open-door sprite over 3 s so the
+            // closed door into the open-door sprite over 4 s so the
             // door visibly "swings open" through transparency
             // instead of snapping to the open frame. Camera fade-out
             // begins toward the end of the cross-fade so the dungeon
             // transition lands the moment the open door is fully
-            // resolved.
+            // resolved. Door swing and camera fade are both 1 s
+            // longer than the previous values so the transition to
+            // the dungeon reads as a slower, weightier moment.
             const proceed = () => this.scene.start('GameScene', { loc, sfx, music, devSeed });
-            const DOOR_OPEN_MS = 3000;
-            const CAMERA_FADE_MS = 400;
+            const DOOR_OPEN_MS = 4000;
+            const CAMERA_FADE_MS = 1400;
             if (door && doorOpenSprite) {
                 sfx.play('doorOpen');
                 this.tweens.add({
