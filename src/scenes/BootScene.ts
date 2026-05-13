@@ -406,11 +406,11 @@ export class BootScene extends Phaser.Scene {
             ? this.add
                   .image(CENTER_X, 100, 'boot_title_logo')
                   .setOrigin(0.5)
-                  // Display size scaled up ~30 % (was 350 x 197) so
-                  // the brand reads roughly the same width as the
-                  // door arch below it. Source aspect (1672 x 941)
-                  // preserved.
-                  .setDisplaySize(455, 256)
+                  // Display size scaled up another ~36 % (455 -> 620 wide)
+                  // so the brand reads at roughly the full width of the
+                  // door arch + flanking torches below it. Source aspect
+                  // (1672 x 941) preserved -> 620 x 349.
+                  .setDisplaySize(620, 349)
                   .setDepth(6)
             : this.add
                   .text(CENTER_X, 110, 'WISHBOUND:\nETERNAL DUNGEON', {
