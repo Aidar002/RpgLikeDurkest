@@ -126,6 +126,9 @@ export class GameScene extends Phaser.Scene {
     public enemyHpText!: Phaser.GameObjects.Text;
     public enemyIntelText!: Phaser.GameObjects.Text;
     public roomFlavorText!: Phaser.GameObjects.Text;
+    public roomDialogContainer!: Phaser.GameObjects.Container;
+    public dialogNpcText!: Phaser.GameObjects.Text;
+    public dialogPlayerText!: Phaser.GameObjects.Text;
     public roomPanelGroup!: Phaser.GameObjects.Container;
     public roomButtons!: RoomButtonsHandle;
 
@@ -392,10 +395,25 @@ export class GameScene extends Phaser.Scene {
         description: string,
         color: number,
         icon: string,
-        intel: string,
         spriteKey: string = header
     ) {
-        this.room.showRoomCard(header, title, description, color, icon, intel, spriteKey);
+        this.room.showRoomCard(header, title, description, color, icon, spriteKey);
+    }
+
+    /** Forward to {@link GameRoomController.showRoomNpcCard}. */
+    public showRoomNpcCard(
+        header: string,
+        title: string,
+        color: number,
+        icon: string,
+        npcSpeech: string
+    ) {
+        this.room.showRoomNpcCard(header, title, color, icon, npcSpeech);
+    }
+
+    /** Forward to {@link GameRoomController.updateRoomDialog}. */
+    public updateRoomDialog(opts: { npc?: string; player?: string }) {
+        this.room.updateRoomDialog(opts);
     }
 
     /** Forward to {@link GameRoomController.showReturnButton}. */

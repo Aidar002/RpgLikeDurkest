@@ -308,8 +308,8 @@ describe('Smoke run — headless walk through a deterministic seed', () => {
 
 interface FakeSceneRecord {
     logs: string[];
-    intel: string[];
-    rooms: Array<{ header: string; title: string; description: string; intel: string }>;
+    flavorUpdates: string[];
+    rooms: Array<{ header: string; title: string; description: string }>;
     buttonLabels: string[];
     returnButtonShown: number;
     relicDrops: number;
@@ -324,7 +324,7 @@ function makeFakeScene(
 } {
     const record: FakeSceneRecord = {
         logs: [],
-        intel: [],
+        flavorUpdates: [],
         rooms: [],
         buttonLabels: [],
         returnButtonShown: 0,
@@ -384,14 +384,12 @@ function makeFakeScene(
             description: string,
             _color: number,
             _icon: string,
-            intel?: string,
             _spriteKey?: string
         ) => {
             record.rooms.push({
                 header,
                 title,
                 description,
-                intel: intel ?? '',
             });
         },
         setRoomButtons: (actions: RoomButtonAction[], _useWideOnly?: boolean) => {
@@ -409,9 +407,9 @@ function makeFakeScene(
             record.relicDrops += 1;
             return false;
         },
-        enemyIntelText: {
+        roomFlavorText: {
             setText: (text: string) => {
-                record.intel.push(text);
+                record.flavorUpdates.push(text);
             },
         },
     };
@@ -435,9 +433,9 @@ function captureRoomHandlerOutput(
 
     const collect = (rec: FakeSceneRecord) => {
         captured.push(...rec.logs);
-        captured.push(...rec.intel);
+        captured.push(...rec.flavorUpdates);
         for (const r of rec.rooms) {
-            captured.push(r.header, r.title, r.description, r.intel);
+            captured.push(r.header, r.title, r.description);
         }
         captured.push(...rec.buttonLabels);
     };
@@ -471,7 +469,7 @@ function captureRoomHandlerOutput(
         // Reset records that were filled by the initial run; we only
         // want output produced by the button callback.
         second.record.logs = [];
-        second.record.intel = [];
+        second.record.flavorUpdates = [];
         second.record.rooms = [];
         second.record.buttonLabels = [];
         const action = captured2[i];

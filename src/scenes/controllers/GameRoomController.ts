@@ -14,6 +14,20 @@ import { createRoomButtons, type RoomButtonAction } from '../../ui/RoomButtons';
 import type { GameScene } from '../GameScene';
 
 /**
+ * Blue tone shared by all dialog speech (NPC and player lines) so a
+ * spoken line reads visually distinct from the white/grey room
+ * description text. Matches the legacy `enemyIntelText` blue so the
+ * eye doesn't have to relearn the colour when switching rooms.
+ */
+const DIALOG_SPEECH_COLOR = '#9ec3ff';
+
+/** Strip the leading `[1] ` / `[2] ` button index off a localized
+ *  offer label so the dialog window shows only the spoken phrase. */
+function stripChoicePrefix(label: string): string {
+    return label.replace(/^\[\d+\]\s*/, '');
+}
+
+/**
  * Owns the room-info panel: the right-hand portrait/name/HP/intel/flavor
  * widgets, the action-button row beneath it, plus the helpers that
  * `RoomFlow` / `CombatHud` lean on (`showRoomCard`, `showReturnButton`,
@@ -141,6 +155,62 @@ export class GameRoomController {
             })
             .setOrigin(0.5, 0);
 
+        // NPC dialog window. Replaces the description block whenever
+        // the player is talking to an NPC: the NPC's current line
+        // sits on the right (right-aligned, blue), the player's last
+        // line sits on the left (left-aligned, blue). Sized to fit
+        // between the name row and the top action-button row without
+        // ever overlapping the buttons, regardless of how long either
+        // speech line wraps. Hidden by default — shown via
+        // showRoomNpcCard() / updateRoomDialog().
+        const dialogTop = hpBarY - 6; // ~y=300, just under the name row
+        const dialogH = 130;
+        const dialogX = panelX + 18;
+        const dialogW = panelW - 36;
+        const dialogColGap = 18;
+        const dialogColW = Math.floor((dialogW - dialogColGap) / 2);
+        const dialogPad = 12;
+
+        const dialogBg = scene.add.graphics();
+        dialogBg.fillStyle(0x16131c, 1);
+        dialogBg.fillRect(dialogX, dialogTop, dialogW, dialogH);
+        dialogBg.lineStyle(1, 0x2c2738, 1);
+        dialogBg.strokeRect(dialogX + 0.5, dialogTop + 0.5, dialogW - 1, dialogH - 1);
+        const dividerX = dialogX + dialogColW + dialogColGap / 2;
+        dialogBg.lineStyle(1, 0x2c2738, 1);
+        dialogBg.beginPath();
+        dialogBg.moveTo(dividerX, dialogTop + 14);
+        dialogBg.lineTo(dividerX, dialogTop + dialogH - 14);
+        dialogBg.strokePath();
+
+        const dialogTextStyle = {
+            fontFamily: BODY_FONT,
+            fontSize: '14px',
+            color: DIALOG_SPEECH_COLOR,
+            stroke: '#0c1828',
+            strokeThickness: 2,
+            lineSpacing: 3,
+        } as const;
+
+        scene.dialogPlayerText = scene.add
+            .text(dialogX + dialogPad, dialogTop + dialogPad, '', {
+                ...dialogTextStyle,
+                align: 'left',
+                wordWrap: { width: dialogColW - dialogPad * 2 },
+            })
+            .setOrigin(0, 0);
+        scene.dialogNpcText = scene.add
+            .text(dialogX + dialogW - dialogPad, dialogTop + dialogPad, '', {
+                ...dialogTextStyle,
+                align: 'right',
+                wordWrap: { width: dialogColW - dialogPad * 2 },
+            })
+            .setOrigin(1, 0);
+
+        scene.roomDialogContainer = scene.add
+            .container(0, 0, [dialogBg, scene.dialogPlayerText, scene.dialogNpcText])
+            .setVisible(false);
+
         scene.roomPanelGroup = scene.add.container(0, 0, [
             panel,
             scene.roomHeaderText,
@@ -153,6 +223,7 @@ export class GameRoomController {
             scene.enemyHpText,
             scene.enemyIntelText,
             scene.roomFlavorText,
+            scene.roomDialogContainer,
         ]);
 
         scene.roomContainer.add(scene.roomPanelGroup);
@@ -182,7 +253,6 @@ export class GameRoomController {
         description: string,
         color: number,
         icon: string,
-        intel: string,
         spriteKey: string = header
     ): void {
         const scene = this.scene;
@@ -190,9 +260,13 @@ export class GameRoomController {
         scene.enemyPortrait.setFillStyle(color);
         scene.enemyIconText.setText(icon);
         scene.enemyNameText.setText(compactText(title, 36));
-        scene.roomFlavorText.setText(compactText(description, 96));
-        scene.enemyIntelText.setText(compactText(intel, 64));
-        scene.enemyIntelText.setVisible(true);
+        scene.roomFlavorText.setText(compactText(description, 160));
+        scene.roomFlavorText.setVisible(true);
+        // Non-NPC rooms render a single description line — the legacy
+        // "intel hint" row and the NPC dialog window both stay hidden.
+        scene.enemyIntelText.setText('');
+        scene.enemyIntelText.setVisible(false);
+        scene.roomDialogContainer.setVisible(false);
         scene.enemyHpBarBg.setVisible(false);
         scene.enemyHpBar.setVisible(false);
         scene.enemyHpText.setVisible(false);
@@ -207,6 +281,59 @@ export class GameRoomController {
             scene.enemySpriteImage.setVisible(false);
             scene.enemyIconText.setVisible(true);
         }
+    }
+
+    /**
+     * Open the NPC dialog window for an encounter. Used by every NPC
+     * room (Sara, Gogi, future NPCs) through `presentNpcRoom`, so all
+     * conversations share the same NPC-right / player-left layout.
+     * The description/intel rows are hidden in favour of the dialog
+     * window. Call {@link updateRoomDialog} on subsequent choices to
+     * advance the conversation.
+     */
+    public showRoomNpcCard(
+        header: string,
+        title: string,
+        color: number,
+        icon: string,
+        npcSpeech: string
+    ): void {
+        const scene = this.scene;
+        scene.roomHeaderText.setText(header);
+        scene.enemyPortrait.setFillStyle(color);
+        scene.enemyIconText.setText(icon);
+        scene.enemyNameText.setText(compactText(title, 36));
+        scene.roomFlavorText.setText('');
+        scene.roomFlavorText.setVisible(false);
+        scene.enemyIntelText.setText('');
+        scene.enemyIntelText.setVisible(false);
+        scene.enemyHpBarBg.setVisible(false);
+        scene.enemyHpBar.setVisible(false);
+        scene.enemyHpText.setVisible(false);
+        scene.enemySpriteImage.setVisible(false);
+        scene.enemyIconText.setVisible(true);
+        scene.dialogPlayerText.setText('');
+        scene.dialogNpcText.setText(compactText(npcSpeech, 220));
+        scene.roomDialogContainer.setVisible(true);
+        scene.roomPanelGroup.setVisible(true);
+    }
+
+    /**
+     * Advance the current NPC dialog. Either side accepts a string
+     * (replaces the visible line) or `undefined` (keeps the existing
+     * text). Pass an empty string to clear a side.
+     */
+    public updateRoomDialog(opts: { npc?: string; player?: string }): void {
+        const scene = this.scene;
+        if (opts.player !== undefined) {
+            scene.dialogPlayerText.setText(
+                opts.player ? compactText(stripChoicePrefix(opts.player), 160) : ''
+            );
+        }
+        if (opts.npc !== undefined) {
+            scene.dialogNpcText.setText(opts.npc ? compactText(opts.npc, 220) : '');
+        }
+        scene.roomDialogContainer.setVisible(true);
     }
 
     public showReturnButton(): void {
