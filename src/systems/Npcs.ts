@@ -106,22 +106,17 @@ export const NPCS: Record<NpcId, NpcProfile> = {
         ],
         offers: [
             {
-                id: 'sara_where',
-                label: lt('[{index}] Где я?', '[{index}] Where am I?'),
-                flavor: lt('Сара: "Мне бы кто сказал."', 'Sara: "I wish someone would tell me."'),
-            },
-            {
-                id: 'sara_who',
-                label: lt('[{index}] Кто ты?', '[{index}] Who are you?'),
-                flavor: lt('Сара: "Я? Да никто."', 'Sara: "Me? Nobody."'),
-            },
-            {
                 id: 'sara_right',
                 label: lt('[{index}] Ты права', '[{index}] You are right'),
                 flavor: lt(
                     'Сара: "И хладнокровный. Надеюсь ты выживешь. Хочешь совет?"',
                     'Sara: "And cold-blooded. I hope you survive. Want some advice?"'
                 ),
+            },
+            {
+                id: 'sara_where',
+                label: lt('[{index}] Где я?', '[{index}] Where am I?'),
+                flavor: lt('Сара: "Мне бы кто сказал."', 'Sara: "I wish someone would tell me."'),
             },
         ],
     },

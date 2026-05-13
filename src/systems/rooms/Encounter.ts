@@ -123,17 +123,9 @@ function handleNpcOffer(
                 offerLabel
             );
             scene.npcs.adjustAffinity(npcId, 1);
-            scene.showReturnButton();
-            return;
-        case 'sara_who':
-            speakNpc(
-                scene,
-                scene.loc.language === 'ru' ? 'Сара: "Я? Да никто."' : 'Sara: "Me? Nobody."',
-                '#cdb8ff',
-                offerLabel
-            );
-            scene.npcs.adjustAffinity(npcId, 1);
-            scene.showReturnButton();
+            // Dialog tree branch: "Где я?" → follow-up "Кто ты?" →
+            // "Я? Да никто." Sub-choice owns its own return button.
+            presentSaraWhoFollowup(scene);
             return;
         case 'sara_right':
             speakNpc(
@@ -185,6 +177,22 @@ function handleNpcOffer(
             return;
         }
     }
+}
+
+function presentSaraWhoFollowup(scene: GameScene): void {
+    const whoLabel = scene.loc.language === 'ru' ? '[1] Кто ты?' : '[1] Who are you?';
+    scene.setRoomButtons([
+        {
+            label: whoLabel,
+            callback: () => {
+                const reply =
+                    scene.loc.language === 'ru' ? 'Сара: "Я? Да никто."' : 'Sara: "Me? Nobody."';
+                scene.updateRoomDialog({ player: whoLabel, npc: reply });
+                scene.showReturnButton();
+            },
+            fill: 0x8a6cb6,
+        },
+    ]);
 }
 
 function presentSaraAdviceChoice(scene: GameScene): void {
