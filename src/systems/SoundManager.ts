@@ -49,8 +49,10 @@ type SoundId =
  *   {@link playTorchIgnite}.
  * - `torchLoop` — long-form burning loop played by
  *   {@link startTorchAmbient} when the sample is available.
+ * - `doorOpen` — heavy stone-door swing played by {@link playDoorOpen}
+ *   when the boot-screen door begins its open animation.
  */
-type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop';
+type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop' | 'doorOpen';
 
 const STORAGE_KEY = 'dd_sound_muted';
 const VOLUME_KEY = 'dd_sound_volume';
@@ -232,6 +234,7 @@ export class SoundManager {
             { key: 'uiClick', url: `${base}audio/ui_click.ogg` },
             { key: 'torchIgnite', url: `${base}audio/torch_ignite.mp3` },
             { key: 'torchLoop', url: `${base}audio/torch_loop.mp3` },
+            { key: 'doorOpen', url: `${base}audio/door_in_dungeon2.mp3` },
         ];
         this.samplePreloadPromise = Promise.all(
             samples.map(async ({ key, url }) => {
@@ -561,11 +564,15 @@ export class SoundManager {
     }
 
     /**
-     * Heavy wooden door swinging open: low creak ramp + thud at the
-     * end of the swing. ~0.9 s total. Used by the boot-screen door
-     * sprite when the player clicks "Start expedition".
+     * Heavy wooden door swinging open. Plays the sampled
+     * `door_in_dungeon2.mp3` once {@link preloadUiSfx} resolves so
+     * the boot-screen door has a real recorded swing; falls back to
+     * the historical procedural creak + thud (~0.9 s) when the
+     * sample hasn't preloaded yet or 404s. Triggered by
+     * {@link BootScene} the moment the open-door cross-fade begins.
      */
     private playDoorOpen() {
+        if (this.playSample('doorOpen', 1.0)) return;
         const ctx = this.ensure();
         const t = ctx.currentTime;
 
@@ -684,7 +691,7 @@ export class SoundManager {
      * back to the short square-wave tick we used historically.
      */
     private playButtonClick() {
-        if (this.playSample('uiClick', 1.1)) return;
+        if (this.playSample('uiClick', 2.2)) return;
         this.osc('square', 800, 0.03, 0.08);
     }
 
@@ -695,7 +702,7 @@ export class SoundManager {
      * a beep that doesn't match the rest of the SFX bed.
      */
     private playRoomHover() {
-        this.playSample('uiHover', 0.8);
+        this.playSample('uiHover', 1.6);
     }
 
     /**
@@ -706,7 +713,7 @@ export class SoundManager {
      * sine pip when the sample hasn't preloaded yet (or 404s).
      */
     private playButtonHover() {
-        if (this.playSample('uiHover', 0.8)) return;
+        if (this.playSample('uiHover', 1.6)) return;
         this.osc('sine', 1000, 0.02, 0.04);
     }
 
