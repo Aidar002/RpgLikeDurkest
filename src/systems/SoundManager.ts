@@ -313,7 +313,9 @@ export class SoundManager {
      * the return value to retry after `preloadUiSfx()` resolves.
      */
     playShowName(fadeInMs = 0): boolean {
-        return this.playSampleWithFade('showName', 1.0, fadeInMs);
+        // Peak gain doubled (1.0 -> 2.0) so the title cue is audible
+        // over the new menu music loop on the boot screen.
+        return this.playSampleWithFade('showName', 2.0, fadeInMs);
     }
 
     // ─── public play ───────────────────────────────────────────
@@ -1071,12 +1073,12 @@ export class SoundManager {
         if (loopBuffer) {
             const t = ctx.currentTime;
             const fadeS = Math.max(0.01, fadeInMs / 1000);
-            // Per-layer peak gains scaled to 80 % of their previous
-            // values so the burning loop sits ~20 % quieter under the
-            // menu music + voice-over.
+            // Per-layer peak gains scaled to 56 % of the original
+            // (0.8 then x0.7) so the burning loop sits ~44 % quieter
+            // under the menu music + voice-over.
             const layers: Array<{ baseOffset: number; rate: number; gain: number }> = [
-                { baseOffset: 0, rate: 1.0, gain: 0.336 },
-                { baseOffset: loopBuffer.duration * 0.5, rate: 0.96, gain: 0.256 },
+                { baseOffset: 0, rate: 1.0, gain: 0.2352 },
+                { baseOffset: loopBuffer.duration * 0.5, rate: 0.96, gain: 0.1792 },
             ];
             for (const { baseOffset, rate, gain } of layers) {
                 const src = ctx.createBufferSource();
@@ -1153,10 +1155,11 @@ export class SoundManager {
         // Fade the loops up so we don't start with a transient click.
         const t = ctx.currentTime;
         const fadeS = Math.max(0.01, fadeInMs / 1000);
-        // Synth-fallback layer peaks scaled to 80 % so the procedural
-        // crackle mirrors the sampled loop's quieter mix above.
-        hissGain.gain.linearRampToValueAtTime(0.128, t + fadeS);
-        rumbleGain.gain.linearRampToValueAtTime(0.048, t + fadeS);
+        // Synth-fallback layer peaks scaled to 56 % (0.8 then x0.7)
+        // so the procedural crackle mirrors the sampled loop's even
+        // quieter mix above.
+        hissGain.gain.linearRampToValueAtTime(0.0896, t + fadeS);
+        rumbleGain.gain.linearRampToValueAtTime(0.0336, t + fadeS);
 
         // 3. Schedule random "pops" — short bursts of high-passed
         //    noise — every 200–900 ms. These are what sells the cue
@@ -1192,9 +1195,10 @@ export class SoundManager {
         hp.type = 'highpass';
         hp.frequency.value = 800;
         const gain = ctx.createGain();
-        // 80 % of the previous random range so individual crackle
-        // pops match the rest of the dimmed burning loop.
-        gain.gain.value = 0.048 + Math.random() * 0.056;
+        // 56 % of the original random range (0.8 then x0.7) so
+        // individual crackle pops match the rest of the further-
+        // dimmed burning loop.
+        gain.gain.value = 0.0336 + Math.random() * 0.0392;
         src.connect(hp);
         hp.connect(gain);
         gain.connect(this.master);
