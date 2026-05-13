@@ -49,8 +49,10 @@ type SoundId =
  *   {@link playTorchIgnite}.
  * - `torchLoop` — long-form burning loop played by
  *   {@link startTorchAmbient} when the sample is available.
+ * - `doorOpen` — sampled "door swinging open" cue layered on top
+ *   of the procedural creak/thud by {@link playDoorOpen}.
  */
-type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop';
+type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop' | 'doorOpen';
 
 const STORAGE_KEY = 'dd_sound_muted';
 const VOLUME_KEY = 'dd_sound_volume';
@@ -232,6 +234,7 @@ export class SoundManager {
             { key: 'uiClick', url: `${base}audio/ui_click.ogg` },
             { key: 'torchIgnite', url: `${base}audio/torch_ignite.mp3` },
             { key: 'torchLoop', url: `${base}audio/torch_loop.mp3` },
+            { key: 'doorOpen', url: `${base}audio/door_in_dungeon2.mp3` },
         ];
         this.samplePreloadPromise = Promise.all(
             samples.map(async ({ key, url }) => {
@@ -566,6 +569,13 @@ export class SoundManager {
      * sprite when the player clicks "Start expedition".
      */
     private playDoorOpen() {
+        // Layered sampled cue — when `door_in_dungeon2.mp3` is
+        // preloaded it plays alongside the procedural creak/thud
+        // below so the door swing carries both the wooden weight
+        // and the recorded dungeon ambience. Missing buffer falls
+        // through silently to the synth-only path.
+        this.playSample('doorOpen', 1.0);
+
         const ctx = this.ensure();
         const t = ctx.currentTime;
 
@@ -684,8 +694,8 @@ export class SoundManager {
      * back to the short square-wave tick we used historically.
      */
     private playButtonClick() {
-        if (this.playSample('uiClick', 1.1)) return;
-        this.osc('square', 800, 0.03, 0.08);
+        if (this.playSample('uiClick', 2.2)) return;
+        this.osc('square', 800, 0.03, 0.16);
     }
 
     /**
@@ -695,7 +705,7 @@ export class SoundManager {
      * a beep that doesn't match the rest of the SFX bed.
      */
     private playRoomHover() {
-        this.playSample('uiHover', 0.8);
+        this.playSample('uiHover', 1.6);
     }
 
     /**
@@ -706,8 +716,8 @@ export class SoundManager {
      * sine pip when the sample hasn't preloaded yet (or 404s).
      */
     private playButtonHover() {
-        if (this.playSample('uiHover', 0.8)) return;
-        this.osc('sine', 1000, 0.02, 0.04);
+        if (this.playSample('uiHover', 1.6)) return;
+        this.osc('sine', 1000, 0.02, 0.08);
     }
 
     /** Ascending fanfare. */
