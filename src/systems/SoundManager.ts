@@ -51,8 +51,10 @@ type SoundId =
  *   {@link startTorchAmbient} when the sample is available.
  * - `doorOpen` — sampled "door swinging open" cue layered on top
  *   of the procedural creak/thud by {@link playDoorOpen}.
+ * - `showName` — one-shot title-reveal cue played by
+ *   {@link playShowName} on the boot screen.
  */
-type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop' | 'doorOpen';
+type SampleKey = 'uiHover' | 'uiClick' | 'torchIgnite' | 'torchLoop' | 'doorOpen' | 'showName';
 
 const STORAGE_KEY = 'dd_sound_muted';
 const VOLUME_KEY = 'dd_sound_volume';
@@ -235,6 +237,7 @@ export class SoundManager {
             { key: 'torchIgnite', url: `${base}audio/torch_ignite.mp3` },
             { key: 'torchLoop', url: `${base}audio/torch_loop.mp3` },
             { key: 'doorOpen', url: `${base}audio/door_in_dungeon2.mp3` },
+            { key: 'showName', url: `${base}audio/show_name.ogg` },
         ];
         this.samplePreloadPromise = Promise.all(
             samples.map(async ({ key, url }) => {
@@ -266,6 +269,17 @@ export class SoundManager {
      * (no point feeding a source through a 0-gain master node).
      */
     private playSample(key: SampleKey, gainValue: number): boolean {
+        return this.playSampleWithFade(key, gainValue, 0);
+    }
+
+    /**
+     * Variant of {@link playSample} that ramps the per-source gain
+     * from 0 to `peakGain` over `fadeInMs`. Used for cues where the
+     * caller wants a soft entry instead of an immediate hit (e.g. the
+     * title-reveal cue on the boot screen). Returns `true` on the
+     * same conditions as {@link playSample}.
+     */
+    private playSampleWithFade(key: SampleKey, peakGain: number, fadeInMs: number): boolean {
         const buffer = this.sampleBuffers.get(key);
         if (!buffer) return false;
         if (this._muted) return false;
@@ -274,11 +288,32 @@ export class SoundManager {
         const source = ctx.createBufferSource();
         source.buffer = buffer;
         const gain = ctx.createGain();
-        gain.gain.value = Math.max(0, gainValue);
+        const peak = Math.max(0, peakGain);
+        if (fadeInMs > 0) {
+            const t = ctx.currentTime;
+            const fadeS = fadeInMs / 1000;
+            gain.gain.setValueAtTime(0, t);
+            gain.gain.linearRampToValueAtTime(peak, t + fadeS);
+        } else {
+            gain.gain.value = peak;
+        }
         source.connect(gain);
         gain.connect(this.master);
         source.start(0);
         return true;
+    }
+
+    /**
+     * One-shot title-reveal cue (`show_name.ogg`). Played by
+     * BootScene at the moment the title text starts fading in. The
+     * optional `fadeInMs` lets the call-site soften the entry so the
+     * cue rises with the title rather than punching in. Returns
+     * `true` if the sample was scheduled, `false` if the buffer
+     * hasn't preloaded yet (or playback is muted) — callers can use
+     * the return value to retry after `preloadUiSfx()` resolves.
+     */
+    playShowName(fadeInMs = 0): boolean {
+        return this.playSampleWithFade('showName', 1.0, fadeInMs);
     }
 
     // ─── public play ───────────────────────────────────────────
@@ -694,8 +729,8 @@ export class SoundManager {
      * back to the short square-wave tick we used historically.
      */
     private playButtonClick() {
-        if (this.playSample('uiClick', 2.2)) return;
-        this.osc('square', 800, 0.03, 0.16);
+        if (this.playSample('uiClick', 4.4)) return;
+        this.osc('square', 800, 0.03, 0.32);
     }
 
     /**
@@ -1036,9 +1071,12 @@ export class SoundManager {
         if (loopBuffer) {
             const t = ctx.currentTime;
             const fadeS = Math.max(0.01, fadeInMs / 1000);
+            // Per-layer peak gains scaled to 80 % of their previous
+            // values so the burning loop sits ~20 % quieter under the
+            // menu music + voice-over.
             const layers: Array<{ baseOffset: number; rate: number; gain: number }> = [
-                { baseOffset: 0, rate: 1.0, gain: 0.42 },
-                { baseOffset: loopBuffer.duration * 0.5, rate: 0.96, gain: 0.32 },
+                { baseOffset: 0, rate: 1.0, gain: 0.336 },
+                { baseOffset: loopBuffer.duration * 0.5, rate: 0.96, gain: 0.256 },
             ];
             for (const { baseOffset, rate, gain } of layers) {
                 const src = ctx.createBufferSource();
@@ -1115,8 +1153,10 @@ export class SoundManager {
         // Fade the loops up so we don't start with a transient click.
         const t = ctx.currentTime;
         const fadeS = Math.max(0.01, fadeInMs / 1000);
-        hissGain.gain.linearRampToValueAtTime(0.16, t + fadeS);
-        rumbleGain.gain.linearRampToValueAtTime(0.06, t + fadeS);
+        // Synth-fallback layer peaks scaled to 80 % so the procedural
+        // crackle mirrors the sampled loop's quieter mix above.
+        hissGain.gain.linearRampToValueAtTime(0.128, t + fadeS);
+        rumbleGain.gain.linearRampToValueAtTime(0.048, t + fadeS);
 
         // 3. Schedule random "pops" — short bursts of high-passed
         //    noise — every 200–900 ms. These are what sells the cue
@@ -1152,7 +1192,9 @@ export class SoundManager {
         hp.type = 'highpass';
         hp.frequency.value = 800;
         const gain = ctx.createGain();
-        gain.gain.value = 0.06 + Math.random() * 0.07;
+        // 80 % of the previous random range so individual crackle
+        // pops match the rest of the dimmed burning loop.
+        gain.gain.value = 0.048 + Math.random() * 0.056;
         src.connect(hp);
         hp.connect(gain);
         gain.connect(this.master);
