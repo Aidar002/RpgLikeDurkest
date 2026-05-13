@@ -127,8 +127,6 @@ export class GameScene extends Phaser.Scene {
     public enemyIntelText!: Phaser.GameObjects.Text;
     public roomFlavorText!: Phaser.GameObjects.Text;
     public roomDialogContainer!: Phaser.GameObjects.Container;
-    public dialogNpcText!: Phaser.GameObjects.Text;
-    public dialogPlayerText!: Phaser.GameObjects.Text;
     public roomPanelGroup!: Phaser.GameObjects.Container;
     public roomButtons!: RoomButtonsHandle;
 
