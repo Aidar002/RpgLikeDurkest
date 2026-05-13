@@ -105,9 +105,12 @@ function handleNpcOffer(
     offer: NpcOfferTemplate,
     offerLabel: string
 ): void {
-    let consumed = true;
-    let affinityDelta = 1;
-
+    // Each handled case below owns its full flow (append dialog,
+    // adjust affinity if any, present follow-up choice / return
+    // button) so that the chat-log gets exactly one player + one NPC
+    // entry per click. Falling through to a shared trailer used to
+    // work when updateRoomDialog replaced the visible line, but in
+    // append-mode it would double-append.
     switch (offer.id) {
         // -- Sara ---------------------------------------------------------------
         case 'sara_where':
@@ -119,7 +122,9 @@ function handleNpcOffer(
                 '#cdb8ff',
                 offerLabel
             );
-            break;
+            scene.npcs.adjustAffinity(npcId, 1);
+            scene.showReturnButton();
+            return;
         case 'sara_who':
             speakNpc(
                 scene,
@@ -127,7 +132,9 @@ function handleNpcOffer(
                 '#cdb8ff',
                 offerLabel
             );
-            break;
+            scene.npcs.adjustAffinity(npcId, 1);
+            scene.showReturnButton();
+            return;
         case 'sara_right':
             speakNpc(
                 scene,
@@ -138,7 +145,6 @@ function handleNpcOffer(
                 offerLabel
             );
             presentSaraAdviceChoice(scene);
-            affinityDelta = 2;
             return;
 
         // -- Gogi ---------------------------------------------------------------
@@ -152,7 +158,6 @@ function handleNpcOffer(
                 offerLabel
             );
             presentGogiPayChoice(scene);
-            affinityDelta = 1;
             return;
         case 'gogi_who':
             speakNpc(
@@ -164,24 +169,22 @@ function handleNpcOffer(
                 offerLabel
             );
             presentGogiPayChoice(scene);
-            affinityDelta = 1;
             return;
 
-        default:
-            consumed = false;
+        default: {
+            // Offer without a dedicated speech case: use the offer's
+            // own flavour text as the NPC's response, if any.
+            const flavor = scene.loc.pick(offer.flavor);
+            if (flavor) {
+                scene.updateRoomDialog({ player: offerLabel, npc: flavor });
+            } else {
+                scene.updateRoomDialog({ player: offerLabel });
+            }
+            scene.npcs.adjustAffinity(npcId, 1);
+            scene.showReturnButton();
+            return;
+        }
     }
-
-    if (consumed && affinityDelta !== 0) {
-        scene.npcs.adjustAffinity(npcId, affinityDelta);
-    }
-
-    const flavor = scene.loc.pick(offer.flavor);
-    if (flavor) {
-        scene.updateRoomDialog({ player: offerLabel, npc: flavor });
-    } else {
-        scene.updateRoomDialog({ player: offerLabel });
-    }
-    scene.showReturnButton();
 }
 
 function presentSaraAdviceChoice(scene: GameScene): void {
