@@ -59,6 +59,8 @@ export const EN_STRINGS = {
     enemyFallback: 'Something steps out of the dark.',
     enemyInfoLocked: 'Enemy details unlock deeper down.',
     pathOpen: 'The path is clear.',
+    dialogStarted: 'Started dialog with {name}.',
+    dialogEnded: 'Dialog ended.',
     victoryRewards: 'Reward: {parts}.',
     deathWipeLine: 'Depth {depth}  |  Bosses {bosses}  |  Skill points were lost on death.',
     escapeRunLine: 'Depth {depth}  |  Bosses {bosses}  |  +{points} skill points banked',

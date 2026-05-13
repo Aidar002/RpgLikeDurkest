@@ -53,6 +53,8 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     enemyFallback: 'Что-то выходит из темноты.',
     enemyInfoLocked: 'Подробности о врагах придут с опытом.',
     pathOpen: 'Путь свободен.',
+    dialogStarted: 'Вы начали диалог с {name}.',
+    dialogEnded: 'Диалог окончен.',
     victoryRewards: 'Награда: {parts}.',
     deathWipeLine:
         'Глубина {depth}  |  Боссы {bosses}  |  Очки прокачки и улучшения сгорели вместе с тобой.',

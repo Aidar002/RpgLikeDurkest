@@ -41,15 +41,19 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
     scene.npcs.markEncounter(npcId, scene.dungeon.currentDepth);
 
     const npcSpeech = scene.loc.pick(picked.beat.text);
+    const npcName = scene.loc.pick(picked.npc.name);
     scene.showRoomNpcCard(
         headerLabel,
-        `${scene.loc.pick(picked.npc.name)}, ${scene.loc.pick(picked.npc.title)}`,
+        `${npcName}, ${scene.loc.pick(picked.npc.title)}`,
         picked.npc.color,
         picked.npc.glyph,
         npcSpeech
     );
 
-    scene.log.addMessage(npcSpeech, '#cdb8ff');
+    // Event log no longer mirrors every line of the dialog — it only
+    // records that a conversation has started so the player can see
+    // it in the timeline without the log getting flooded by speech.
+    scene.log.addMessage(scene.loc.t('dialogStarted', { name: npcName }), '#cdb8ff');
 
     const actions = picked.offers.map<RoomButtonAction>((offer, idx) => {
         const cost = npcOfferCost(offer.id, npcId);
@@ -79,16 +83,19 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
 function leaveNpcRoom(scene: GameScene, picked: PickedDialog, leaveLabel: string): void {
     if (picked.farewell) {
         const farewell = scene.loc.pick(picked.farewell.text);
-        scene.log.addMessage(farewell, '#a89dc4');
         scene.updateRoomDialog({ player: leaveLabel, npc: farewell });
     } else {
         scene.updateRoomDialog({ player: leaveLabel });
     }
+    scene.log.addMessage(scene.loc.t('dialogEnded'), '#a89dc4');
     scene.showReturnButton();
 }
 
-function speakNpc(scene: GameScene, line: string, color: string, playerLine: string): void {
-    scene.log.addMessage(line, color);
+// Dialogue beats render only inside the dialog window — the event
+// log stays clean (just the start / end markers from
+// presentNpcRoom / leaveNpcRoom). `color` is unused now but kept on
+// the call sites for clarity about who is speaking.
+function speakNpc(scene: GameScene, line: string, _color: string, playerLine: string): void {
     scene.updateRoomDialog({ player: playerLine, npc: line });
 }
 
@@ -201,7 +208,6 @@ function presentSaraAdviceChoice(scene: GameScene): void {
             label: noLabel,
             callback: () => {
                 const refuseLine = scene.loc.language === 'ru' ? 'Сара: "Зря."' : 'Sara: "Shame."';
-                scene.log.addMessage(refuseLine, '#cdb8ff');
                 scene.updateRoomDialog({ player: noLabel, npc: refuseLine });
                 scene.showReturnButton();
             },
@@ -242,7 +248,6 @@ function presentGogiPayChoice(scene: GameScene): void {
                     scene.loc.language === 'ru'
                         ? 'Гоги: "Ну и вали нахрен."'
                         : 'Gogi: "Then get lost."';
-                scene.log.addMessage(dismissLine, '#d4c87a');
                 scene.updateRoomDialog({ player: refuseLabel, npc: dismissLine });
                 scene.showReturnButton();
             },
