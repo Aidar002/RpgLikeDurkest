@@ -33,18 +33,28 @@ export type RoomType = (typeof RoomType)[keyof typeof RoomType];
  *
  *  - `'final'` — terminal final-boss node (depth === runLength).
  *    Victory over any of these ends the run.
- *  - `'major'` — mid-run major boss. Always grants a seal.
- *  - `'mini'`  — mid-run threat / branch guardian. Optionally
- *    grants a seal (see `RUN_CONFIG.seals.miniSealOdds`).
+ *  - `'major'` — mid-run major boss.
+ *  - `'mini'`  — mid-run threat / branch guardian.
  *  - `null`    — non-boss room.
  */
 export type BossKind = 'final' | 'major' | 'mini' | null;
 
 /**
- * Tag for seal-granting rooms. Major bosses always grant a major
- * seal; a fraction of mini bosses grant a mini seal.
+ * Recovery / reward room types forced as the **direct child** of a
+ * mid-run major boss (`bossKind === 'major'`). Mini-bosses do *not*
+ * trigger this — only major bosses interrupt the run hard enough
+ * to deserve a guaranteed catch-your-breath room afterwards.
+ *
+ * The generator enforces this when placing children of a major
+ * (`pickRecoveryType` and `parentChildBlocked` in `MapGenerator.ts`);
+ * the validator checks the same set as a post-build invariant.
  */
-export type SealType = 'major' | 'mini';
+export const POST_MAJOR_RECOVERY_POOL: RoomType[] = [
+    RoomType.REST,
+    RoomType.SHRINE,
+    RoomType.MERCHANT,
+    RoomType.TREASURE,
+];
 
 /**
  * One room in the dungeon graph.
@@ -77,8 +87,6 @@ export interface MapNode {
     y: number;
     type: RoomType;
     bossKind: BossKind;
-    grantsSeal: boolean;
-    sealType: SealType | null;
     visited: boolean;
     cleared: boolean;
     edges: string[];

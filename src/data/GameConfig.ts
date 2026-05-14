@@ -1,14 +1,3 @@
-/**
- * Feature flags. Toggle individual game systems on/off without removing
- * their logic. When `false`, the corresponding system is hidden from
- * the UI and skipped at all call sites, but the underlying code stays
- * intact so a feature can be re-enabled later by flipping the flag.
- */
-export const FEATURES = {
-    /** Boss / mini-boss `grantsSeal` tagging and seal-coverage validation. */
-    seals: false,
-} as const;
-
 // Enemy profile is purely a visual / sprite category. Mob behaviour
 // comes from per-mob `passive` and `prepare` blocks below — there is no
 // extra mechanic attached to the profile field.
@@ -200,33 +189,6 @@ export const RUN_CONFIG = {
         targetMiniMax: 6,
         majorOddsInWindow: 0.3,
         majorOddsAtForcedEnd: 0.5,
-    },
-    /**
-     * Seal-economy controls (PR-3). Major bosses and a fraction
-     * of mini bosses tag their rooms as `grantsSeal` — these are
-     * the "seal opportunities" the player has on a run.
-     *
-     *  - `requiredSealsFactor` * runLength is the divisor for the
-     *    requiredSeals budget. Clamped to [`requiredSealsMin`,
-     *    `requiredSealsMax`].
-     *      requiredSeals = clamp(round(runLength / requiredSealsFactor), min, max)
-     *  - `miniSealOdds` is the chance that a mini-boss room ALSO
-     *    gets `grantsSeal`. Major bosses always grant a seal.
-     *  - `pathSealMargin` is how many extra seal opportunities
-     *    over `requiredSeals` we want to see on the *worst* full
-     *    path. Used by the validation report so we can flag a
-     *    run that's technically beatable but unforgivingly tight.
-     *
-     * Player-side seal inventory and the requiredSeals gate at
-     * the final boss are intentionally NOT implemented yet — see
-     * `TODO(seals)` markers in the combat code for follow-ups.
-     */
-    seals: {
-        requiredSealsFactor: 20,
-        requiredSealsMin: 1,
-        requiredSealsMax: 4,
-        miniSealOdds: 0.5,
-        pathSealMargin: 1,
     },
 } as const;
 
