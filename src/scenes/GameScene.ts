@@ -33,6 +33,7 @@ import {
 } from '../ui/Layout';
 import { setupSceneChrome } from '../ui/SceneChrome';
 import type { RoomButtonAction, RoomButtonsHandle } from '../ui/RoomButtons';
+import type { LockpickShowOptions } from '../ui/LockpickOverlay';
 import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
@@ -393,6 +394,11 @@ export class GameScene extends Phaser.Scene {
     /** Forward to {@link GameRoomController.applyTrapDamage}. */
     public applyTrapDamage(rawDamage: number): number {
         return this.room.applyTrapDamage(rawDamage);
+    }
+
+    /** Forward to {@link GameRoomController.showLockpickModal}. */
+    public showLockpickModal(options: LockpickShowOptions): void {
+        this.room.showLockpickModal(options);
     }
 
     /** Forward to {@link GameRoomController.showRoomCard}. */

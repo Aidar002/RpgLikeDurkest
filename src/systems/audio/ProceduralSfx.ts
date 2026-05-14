@@ -44,7 +44,9 @@ export type SoundId =
     | 'relicDrop'
     | 'footstep'
     | 'torchIgnite'
-    | 'doorOpen';
+    | 'doorOpen'
+    | 'lockpickClick'
+    | 'lockpickBreak';
 
 /**
  * Bundle of audio-system handles each procedural cue may need. Cues
@@ -115,6 +117,10 @@ export function playSfx(deps: SfxDeps, id: SoundId): void {
             return playTorchIgnite(deps);
         case 'doorOpen':
             return playDoorOpen(deps);
+        case 'lockpickClick':
+            return playLockpickClick(deps);
+        case 'lockpickBreak':
+            return playLockpickBreak(deps);
     }
 }
 
@@ -228,6 +234,30 @@ function playTrapTrigger({ core }: SfxDeps): void {
     const { gain } = noise(ctx, master, 0.12, 0.35);
     env(ctx, gain, 0.002, 0.02, 0.5, 0.08);
     sweep(ctx, master, 600, 80, 0.1, 'square', 0.2);
+}
+
+/** Tight metallic tick when a lockpick ring locks into place. */
+function playLockpickClick({ core }: SfxDeps): void {
+    const ctx = core.ensure();
+    const master = core.master!;
+    // Quick triangle bell + faint noise transient = pin-tumbler tick.
+    osc(ctx, master, 'triangle', 880, 0.05, 0.18);
+    osc(ctx, master, 'square', 1320, 0.03, 0.08);
+    const { gain } = noise(ctx, master, 0.04, 0.08);
+    env(ctx, gain, 0.001, 0.01, 0.15, 0.02);
+}
+
+/** Wooden-snap "pick broke" cue: dull crack, then a fading splinter. */
+function playLockpickBreak({ core }: SfxDeps): void {
+    const ctx = core.ensure();
+    const master = core.master!;
+    // Short downward chirp = the pick body bending past its limit.
+    sweep(ctx, master, 420, 90, 0.08, 'sawtooth', 0.22);
+    // Brittle noise burst = the actual snap.
+    const { gain } = noise(ctx, master, 0.12, 0.4);
+    env(ctx, gain, 0.001, 0.015, 0.35, 0.1);
+    // Low "thud" tail.
+    osc(ctx, master, 'triangle', 140, 0.12, 0.12);
 }
 
 /** Satisfying click. */

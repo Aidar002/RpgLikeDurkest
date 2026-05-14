@@ -11,6 +11,7 @@ import { PixelSprite } from '../../ui/PixelSprite';
 import { fitEnemySprite } from '../../ui/RoomVisuals';
 import { compactText } from '../../ui/TextHelpers';
 import { createRoomButtons, type RoomButtonAction } from '../../ui/RoomButtons';
+import { LockpickOverlay, type LockpickShowOptions } from '../../ui/LockpickOverlay';
 import type { GameScene } from '../GameScene';
 
 /**
@@ -43,6 +44,9 @@ function stripChoicePrefix(label: string): string {
  */
 export class GameRoomController {
     private readonly scene: GameScene;
+    /** Built lazily in `build()` after the scene's `loc`/`sfx` are
+     *  set. Used by the treasure room's locked-chest path. */
+    private lockpickOverlay!: LockpickOverlay;
 
     constructor(scene: GameScene) {
         this.scene = scene;
@@ -264,6 +268,13 @@ export class GameRoomController {
         // returned handle exposes setActions / trigger / wideEnabled /
         // disableAll for keyboard shortcuts and combat to call.
         scene.roomButtons = createRoomButtons(scene, scene.roomContainer, scene.sfx);
+
+        // Lockpick mini-game modal — fully hidden until the treasure
+        // room's locked-chest path calls `showLockpickModal`.
+        this.lockpickOverlay = new LockpickOverlay(scene, {
+            loc: scene.loc,
+            sfx: scene.sfx,
+        });
     }
 
     /**
@@ -533,6 +544,15 @@ export class GameRoomController {
      */
     public applyTrapDamage(rawDamage: number): number {
         return this.scene.player.takeDamage(rawDamage, 0, 'trap');
+    }
+
+    /**
+     * Open the lockpick mini-game modal. The result is delivered
+     * through `options.onResolve` exactly once. See
+     * {@link LockpickOverlay} for the visual/input model.
+     */
+    public showLockpickModal(options: LockpickShowOptions): void {
+        this.lockpickOverlay.show(options);
     }
 
     /**
