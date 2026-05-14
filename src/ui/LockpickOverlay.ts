@@ -21,6 +21,16 @@
  * ring centre, a big "↓" pierce button to the right, and a "Уйти"
  * (Leave) button at the bottom for bailing without a penalty.
  *
+ * Stick mechanic: the pierce button is press-and-hold. While the
+ * pointer is down on the button, the stick tip slides down at
+ * `LOCKPICK_CONFIG.descentPxPerSec` px/s; on release it stops. Each
+ * unlocked ring has a threshold Y at its outermost edge; when the
+ * tip crosses that threshold the headless `LockpickGame.attemptDescend()`
+ * is called once, which decides whether the gap was aligned (ring
+ * locks, stick keeps moving) or not (stick breaks, game fails). The
+ * player therefore has to time button releases so the tip never
+ * crosses an unlocked ring's wall except through its gap.
+ *
  * Coordinate system note: the headless logic in {@link LockpickGame}
  * treats `STICK_ANGLE_DEG = 0` as "where the stick lives". Visually
  * we want the stick to descend from the top of the screen, so this
@@ -113,6 +123,25 @@ const BUTTON_H = 90;
  *  button and the ring outline never overlap visually. */
 const BUTTON_OFFSET_X = RING_RADII[0] + 60 + BUTTON_W / 2;
 
+/** Starting Y of the stick tip. Sits a clear gap above the outermost
+ *  edge of the outer ring (ring thickness + edge contour + an extra
+ *  12 px visual gap) so the lockpick doesn't appear to touch the
+ *  lock wall before the player has even pressed the button. */
+const INITIAL_TIP_Y = RING_CY - RING_RADII[0] - RING_OUTER_HALF - 12;
+/** Outermost-edge Y coordinate of each ring — the trigger line for
+ *  calling `attemptDescend()` as the stick crosses it. Indices match
+ *  {@link RING_RADII} (0 = outer, 2 = inner). */
+const RING_THRESHOLDS_Y = RING_RADII.map((r) => RING_CY - r - RING_OUTER_HALF);
+/** Final resting Y for the stick tip on a successful pick — sinks
+ *  just past the keyhole rim so the success animation reads visually
+ *  as the pick landing home. */
+const SUCCESS_TIP_Y = RING_CY - KEYHOLE_RADIUS + LOCKPICK_CONFIG.successOvershootPx;
+/** Hard ceiling for the tip while the button is held. Equal to the
+ *  inner ring's threshold; the headless game decides success at that
+ *  point and the tween animates the rest. Guards against runaway
+ *  descent if frame deltas spike. */
+const MAX_TIP_Y = RING_THRESHOLDS_Y[RING_THRESHOLDS_Y.length - 1];
+
 type Widget =
     | Phaser.GameObjects.Rectangle
     | Phaser.GameObjects.Text
@@ -137,10 +166,15 @@ export class LockpickOverlay {
     private game: LockpickGame | null = null;
     private active = false;
     private resolved = false;
-    /** Locks user input while the stick descent tween is running. */
+    /** Locks user input while the failure / success animation runs. */
     private busy = false;
-    /** Tracks the stick's logical position (0 = above outer ring, 3 = at keyhole). */
-    private stickStage = 0;
+    /** True while the player holds the pierce button down. The stick
+     *  only advances while this is true. */
+    private pressing = false;
+    /** Continuous Y coordinate of the stick's tip in screen space.
+     *  Drives both rendering (stick height = tipY − panel inner top)
+     *  and ring-threshold detection. */
+    private stickTipY = INITIAL_TIP_Y;
     private onResolve: ((result: LockpickResult) => void) | null = null;
     private readonly tick: (time: number, delta: number) => void;
 
@@ -210,7 +244,14 @@ export class LockpickOverlay {
         this.pierceButton = pierce.background;
         this.pierceLabel = pierce.label;
         this.widgets.push(pierce.background, pierce.label);
-        this.pierceButton.on('pointerdown', () => this.handlePierce());
+        // Press-and-hold mechanic. pointerdown starts the descent;
+        // pointerup and pointerupoutside both stop it, so dragging the
+        // cursor off the button while still holding the mouse also
+        // releases the stick (matches typical UI expectations).
+        this.pierceButton.on('pointerdown', () => this.handlePressStart());
+        this.pierceButton.on('pointerup', () => this.handlePressEnd());
+        this.pierceButton.on('pointerupoutside', () => this.handlePressEnd());
+        this.pierceButton.on('pointerout', () => this.handlePressEnd());
 
         const leave = drawUiButton(scene, CENTER_X, PANEL_INNER_BOTTOM_Y - 30, 200, 40, '', {
             variant: 'dark',
@@ -240,7 +281,8 @@ export class LockpickOverlay {
         this.onResolve = options.onResolve;
         this.resolved = false;
         this.busy = false;
-        this.stickStage = 0;
+        this.pressing = false;
+        this.stickTipY = INITIAL_TIP_Y;
 
         this.status.setText(loc.t('lockpickStatusIdle'));
         this.status.setColor(HudHex.textSecondary);
@@ -269,40 +311,95 @@ export class LockpickOverlay {
     private onTick(deltaMs: number): void {
         if (!this.active || !this.game) return;
         this.game.update(deltaMs);
+
+        // Advance the stick only while the player is holding the
+        // pierce button and we're not animating a resolution. A
+        // bounded delta avoids huge jumps after a tab-freeze.
+        if (this.pressing && !this.busy && !this.resolved) {
+            const dt = Math.min(deltaMs, 100) / 1000;
+            const prevTip = this.stickTipY;
+            this.stickTipY = Math.min(
+                this.stickTipY + LOCKPICK_CONFIG.descentPxPerSec * dt,
+                MAX_TIP_Y
+            );
+            this.checkRingCrossings(prevTip);
+        }
+
         this.drawRings();
+        this.drawStick();
     }
 
-    private handlePierce(): void {
-        if (!this.active || !this.game || this.busy || this.resolved) return;
-        const result = this.game.attemptDescend();
-        this.applyAttempt(result);
+    /**
+     * For every unlocked ring whose outer-edge threshold the tip just
+     * crossed this frame, ask the headless game whether the gap is
+     * currently aligned. Locks the ring on success, halts the stick
+     * and triggers the failure animation on a miss. Multiple rings
+     * can in theory be crossed in one frame (huge frame delta) — the
+     * loop drains them in order so each gets its own attempt.
+     */
+    private checkRingCrossings(prevTip: number): void {
+        const game = this.game;
+        if (!game) return;
+        while (
+            game.currentRingIndex < game.rings.length &&
+            this.stickTipY >= RING_THRESHOLDS_Y[game.currentRingIndex]
+        ) {
+            const idx = game.currentRingIndex;
+            const threshold = RING_THRESHOLDS_Y[idx];
+            // Guard against re-firing on a ring whose threshold was
+            // already at-or-below prevTip (e.g. the very first frame
+            // after a ring locked at threshold).
+            if (prevTip >= threshold) break;
+            const result = game.attemptDescend();
+            this.applyAttempt(result, threshold);
+            if (this.busy || this.resolved) break;
+            // attemptDescend incremented currentRingIndex on success,
+            // so the next loop iteration evaluates the next ring.
+        }
     }
 
-    private applyAttempt(result: AttemptResult): void {
+    private handlePressStart(): void {
+        if (!this.active || this.busy || this.resolved) return;
+        this.pressing = true;
+    }
+
+    private handlePressEnd(): void {
+        this.pressing = false;
+    }
+
+    private applyAttempt(result: AttemptResult, ringThresholdY: number): void {
         const { loc, sfx } = this.deps;
-        if (result.kind === 'ringLocked' || result.kind === 'success') {
+        if (result.kind === 'ringLocked') {
+            sfx?.play('lockpickClick');
+            this.status.setText(loc.t('lockpickStatusRingDown', { remaining: result.remaining }));
+            this.status.setColor(HudHex.accentExp);
+        } else if (result.kind === 'success') {
             sfx?.play('lockpickClick');
             this.busy = true;
-            // Animate stick descending one slot inward.
-            this.tweenStickStage(this.stickStage + 1, () => {
-                this.busy = false;
-                if (result.kind === 'success') {
-                    this.resolve('success');
-                } else {
-                    this.status.setText(
-                        loc.t('lockpickStatusRingDown', { remaining: result.remaining })
-                    );
-                    this.status.setColor(HudHex.accentExp);
-                }
+            this.pressing = false;
+            this.pierceButton.disableInteractive();
+            // Animate the tip sinking the last little bit into the
+            // keyhole so the success reads visually rather than just
+            // popping straight to resolved.
+            this.scene.tweens.add({
+                targets: this,
+                stickTipY: SUCCESS_TIP_Y,
+                duration: 160,
+                ease: 'linear',
+                onUpdate: () => this.drawStick(),
+                onComplete: () => this.resolve('success'),
             });
         } else {
             sfx?.play('lockpickBreak');
+            // The tip stops dead at the ring wall it hit.
+            this.stickTipY = ringThresholdY;
+            this.pressing = false;
+            this.busy = true;
             this.status.setText(loc.t('lockpickStatusFail'));
             this.status.setColor(HudHex.accentBlood);
-            // Brief visual: tint the stick red and shake it, then
-            // resolve. Pierce button gets disabled immediately.
             this.pierceButton.disableInteractive();
             this.leaveButton.disableInteractive();
+            this.drawStick();
             this.scene.tweens.add({
                 targets: this.stickGraphics,
                 x: { from: -6, to: 6 },
@@ -397,71 +494,22 @@ export class LockpickOverlay {
     }
 
     /**
-     * Render the stick as a rectangle that always starts at the panel's
-     * inner top edge and ends at the stage-dependent bottom Y. The stick
-     * therefore looks like a real lockpick whose handle is held just
-     * outside the mini-game window — the visible portion grows as the
-     * pick is pushed deeper into the lock.
+     * Render the stick as a rectangle that starts at the panel's inner
+     * frame edge and ends at {@link stickTipY}. The stick visually
+     * "comes out of" the frame ornament; its handle is implied to be
+     * held just behind the frame. The visible portion grows as the
+     * tip is pushed deeper into the lock.
      */
     private drawStick(): void {
-        this.renderStick(this.stickBottomForStage(this.stickStage));
-    }
-
-    /** Where the tip of the stick sits for the given stage. */
-    private stickBottomForStage(stage: number): number {
-        switch (stage) {
-            case 0:
-                // Tip hovers a clear margin above the outermost edge of
-                // the outer ring (ring thickness + edge contour + an
-                // extra visual gap) so the lockpick doesn't appear to
-                // touch the lock wall in its starting position.
-                return RING_CY - RING_RADII[0] - RING_OUTER_HALF - 12;
-            case 1:
-                // Tip rests halfway between the outer and middle rings.
-                return RING_CY - (RING_RADII[0] + RING_RADII[1]) / 2;
-            case 2:
-                // Tip rests halfway between the middle and inner rings.
-                return RING_CY - (RING_RADII[1] + RING_RADII[2]) / 2;
-            default:
-                // Tip sinks into the keyhole on success.
-                return RING_CY - KEYHOLE_RADIUS + 4;
-        }
-    }
-
-    private renderStick(bottomY: number): void {
         const g = this.stickGraphics;
         g.clear();
         const topY = PANEL_FRAME_INNER_TOP_Y;
-        const height = Math.max(STICK_THICKNESS, bottomY - topY);
+        const height = Math.max(STICK_THICKNESS, this.stickTipY - topY);
         const x = RING_CX - STICK_THICKNESS / 2;
         g.fillStyle(HudColors.accentLight, 1);
         g.fillRect(x, topY, STICK_THICKNESS, height);
         g.lineStyle(1, HudColors.panelOuter, 1);
         g.strokeRect(x, topY, STICK_THICKNESS, height);
-    }
-
-    private tweenStickStage(targetStage: number, onComplete: () => void): void {
-        const startBottom = this.stickBottomForStage(this.stickStage);
-        const endBottom = this.stickBottomForStage(targetStage);
-        const proxy = { t: 0 };
-        this.scene.tweens.add({
-            targets: proxy,
-            t: 1,
-            duration: LOCKPICK_CONFIG.descentMs,
-            // Linear ease so a single click reads as a snappy discrete
-            // advance — the slower sine.in we had before could feel like
-            // the stick was drifting in response to a held button.
-            ease: 'linear',
-            onUpdate: () => {
-                const bottom = startBottom + (endBottom - startBottom) * proxy.t;
-                this.renderStick(bottom);
-            },
-            onComplete: () => {
-                this.stickStage = targetStage;
-                this.drawStick();
-                onComplete();
-            },
-        });
     }
 }
 

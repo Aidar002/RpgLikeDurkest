@@ -334,8 +334,10 @@ export const ROOM_CONFIG = {
 //     tuning `gapWidthPx` (e.g. "50 % wider than the stick").
 //   - `difficultyWeights` — per-depth-band probabilities for picking
 //     easy/medium/hard. `depthBands` controls where each band starts.
-//   - `descentMs` — how long the cosmetic "stick falls through the
-//     ring" animation takes after a successful click.
+//   - `descentPxPerSec` — how fast the stick crawls down while the
+//     pierce button is held. Pair with `gapWidthPx` and
+//     `ringSpeedsDegPerSec` to tune how forgiving the timing window
+//     feels on each difficulty.
 //   - `lockedChance` — probability that any given treasure chest is
 //     locked at all (player can still walk away for free).
 //   - `failureDamage` — HP loss when the pick breaks.
@@ -345,10 +347,17 @@ export const LOCKPICK_CONFIG = {
     lockedChance: 0.7,
     /** HP damage dealt when the lockpick attempt fails. */
     failureDamage: 2,
-    /** Cosmetic stick-descent animation duration per ring (ms). Kept
-     *  short and snappy so a single click reads as one discrete
-     *  advance rather than a continuous "hold to descend" gesture. */
-    descentMs: 90,
+    /** How fast the lockpick stick descends while the pierce button is
+     *  held down, in screen pixels per second. The mini-game uses a
+     *  press-and-hold mechanic: the player keeps the button pressed to
+     *  push the stick deeper and releases it to stop, so this value
+     *  has to be slow enough that they can react to the ring gaps
+     *  rotating past. */
+    descentPxPerSec: 60,
+    /** Pixel buffer between the success-resolved stick tip and the
+     *  keyhole centre. Pure cosmetics — controls how deep the tip
+     *  sinks into the keyhole on success. */
+    successOvershootPx: 4,
     /** Outer → inner ring radii in pixels. Shared with the UI so each
      *  ring's gap arc-width matches the rendered visual gap. */
     ringRadiiPx: [240, 175, 110],
@@ -367,23 +376,25 @@ export const LOCKPICK_CONFIG = {
         mid: { easy: 30, medium: 50, hard: 20 },
         deep: { easy: 10, medium: 40, hard: 50 },
     },
-    /** Per-difficulty ring tuning. */
+    /** Per-difficulty ring tuning. Speeds and gap widths are tuned to
+     *  pair with the hold-to-move stick: the stick crawls at
+     *  `descentPxPerSec` pixels per second while the button is held,
+     *  so rings have to rotate slowly enough and gaps have to be small
+     *  enough that timing the release is meaningful. */
     difficulties: {
         easy: {
             /** Outer → inner ring speeds in degrees per second. */
-            ringSpeedsDegPerSec: [60, 75, 90],
-            /** Visual width of the gap arc on every ring, in pixels.
-             *  50 % wider than the lockpick stick so the player has a
-             *  comfortable target on the easy band. */
-            gapWidthPx: 12,
+            ringSpeedsDegPerSec: [30, 38, 45],
+            /** Visual width of the gap arc on every ring, in pixels. */
+            gapWidthPx: 6,
         },
         medium: {
-            ringSpeedsDegPerSec: [100, 120, 140],
-            gapWidthPx: 10,
+            ringSpeedsDegPerSec: [50, 60, 70],
+            gapWidthPx: 5,
         },
         hard: {
-            ringSpeedsDegPerSec: [150, 180, 220],
-            gapWidthPx: 8,
+            ringSpeedsDegPerSec: [75, 90, 110],
+            gapWidthPx: 4,
         },
     },
 } as const;
