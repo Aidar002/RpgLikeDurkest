@@ -32,9 +32,6 @@ export interface NpcProfile {
     glyph: string;
     flavor: LocalizedText;
     backstoryHint: LocalizedText;
-    voice: {
-        lowHpRecall: LocalizedText[];
-    };
     beats: NpcDialogBeat[];
     offers: NpcOfferTemplate[];
 }
@@ -46,8 +43,6 @@ export interface NpcOfferTemplate {
     requiresAffinity?: number;
     onlyAfterMet?: number;
 }
-
-const v = (...lines: LocalizedText[]) => lines;
 
 export const NPCS: Record<NpcId, NpcProfile> = {
     sara: {
@@ -65,14 +60,6 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             'Никто не знает, откуда она. Она просто всегда здесь.',
             'Nobody knows where she came from. She is just always here.'
         ),
-        voice: {
-            lowHpRecall: v(
-                lt(
-                    'Голос Сары из памяти: "Надеюсь, ты выживешь."',
-                    'Sara\'s voice, from a memory: "I hope you survive."'
-                )
-            ),
-        },
         beats: [
             {
                 stage: 'first',
@@ -130,14 +117,6 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             'Говорят, он продаёт что-то полезное. За цену.',
             'They say he sells something useful. For a price.'
         ),
-        voice: {
-            lowHpRecall: v(
-                lt(
-                    'Голос Гоги: "Надо было покупать, ахах."',
-                    'Gogi\'s voice: "Should have bought it, haha."'
-                )
-            ),
-        },
         beats: [
             {
                 stage: 'first',

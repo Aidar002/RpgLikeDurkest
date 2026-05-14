@@ -1,7 +1,6 @@
 import * as Phaser from 'phaser';
 import { MAP_CONFIG } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
-import { chance, defaultRng } from '../systems/Rng';
 import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH, RoomLayout } from '../ui/Layout';
@@ -341,14 +340,5 @@ export class CombatHudController {
             onComplete: () => flash.destroy(),
         });
         VFX.floatText(scene, 160, 82, `-${damage}`, '#ff5555');
-
-        if (
-            scene.player.stats.maxHp > 0 &&
-            scene.player.stats.hp / scene.player.stats.maxHp <= 0.25 &&
-            chance(defaultRng, 0.4)
-        ) {
-            const recall = scene.npcs.pickLowHpRecall(scene.loc.language);
-            if (recall) scene.log.addMessage(recall, '#a89dc4');
-        }
     }
 }
