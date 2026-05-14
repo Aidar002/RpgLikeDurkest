@@ -313,6 +313,7 @@ interface FakeSceneRecord {
     buttonLabels: string[];
     returnButtonShown: number;
     relicDrops: number;
+    lockpickShown: number;
 }
 
 function makeFakeScene(
@@ -329,6 +330,7 @@ function makeFakeScene(
         buttonLabels: [],
         returnButtonShown: 0,
         relicDrops: 0,
+        lockpickShown: 0,
     };
 
     const loc = new Localization(language);
@@ -406,6 +408,16 @@ function makeFakeScene(
         maybeDropRelic: (_kind: string) => {
             record.relicDrops += 1;
             return false;
+        },
+        // Lockpick modal is a UI-layer effect — for the headless
+        // smoke test we record that the modal was opened and resolve
+        // it as `leave` so the room handler walks the no-reward
+        // branch without needing Phaser.
+        showLockpickModal: (options: {
+            onResolve: (result: 'success' | 'failure' | 'leave') => void;
+        }) => {
+            record.lockpickShown += 1;
+            options.onResolve('leave');
         },
         roomFlavorText: {
             setText: (text: string) => {

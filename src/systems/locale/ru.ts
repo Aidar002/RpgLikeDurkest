@@ -231,4 +231,24 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatBossDeathShieldBroken: 'Удар по Воле сбивает Щит смерти {name}.',
     combatBossDeathTouchOhko: '{action} {name} касается тебя — ты повержен.',
     combatBossDeathTouchDefended: 'Ты ставишь блок и переживаешь {action} {name}: {damage} урона.',
+    // ── Мини-игра «Взлом замка» ─────────────────────────────────
+    // Карточка комнаты и кнопки для запертого сундука + тексты
+    // модалки и сообщения в логе.
+    roomTreasureLockedName: 'Запертый сундук',
+    roomTreasureLockedDesc: 'Тяжёлый замок преграждает путь к добыче.',
+    actionLockpickAttempt: '[1] Взломать',
+    actionLockpickLeave: '[2] Уйти',
+    lockpickTitle: 'Взлом замка',
+    lockpickDifficulty: 'Сложность: {value}',
+    lockpickEasy: 'лёгкая',
+    lockpickMedium: 'средняя',
+    lockpickHard: 'тяжёлая',
+    lockpickStatusIdle: 'Дождись щели и нажми ↓.',
+    lockpickStatusRingDown: 'Защёлкнулось! Осталось колец: {remaining}.',
+    lockpickStatusFail: 'Отмычка сломалась.',
+    lockpickLeave: 'Уйти',
+    lockpickStart: 'Вы начали взламывать замок.',
+    lockpickSuccess: 'Успех!',
+    lockpickFailure: 'Провал… отмычка сломалась ({damage} урона).',
+    lockpickLeft: 'Ты оставляешь сундук в покое.',
 };

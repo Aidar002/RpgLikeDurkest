@@ -310,6 +310,65 @@ export const ROOM_CONFIG = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Lockpick mini-game (treasure room locked-chest variant).
+//
+// Tuning is intentionally exposed as plain numbers so the designer can
+// edit ring rotation speeds and difficulty weighting without touching
+// game code. Hot spots:
+//   - `difficulties.{easy,medium,hard}.ringSpeedsDegPerSec` — speed of
+//     each of the 3 spinning rings (in degrees per second). Larger
+//     numbers = harder. Index 0 is the outermost ring (which the stick
+//     pierces first), index 2 is the innermost.
+//   - `difficulties.*.gapWidthDeg` — arc width of the hole on each
+//     ring, in degrees. Smaller = harder.
+//   - `difficultyWeights` — per-depth-band probabilities for picking
+//     easy/medium/hard. `depthBands` controls where each band starts.
+//   - `descentMs` — how long the cosmetic "stick falls through the
+//     ring" animation takes after a successful click.
+//   - `lockedChance` — probability that any given treasure chest is
+//     locked at all (player can still walk away for free).
+//   - `failureDamage` — HP loss when the pick breaks.
+// ---------------------------------------------------------------------------
+export const LOCKPICK_CONFIG = {
+    /** Probability that a treasure chest spawns locked. */
+    lockedChance: 0.7,
+    /** HP damage dealt when the lockpick attempt fails. */
+    failureDamage: 2,
+    /** Cosmetic stick-descent animation duration per ring (ms). */
+    descentMs: 220,
+    /** Difficulty selection bands, keyed by minimum dungeon depth. */
+    depthBands: {
+        /** Depths >= `mid` use the medium-band weights. */
+        mid: 4,
+        /** Depths >= `deep` use the deep-band weights. */
+        deep: 7,
+    },
+    /** Per-band weights for picking the difficulty. Normalised at use. */
+    difficultyWeights: {
+        shallow: { easy: 70, medium: 25, hard: 5 },
+        mid: { easy: 30, medium: 50, hard: 20 },
+        deep: { easy: 10, medium: 40, hard: 50 },
+    },
+    /** Per-difficulty ring tuning. */
+    difficulties: {
+        easy: {
+            /** Outer → inner ring speeds in degrees per second. */
+            ringSpeedsDegPerSec: [60, 75, 90],
+            /** Arc width of the gap on every ring (degrees). */
+            gapWidthDeg: 60,
+        },
+        medium: {
+            ringSpeedsDegPerSec: [100, 120, 140],
+            gapWidthDeg: 45,
+        },
+        hard: {
+            ringSpeedsDegPerSec: [150, 180, 220],
+            gapWidthDeg: 30,
+        },
+    },
+} as const;
+
+// ---------------------------------------------------------------------------
 // Altar (shrine room) effects. The four canonical actions per design table:
 //   blessing → +1 attack (run)
 //   prayer   → +5 max HP (run, also heals 5)

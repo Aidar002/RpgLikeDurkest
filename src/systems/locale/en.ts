@@ -234,6 +234,27 @@ export const EN_STRINGS = {
     combatBossDeathShieldBroken: "Your Will-skill shatters {name}'s Death Shield.",
     combatBossDeathTouchOhko: "{name}'s {action} lands — you fall.",
     combatBossDeathTouchDefended: "You brace through {name}'s {action} for {damage} damage.",
+    // ── Lockpick mini-game ──────────────────────────────────────
+    // Room card / button labels for the locked-chest variant of the
+    // treasure room, plus modal copy and log lines for the player's
+    // attempt. See `src/ui/LockpickOverlay.ts` + `src/systems/rooms/Treasure.ts`.
+    roomTreasureLockedName: 'Locked Chest',
+    roomTreasureLockedDesc: 'A heavy lock guards whatever is inside.',
+    actionLockpickAttempt: '[1] Lockpick',
+    actionLockpickLeave: '[2] Walk away',
+    lockpickTitle: 'Lockpick',
+    lockpickDifficulty: 'Difficulty: {value}',
+    lockpickEasy: 'easy',
+    lockpickMedium: 'medium',
+    lockpickHard: 'hard',
+    lockpickStatusIdle: 'Wait for a gap, then press ↓.',
+    lockpickStatusRingDown: 'Locked! {remaining} ring(s) to go.',
+    lockpickStatusFail: 'The pick snapped.',
+    lockpickLeave: 'Leave',
+    lockpickStart: 'You start picking the lock.',
+    lockpickSuccess: 'Success!',
+    lockpickFailure: 'Failure… the pick broke ({damage} damage).',
+    lockpickLeft: 'You leave the chest untouched.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */
