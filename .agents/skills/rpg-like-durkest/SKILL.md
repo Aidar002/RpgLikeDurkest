@@ -506,8 +506,8 @@ tests.
 ### 6. Add a new NPC
 
 1. **Catalog** — `src/systems/Npcs.ts`
-   - Add an `NpcId` and an entry in `NPCS` with `role`, `voice`
-     lines, beats, optional `offer` template.
+   - Add an `NpcId` and an entry in `NPCS` with `role`, beats,
+     optional `offer` template.
 2. **Memory** — `src/systems/NpcManager.ts`
    - If the NPC needs persistent state (already-met / chosen-offer
      flags), append to `NpcMemoryMap` defaults in

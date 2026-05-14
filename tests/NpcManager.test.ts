@@ -225,20 +225,3 @@ describe('NpcManager.getMemorySummary', () => {
         expect(manager.getMemorySummary('en')).toEqual([]);
     });
 });
-
-describe('NpcManager.pickLowHpRecall', () => {
-    it('returns null when no NPC has affinity >= 1', () => {
-        const manager = new NpcManager(makeDefaultNpcMemoryMap(), () => {});
-        expect(manager.pickLowHpRecall('en')).toBeNull();
-    });
-
-    it('returns a recall line from a friendly NPC when at least one is bonded', () => {
-        vi.spyOn(Math, 'random').mockReturnValue(0); // deterministic friend + line index
-        const memory = makeDefaultNpcMemoryMap();
-        memory.sara.affinity = 2;
-        const manager = new NpcManager(memory, () => {});
-        expect(manager.pickLowHpRecall('en')).toBe(
-            'Sara\'s voice, from a memory: "I hope you survive."'
-        );
-    });
-});

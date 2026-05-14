@@ -228,14 +228,4 @@ export class NpcManager {
         }
         return lines;
     }
-
-    // Pick a low-hp recall barb from any NPC the player has bonded with
-    // (affinity >= 1). Used for the "voice in your head" fallback.
-    pickLowHpRecall(language: 'ru' | 'en' = 'en'): string | null {
-        const friends = ALL_NPC_IDS.filter((id) => this.memory[id].affinity >= 1);
-        if (friends.length === 0) return null;
-        const npc = NPCS[friends[Math.floor(this.rng.next() * friends.length)]];
-        const lines = npc.voice.lowHpRecall;
-        return pickLocalized(language, lines[Math.floor(this.rng.next() * lines.length)]);
-    }
 }
