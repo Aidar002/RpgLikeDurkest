@@ -1,18 +1,5 @@
-import { ENEMY_TIERS, BOSSES, MAP_CONFIG } from './GameConfig';
+import { BOSSES, MAP_CONFIG } from './GameConfig';
 import type { EnemyDef } from './GameConfig';
-import { defaultRng, pick, type Rng } from '../systems/Rng';
-
-/**
- * Pick a normal-tier enemy for the given depth. The optional `rng`
- * parameter lets callers (combat manager, tests) inject a seeded
- * source so the enemy roll is part of the deterministic envelope.
- * Defaults to {@link defaultRng} (Math.random) so existing call sites
- * keep their current behaviour.
- */
-export function getEnemyForDepth(depth: number, rng: Rng = defaultRng): EnemyDef {
-    const tier = [...ENEMY_TIERS].reverse().find((t) => depth >= t.minDepth)!;
-    return pick(rng, tier.pool);
-}
 
 /**
  * [FIX-1] Boss lookup is now an exact-depth match. The previous
