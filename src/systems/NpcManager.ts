@@ -8,6 +8,7 @@ import type {
     NpcRole,
     NpcStateTag,
 } from './Npcs';
+import { defaultRng, type Rng } from './Rng';
 
 // State the player accumulates *across* runs about each NPC. This is the
 // reason NPCs feel like characters: they remember, and the player remembers
@@ -108,10 +109,12 @@ export interface PickedDialog {
 export class NpcManager {
     private memory: NpcMemoryMap;
     private save: () => void;
+    private rng: Rng;
 
-    constructor(memory: NpcMemoryMap, save: () => void) {
+    constructor(memory: NpcMemoryMap, save: () => void, rng: Rng = defaultRng) {
         this.memory = memory;
         this.save = save;
+        this.rng = rng;
     }
 
     getMemory(id: NpcId): NpcMemory {
@@ -131,7 +134,7 @@ export class NpcManager {
             // Lower met -> higher base. Different recent depth -> higher.
             const metPenalty = Math.min(m.metCount, 6);
             const recencyBonus = m.lastDepthMet === depth ? -1 : 0;
-            const noise = Math.random();
+            const noise = this.rng.next();
             return { id, score: 6 - metPenalty + recencyBonus + noise };
         });
         scored.sort((a, b) => b.score - a.score);
@@ -202,21 +205,6 @@ export class NpcManager {
         return this.memory[id].flags.includes(flag);
     }
 
-    // Pick a boss-intro line from the most-known NPC (highest met OR affinity).
-    // Returns null if the player has met no one yet.
-    pickBossIntro(language: 'ru' | 'en' = 'en'): { npc: NpcProfile; line: string } | null {
-        const known = ALL_NPC_IDS.filter((id) => this.memory[id].metCount > 0).sort((a, b) => {
-            const ma = this.memory[a];
-            const mb = this.memory[b];
-            return mb.metCount + mb.affinity - (ma.metCount + ma.affinity);
-        });
-        if (known.length === 0) return null;
-        const npc = NPCS[known[0]];
-        const lines = npc.voice.bossIntro;
-        const line = pickLocalized(language, lines[Math.floor(Math.random() * lines.length)]);
-        return { npc, line };
-    }
-
     // Snapshot of all known NPCs for end-of-run summary. Returns lines like
     // "Mira  |  met x3  |  trusted" suitable for display.
     getMemorySummary(language: 'ru' | 'en' = 'en'): string[] {
@@ -246,8 +234,8 @@ export class NpcManager {
     pickLowHpRecall(language: 'ru' | 'en' = 'en'): string | null {
         const friends = ALL_NPC_IDS.filter((id) => this.memory[id].affinity >= 1);
         if (friends.length === 0) return null;
-        const npc = NPCS[friends[Math.floor(Math.random() * friends.length)]];
+        const npc = NPCS[friends[Math.floor(this.rng.next() * friends.length)]];
         const lines = npc.voice.lowHpRecall;
-        return pickLocalized(language, lines[Math.floor(Math.random() * lines.length)]);
+        return pickLocalized(language, lines[Math.floor(this.rng.next() * lines.length)]);
     }
 }

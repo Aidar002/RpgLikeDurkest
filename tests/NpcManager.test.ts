@@ -200,30 +200,6 @@ describe('NpcManager.pickDialog', () => {
     });
 });
 
-describe('NpcManager.pickBossIntro', () => {
-    it('returns null when the player has met no one', () => {
-        const manager = new NpcManager(makeDefaultNpcMemoryMap(), () => {});
-        expect(manager.pickBossIntro('en')).toBeNull();
-    });
-
-    it('returns the most-known NPC and a localized line in the requested language', () => {
-        vi.spyOn(Math, 'random').mockReturnValue(0); // deterministic line index
-        const memory = makeDefaultNpcMemoryMap();
-        memory.sara.metCount = 5;
-        memory.sara.affinity = 3;
-        memory.gogi.metCount = 1;
-        const manager = new NpcManager(memory, () => {});
-
-        const en = manager.pickBossIntro('en');
-        expect(en).not.toBeNull();
-        expect(en!.npc.id).toBe('sara');
-        expect(en!.line).toBe('Sara: "Good luck. I hope you survive."');
-
-        const ru = manager.pickBossIntro('ru');
-        expect(ru!.line).toBe('Сара: "Удачи. Надеюсь, ты выживешь."');
-    });
-});
-
 describe('NpcManager.getMemorySummary', () => {
     it('skips NPCs that have never been met', () => {
         const memory = makeDefaultNpcMemoryMap();
