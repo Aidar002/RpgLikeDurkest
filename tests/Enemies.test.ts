@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { ENEMY_TIERS } from '../src/data/GameConfig';
-import { getEnemyForDepth } from '../src/data/Enemies';
+import { getEnemyForDepth } from '../src/systems/EnemyPicker';
 import { Mulberry32 } from '../src/systems/Rng';
 
 describe('getEnemyForDepth', () => {

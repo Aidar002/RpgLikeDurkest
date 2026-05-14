@@ -1,4 +1,5 @@
-import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
+import { getBossForDepth } from '../data/Enemies';
+import { getEnemyForDepth } from './EnemyPicker';
 import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';
 import {
