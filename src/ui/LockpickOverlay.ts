@@ -69,11 +69,16 @@ interface LockpickDeps {
 // nine-slice rim does not clip against the canvas edge.
 const PANEL_W = 780;
 const PANEL_H = 720;
-/** Inner top edge of the panel — stick top anchors here so the other
- *  end of the lockpick always touches the mini-game frame. */
-const PANEL_INNER_TOP_Y = CENTER_Y - PANEL_H / 2 + 24;
-/** Inner bottom edge of the panel — used to place the leave button. */
-const PANEL_INNER_BOTTOM_Y = CENTER_Y + PANEL_H / 2 - 24;
+/** Inner edge of the carved frame ornament along the top of the panel.
+ *  The nine-slice border is 16 px wide (see `PANEL_SLICE` in UiPanel),
+ *  so this is exactly where the ornament ends and the dark interior
+ *  begins. The stick anchors its top here so the lockpick visually
+ *  emerges from the frame itself — the implied "handle" is hidden
+ *  behind the ornament rather than piercing through it. */
+const PANEL_FRAME_INNER_TOP_Y = CENTER_Y - PANEL_H / 2 + 16;
+/** Inner edge of the carved frame ornament along the bottom — used to
+ *  place the leave button just above the bottom ornament. */
+const PANEL_INNER_BOTTOM_Y = CENTER_Y + PANEL_H / 2 - 16;
 /** Horizontal offset of the ring centre from the panel centre. Pushed
  *  slightly left so the pierce button has its own column on the right
  *  without crowding the outer ring. */
@@ -85,6 +90,20 @@ const RING_CY = CENTER_Y + 40;
  *  so the headless game can size each ring's gap to match the visual width. */
 const RING_RADII = LOCKPICK_CONFIG.ringRadiiPx;
 const RING_THICKNESS = 18;
+/** Extra stroke width painted underneath the ring's main fill so each
+ *  ring shows a distinct dark contour on both inner and outer edges. */
+const RING_EDGE_EXTRA = 4;
+/** Outermost radial offset of a ring's drawn band, including the edge
+ *  contour. Used by the stick to keep a clear gap from the ring wall. */
+const RING_OUTER_HALF = (RING_THICKNESS + RING_EDGE_EXTRA) / 2;
+/** Cool grey fill for unlocked ring walls. */
+const RING_COLOUR_MAIN = 0x868691;
+/** Darker contour stroke for unlocked rings. */
+const RING_COLOUR_EDGE = 0x2c2a32;
+/** Warm gold fill for a ring that has been locked open. */
+const RING_COLOUR_LOCKED_MAIN = HudColors.cellGoldEdge;
+/** Darker amber contour for the locked-ring contour. */
+const RING_COLOUR_LOCKED_EDGE = 0x6a4a18;
 const STICK_THICKNESS = LOCKPICK_CONFIG.stickWidthPx;
 const KEYHOLE_RADIUS = 24;
 const BUTTON_W = 110;
@@ -148,7 +167,7 @@ export class LockpickOverlay {
         // — the room button already announces the chest is locked, so
         // duplicating it inside the modal is just noise.
         this.status = scene.add
-            .text(CENTER_X, PANEL_INNER_BOTTOM_Y - 70, '', {
+            .text(CENTER_X, PANEL_INNER_BOTTOM_Y - 78, '', {
                 fontFamily: HUD_FONT,
                 fontSize: '14px',
                 color: HudHex.textPrimary,
@@ -193,7 +212,7 @@ export class LockpickOverlay {
         this.widgets.push(pierce.background, pierce.label);
         this.pierceButton.on('pointerdown', () => this.handlePierce());
 
-        const leave = drawUiButton(scene, CENTER_X, PANEL_INNER_BOTTOM_Y - 22, 200, 40, '', {
+        const leave = drawUiButton(scene, CENTER_X, PANEL_INNER_BOTTOM_Y - 30, 200, 40, '', {
             variant: 'dark',
             depth: Depths.ConfirmForeground,
             fontSize: '14px',
@@ -345,17 +364,31 @@ export class LockpickOverlay {
         for (let i = 0; i < game.rings.length; i++) {
             const ring = game.rings[i];
             const radius = RING_RADII[i];
-            const colour = ring.locked ? HudColors.cellGoldEdge : 0x9a917b;
-            g.lineStyle(RING_THICKNESS, colour, 1);
-            // Draw the solid wall: full circle, then erase the gap
-            // arc by drawing it again in the panel's background colour.
+            // Two-pass stroke: a slightly thicker dark outline sits
+            // underneath the lighter main fill, so a 2-px contour line
+            // is visible on both sides of every ring. Locked rings
+            // switch to a warm gold to mark progress without losing
+            // the contour treatment.
+            const mainColour = ring.locked ? RING_COLOUR_LOCKED_MAIN : RING_COLOUR_MAIN;
+            const edgeColour = ring.locked ? RING_COLOUR_LOCKED_EDGE : RING_COLOUR_EDGE;
+
+            g.lineStyle(RING_THICKNESS + RING_EDGE_EXTRA, edgeColour, 1);
             g.beginPath();
             g.arc(RING_CX, RING_CY, radius, 0, Math.PI * 2);
             g.strokePath();
+
+            g.lineStyle(RING_THICKNESS, mainColour, 1);
+            g.beginPath();
+            g.arc(RING_CX, RING_CY, radius, 0, Math.PI * 2);
+            g.strokePath();
+
             if (!ring.locked) {
+                // Erase the gap with a brush thick enough to clear both
+                // the main fill and its edge contour, so no faint sliver
+                // of the contour shows up across the opening.
                 const halfRad = (ring.gapHalfWidthDeg * Math.PI) / 180;
                 const centreRad = toPhaserRad(ring.gapAngleDeg);
-                g.lineStyle(RING_THICKNESS + 2, HudColors.panelBg, 1);
+                g.lineStyle(RING_THICKNESS + RING_EDGE_EXTRA + 4, HudColors.panelBg, 1);
                 g.beginPath();
                 g.arc(RING_CX, RING_CY, radius, centreRad - halfRad, centreRad + halfRad);
                 g.strokePath();
@@ -378,8 +411,11 @@ export class LockpickOverlay {
     private stickBottomForStage(stage: number): number {
         switch (stage) {
             case 0:
-                // Tip hovers just above the outer ring's outer edge.
-                return RING_CY - RING_RADII[0] - 4;
+                // Tip hovers a clear margin above the outermost edge of
+                // the outer ring (ring thickness + edge contour + an
+                // extra visual gap) so the lockpick doesn't appear to
+                // touch the lock wall in its starting position.
+                return RING_CY - RING_RADII[0] - RING_OUTER_HALF - 12;
             case 1:
                 // Tip rests halfway between the outer and middle rings.
                 return RING_CY - (RING_RADII[0] + RING_RADII[1]) / 2;
@@ -395,7 +431,7 @@ export class LockpickOverlay {
     private renderStick(bottomY: number): void {
         const g = this.stickGraphics;
         g.clear();
-        const topY = PANEL_INNER_TOP_Y;
+        const topY = PANEL_FRAME_INNER_TOP_Y;
         const height = Math.max(STICK_THICKNESS, bottomY - topY);
         const x = RING_CX - STICK_THICKNESS / 2;
         g.fillStyle(HudColors.accentLight, 1);
