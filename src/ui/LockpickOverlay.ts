@@ -16,9 +16,9 @@
  * / scene teardown — production code never calls it.
  *
  * Visual layout: a dimming overlay covers the whole canvas; a centred
- * `panel_small` nine-slice frame holds three concentric ring arcs, a
- * descending "stick" sprite at the top, a small keyhole at the
- * center, the big "↓" pierce button to the right, and a "Уйти"
+ * panel frame holds three concentric ring arcs, a descending "stick"
+ * sprite anchored to the panel's top edge, a small keyhole at the
+ * ring centre, a big "↓" pierce button to the right, and a "Уйти"
  * (Leave) button at the bottom for bailing without a penalty.
  *
  * Coordinate system note: the headless logic in {@link LockpickGame}
@@ -62,19 +62,37 @@ interface LockpickDeps {
     sfx?: SoundManager;
 }
 
-const PANEL_W = 520;
-const PANEL_H = 540;
-const RING_CX = CENTER_X - 70;
-const RING_CY = CENTER_Y + 30;
-const RING_RADII = [180, 130, 80] as const;
+// Panel + ring layout. The panel is ~50 % larger than the previous
+// iteration so the rings have room to breathe and the pierce button
+// sits a safe distance from the outer ring without overlapping the
+// frame ornament. PANEL_H is capped just under GAME_HEIGHT so the
+// nine-slice rim does not clip against the canvas edge.
+const PANEL_W = 780;
+const PANEL_H = 720;
+/** Inner top edge of the panel — stick top anchors here so the other
+ *  end of the lockpick always touches the mini-game frame. */
+const PANEL_INNER_TOP_Y = CENTER_Y - PANEL_H / 2 + 24;
+/** Inner bottom edge of the panel — used to place the leave button. */
+const PANEL_INNER_BOTTOM_Y = CENTER_Y + PANEL_H / 2 - 24;
+/** Horizontal offset of the ring centre from the panel centre. Pushed
+ *  slightly left so the pierce button has its own column on the right
+ *  without crowding the outer ring. */
+const RING_CX = CENTER_X - 80;
+/** Vertical centre of the rings inside the panel. Sits just below
+ *  panel mid-line so the stick has a comfortable descent above it. */
+const RING_CY = CENTER_Y + 40;
+/** Outer → inner ring radii in pixels. Mirrored in `LOCKPICK_CONFIG.ringRadiiPx`
+ *  so the headless game can size each ring's gap to match the visual width. */
+const RING_RADII = LOCKPICK_CONFIG.ringRadiiPx;
 const RING_THICKNESS = 18;
-const STICK_LEN = 70;
-const STICK_THICKNESS = 8;
-const KEYHOLE_RADIUS = 22;
-const BUTTON_W = 100;
-const BUTTON_H = 80;
-/** Horizontal distance from the rings centre to the pierce button. */
-const BUTTON_OFFSET_X = 230;
+const STICK_THICKNESS = LOCKPICK_CONFIG.stickWidthPx;
+const KEYHOLE_RADIUS = 24;
+const BUTTON_W = 110;
+const BUTTON_H = 90;
+/** Horizontal distance from the rings centre to the pierce button.
+ *  Placed beyond the outer-ring radius plus a generous gutter so the
+ *  button and the ring outline never overlap visually. */
+const BUTTON_OFFSET_X = RING_RADII[0] + 60 + BUTTON_W / 2;
 
 type Widget =
     | Phaser.GameObjects.Rectangle
@@ -88,8 +106,6 @@ export class LockpickOverlay {
     private readonly widgets: Widget[] = [];
 
     private readonly overlay: Phaser.GameObjects.Rectangle;
-    private readonly title: Phaser.GameObjects.Text;
-    private readonly difficultyLabel: Phaser.GameObjects.Text;
     private readonly status: Phaser.GameObjects.Text;
     private readonly ringGraphics: Phaser.GameObjects.Graphics;
     private readonly keyholeGraphics: Phaser.GameObjects.Graphics;
@@ -127,39 +143,19 @@ export class LockpickOverlay {
         });
         this.widgets.push(panel.background);
 
-        this.title = scene.add
-            .text(CENTER_X, CENTER_Y - PANEL_H / 2 + 32, '', {
-                fontFamily: HUD_FONT,
-                fontSize: '22px',
-                color: HudHex.accentGold,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmContent);
-        this.widgets.push(this.title);
-
-        this.difficultyLabel = scene.add
-            .text(CENTER_X, CENTER_Y - PANEL_H / 2 + 58, '', {
-                fontFamily: HUD_FONT,
-                fontSize: '12px',
-                color: HudHex.textSecondary,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmContent);
-        this.widgets.push(this.difficultyLabel);
-
+        // Hint line above the leave button. The title / difficulty
+        // banner that used to sit at the top of the panel was dropped
+        // — the room button already announces the chest is locked, so
+        // duplicating it inside the modal is just noise.
         this.status = scene.add
-            .text(CENTER_X, CENTER_Y + PANEL_H / 2 - 86, '', {
+            .text(CENTER_X, PANEL_INNER_BOTTOM_Y - 70, '', {
                 fontFamily: HUD_FONT,
                 fontSize: '14px',
                 color: HudHex.textPrimary,
                 stroke: HUD_STROKE,
                 strokeThickness: 2,
                 align: 'center',
-                wordWrap: { width: PANEL_W - 60 },
+                wordWrap: { width: PANEL_W - 80 },
             })
             .setOrigin(0.5)
             .setDepth(Depths.ConfirmContent);
@@ -197,7 +193,7 @@ export class LockpickOverlay {
         this.widgets.push(pierce.background, pierce.label);
         this.pierceButton.on('pointerdown', () => this.handlePierce());
 
-        const leave = drawUiButton(scene, CENTER_X, CENTER_Y + PANEL_H / 2 - 40, 180, 36, '', {
+        const leave = drawUiButton(scene, CENTER_X, PANEL_INNER_BOTTOM_Y - 22, 200, 40, '', {
             variant: 'dark',
             depth: Depths.ConfirmForeground,
             fontSize: '14px',
@@ -227,10 +223,6 @@ export class LockpickOverlay {
         this.busy = false;
         this.stickStage = 0;
 
-        this.title.setText(loc.t('lockpickTitle'));
-        this.difficultyLabel.setText(
-            loc.t('lockpickDifficulty', { value: loc.t(difficultyKey(options.difficulty)) })
-        );
         this.status.setText(loc.t('lockpickStatusIdle'));
         this.status.setColor(HudHex.textSecondary);
         this.pierceLabel.setText('↓');
@@ -371,63 +363,62 @@ export class LockpickOverlay {
         }
     }
 
+    /**
+     * Render the stick as a rectangle that always starts at the panel's
+     * inner top edge and ends at the stage-dependent bottom Y. The stick
+     * therefore looks like a real lockpick whose handle is held just
+     * outside the mini-game window — the visible portion grows as the
+     * pick is pushed deeper into the lock.
+     */
     private drawStick(): void {
-        const g = this.stickGraphics;
-        g.clear();
-        const y = this.stickYForStage(this.stickStage);
-        g.fillStyle(HudColors.accentLight, 1);
-        g.fillRect(RING_CX - STICK_THICKNESS / 2, y, STICK_THICKNESS, STICK_LEN);
-        g.lineStyle(1, HudColors.panelOuter, 1);
-        g.strokeRect(RING_CX - STICK_THICKNESS / 2, y, STICK_THICKNESS, STICK_LEN);
+        this.renderStick(this.stickBottomForStage(this.stickStage));
     }
 
-    /**
-     * Pixel-y of the stick's top edge for stage:
-     *  0 = above the outer ring (initial position)
-     *  1 = between outer and middle ring (after locking ring 0)
-     *  2 = between middle and inner ring (after locking ring 1)
-     *  3 = at the keyhole (after locking ring 2 → success)
-     */
-    private stickYForStage(stage: number): number {
-        const outer = RING_RADII[0];
+    /** Where the tip of the stick sits for the given stage. */
+    private stickBottomForStage(stage: number): number {
         switch (stage) {
             case 0:
-                return RING_CY - outer - STICK_LEN - 16;
+                // Tip hovers just above the outer ring's outer edge.
+                return RING_CY - RING_RADII[0] - 4;
             case 1:
-                return RING_CY - (RING_RADII[0] + RING_RADII[1]) / 2 - STICK_LEN / 2;
+                // Tip rests halfway between the outer and middle rings.
+                return RING_CY - (RING_RADII[0] + RING_RADII[1]) / 2;
             case 2:
-                return RING_CY - (RING_RADII[1] + RING_RADII[2]) / 2 - STICK_LEN / 2;
+                // Tip rests halfway between the middle and inner rings.
+                return RING_CY - (RING_RADII[1] + RING_RADII[2]) / 2;
             default:
-                return RING_CY - KEYHOLE_RADIUS - STICK_LEN / 2;
+                // Tip sinks into the keyhole on success.
+                return RING_CY - KEYHOLE_RADIUS + 4;
         }
     }
 
+    private renderStick(bottomY: number): void {
+        const g = this.stickGraphics;
+        g.clear();
+        const topY = PANEL_INNER_TOP_Y;
+        const height = Math.max(STICK_THICKNESS, bottomY - topY);
+        const x = RING_CX - STICK_THICKNESS / 2;
+        g.fillStyle(HudColors.accentLight, 1);
+        g.fillRect(x, topY, STICK_THICKNESS, height);
+        g.lineStyle(1, HudColors.panelOuter, 1);
+        g.strokeRect(x, topY, STICK_THICKNESS, height);
+    }
+
     private tweenStickStage(targetStage: number, onComplete: () => void): void {
-        const startY = this.stickYForStage(this.stickStage);
-        const endY = this.stickYForStage(targetStage);
+        const startBottom = this.stickBottomForStage(this.stickStage);
+        const endBottom = this.stickBottomForStage(targetStage);
         const proxy = { t: 0 };
         this.scene.tweens.add({
             targets: proxy,
             t: 1,
             duration: LOCKPICK_CONFIG.descentMs,
-            ease: 'sine.in',
+            // Linear ease so a single click reads as a snappy discrete
+            // advance — the slower sine.in we had before could feel like
+            // the stick was drifting in response to a held button.
+            ease: 'linear',
             onUpdate: () => {
-                const y = startY + (endY - startY) * proxy.t;
-                this.stickGraphics.clear();
-                this.stickGraphics.fillStyle(HudColors.accentLight, 1);
-                this.stickGraphics.fillRect(
-                    RING_CX - STICK_THICKNESS / 2,
-                    y,
-                    STICK_THICKNESS,
-                    STICK_LEN
-                );
-                this.stickGraphics.lineStyle(1, HudColors.panelOuter, 1);
-                this.stickGraphics.strokeRect(
-                    RING_CX - STICK_THICKNESS / 2,
-                    y,
-                    STICK_THICKNESS,
-                    STICK_LEN
-                );
+                const bottom = startBottom + (endBottom - startBottom) * proxy.t;
+                this.renderStick(bottom);
             },
             onComplete: () => {
                 this.stickStage = targetStage;
@@ -446,15 +437,4 @@ export class LockpickOverlay {
  */
 function toPhaserRad(worldAngleDeg: number): number {
     return ((worldAngleDeg + STICK_ANGLE_DEG - 90) * Math.PI) / 180;
-}
-
-function difficultyKey(d: LockpickDifficulty): 'lockpickEasy' | 'lockpickMedium' | 'lockpickHard' {
-    switch (d) {
-        case 'easy':
-            return 'lockpickEasy';
-        case 'medium':
-            return 'lockpickMedium';
-        case 'hard':
-            return 'lockpickHard';
-    }
 }

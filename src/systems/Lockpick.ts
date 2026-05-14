@@ -53,9 +53,14 @@ export class LockpickGame {
     constructor(difficulty: LockpickDifficulty, rng: Rng) {
         this.difficulty = difficulty;
         const cfg = LOCKPICK_CONFIG.difficulties[difficulty];
-        const gapHalfWidthDeg = cfg.gapWidthDeg / 2;
-        this.rings = cfg.ringSpeedsDegPerSec.map((speed) => ({
-            gapHalfWidthDeg,
+        const radii = LOCKPICK_CONFIG.ringRadiiPx;
+        // Convert the designer-friendly pixel gap width into per-ring
+        // angular gap. Larger rings cover more pixels per degree, so a
+        // fixed pixel width produces a smaller arc-angle on the outer
+        // ring than on the inner one — which is what we want, because
+        // the rendered gap should look the same width on every ring.
+        this.rings = cfg.ringSpeedsDegPerSec.map((speed, i) => ({
+            gapHalfWidthDeg: pixelArcToDegrees(cfg.gapWidthPx, radii[i]) / 2,
             // Randomise initial angle so rings don't all start aligned.
             gapAngleDeg: rng.next() * 360,
             // Randomise rotation direction per ring (50/50 cw/ccw).
@@ -133,6 +138,17 @@ export function pickLockpickDifficulty(depth: number, rng: Rng): LockpickDifficu
 /** Wrap an angle in degrees into [0, 360). Handles negatives. */
 function wrap360(angle: number): number {
     return ((angle % 360) + 360) % 360;
+}
+
+/**
+ * Convert an arc length (in pixels) along a circle of the given radius
+ * into the subtended central angle in degrees. Used to size each
+ * ring's gap so a fixed pixel-wide visual gap maps to the right
+ * per-ring angular tolerance.
+ */
+export function pixelArcToDegrees(arcLengthPx: number, radiusPx: number): number {
+    if (radiusPx <= 0) return 0;
+    return (arcLengthPx / radiusPx) * (180 / Math.PI);
 }
 
 /**

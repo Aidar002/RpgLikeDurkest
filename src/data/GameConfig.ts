@@ -319,8 +319,19 @@ export const ROOM_CONFIG = {
 //     each of the 3 spinning rings (in degrees per second). Larger
 //     numbers = harder. Index 0 is the outermost ring (which the stick
 //     pierces first), index 2 is the innermost.
-//   - `difficulties.*.gapWidthDeg` — arc width of the hole on each
-//     ring, in degrees. Smaller = harder.
+//   - `difficulties.*.gapWidthPx` — visual arc width of the gap on each
+//     ring, in pixels (chord-length approximation along the ring).
+//     Converted to per-ring degrees at game-construction time using
+//     `ringRadiiPx`, so the gap looks the same width on every ring
+//     even though the inner ring covers more degrees per pixel.
+//     Smaller = harder.
+//   - `ringRadiiPx` — outer → inner ring radii in pixels. Lives in data
+//     so the headless `LockpickGame` can size each ring's gap correctly
+//     without importing UI; the canvas overlay reads the same values
+//     so logic + rendering stay in lockstep.
+//   - `stickWidthPx` — visual thickness of the lockpick stick. The
+//     overlay reads this for rendering; designers reference it when
+//     tuning `gapWidthPx` (e.g. "50 % wider than the stick").
 //   - `difficultyWeights` — per-depth-band probabilities for picking
 //     easy/medium/hard. `depthBands` controls where each band starts.
 //   - `descentMs` — how long the cosmetic "stick falls through the
@@ -334,8 +345,15 @@ export const LOCKPICK_CONFIG = {
     lockedChance: 0.7,
     /** HP damage dealt when the lockpick attempt fails. */
     failureDamage: 2,
-    /** Cosmetic stick-descent animation duration per ring (ms). */
-    descentMs: 220,
+    /** Cosmetic stick-descent animation duration per ring (ms). Kept
+     *  short and snappy so a single click reads as one discrete
+     *  advance rather than a continuous "hold to descend" gesture. */
+    descentMs: 90,
+    /** Outer → inner ring radii in pixels. Shared with the UI so each
+     *  ring's gap arc-width matches the rendered visual gap. */
+    ringRadiiPx: [240, 175, 110],
+    /** Visual thickness of the lockpick stick in pixels. */
+    stickWidthPx: 8,
     /** Difficulty selection bands, keyed by minimum dungeon depth. */
     depthBands: {
         /** Depths >= `mid` use the medium-band weights. */
@@ -354,16 +372,18 @@ export const LOCKPICK_CONFIG = {
         easy: {
             /** Outer → inner ring speeds in degrees per second. */
             ringSpeedsDegPerSec: [60, 75, 90],
-            /** Arc width of the gap on every ring (degrees). */
-            gapWidthDeg: 60,
+            /** Visual width of the gap arc on every ring, in pixels.
+             *  50 % wider than the lockpick stick so the player has a
+             *  comfortable target on the easy band. */
+            gapWidthPx: 12,
         },
         medium: {
             ringSpeedsDegPerSec: [100, 120, 140],
-            gapWidthDeg: 45,
+            gapWidthPx: 10,
         },
         hard: {
             ringSpeedsDegPerSec: [150, 180, 220],
-            gapWidthDeg: 30,
+            gapWidthPx: 8,
         },
     },
 } as const;

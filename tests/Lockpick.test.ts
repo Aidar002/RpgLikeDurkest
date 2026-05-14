@@ -3,6 +3,7 @@ import { LOCKPICK_CONFIG } from '../src/data/GameConfig';
 import {
     LockpickGame,
     pickLockpickDifficulty,
+    pixelArcToDegrees,
     STICK_ANGLE_DEG,
     type LockpickDifficulty,
 } from '../src/systems/Lockpick';
@@ -15,19 +16,28 @@ afterEach(() => {
 const ALL_DIFFICULTIES: LockpickDifficulty[] = ['easy', 'medium', 'hard'];
 
 describe('LockpickGame construction', () => {
-    it('builds 3 rings for every difficulty using the configured speeds + gap width', () => {
+    it('builds 3 rings for every difficulty using the configured speeds + per-ring gap angle', () => {
         for (const d of ALL_DIFFICULTIES) {
             const game = new LockpickGame(d, new Mulberry32(1));
             const cfg = LOCKPICK_CONFIG.difficulties[d];
+            const radii = LOCKPICK_CONFIG.ringRadiiPx;
             expect(game.rings).toHaveLength(3);
-            for (const ring of game.rings) {
-                expect(ring.gapHalfWidthDeg).toBeCloseTo(cfg.gapWidthDeg / 2);
+            for (let i = 0; i < game.rings.length; i++) {
+                const ring = game.rings[i];
+                const expectedHalfDeg = pixelArcToDegrees(cfg.gapWidthPx, radii[i]) / 2;
+                expect(ring.gapHalfWidthDeg).toBeCloseTo(expectedHalfDeg);
                 expect(ring.locked).toBe(false);
                 expect(cfg.ringSpeedsDegPerSec).toContain(Math.abs(ring.speedDegPerSec));
                 expect(ring.gapAngleDeg).toBeGreaterThanOrEqual(0);
                 expect(ring.gapAngleDeg).toBeLessThan(360);
             }
         }
+    });
+
+    it('makes the inner-ring gap subtend a larger angle than the outer ring for the same pixel width', () => {
+        const game = new LockpickGame('easy', new Mulberry32(1));
+        // Smaller radius → a fixed pixel arc covers more degrees.
+        expect(game.rings[2].gapHalfWidthDeg).toBeGreaterThan(game.rings[0].gapHalfWidthDeg);
     });
 
     it('starts in progress, with no ring locked and index 0', () => {
