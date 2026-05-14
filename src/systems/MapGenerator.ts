@@ -1,14 +1,6 @@
 import { MAP_CONFIG, RUN_CONFIG } from '../data/GameConfig';
-import { RoomType, type BossKind, type MapNode, type SealType } from '../data/MapTypes';
-import { POST_MAJOR_RECOVERY_POOL, getRequiredSeals } from './map/seals';
-import {
-    type MapValidationReport,
-    computeMinSealsPerPath,
-    formatMapDebug,
-    pickBestSealPromotion,
-    pickRegularNodeToPromoteToMini,
-    validateMap,
-} from './map/validate';
+import { POST_MAJOR_RECOVERY_POOL, RoomType, type BossKind, type MapNode } from '../data/MapTypes';
+import { type MapValidationReport, formatMapDebug, validateMap } from './map/validate';
 import { defaultRng, type Rng } from './Rng';
 
 // Re-exported from `data/MapTypes.ts`. New code should import the
@@ -16,12 +8,11 @@ import { defaultRng, type Rng } from './Rng';
 // existing call sites that do `import { RoomType } from
 // '../systems/MapGenerator'` keep compiling.
 export { RoomType };
-export type { BossKind, MapNode, SealType };
+export type { BossKind, MapNode };
 
-// Re-exported from `systems/map/validate.ts` and `systems/map/seals.ts`
-// for back-compat. New callers should import from those modules
-// directly.
-export { getRequiredSeals, validateMap, formatMapDebug };
+// Re-exported from `systems/map/validate.ts` for back-compat. New
+// callers should import from that module directly.
+export { validateMap, formatMapDebug };
 export type { MapValidationReport };
 
 const BASE_ROOM_POOL: RoomType[] = [
@@ -145,10 +136,9 @@ function forwardNeighbours(gx: number, gy: number): GridPos[] {
 // =============================================================================
 // MapGenerator routing map (see .agents/skills/rpg-like-durkest/SKILL.md for the cross-file picture)
 // -----------------------------------------------------------------------------
-// Public exports: type re-exports (RoomType / MapNode / BossKind /
-//   SealType from data/MapTypes), validation re-exports
-//   (validateMap / formatMapDebug / MapValidationReport /
-//   getRequiredSeals from systems/map/{validate,seals})
+// Public exports: type re-exports (RoomType / MapNode / BossKind
+//   from data/MapTypes), validation re-exports (validateMap /
+//   formatMapDebug / MapValidationReport from systems/map/validate)
 // Module-private constants: BASE_ROOM_POOL, FINAL_APPROACH_POOL,
 //   FINAL_APPROACH_MIN_WIDTH, START_FANOUT_WIDTH,
 //   MAP_START_X / MAP_START_Y, GRID_CELL, MAX_LAYER_WIDTH,
@@ -263,10 +253,6 @@ export class MapGenerator {
             previousLayer = this.buildLayer(depth, previousLayer, all);
         }
 
-        if (lastDepth >= this.runLength) {
-            this.enforceSealCoverage(all);
-        }
-
         return all;
     }
 
@@ -288,44 +274,7 @@ export class MapGenerator {
         // pass a defensive copy — DungeonManager re-merges via
         // `addNodes`.
         const newLayer = this.buildLayer(fromDepth + 1, previousLayer, [...allNodes]);
-        if (fromDepth + 1 >= this.runLength) {
-            this.enforceSealCoverage([...allNodes, ...newLayer]);
-        }
         return newLayer;
-    }
-
-    /**
-     * Post-generation pass: greedily promote mini-boss nodes (or, if
-     * none cover a deficit path, plain rooms) to grant a seal until
-     * every full path traverses ≥ `requiredSeals` seal-granting
-     * nodes. Deterministic for a given seed: ties broken by id.
-     */
-    private enforceSealCoverage(allNodes: MapNode[]): void {
-        const required = getRequiredSeals(this.runLength);
-        if (required <= 0) return;
-        let safety = allNodes.length * 2;
-        while (safety-- > 0) {
-            const stat = computeMinSealsPerPath(allNodes);
-            if (stat === null || stat.min >= required) return;
-            const miniCandidate = pickBestSealPromotion(allNodes, required);
-            if (miniCandidate) {
-                miniCandidate.grantsSeal = true;
-                miniCandidate.sealType = 'mini';
-                continue;
-            }
-            const promoteRegular = pickRegularNodeToPromoteToMini(
-                allNodes,
-                this.runLength,
-                required,
-                this.getPressureWindow().start
-            );
-            if (!promoteRegular) return;
-            promoteRegular.type = RoomType.MINI_BOSS;
-            promoteRegular.bossKind = 'mini';
-            promoteRegular.grantsSeal = true;
-            promoteRegular.sealType = 'mini';
-            this.miniBossesPlaced++;
-        }
     }
 
     /**
@@ -822,17 +771,6 @@ export class MapGenerator {
         type: RoomType,
         bossKind: BossKind = null
     ): MapNode {
-        let grantsSeal = false;
-        let sealType: SealType | null = null;
-        if (bossKind === 'major') {
-            grantsSeal = true;
-            sealType = 'major';
-        } else if (bossKind === 'mini') {
-            if (this.rng.next() < RUN_CONFIG.seals.miniSealOdds) {
-                grantsSeal = true;
-                sealType = 'mini';
-            }
-        }
         return {
             id: `n${this.counter++}`,
             depth,
@@ -843,8 +781,6 @@ export class MapGenerator {
             y: 0,
             type,
             bossKind,
-            grantsSeal,
-            sealType,
             visited: false,
             cleared: false,
             edges: [],
