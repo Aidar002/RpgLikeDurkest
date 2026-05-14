@@ -339,9 +339,9 @@ export const LOCKPICK_CONFIG = {
     /** Difficulty selection bands, keyed by minimum dungeon depth. */
     depthBands: {
         /** Depths >= `mid` use the medium-band weights. */
-        mid: 4,
+        mid: 10,
         /** Depths >= `deep` use the deep-band weights. */
-        deep: 7,
+        deep: 20,
     },
     /** Per-band weights for picking the difficulty. Normalised at use. */
     difficultyWeights: {
