@@ -1,7 +1,7 @@
 import * as Phaser from 'phaser';
 import { MAP_CONFIG } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
-import { chance, defaultRng, pick } from '../systems/Rng';
+import { chance, defaultRng } from '../systems/Rng';
 import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH, RoomLayout } from '../ui/Layout';
@@ -72,13 +72,6 @@ export class CombatHudController {
             scene.sfx.play('bossAppear');
         } else if (kind === 'elite') {
             scene.sfx.play('eliteAppear');
-        }
-
-        if (kind === 'boss') {
-            const intro = scene.npcs.pickBossIntro(scene.loc.language);
-            if (intro) {
-                scene.log.addMessage(intro.line, '#cdb8ff');
-            }
         }
     }
 
@@ -313,12 +306,6 @@ export class CombatHudController {
 
         if (payload.kind === 'boss') {
             scene.maybeDropRelic('boss', payload.enemyCanonicalName);
-            const intro = scene.npcs.pickBossIntro(scene.loc.language);
-            if (intro) {
-                const farewells = intro.npc.voice.farewell;
-                const line = scene.loc.pick(pick(defaultRng, farewells));
-                scene.log.addMessage(line, '#cdb8ff');
-            }
 
             if (scene.dungeon.currentDepth >= MAP_CONFIG.finalDepth) {
                 scene.time.delayedCall(800, () => scene.showVictoryScreen());

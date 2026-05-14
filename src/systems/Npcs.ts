@@ -33,8 +33,6 @@ export interface NpcProfile {
     flavor: LocalizedText;
     backstoryHint: LocalizedText;
     voice: {
-        bossIntro: LocalizedText[];
-        farewell: LocalizedText[];
         lowHpRecall: LocalizedText[];
     };
     beats: NpcDialogBeat[];
@@ -68,10 +66,6 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             'Nobody knows where she came from. She is just always here.'
         ),
         voice: {
-            bossIntro: v(
-                lt('Сара: "Удачи. Надеюсь, ты выживешь."', 'Sara: "Good luck. I hope you survive."')
-            ),
-            farewell: v(lt('Сара: "Ступай осторожно."', 'Sara: "Tread carefully."')),
             lowHpRecall: v(
                 lt(
                     'Голос Сары из памяти: "Надеюсь, ты выживешь."',
@@ -137,13 +131,6 @@ export const NPCS: Record<NpcId, NpcProfile> = {
             'They say he sells something useful. For a price.'
         ),
         voice: {
-            bossIntro: v(
-                lt(
-                    'Гоги: "Удачи, дружок. Ты мой любимый клиент."',
-                    'Gogi: "Good luck, pal. You are my favourite customer."'
-                )
-            ),
-            farewell: v(lt('Гоги: "Приходи ещё, ахах."', 'Gogi: "Come back again, haha."')),
             lowHpRecall: v(
                 lt(
                     'Голос Гоги: "Надо было покупать, ахах."',
