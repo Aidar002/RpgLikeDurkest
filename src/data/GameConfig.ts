@@ -384,16 +384,16 @@ export const LOCKPICK_CONFIG = {
     difficulties: {
         easy: {
             /** Outer → inner ring speeds in degrees per second. */
-            ringSpeedsDegPerSec: [60, 76, 90],
+            ringSpeedsDegPerSec: [60, 70, 80],
             /** Visual width of the gap arc on every ring, in pixels. */
             gapWidthPx: 72,
         },
         medium: {
-            ringSpeedsDegPerSec: [100, 120, 140],
+            ringSpeedsDegPerSec: [90, 100, 110],
             gapWidthPx: 60,
         },
         hard: {
-            ringSpeedsDegPerSec: [150, 180, 220],
+            ringSpeedsDegPerSec: [120, 130, 140],
             gapWidthPx: 48,
         },
     },
