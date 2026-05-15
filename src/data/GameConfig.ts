@@ -386,15 +386,15 @@ export const LOCKPICK_CONFIG = {
             /** Outer → inner ring speeds in degrees per second. */
             ringSpeedsDegPerSec: [30, 38, 45],
             /** Visual width of the gap arc on every ring, in pixels. */
-            gapWidthPx: 18,
+            gapWidthPx: 36,
         },
         medium: {
             ringSpeedsDegPerSec: [50, 60, 70],
-            gapWidthPx: 15,
+            gapWidthPx: 30,
         },
         hard: {
             ringSpeedsDegPerSec: [75, 90, 110],
-            gapWidthPx: 12,
+            gapWidthPx: 24,
         },
     },
 } as const;
