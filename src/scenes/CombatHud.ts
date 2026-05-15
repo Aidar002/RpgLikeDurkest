@@ -1,5 +1,6 @@
 import * as Phaser from 'phaser';
 import { MAP_CONFIG } from '../data/GameConfig';
+import type { DefendPatternEasing } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
 import { SKILLS } from '../systems/Skills';
 import { CombatBars, type DefendBarState } from '../ui/CombatBars';
@@ -19,13 +20,23 @@ export class CombatHudController {
     /** Attack bar fill (0..1). Drained by enemy.actionBars.attackDrainPerSec,
      *  bumped on every Strike-button click. At 1 the player auto-attacks. */
     private attackProgress = 0;
-    /** Defend bar fill (0..1). Filled linearly over
-     *  enemy.actionBars.defendFillSeconds. At 1 the enemy auto-strikes. */
+    /** Defend bar fill (0..1). Driven by either the linear
+     *  `defendFillSeconds` legacy mode or by the active defend pattern. */
     private defendProgress = 0;
     /** Seconds the Guard buff is still active for. Blocks the next enemy hit. */
     private defendActiveLeft = 0;
     /** Seconds of Guard cooldown left. While > 0 the Guard button is unusable. */
     private defendCooldownLeft = 0;
+    /** Index of the active pattern within `enemy.actionBars.defendPatterns`.
+     *  Wraps after each enemy hit so elites/bosses cycle through their chain. */
+    private defendPatternIndex = 0;
+    /** Index of the active segment within the current pattern. */
+    private defendSegmentIndex = 0;
+    /** Seconds elapsed in the current segment. */
+    private defendSegmentElapsed = 0;
+    /** Bar fill at the start of the current segment (so we can interpolate
+     *  cleanly from "wherever we ended up" to `segment.targetFill`). */
+    private defendSegmentStartFill = 0;
     /** Pump throttle: scene.update fires every frame; we accumulate dt and
      *  let the tick handler do its work each call. */
     private tickHandler: ((time: number, delta: number) => void) | null = null;
@@ -112,6 +123,10 @@ export class CombatHudController {
         this.defendProgress = 0;
         this.defendActiveLeft = 0;
         this.defendCooldownLeft = 0;
+        this.defendPatternIndex = 0;
+        this.defendSegmentIndex = 0;
+        this.defendSegmentElapsed = 0;
+        this.defendSegmentStartFill = 0;
         this.bars.setVisible(true);
         this.bars.setLabels(scene.loc.t('attackShort'), scene.loc.t('defenseShort'));
         this.bars.setAttack(0);
@@ -138,6 +153,10 @@ export class CombatHudController {
         this.defendProgress = 0;
         this.defendActiveLeft = 0;
         this.defendCooldownLeft = 0;
+        this.defendPatternIndex = 0;
+        this.defendSegmentIndex = 0;
+        this.defendSegmentElapsed = 0;
+        this.defendSegmentStartFill = 0;
     }
 
     /**
@@ -180,9 +199,9 @@ export class CombatHudController {
             this.defendCooldownLeft = Math.max(0, this.defendCooldownLeft - dt);
         }
 
-        // Defend bar fill.
-        const fillStep = bars.defendFillSeconds > 0 ? dt / bars.defendFillSeconds : 1;
-        this.defendProgress = Math.min(1, this.defendProgress + fillStep);
+        // Defend bar fill — pattern-driven if a chain is attached,
+        // otherwise the legacy linear path.
+        this.advanceDefendBar(dt);
         if (this.defendProgress >= 1) {
             const blocked = this.defendActiveLeft > 0;
             scene.combat.executeRealtimeEnemyHit(blocked);
@@ -194,6 +213,16 @@ export class CombatHudController {
                 this.defendCooldownLeft = bars.defendCooldownSeconds;
                 scene.sfx.play('defend');
             }
+            // Advance to the next pattern in the chain (wraps). Reset
+            // segment cursor + segment-start fill so the new pattern
+            // starts from 0.
+            const patterns = bars.defendPatterns;
+            if (patterns && patterns.length > 0) {
+                this.defendPatternIndex = (this.defendPatternIndex + 1) % patterns.length;
+            }
+            this.defendSegmentIndex = 0;
+            this.defendSegmentElapsed = 0;
+            this.defendSegmentStartFill = 0;
         }
 
         // Push render values to the bar visuals.
@@ -205,6 +234,66 @@ export class CombatHudController {
                   : 'idle';
         this.bars.setAttack(this.attackProgress);
         this.bars.setDefend(this.defendProgress, defState);
+    }
+
+    /**
+     * Drive {@link defendProgress} forward by `dt` seconds.
+     *
+     * Two paths:
+     *  1. If the enemy has a `defendPatterns` chain, walk through the
+     *     current pattern segment-by-segment. Each segment interpolates
+     *     from `defendSegmentStartFill` to `segment.targetFill` over
+     *     `segment.duration` seconds using the segment's easing.
+     *     When a segment finishes we advance to the next segment; when
+     *     the whole pattern finishes the caller bumps `defendPatternIndex`
+     *     and resets us.
+     *  2. Otherwise, fall back to the legacy linear fill — bar climbs
+     *     1/`defendFillSeconds` per second.
+     *
+     * The {@link defendProgress} field is the single source of truth
+     * the rest of `tick()` reads — both paths just write into it.
+     */
+    private advanceDefendBar(dt: number): void {
+        const enemy = this.scene.combat.enemy;
+        if (!enemy) return;
+        const bars = enemy.actionBars;
+        const patterns = bars.defendPatterns;
+        if (patterns && patterns.length > 0) {
+            const pattern = patterns[this.defendPatternIndex % patterns.length];
+            const segIdx = this.defendSegmentIndex;
+            if (segIdx >= pattern.length) {
+                // Defensive: caller should have advanced us; clamp at 1
+                // so the >= 1 branch in tick() takes over.
+                this.defendProgress = 1;
+                return;
+            }
+            const segment = pattern[segIdx];
+            this.defendSegmentElapsed = Math.min(segment.duration, this.defendSegmentElapsed + dt);
+            const rawT = segment.duration > 0 ? this.defendSegmentElapsed / segment.duration : 1;
+            const easedT = applyEasing(rawT, segment.easing ?? 'linear');
+            this.defendProgress =
+                this.defendSegmentStartFill +
+                (segment.targetFill - this.defendSegmentStartFill) * easedT;
+            if (rawT >= 1) {
+                // Segment finished. If there is a next segment, hand off
+                // to it from the current fill. Otherwise leave the bar
+                // at this segment's end value; the caller will detect
+                // >= 1 and trigger the hit / pattern advance.
+                this.defendSegmentStartFill = segment.targetFill;
+                this.defendSegmentIndex = segIdx + 1;
+                this.defendSegmentElapsed = 0;
+                if (this.defendSegmentIndex >= pattern.length) {
+                    // Pattern done — force the >= 1 branch in tick() to
+                    // fire on this frame even if the final targetFill
+                    // was slightly under 1 due to author error.
+                    this.defendProgress = Math.max(this.defendProgress, 1);
+                }
+            }
+            return;
+        }
+        // Legacy linear path.
+        const fillStep = bars.defendFillSeconds > 0 ? dt / bars.defendFillSeconds : 1;
+        this.defendProgress = Math.min(1, this.defendProgress + fillStep);
     }
 
     /**
@@ -516,5 +605,30 @@ export class CombatHudController {
             onComplete: () => flash.destroy(),
         });
         VFX.floatText(scene, 160, 82, `-${damage}`, '#ff5555');
+    }
+}
+
+/**
+ * Maps the normalized segment-progress `t` (0..1) onto a curve.
+ * - 'linear': identity.
+ * - 'easeIn': starts slow, accelerates (t^2). Used for the slow ominous
+ *   wind-up that snaps shut at the end.
+ * - 'easeOut': starts fast, decelerates (1 - (1-t)^2). Used for the
+ *   fake-out's retreat segment so the bar drops snappily and then
+ *   eases into the holding position.
+ *
+ * Out-of-range inputs are clamped so authoring mistakes can't make the
+ * defend bar jump past 1.0 or below 0.
+ */
+function applyEasing(t: number, easing: DefendPatternEasing): number {
+    const clamped = Math.max(0, Math.min(1, t));
+    switch (easing) {
+        case 'easeIn':
+            return clamped * clamped;
+        case 'easeOut':
+            return 1 - (1 - clamped) * (1 - clamped);
+        case 'linear':
+        default:
+            return clamped;
     }
 }

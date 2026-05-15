@@ -1,6 +1,12 @@
 import { getBossForDepth } from '../data/Enemies';
 import { getEnemyForDepth } from './EnemyPicker';
-import { COMBAT_CONFIG, DEFAULT_ACTION_BARS, ROOM_CONFIG } from '../data/GameConfig';
+import {
+    BOSS_DEFEND_CHAIN,
+    COMBAT_CONFIG,
+    DEFAULT_ACTION_BARS,
+    ELITE_DEFEND_CHAIN,
+    ROOM_CONFIG,
+} from '../data/GameConfig';
 import type {
     EnemyActionBars,
     EnemyDef,
@@ -247,6 +253,27 @@ export class CombatManager {
         this.setupEnemy(depth, kind, definition);
     }
 
+    /**
+     * EXPERIMENTAL action-combat: per-combat action-bar tuning. Starts
+     * from the enemy's own `actionBars` (or {@link DEFAULT_ACTION_BARS}
+     * for plain mobs that haven't been authored yet), then layers an
+     * encounter-kind defend pattern chain on top so elites and bosses
+     * get varied defend rhythms without every {@link EnemyDef} having
+     * to spell them out.
+     *
+     * Per-enemy `defendPatterns` always wins — a designer can give a
+     * specific mob its own chain and `kind` will not overwrite it.
+     */
+    private deriveActionBars(definition: EnemyDef, kind: EncounterKind): EnemyActionBars {
+        const base = definition.actionBars ?? DEFAULT_ACTION_BARS;
+        if (base.defendPatterns && base.defendPatterns.length > 0) {
+            return base;
+        }
+        const chain =
+            kind === 'boss' ? BOSS_DEFEND_CHAIN : kind === 'elite' ? ELITE_DEFEND_CHAIN : undefined;
+        return chain ? { ...base, defendPatterns: chain } : base;
+    }
+
     private setupEnemy(depth: number, kind: EncounterKind, definition: EnemyDef) {
         const rewardMultiplier =
             kind === 'elite'
@@ -306,7 +333,7 @@ export class CombatManager {
                   }
                 : undefined,
             currentIntent: null,
-            actionBars: definition.actionBars ?? DEFAULT_ACTION_BARS,
+            actionBars: this.deriveActionBars(definition, kind),
         };
         // Compute the initial intent so the UI can show what the enemy
         // is about to do BEFORE the first player turn.

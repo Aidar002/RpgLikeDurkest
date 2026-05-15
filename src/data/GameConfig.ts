@@ -104,7 +104,73 @@ export interface EnemyActionBars {
     defendFillSeconds: number;
     defendActiveSeconds: number;
     defendCooldownSeconds: number;
+    /**
+     * Optional chain of defend-bar behaviors. When present, the bar is
+     * driven segment-by-segment from the current pattern instead of
+     * the simple linear `defendFillSeconds` fill. After each enemy hit
+     * the runtime advances to the next pattern (wrapping at the end),
+     * giving bosses and elites varied attack rhythms.
+     *
+     * Each pattern is an array of {@link DefendPatternSegment}s. The
+     * final segment's `targetFill` should be 1.0 so the bar
+     * eventually reaches the hit point.
+     *
+     * If absent the legacy linear fill is used (steady `defendFillSeconds`).
+     */
+    defendPatterns?: DefendPattern[];
 }
+
+/**
+ * One "chapter" of a defend-bar behavior. The bar interpolates from
+ * its current fill to {@link targetFill} over {@link duration} seconds
+ * using the chosen {@link easing}. Stack several together to build
+ * fake-outs (rise → drop → rise) or staggered builds.
+ */
+export interface DefendPatternSegment {
+    /** Seconds this segment lasts. */
+    duration: number;
+    /**
+     * 0..1 — where the bar ends at the end of this segment. The final
+     * segment in a pattern should be 1.0 so the enemy actually lands
+     * the hit.
+     */
+    targetFill: number;
+    /** Defaults to 'linear'. */
+    easing?: DefendPatternEasing;
+}
+
+export type DefendPatternEasing = 'linear' | 'easeIn' | 'easeOut';
+export type DefendPattern = DefendPatternSegment[];
+
+/**
+ * Quick steady linear rise. Used for rank-and-file mobs and as the
+ * "breather" pattern in chains.
+ */
+export const DEFEND_PATTERN_STEADY: DefendPattern = [{ duration: 5.0, targetFill: 1.0 }];
+
+/** Snappy linear rise — pressure pattern for elites and bosses. */
+export const DEFEND_PATTERN_FAST: DefendPattern = [{ duration: 2.0, targetFill: 1.0 }];
+
+/**
+ * The fake-out: bar shoots up to ~72% in 1.2 s, drops back to 30% over
+ * 0.4 s, then climbs to 100% over the next 1.4 s. Punishes players
+ * who Guard the moment they see the bar climbing.
+ */
+export const DEFEND_PATTERN_FAKEOUT: DefendPattern = [
+    { duration: 1.2, targetFill: 0.72 },
+    { duration: 0.4, targetFill: 0.3, easing: 'easeOut' },
+    { duration: 1.4, targetFill: 1.0 },
+];
+
+/** Elites cycle through two patterns. */
+export const ELITE_DEFEND_CHAIN: DefendPattern[] = [DEFEND_PATTERN_FAST, DEFEND_PATTERN_FAKEOUT];
+
+/** Bosses cycle through three patterns. */
+export const BOSS_DEFEND_CHAIN: DefendPattern[] = [
+    DEFEND_PATTERN_FAST,
+    DEFEND_PATTERN_FAKEOUT,
+    DEFEND_PATTERN_STEADY,
+];
 
 /**
  * Fallback bar tuning applied to any enemy whose `actionBars` is
