@@ -135,6 +135,84 @@ describe('MetaProgressionManager.purchaseUpgrade', () => {
     });
 });
 
+describe('MetaProgressionManager.resetNpcMemoryForNewRun', () => {
+    it('wipes every NPC memory entry but keeps the rest of the profile', () => {
+        const manager = new MetaProgressionManager();
+        const npcs = manager.getNpcManager();
+        npcs.markEncounter('sara', 3);
+        npcs.markEncounter('sara', 5);
+        npcs.adjustAffinity('sara', 2);
+        npcs.addFlag('sara', 'helped-once');
+        npcs.markEncounter('gogi', 1);
+        manager.bankSkillPoints(5, 4);
+        const skillPointsBefore = manager.availableSkillPoints;
+        const totalBankedBefore = manager.totalSkillPointsBanked;
+        const highestDepthBefore = manager.highestDepthEver;
+
+        manager.resetNpcMemoryForNewRun();
+
+        const after = manager.getNpcManager();
+        expect(after.getMemory('sara')).toEqual({
+            metCount: 0,
+            affinity: 0,
+            lastDepthMet: 0,
+            flags: [],
+        });
+        expect(after.getMemory('gogi')).toEqual({
+            metCount: 0,
+            affinity: 0,
+            lastDepthMet: 0,
+            flags: [],
+        });
+        // Non-NPC profile fields stay intact.
+        expect(manager.availableSkillPoints).toBe(skillPointsBefore);
+        expect(manager.totalSkillPointsBanked).toBe(totalBankedBefore);
+        expect(manager.highestDepthEver).toBe(highestDepthBefore);
+    });
+
+    it('flushes the reset state to localStorage so the next load starts fresh', () => {
+        const manager = new MetaProgressionManager();
+        manager.getNpcManager().markEncounter('sara', 2);
+        manager.resetNpcMemoryForNewRun();
+
+        const next = new MetaProgressionManager();
+        expect(next.getNpcManager().getMemory('sara')).toEqual({
+            metCount: 0,
+            affinity: 0,
+            lastDepthMet: 0,
+            flags: [],
+        });
+    });
+
+    it('makes pickDialog return the `first` beat after a reset, even after prior encounters', () => {
+        const manager = new MetaProgressionManager();
+        manager.getNpcManager().markEncounter('sara', 1);
+        manager.getNpcManager().markEncounter('sara', 2);
+        // Sanity: without the reset we'd be in the `return` stage.
+        expect(
+            manager.getNpcManager().pickDialog('sara', {
+                depth: 1,
+                hpFrac: 1,
+                bleedDamageDealt: 0,
+                relicsFound: 0,
+                bossesKilledEver: 0,
+            }).beat.stage
+        ).toBe('return');
+
+        manager.resetNpcMemoryForNewRun();
+
+        expect(
+            manager.getNpcManager().pickDialog('sara', {
+                depth: 1,
+                hpFrac: 1,
+                bleedDamageDealt: 0,
+                relicsFound: 0,
+                bossesKilledEver: 0,
+            }).beat.stage
+        ).toBe('first');
+    });
+});
+
 describe('MetaProgressionManager.resetProgress', () => {
     it('wipes the bank, every upgrade, and legacy localStorage entries', () => {
         const manager = new MetaProgressionManager();
