@@ -108,11 +108,29 @@ export interface EnemyActionBars {
 
 /**
  * Fallback bar tuning applied to any enemy whose `actionBars` is
- * omitted. Chosen so a debug fight feels "medium difficulty": the
- * player has to click Strike ~3-4 times/sec to overcome drain, and
- * the enemy lands one hit every ~3 seconds unless blocked.
+ * omitted. Tuned for rank-and-file mobs (rats, slimes, skeletons):
+ * the player has to click Strike ~2 times/sec to overcome drain, and
+ * the enemy lands one hit every ~5 seconds unless blocked, giving the
+ * player a comfortable window to either tank or time a guard.
+ *
+ * Boss-tier difficulty (faster drain, smaller click gain, snappier
+ * defend bar) is in {@link BOSS_ACTION_BARS}.
  */
 export const DEFAULT_ACTION_BARS: EnemyActionBars = {
+    attackDrainPerSec: 0.2,
+    attackClickGain: 0.28,
+    defendFillSeconds: 5.0,
+    defendActiveSeconds: 1.0,
+    defendCooldownSeconds: 1.4,
+};
+
+/**
+ * Boss-tier preset for {@link EnemyDef.actionBars}. The original
+ * "medium difficulty" tuning from the first prototype — attached to
+ * bosses so that the headline encounters feel snappier and more
+ * punishing than rank-and-file mobs.
+ */
+export const BOSS_ACTION_BARS: EnemyActionBars = {
     attackDrainPerSec: 0.4,
     attackClickGain: 0.18,
     defendFillSeconds: 3.0,
@@ -614,6 +632,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0x2a0814,
             profile: 'boss',
+            actionBars: BOSS_ACTION_BARS,
         },
     },
 ];
