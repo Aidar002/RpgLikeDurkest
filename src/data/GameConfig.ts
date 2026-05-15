@@ -186,7 +186,7 @@ export const DEFAULT_ACTION_BARS: EnemyActionBars = {
     attackDrainPerSec: 0.2,
     attackClickGain: 0.28,
     defendFillSeconds: 5.0,
-    defendActiveSeconds: 1.0,
+    defendActiveSeconds: 0.6,
     defendCooldownSeconds: 1.4,
 };
 
@@ -200,7 +200,7 @@ export const BOSS_ACTION_BARS: EnemyActionBars = {
     attackDrainPerSec: 0.4,
     attackClickGain: 0.18,
     defendFillSeconds: 3.0,
-    defendActiveSeconds: 0.8,
+    defendActiveSeconds: 0.6,
     defendCooldownSeconds: 1.6,
 };
 

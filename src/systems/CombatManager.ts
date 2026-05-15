@@ -862,6 +862,14 @@ export class CombatManager {
                 this.loc.t('combatRealtimeHit', { name: this.enemy.name, damage: taken }),
                 '#cb7878'
             );
+        } else {
+            // The enemy connected, but the player's `defense` stat (or
+            // a relic block) ate the entire hit. Surface a log line so
+            // it doesn't read as a silent miss.
+            this.log.addMessage(
+                this.loc.t('combatRealtimeAbsorbed', { name: this.enemy.name }),
+                '#9aaef0'
+            );
         }
         const playerTick = tickTurn(this.player.status);
         if (playerTick.bleedDamage > 0) {

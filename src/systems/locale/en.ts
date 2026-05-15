@@ -258,6 +258,7 @@ export const EN_STRINGS = {
     // Action-combat realtime messages.
     combatRealtimeHit: '{name} strikes you for {damage} damage.',
     combatRealtimeBlocked: 'You parry {name}’s strike at the last moment.',
+    combatRealtimeAbsorbed: '{name}’s strike lands, but your armor soaks it.',
     combatRealtimeGuardCooldown: 'Your guard is recovering.',
 } as const;
 

@@ -252,5 +252,6 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     // Action-combat realtime messages.
     combatRealtimeHit: '{name} бьёт на {damage} урона.',
     combatRealtimeBlocked: 'Ты парируешь удар врага ({name}).',
+    combatRealtimeAbsorbed: 'Замах {name} попал, но броня поглотила удар.',
     combatRealtimeGuardCooldown: 'Защита ещё не восстановилась.',
 };
