@@ -61,12 +61,148 @@ export interface EnemyDef {
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
     prepare?: EnemyPrepareDef;
+    /**
+     * EXPERIMENTAL — action-combat prototype. Controls the per-frame
+     * attack / defend progress bars. When absent the enemy falls back
+     * to `DEFAULT_ACTION_BARS` and feels "medium difficulty". Tune per
+     * mob to make slimes feel slow / mages feel snappy / boss adds
+     * feel relentless. See `src/scenes/CombatHud.ts` `tick` for usage.
+     */
+    actionBars?: EnemyActionBars;
 }
 
 export type EnemyPassive =
     | { kind: 'extraDamageOnHit'; chance: number; bonus: number }
     | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
     | { kind: 'damageReduction'; chance: number; reduction: number };
+
+/**
+ * EXPERIMENTAL — action-combat prototype bar tuning, attached per
+ * enemy via {@link EnemyDef.actionBars}. All five values are tuned in
+ * "real seconds" (not turns) — the CombatHud's RAF tick drives them.
+ *
+ * - `attackDrainPerSec`: How fast the player's Strike bar leaks back
+ *   to 0 when the player stops clicking. Higher = the player has to
+ *   click faster to land a hit. Typical range 0.3 (lazy slime) – 0.8
+ *   (twitchy bandit).
+ * - `attackClickGain`: How much one click of the Strike button adds to
+ *   the attack bar (0..1). Combined with `attackDrainPerSec` this sets
+ *   how many clicks per second the player needs to land a hit.
+ * - `defendFillSeconds`: Seconds for the enemy's Threat bar to fill
+ *   linearly from 0→1. Once it hits 1 the enemy lands a hit (unless
+ *   the player's Guard buff is active).
+ * - `defendActiveSeconds`: When the player presses Guard, the buff is
+ *   active for this many seconds. While active, the next enemy hit is
+ *   blocked. After this window expires the buff goes on cooldown.
+ * - `defendCooldownSeconds`: Cooldown after the Guard buff expires (or
+ *   is consumed). The Guard button is unusable during cooldown — this
+ *   is the punishment for mistiming the press.
+ */
+export interface EnemyActionBars {
+    attackDrainPerSec: number;
+    attackClickGain: number;
+    defendFillSeconds: number;
+    defendActiveSeconds: number;
+    defendCooldownSeconds: number;
+    /**
+     * Optional chain of defend-bar behaviors. When present, the bar is
+     * driven segment-by-segment from the current pattern instead of
+     * the simple linear `defendFillSeconds` fill. After each enemy hit
+     * the runtime advances to the next pattern (wrapping at the end),
+     * giving bosses and elites varied attack rhythms.
+     *
+     * Each pattern is an array of {@link DefendPatternSegment}s. The
+     * final segment's `targetFill` should be 1.0 so the bar
+     * eventually reaches the hit point.
+     *
+     * If absent the legacy linear fill is used (steady `defendFillSeconds`).
+     */
+    defendPatterns?: DefendPattern[];
+}
+
+/**
+ * One "chapter" of a defend-bar behavior. The bar interpolates from
+ * its current fill to {@link targetFill} over {@link duration} seconds
+ * using the chosen {@link easing}. Stack several together to build
+ * fake-outs (rise → drop → rise) or staggered builds.
+ */
+export interface DefendPatternSegment {
+    /** Seconds this segment lasts. */
+    duration: number;
+    /**
+     * 0..1 — where the bar ends at the end of this segment. The final
+     * segment in a pattern should be 1.0 so the enemy actually lands
+     * the hit.
+     */
+    targetFill: number;
+    /** Defaults to 'linear'. */
+    easing?: DefendPatternEasing;
+}
+
+export type DefendPatternEasing = 'linear' | 'easeIn' | 'easeOut';
+export type DefendPattern = DefendPatternSegment[];
+
+/**
+ * Quick steady linear rise. Used for rank-and-file mobs and as the
+ * "breather" pattern in chains.
+ */
+export const DEFEND_PATTERN_STEADY: DefendPattern = [{ duration: 5.0, targetFill: 1.0 }];
+
+/** Snappy linear rise — pressure pattern for elites and bosses. */
+export const DEFEND_PATTERN_FAST: DefendPattern = [{ duration: 2.0, targetFill: 1.0 }];
+
+/**
+ * The fake-out: bar shoots up to ~72% in 1.2 s, drops back to 30% over
+ * 0.4 s, then climbs to 100% over the next 1.4 s. Punishes players
+ * who Guard the moment they see the bar climbing.
+ */
+export const DEFEND_PATTERN_FAKEOUT: DefendPattern = [
+    { duration: 1.2, targetFill: 0.72 },
+    { duration: 0.4, targetFill: 0.3, easing: 'easeOut' },
+    { duration: 1.4, targetFill: 1.0 },
+];
+
+/** Elites cycle through two patterns. */
+export const ELITE_DEFEND_CHAIN: DefendPattern[] = [DEFEND_PATTERN_FAST, DEFEND_PATTERN_FAKEOUT];
+
+/** Bosses cycle through three patterns. */
+export const BOSS_DEFEND_CHAIN: DefendPattern[] = [
+    DEFEND_PATTERN_FAST,
+    DEFEND_PATTERN_FAKEOUT,
+    DEFEND_PATTERN_STEADY,
+];
+
+/**
+ * Fallback bar tuning applied to any enemy whose `actionBars` is
+ * omitted. Tuned for rank-and-file mobs (rats, slimes, skeletons):
+ * the player has to click Strike ~2 times/sec to overcome drain, and
+ * the enemy lands one hit every ~5 seconds unless blocked, giving the
+ * player a comfortable window to either tank or time a guard.
+ *
+ * Boss-tier difficulty (faster drain, smaller click gain, snappier
+ * defend bar) is in {@link BOSS_ACTION_BARS}.
+ */
+export const DEFAULT_ACTION_BARS: EnemyActionBars = {
+    attackDrainPerSec: 0.2,
+    attackClickGain: 0.28,
+    defendFillSeconds: 5.0,
+    defendActiveSeconds: 0.6,
+    defendCooldownSeconds: 1.4,
+};
+
+/**
+ * Boss-tier preset for {@link EnemyDef.actionBars}. The original
+ * "medium difficulty" tuning from the first prototype — attached to
+ * bosses so that the headline encounters feel snappier and more
+ * punishing than rank-and-file mobs.
+ */
+export const BOSS_ACTION_BARS: EnemyActionBars = {
+    attackDrainPerSec: 0.4,
+    attackClickGain: 0.18,
+    defendFillSeconds: 3.0,
+    defendActiveSeconds: 0.6,
+    defendCooldownSeconds: 1.6,
+};
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -562,6 +698,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0x2a0814,
             profile: 'boss',
+            actionBars: BOSS_ACTION_BARS,
         },
     },
 ];

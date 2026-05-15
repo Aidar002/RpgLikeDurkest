@@ -246,6 +246,20 @@ export const EN_STRINGS = {
     lockpickSuccess: 'Success!',
     lockpickFailure: 'Failure… the pick broke ({damage} damage).',
     lockpickLeft: 'You leave the chest untouched.',
+    // Pre-combat escape (experimental action-combat prototype).
+    // The Flee button rolls a 10 % chance to skip the encounter; on
+    // failure the fight starts anyway. Bosses ignore this prompt.
+    actionFlee: '[1] Flee',
+    actionFight: '[2] Fight',
+    fleeSuccess: 'You slip past unseen.',
+    fleeFailed: 'Your foot slips on loose gravel.',
+    fleeEscapedTitle: 'You slipped away',
+    fleeEscapedBody: 'The corridor swallows your footsteps. The threat is behind you.',
+    // Action-combat realtime messages.
+    combatRealtimeHit: '{name} strikes you for {damage} damage.',
+    combatRealtimeBlocked: 'You parry {name}’s strike at the last moment.',
+    combatRealtimeAbsorbed: '{name}’s strike lands, but your armor soaks it.',
+    combatRealtimeGuardCooldown: 'Your guard is recovering.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */
