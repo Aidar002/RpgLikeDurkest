@@ -2,6 +2,7 @@ import * as Phaser from 'phaser';
 import { MAP_CONFIG } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
 import { SKILLS } from '../systems/Skills';
+import { CombatBars, type DefendBarState } from '../ui/CombatBars';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH, RoomLayout } from '../ui/Layout';
 import { PixelSprite } from '../ui/PixelSprite';
@@ -11,6 +12,23 @@ import type { GameScene, RoomButtonAction } from './GameScene';
 
 export class CombatHudController {
     private readonly scene: GameScene;
+    // --- EXPERIMENTAL action-combat prototype state ----------------
+    // The HUD owns the per-frame bar fills; CombatManager only sees
+    // the discrete results (Strike landed, enemy hit landed/blocked).
+    private bars: CombatBars | null = null;
+    /** Attack bar fill (0..1). Drained by enemy.actionBars.attackDrainPerSec,
+     *  bumped on every Strike-button click. At 1 the player auto-attacks. */
+    private attackProgress = 0;
+    /** Defend bar fill (0..1). Filled linearly over
+     *  enemy.actionBars.defendFillSeconds. At 1 the enemy auto-strikes. */
+    private defendProgress = 0;
+    /** Seconds the Guard buff is still active for. Blocks the next enemy hit. */
+    private defendActiveLeft = 0;
+    /** Seconds of Guard cooldown left. While > 0 the Guard button is unusable. */
+    private defendCooldownLeft = 0;
+    /** Pump throttle: scene.update fires every frame; we accumulate dt and
+     *  let the tick handler do its work each call. */
+    private tickHandler: ((time: number, delta: number) => void) | null = null;
 
     constructor(scene: GameScene) {
         this.scene = scene;
@@ -64,7 +82,13 @@ export class CombatHudController {
             card.icon,
             kind === 'boss' ? 'BOSS' : kind === 'elite' ? 'ELITE' : 'ENEMY'
         );
+        // EXPERIMENTAL action-combat: flip CombatManager into realtime
+        // mode so processTurn(...) runs the player's action but skips
+        // the reactive enemy turn. Enemy hits come from the defend-bar
+        // timer below instead.
+        scene.combat.realtimeMode = true;
         scene.combat.startCombat(scene.dungeon.currentDepth, kind);
+        this.startBars();
         this.refreshButtons();
 
         if (kind === 'boss') {
@@ -72,6 +96,157 @@ export class CombatHudController {
         } else if (kind === 'elite') {
             scene.sfx.play('eliteAppear');
         }
+    }
+
+    /**
+     * Build the progress bars and hook the per-frame tick. Idempotent —
+     * safe to call repeatedly (we tear down any prior tick handler
+     * first).
+     */
+    private startBars(): void {
+        const scene = this.scene;
+        if (!this.bars) {
+            this.bars = new CombatBars(scene, scene.roomContainer);
+        }
+        this.attackProgress = 0;
+        this.defendProgress = 0;
+        this.defendActiveLeft = 0;
+        this.defendCooldownLeft = 0;
+        this.bars.setVisible(true);
+        this.bars.setLabels(scene.loc.t('attackShort'), scene.loc.t('defenseShort'));
+        this.bars.setAttack(0);
+        this.bars.setDefend(0, 'idle');
+        this.detachTick();
+        const handler = (_time: number, delta: number) => this.tick(delta / 1000);
+        this.tickHandler = handler;
+        scene.events.on(Phaser.Scenes.Events.UPDATE, handler);
+    }
+
+    private detachTick(): void {
+        if (this.tickHandler) {
+            this.scene.events.off(Phaser.Scenes.Events.UPDATE, this.tickHandler);
+            this.tickHandler = null;
+        }
+    }
+
+    private stopBars(): void {
+        this.detachTick();
+        if (this.bars) {
+            this.bars.setVisible(false);
+        }
+        this.attackProgress = 0;
+        this.defendProgress = 0;
+        this.defendActiveLeft = 0;
+        this.defendCooldownLeft = 0;
+    }
+
+    /**
+     * Per-frame bar update. `dt` is seconds since the last frame.
+     *
+     * Three concerns:
+     *  - drain the attack bar (player must keep clicking to keep it up),
+     *  - fill the defend bar linearly (one enemy hit per
+     *    actionBars.defendFillSeconds), and
+     *  - tick down the Guard buff active / cooldown timers.
+     *
+     * When either bar reaches 1 the corresponding effect fires and
+     * the bar resets to 0.
+     */
+    private tick(dt: number): void {
+        const scene = this.scene;
+        const enemy = scene.combat.enemy;
+        if (!enemy || !this.bars) return;
+        // Player just died this frame — don't keep ticking the defend
+        // bar (it would spam executeRealtimeEnemyHit while the death
+        // screen is mounting).
+        if (scene.player.stats.hp <= 0) {
+            this.stopBars();
+            return;
+        }
+        const bars = enemy.actionBars;
+
+        // Attack bar drain.
+        if (this.attackProgress > 0) {
+            this.attackProgress = Math.max(0, this.attackProgress - bars.attackDrainPerSec * dt);
+        }
+
+        // Guard timers.
+        if (this.defendActiveLeft > 0) {
+            this.defendActiveLeft = Math.max(0, this.defendActiveLeft - dt);
+            if (this.defendActiveLeft === 0) {
+                this.defendCooldownLeft = bars.defendCooldownSeconds;
+            }
+        } else if (this.defendCooldownLeft > 0) {
+            this.defendCooldownLeft = Math.max(0, this.defendCooldownLeft - dt);
+        }
+
+        // Defend bar fill.
+        const fillStep = bars.defendFillSeconds > 0 ? dt / bars.defendFillSeconds : 1;
+        this.defendProgress = Math.min(1, this.defendProgress + fillStep);
+        if (this.defendProgress >= 1) {
+            const blocked = this.defendActiveLeft > 0;
+            scene.combat.executeRealtimeEnemyHit(blocked);
+            this.defendProgress = 0;
+            if (blocked) {
+                // Block consumes the active Guard window; flip straight
+                // to cooldown.
+                this.defendActiveLeft = 0;
+                this.defendCooldownLeft = bars.defendCooldownSeconds;
+                scene.sfx.play('defend');
+            }
+        }
+
+        // Push render values to the bar visuals.
+        const defState: DefendBarState =
+            this.defendActiveLeft > 0
+                ? 'guarded'
+                : this.defendCooldownLeft > 0
+                  ? 'cooldown'
+                  : 'idle';
+        this.bars.setAttack(this.attackProgress);
+        this.bars.setDefend(this.defendProgress, defState);
+    }
+
+    /**
+     * Player clicked the Strike button. Bump the attack bar and, if it
+     * crossed the 1.0 threshold this frame, fire the actual attack via
+     * the existing combat path. Bar is reset to 0 after the hit so the
+     * player has to fill it again for the next strike.
+     */
+    private onAttackClick(): void {
+        const scene = this.scene;
+        const enemy = scene.combat.enemy;
+        if (!enemy) return;
+        const bars = enemy.actionBars;
+        this.attackProgress = Math.min(1, this.attackProgress + bars.attackClickGain);
+        scene.sfx.play('buttonHover');
+        if (this.attackProgress >= 1) {
+            this.attackProgress = 0;
+            this.performAction('attack');
+        } else if (this.bars) {
+            this.bars.setAttack(this.attackProgress);
+        }
+    }
+
+    /**
+     * Player clicked the Guard button. If Guard is available
+     * (no active buff + no cooldown), activate it for
+     * actionBars.defendActiveSeconds. Otherwise log a polite "still
+     * recovering" hint so the press doesn't feel like a dead button.
+     */
+    private onDefendClick(): void {
+        const scene = this.scene;
+        const enemy = scene.combat.enemy;
+        if (!enemy) return;
+        const bars = enemy.actionBars;
+        if (this.defendCooldownLeft > 0 || this.defendActiveLeft > 0) {
+            scene.log.addMessage(scene.loc.t('combatRealtimeGuardCooldown'), '#7878a0');
+            return;
+        }
+        this.defendActiveLeft = bars.defendActiveSeconds;
+        VFX.shieldFlash(scene, 160, 82);
+        scene.sfx.play('defend');
+        scene.tracker.record('defendsUsed');
     }
 
     refreshButtons(): void {
@@ -84,12 +259,12 @@ export class CombatHudController {
         const actions: RoomButtonAction[] = [
             {
                 label: scene.loc.t('actionAttack'),
-                callback: () => this.performAction('attack'),
+                callback: () => this.onAttackClick(),
                 fill: 0x5a1d1d,
             },
             {
                 label: scene.loc.t('actionDefend'),
-                callback: () => this.performAction('defend'),
+                callback: () => this.onDefendClick(),
                 fill: 0x1b335b,
             },
         ];
@@ -258,6 +433,7 @@ export class CombatHudController {
 
     handleVictory(payload: CombatEndPayload): void {
         const scene = this.scene;
+        this.stopBars();
         const rewardLines: string[] = [];
 
         scene.tracker.record('enemiesKilled');

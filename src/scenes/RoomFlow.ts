@@ -6,6 +6,7 @@ import { handleRestRoom } from '../systems/rooms/Rest';
 import { handleShrineRoom } from '../systems/rooms/Shrine';
 import { handleMerchantRoom } from '../systems/rooms/Merchant';
 import { handleEmptyRoom } from '../systems/rooms/Empty';
+import { handleCombatEntry } from '../systems/rooms/CombatEntry';
 import type { GameScene } from './GameScene';
 
 /**
@@ -39,16 +40,16 @@ export class RoomFlowController {
 
         switch (node.type) {
             case RoomType.ENEMY:
-                scene.startCombatEncounter('normal');
+                handleCombatEntry(scene, 'normal');
                 return;
             case RoomType.ELITE:
-                scene.startCombatEncounter('elite');
+                handleCombatEntry(scene, 'elite');
                 return;
             case RoomType.BOSS:
-                scene.startCombatEncounter('boss');
+                handleCombatEntry(scene, 'boss');
                 return;
             case RoomType.MINI_BOSS:
-                scene.startCombatEncounter('elite');
+                handleCombatEntry(scene, 'elite');
                 return;
             case RoomType.TREASURE:
                 handleTreasureRoom(scene);

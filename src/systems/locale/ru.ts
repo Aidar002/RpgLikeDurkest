@@ -242,4 +242,15 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     lockpickSuccess: 'Успех!',
     lockpickFailure: 'Провал… отмычка сломалась ({damage} урона).',
     lockpickLeft: 'Ты оставляешь сундук в покое.',
+    // Pre-combat escape (experimental action-combat prototype).
+    actionFlee: '[1] Сбежать',
+    actionFight: '[2] Сразиться',
+    fleeSuccess: 'Тебе удалось ускользнуть.',
+    fleeFailed: 'Нога соскальзывает на щебне — побег сорвался.',
+    fleeEscapedTitle: 'Удалось уйти',
+    fleeEscapedBody: 'Коридор глотает твои шаги. Враг остаётся позади.',
+    // Action-combat realtime messages.
+    combatRealtimeHit: '{name} бьёт на {damage} урона.',
+    combatRealtimeBlocked: 'Ты парируешь удар врага ({name}).',
+    combatRealtimeGuardCooldown: 'Защита ещё не восстановилась.',
 };

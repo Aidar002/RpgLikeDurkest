@@ -1,7 +1,13 @@
 import { getBossForDepth } from '../data/Enemies';
 import { getEnemyForDepth } from './EnemyPicker';
-import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
-import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';
+import { COMBAT_CONFIG, DEFAULT_ACTION_BARS, ROOM_CONFIG } from '../data/GameConfig';
+import type {
+    EnemyActionBars,
+    EnemyDef,
+    EnemyPassive,
+    EnemyPrepareDef,
+    EnemyProfile,
+} from '../data/GameConfig';
 import {
     BOSS_BLUEPRINT_BY_NAME,
     pickLine,
@@ -109,6 +115,13 @@ export interface ActiveEnemy {
     /** [FIX-10] Phase blueprint runtime state, only set on bosses. */
     bossPhase?: BossPhaseState;
     /**
+     * EXPERIMENTAL — action-combat prototype tuning copied from the
+     * EnemyDef at combat start. Drives the per-frame bar mechanics in
+     * the CombatHud; ignored entirely in turn-based (non-realtime)
+     * mode. Always present so the HUD can read it unconditionally.
+     */
+    actionBars: EnemyActionBars;
+    /**
      * [FIX-10] Localised one-line intent shown BEFORE the boss's next
      * turn so the player can respond. `null` for non-boss enemies.
      */
@@ -191,6 +204,15 @@ export class CombatManager {
     public skillCooldowns: Partial<Record<SkillId, number>> = {};
     /** Preparation buff: next attack +1 damage, next defend +1 defense. */
     public preparationActive = false;
+    /**
+     * EXPERIMENTAL — action-combat prototype. When true, `processTurn`
+     * runs the player's action but *skips* the reactive enemy turn so
+     * enemy hits are driven by the CombatHud's defend-bar timer
+     * instead of being tied 1:1 to player actions. Set by the HUD on
+     * `startCombat` for the prototype branch and never flipped back
+     * during a fight.
+     */
+    public realtimeMode = false;
     /**
      * [FIX-13] Per-turn relic guards. Reset at the top of every player
      * turn so Vampiric Sigil / Gambler's Knuckle resolve gain can fire
@@ -284,6 +306,7 @@ export class CombatManager {
                   }
                 : undefined,
             currentIntent: null,
+            actionBars: definition.actionBars ?? DEFAULT_ACTION_BARS,
         };
         // Compute the initial intent so the UI can show what the enemy
         // is about to do BEFORE the first player turn.
@@ -409,7 +432,11 @@ export class CombatManager {
             return;
         }
 
-        this.resolveEnemyTurn(actionName as Exclude<CombatAction, { kind: 'skill'; id: SkillId }>);
+        if (!this.realtimeMode) {
+            this.resolveEnemyTurn(
+                actionName as Exclude<CombatAction, { kind: 'skill'; id: SkillId }>
+            );
+        }
 
         // Tick player statuses (bleed/poison damage, regen/mark/weaken decay).
         const playerTick = tickTurn(this.player.status);
@@ -781,6 +808,51 @@ export class CombatManager {
 
         this.enemy = null;
         this.combatEnd.emit(payload);
+    }
+
+    /**
+     * EXPERIMENTAL — action-combat prototype. Called by the CombatHud
+     * every time the enemy's defend bar hits 1.0. Routes through
+     * `applyEnemyHitToPlayer` so crits / relics / Guard / status hooks
+     * still fire, then runs the player-status tick that `processTurn`
+     * would normally run. Logs "blocked" and skips the damage when the
+     * player's defend buff is active. Returns the damage dealt (0 if
+     * blocked or fully absorbed) so the HUD can flash the bar
+     * accordingly.
+     */
+    public executeRealtimeEnemyHit(blocked: boolean): number {
+        if (!this.enemy) return 0;
+        if (blocked) {
+            this.log.addMessage(
+                this.loc.t('combatRealtimeBlocked', { name: this.enemy.name }),
+                '#9aaef0'
+            );
+            return 0;
+        }
+        const taken = this.applyEnemyHitToPlayer(this.enemy.attack, 0);
+        if (taken > 0) {
+            this.log.addMessage(
+                this.loc.t('combatRealtimeHit', { name: this.enemy.name, damage: taken }),
+                '#cb7878'
+            );
+        }
+        const playerTick = tickTurn(this.player.status);
+        if (playerTick.bleedDamage > 0) {
+            const damage = this.player.takeDamage(playerTick.bleedDamage, 0, 'true');
+            if (damage > 0) {
+                this.log.addMessage(this.loc.t('combatPlayerBleedTick', { damage }), '#d06060');
+                this.playerHit.emit({ damage });
+            }
+        }
+        if (playerTick.poisonDamage > 0 && this.player.stats.hp > 0) {
+            const damage = this.player.takeDamage(playerTick.poisonDamage, 0, 'true');
+            if (damage > 0) {
+                this.log.addMessage(this.loc.t('combatPlayerPoisonTick', { damage }), '#7fbf6a');
+                this.playerHit.emit({ damage });
+            }
+        }
+        this.playerStatusChange.emit();
+        return taken;
     }
 
     private logDeath() {

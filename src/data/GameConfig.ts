@@ -61,12 +61,64 @@ export interface EnemyDef {
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
     prepare?: EnemyPrepareDef;
+    /**
+     * EXPERIMENTAL — action-combat prototype. Controls the per-frame
+     * attack / defend progress bars. When absent the enemy falls back
+     * to `DEFAULT_ACTION_BARS` and feels "medium difficulty". Tune per
+     * mob to make slimes feel slow / mages feel snappy / boss adds
+     * feel relentless. See `src/scenes/CombatHud.ts` `tick` for usage.
+     */
+    actionBars?: EnemyActionBars;
 }
 
 export type EnemyPassive =
     | { kind: 'extraDamageOnHit'; chance: number; bonus: number }
     | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
     | { kind: 'damageReduction'; chance: number; reduction: number };
+
+/**
+ * EXPERIMENTAL — action-combat prototype bar tuning, attached per
+ * enemy via {@link EnemyDef.actionBars}. All five values are tuned in
+ * "real seconds" (not turns) — the CombatHud's RAF tick drives them.
+ *
+ * - `attackDrainPerSec`: How fast the player's Strike bar leaks back
+ *   to 0 when the player stops clicking. Higher = the player has to
+ *   click faster to land a hit. Typical range 0.3 (lazy slime) – 0.8
+ *   (twitchy bandit).
+ * - `attackClickGain`: How much one click of the Strike button adds to
+ *   the attack bar (0..1). Combined with `attackDrainPerSec` this sets
+ *   how many clicks per second the player needs to land a hit.
+ * - `defendFillSeconds`: Seconds for the enemy's Threat bar to fill
+ *   linearly from 0→1. Once it hits 1 the enemy lands a hit (unless
+ *   the player's Guard buff is active).
+ * - `defendActiveSeconds`: When the player presses Guard, the buff is
+ *   active for this many seconds. While active, the next enemy hit is
+ *   blocked. After this window expires the buff goes on cooldown.
+ * - `defendCooldownSeconds`: Cooldown after the Guard buff expires (or
+ *   is consumed). The Guard button is unusable during cooldown — this
+ *   is the punishment for mistiming the press.
+ */
+export interface EnemyActionBars {
+    attackDrainPerSec: number;
+    attackClickGain: number;
+    defendFillSeconds: number;
+    defendActiveSeconds: number;
+    defendCooldownSeconds: number;
+}
+
+/**
+ * Fallback bar tuning applied to any enemy whose `actionBars` is
+ * omitted. Chosen so a debug fight feels "medium difficulty": the
+ * player has to click Strike ~3-4 times/sec to overcome drain, and
+ * the enemy lands one hit every ~3 seconds unless blocked.
+ */
+export const DEFAULT_ACTION_BARS: EnemyActionBars = {
+    attackDrainPerSec: 0.4,
+    attackClickGain: 0.18,
+    defendFillSeconds: 3.0,
+    defendActiveSeconds: 0.8,
+    defendCooldownSeconds: 1.6,
+};
 
 export const PLAYER_CONFIG = {
     maxHp: 5,

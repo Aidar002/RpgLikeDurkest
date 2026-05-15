@@ -4,6 +4,7 @@ import { PlayerManager } from '../src/systems/PlayerManager';
 import { Mulberry32 } from '../src/systems/Rng';
 import { emptyStatusState } from '../src/systems/StatusEffects';
 import type { EventLog } from '../src/ui/EventLog';
+import { DEFAULT_ACTION_BARS } from '../src/data/GameConfig';
 import type { EnemyPrepareDef } from '../src/data/GameConfig';
 
 // Minimal stub: CombatManager only calls log.addMessage(text, color?).
@@ -160,6 +161,7 @@ function injectGhoulPrepare(combat: CombatManager, prepare: EnemyPrepareDef): vo
         status: emptyStatusState(),
         pendingPrepare: { def: prepare, turnsRemaining: 0 },
         currentIntent: null,
+        actionBars: DEFAULT_ACTION_BARS,
     };
 }
 
