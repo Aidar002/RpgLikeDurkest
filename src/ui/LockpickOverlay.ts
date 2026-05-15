@@ -18,8 +18,10 @@
  * Visual layout: a dimming overlay covers the whole canvas; a centred
  * panel frame holds three concentric ring arcs, a descending "stick"
  * sprite anchored to the panel's top edge, a small keyhole at the
- * ring centre, a big "↓" pierce button to the right, and a "Уйти"
- * (Leave) button at the bottom for bailing without a penalty.
+ * ring centre, and a "↓" pierce button to the right. The player can
+ * still bail without a penalty from the room panel (the
+ * `actionLockpickLeave` button shown before the modal opens), so the
+ * modal itself stays uncluttered — it contains nothing but the lock.
  *
  * Stick mechanic: the pierce button is press-and-hold. While the
  * pointer is down on the button, the stick tip slides down at
@@ -52,7 +54,7 @@ import { defaultRng } from '../systems/Rng';
 import type { SoundManager } from '../systems/SoundManager';
 import { drawPanel } from './UiPanel';
 import { drawUiButton, type ButtonBackground } from './UiButton';
-import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
+import { HudColors } from './HudTheme';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 
 /** Result handed back to the caller via `onResolve`. */
@@ -72,37 +74,33 @@ interface LockpickDeps {
     sfx?: SoundManager;
 }
 
-// Panel + ring layout. The panel is ~50 % larger than the previous
-// iteration so the rings have room to breathe and the pierce button
-// sits a safe distance from the outer ring without overlapping the
-// frame ornament. PANEL_H is capped just under GAME_HEIGHT so the
-// nine-slice rim does not clip against the canvas edge.
-const PANEL_W = 780;
-const PANEL_H = 720;
-/** Inner edge of the carved frame ornament along the top of the panel.
- *  The nine-slice border is 16 px wide (see `PANEL_SLICE` in UiPanel),
- *  so this is exactly where the ornament ends and the dark interior
- *  begins. The stick anchors its top here so the lockpick visually
- *  emerges from the frame itself — the implied "handle" is hidden
- *  behind the ornament rather than piercing through it. */
-const PANEL_FRAME_INNER_TOP_Y = CENTER_Y - PANEL_H / 2 + 16;
-/** Inner edge of the carved frame ornament along the bottom — used to
- *  place the leave button just above the bottom ornament. */
-const PANEL_INNER_BOTTOM_Y = CENTER_Y + PANEL_H / 2 - 16;
+// Panel + ring layout. Sized to be ~30 % smaller than the previous
+// iteration: the modal sits more comfortably inside the canvas, the
+// rings have generous gaps for timing the stick, and the pierce button
+// still keeps a clear gutter from the outer ring without overlapping
+// the frame ornament.
+const PANEL_W = 546;
+const PANEL_H = 504;
+/** Outer edge of the panel along the top — i.e. the topmost pixel of
+ *  the carved frame ornament. The stick anchors its top here so the
+ *  visible tip of the pick reaches all the way up to the frame edge,
+ *  per design feedback ("верхний край отмычки нужно удлинить, чтобы
+ *  он касался рамки миниигры"). */
+const PANEL_TOP_Y = CENTER_Y - PANEL_H / 2;
 /** Horizontal offset of the ring centre from the panel centre. Pushed
  *  slightly left so the pierce button has its own column on the right
- *  without crowding the outer ring. */
-const RING_CX = CENTER_X - 80;
+ *  without crowding the outer ring. Scaled down with the panel. */
+const RING_CX = CENTER_X - 56;
 /** Vertical centre of the rings inside the panel. Sits just below
  *  panel mid-line so the stick has a comfortable descent above it. */
-const RING_CY = CENTER_Y + 40;
+const RING_CY = CENTER_Y + 20;
 /** Outer → inner ring radii in pixels. Mirrored in `LOCKPICK_CONFIG.ringRadiiPx`
  *  so the headless game can size each ring's gap to match the visual width. */
 const RING_RADII = LOCKPICK_CONFIG.ringRadiiPx;
-const RING_THICKNESS = 18;
+const RING_THICKNESS = 13;
 /** Extra stroke width painted underneath the ring's main fill so each
  *  ring shows a distinct dark contour on both inner and outer edges. */
-const RING_EDGE_EXTRA = 4;
+const RING_EDGE_EXTRA = 3;
 /** Outermost radial offset of a ring's drawn band, including the edge
  *  contour. Used by the stick to keep a clear gap from the ring wall. */
 const RING_OUTER_HALF = (RING_THICKNESS + RING_EDGE_EXTRA) / 2;
@@ -115,13 +113,13 @@ const RING_COLOUR_LOCKED_MAIN = HudColors.cellGoldEdge;
 /** Darker amber contour for the locked-ring contour. */
 const RING_COLOUR_LOCKED_EDGE = 0x6a4a18;
 const STICK_THICKNESS = LOCKPICK_CONFIG.stickWidthPx;
-const KEYHOLE_RADIUS = 24;
-const BUTTON_W = 110;
-const BUTTON_H = 90;
+const KEYHOLE_RADIUS = 17;
+const BUTTON_W = 77;
+const BUTTON_H = 63;
 /** Horizontal distance from the rings centre to the pierce button.
  *  Placed beyond the outer-ring radius plus a generous gutter so the
  *  button and the ring outline never overlap visually. */
-const BUTTON_OFFSET_X = RING_RADII[0] + 60 + BUTTON_W / 2;
+const BUTTON_OFFSET_X = RING_RADII[0] + 42 + BUTTON_W / 2;
 
 /** Starting Y of the stick tip. Sits a clear gap above the outermost
  *  edge of the outer ring (ring thickness + edge contour + an extra
@@ -154,14 +152,11 @@ export class LockpickOverlay {
     private readonly widgets: Widget[] = [];
 
     private readonly overlay: Phaser.GameObjects.Rectangle;
-    private readonly status: Phaser.GameObjects.Text;
     private readonly ringGraphics: Phaser.GameObjects.Graphics;
     private readonly keyholeGraphics: Phaser.GameObjects.Graphics;
     private readonly stickGraphics: Phaser.GameObjects.Graphics;
     private readonly pierceButton: ButtonBackground;
     private readonly pierceLabel: Phaser.GameObjects.Text;
-    private readonly leaveButton: ButtonBackground;
-    private readonly leaveLabel: Phaser.GameObjects.Text;
 
     private game: LockpickGame | null = null;
     private active = false;
@@ -196,23 +191,10 @@ export class LockpickOverlay {
         });
         this.widgets.push(panel.background);
 
-        // Hint line above the leave button. The title / difficulty
-        // banner that used to sit at the top of the panel was dropped
-        // — the room button already announces the chest is locked, so
-        // duplicating it inside the modal is just noise.
-        this.status = scene.add
-            .text(CENTER_X, PANEL_INNER_BOTTOM_Y - 78, '', {
-                fontFamily: HUD_FONT,
-                fontSize: '14px',
-                color: HudHex.textPrimary,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-                align: 'center',
-                wordWrap: { width: PANEL_W - 80 },
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmContent);
-        this.widgets.push(this.status);
+        // No status caption / leave button inside the modal anymore.
+        // The room panel already advertises a free walk-away choice
+        // via `actionLockpickLeave`, so the modal stays minimal: only
+        // the lock, the rings, the stick and the pierce button.
 
         this.keyholeGraphics = scene.add.graphics().setDepth(Depths.ConfirmContent);
         this.widgets.push(this.keyholeGraphics);
@@ -233,7 +215,7 @@ export class LockpickOverlay {
             {
                 variant: 'gold',
                 depth: Depths.ConfirmForeground,
-                fontSize: '34px',
+                fontSize: '28px',
                 sfx: deps.sfx,
                 // Suppress the auto buttonClick — we layer our own
                 // `lockpickClick`/`lockpickBreak` cues on result so a
@@ -253,17 +235,6 @@ export class LockpickOverlay {
         this.pierceButton.on('pointerupoutside', () => this.handlePressEnd());
         this.pierceButton.on('pointerout', () => this.handlePressEnd());
 
-        const leave = drawUiButton(scene, CENTER_X, PANEL_INNER_BOTTOM_Y - 30, 200, 40, '', {
-            variant: 'dark',
-            depth: Depths.ConfirmForeground,
-            fontSize: '14px',
-            sfx: deps.sfx,
-        });
-        this.leaveButton = leave.background;
-        this.leaveLabel = leave.label;
-        this.widgets.push(leave.background, leave.label);
-        this.leaveButton.on('pointerdown', () => this.handleLeave());
-
         this.tick = (_time, delta) => this.onTick(delta);
         this.hideInternal();
     }
@@ -276,7 +247,6 @@ export class LockpickOverlay {
             // double-resolve and leak a stale `onResolve`.
             return;
         }
-        const { loc } = this.deps;
         this.game = new LockpickGame(options.difficulty, defaultRng);
         this.onResolve = options.onResolve;
         this.resolved = false;
@@ -284,15 +254,11 @@ export class LockpickOverlay {
         this.pressing = false;
         this.stickTipY = INITIAL_TIP_Y;
 
-        this.status.setText(loc.t('lockpickStatusIdle'));
-        this.status.setColor(HudHex.textSecondary);
         this.pierceLabel.setText('↓');
-        this.leaveLabel.setText(loc.t('lockpickLeave'));
 
         this.active = true;
         this.widgets.forEach((w) => w.setVisible(true));
         this.pierceButton.setInteractive({ useHandCursor: true });
-        this.leaveButton.setInteractive({ useHandCursor: true });
 
         this.drawKeyhole();
         this.drawRings();
@@ -368,11 +334,9 @@ export class LockpickOverlay {
     }
 
     private applyAttempt(result: AttemptResult, ringThresholdY: number): void {
-        const { loc, sfx } = this.deps;
+        const { sfx } = this.deps;
         if (result.kind === 'ringLocked') {
             sfx?.play('lockpickClick');
-            this.status.setText(loc.t('lockpickStatusRingDown', { remaining: result.remaining }));
-            this.status.setColor(HudHex.accentExp);
         } else if (result.kind === 'success') {
             sfx?.play('lockpickClick');
             this.busy = true;
@@ -395,10 +359,7 @@ export class LockpickOverlay {
             this.stickTipY = ringThresholdY;
             this.pressing = false;
             this.busy = true;
-            this.status.setText(loc.t('lockpickStatusFail'));
-            this.status.setColor(HudHex.accentBlood);
             this.pierceButton.disableInteractive();
-            this.leaveButton.disableInteractive();
             this.drawStick();
             this.scene.tweens.add({
                 targets: this.stickGraphics,
@@ -412,11 +373,6 @@ export class LockpickOverlay {
                 },
             });
         }
-    }
-
-    private handleLeave(): void {
-        if (!this.active || this.busy || this.resolved) return;
-        this.resolve('leave');
     }
 
     private resolve(result: LockpickResult): void {
@@ -433,7 +389,6 @@ export class LockpickOverlay {
         this.active = false;
         this.widgets.forEach((w) => w.setVisible(false));
         this.pierceButton.disableInteractive();
-        this.leaveButton.disableInteractive();
         this.game = null;
     }
 
@@ -494,16 +449,16 @@ export class LockpickOverlay {
     }
 
     /**
-     * Render the stick as a rectangle that starts at the panel's inner
-     * frame edge and ends at {@link stickTipY}. The stick visually
-     * "comes out of" the frame ornament; its handle is implied to be
-     * held just behind the frame. The visible portion grows as the
-     * tip is pushed deeper into the lock.
+     * Render the stick as a rectangle that starts at the panel's outer
+     * frame edge and ends at {@link stickTipY}. The top of the stick
+     * visually touches the carved frame ornament — the implied handle
+     * lives just behind/above the frame. The visible portion grows as
+     * the tip is pushed deeper into the lock.
      */
     private drawStick(): void {
         const g = this.stickGraphics;
         g.clear();
-        const topY = PANEL_FRAME_INNER_TOP_Y;
+        const topY = PANEL_TOP_Y;
         const height = Math.max(STICK_THICKNESS, this.stickTipY - topY);
         const x = RING_CX - STICK_THICKNESS / 2;
         g.fillStyle(HudColors.accentLight, 1);

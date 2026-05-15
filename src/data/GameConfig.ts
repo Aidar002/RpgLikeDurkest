@@ -360,9 +360,9 @@ export const LOCKPICK_CONFIG = {
     successOvershootPx: 4,
     /** Outer → inner ring radii in pixels. Shared with the UI so each
      *  ring's gap arc-width matches the rendered visual gap. */
-    ringRadiiPx: [240, 175, 110],
+    ringRadiiPx: [168, 122, 77],
     /** Visual thickness of the lockpick stick in pixels. */
-    stickWidthPx: 8,
+    stickWidthPx: 12,
     /** Difficulty selection bands, keyed by minimum dungeon depth. */
     depthBands: {
         /** Depths >= `mid` use the medium-band weights. */
@@ -386,15 +386,15 @@ export const LOCKPICK_CONFIG = {
             /** Outer → inner ring speeds in degrees per second. */
             ringSpeedsDegPerSec: [30, 38, 45],
             /** Visual width of the gap arc on every ring, in pixels. */
-            gapWidthPx: 6,
+            gapWidthPx: 18,
         },
         medium: {
             ringSpeedsDegPerSec: [50, 60, 70],
-            gapWidthPx: 5,
+            gapWidthPx: 15,
         },
         hard: {
             ringSpeedsDegPerSec: [75, 90, 110],
-            gapWidthPx: 4,
+            gapWidthPx: 12,
         },
     },
 } as const;
