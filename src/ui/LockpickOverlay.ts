@@ -81,12 +81,13 @@ interface LockpickDeps {
 // the frame ornament.
 const PANEL_W = 546;
 const PANEL_H = 504;
-/** Outer edge of the panel along the top — i.e. the topmost pixel of
- *  the carved frame ornament. The stick anchors its top here so the
- *  visible tip of the pick reaches all the way up to the frame edge,
- *  per design feedback ("верхний край отмычки нужно удлинить, чтобы
- *  он касался рамки миниигры"). */
-const PANEL_TOP_Y = CENTER_Y - PANEL_H / 2;
+/** Anchor Y for the top of the lockpick stick. Sits 5 px above the
+ *  panel's outer rectangle so the pick's tip pokes into the carved
+ *  frame ornament rather than stopping just under it — visually the
+ *  top of the stick is now flush with the visible inner edge of the
+ *  frame line, per follow-up design feedback ("отмычку на пикселей
+ *  5 повыше, всё равно пока не касается рамки"). */
+const PANEL_TOP_Y = CENTER_Y - PANEL_H / 2 - 5;
 /** Horizontal offset of the ring centre from the panel centre. Pushed
  *  slightly left so the pierce button has its own column on the right
  *  without crowding the outer ring. Scaled down with the panel. */
