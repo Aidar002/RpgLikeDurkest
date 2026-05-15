@@ -536,6 +536,20 @@ export class MetaProgressionManager {
         }
     }
 
+    /**
+     * Reset NPC memory back to defaults at the start of every run.
+     * Wipes metCount / affinity / lastDepthMet / flags for every NPC
+     * so the player always sees the `first` dialog beat on the first
+     * encounter of a fresh run. Upgrades, unlocks, skill points and
+     * depth records are intentionally left alone — only the per-NPC
+     * memory map is touched.
+     */
+    resetNpcMemoryForNewRun() {
+        this.profile.npcMemory = makeDefaultNpcMemoryMap();
+        this.npcManager = new NpcManager(this.profile.npcMemory, () => this.saveProfile());
+        this.saveProfile();
+    }
+
     private loadProfile(): MetaProfile {
         try {
             const currentRaw = window.localStorage.getItem(STORAGE_KEY);

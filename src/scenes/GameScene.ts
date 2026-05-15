@@ -190,6 +190,11 @@ export class GameScene extends Phaser.Scene {
         this.cameras.main.fadeIn(1400, 0, 0, 0);
 
         this.meta = new MetaProgressionManager();
+        // Wipe per-NPC memory on every run start so each NPC greets
+        // the player with their `first` dialog beat. Upgrades, unlocks
+        // and banked skill points keep their meta-persistence — only
+        // the dialog memory map is reset.
+        this.meta.resetNpcMemoryForNewRun();
         this.npcs = this.meta.getNpcManager();
         const metaBonuses = this.meta.getBonuses();
 
