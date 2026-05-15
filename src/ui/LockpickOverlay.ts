@@ -81,20 +81,26 @@ interface LockpickDeps {
 // the frame ornament.
 const PANEL_W = 546;
 const PANEL_H = 504;
-/** Anchor Y for the top of the lockpick stick. Sits 5 px above the
- *  panel's outer rectangle so the pick's tip pokes into the carved
- *  frame ornament rather than stopping just under it — visually the
- *  top of the stick is now flush with the visible inner edge of the
- *  frame line, per follow-up design feedback ("отмычку на пикселей
- *  5 повыше, всё равно пока не касается рамки"). */
-const PANEL_TOP_Y = CENTER_Y - PANEL_H / 2 - 5;
-/** Horizontal offset of the ring centre from the panel centre. Pushed
- *  slightly left so the pierce button has its own column on the right
- *  without crowding the outer ring. Scaled down with the panel. */
-const RING_CX = CENTER_X - 56;
-/** Vertical centre of the rings inside the panel. Sits just below
- *  panel mid-line so the stick has a comfortable descent above it. */
-const RING_CY = CENTER_Y + 20;
+/** Anchor Y for the top of the lockpick stick. Aligned with the
+ *  panel's outer rectangle so the pick's top edge meets the frame
+ *  without overshooting it. Earlier iterations sat 5 px above the
+ *  rectangle and the top of the stick visibly poked past the carved
+ *  frame line — per follow-up design feedback ("верх отмычки немного
+ *  налазиет на границу окна мини игры, давай сделаем пониже на
+ *  пикселей 5"), the anchor was dropped back to the panel edge so
+ *  the top of the stick reads as flush with the inner frame. */
+const PANEL_TOP_Y = CENTER_Y - PANEL_H / 2;
+/** Horizontal offset of the ring centre from the panel centre. Pulled
+ *  much closer to the panel centre than before (was −56) so the rings
+ *  and stick read as centred inside the modal, with just enough room
+ *  on the right for the pierce button to keep clear of the outer ring
+ *  and the carved frame ornament. */
+const RING_CX = CENTER_X - 30;
+/** Vertical centre of the rings inside the panel. Sits at the modal's
+ *  exact vertical centre so the rings + stick read as centred in the
+ *  mini-game window. The stick descent above the outer ring still has
+ *  comfortable room: tip starts ~64 px below the frame edge. */
+const RING_CY = CENTER_Y;
 /** Outer → inner ring radii in pixels. Mirrored in `LOCKPICK_CONFIG.ringRadiiPx`
  *  so the headless game can size each ring's gap to match the visual width. */
 const RING_RADII = LOCKPICK_CONFIG.ringRadiiPx;
@@ -118,9 +124,11 @@ const KEYHOLE_RADIUS = 17;
 const BUTTON_W = 77;
 const BUTTON_H = 63;
 /** Horizontal distance from the rings centre to the pierce button.
- *  Placed beyond the outer-ring radius plus a generous gutter so the
- *  button and the ring outline never overlap visually. */
-const BUTTON_OFFSET_X = RING_RADII[0] + 42 + BUTTON_W / 2;
+ *  Placed beyond the outer-ring radius plus a 25 px gutter (tightened
+ *  from 42 px) so that with the rings pulled closer to the panel
+ *  centre the pierce button still keeps a clear gap from the outer
+ *  ring and stays inside the panel's carved frame. */
+const BUTTON_OFFSET_X = RING_RADII[0] + 25 + BUTTON_W / 2;
 
 /** Starting Y of the stick tip. Sits a clear gap above the outermost
  *  edge of the outer ring (ring thickness + edge contour + an extra
