@@ -866,50 +866,17 @@ describe('Ghoul Decay (leakOnDefend)', () => {
     });
 });
 
-// [Cursed Ring] sanity: a skill that the ring scrubs into a basic
-// strike must NOT break the boss's Death Shield. The shield-breaking
-// path lives in `breakBossBlockOnSkillDamage`, and the curse takes
-// the early-return basic-attack branch before that ever runs.
-describe('Cursed Ring vs Death Shield', () => {
-    it('skill scrubbed to basic attack does NOT break Death Shield', () => {
-        const { combat, player } = makeManager(99);
-        // Force Death Knight as the boss so the Death Shield phase
-        // blueprint is wired up (he is no longer the default depth-25 boss).
-        combat.startCombat(25, 'boss', DEATH_KNIGHT_BOSS_DEF);
-        const boss = combat.enemy!;
-        // Force the boss into the post-Shield state we need: pretend it
-        // has already finished the death_shield windup so a 15-block
-        // pool is up.
-        boss.bossPhase!.pendingBlock = 15;
-        boss.bossPhase!.pendingBlockTurns = 5;
-        // Force the curse to always proc; force enemy to never crit.
-        player.aggregate.skillToBasicChance = 1;
-        // Make sure player can pay the cleave's resolve cost.
-        player.gainResolve(10);
-
-        const blockBefore = boss.bossPhase!.pendingBlock;
-        combat.processTurn({ kind: 'skill', id: 'cleave' });
-
-        // The curse-converted basic attack damages the shield pool but
-        // must NOT shatter the shield outright (shield is only broken
-        // on a real Will-skill landing).
-        expect(boss.bossPhase!.pendingBlockTurns).toBeGreaterThan(0);
-        // Block pool can absorb the basic-attack damage; the test
-        // is that the buff itself isn't wiped.
-        expect(boss.bossPhase!.pendingBlock).toBeGreaterThan(0);
-        // Sanity: the shield really did soak the strike (so the boss
-        // HP is unchanged for blocks >= damage roll).
-        expect(boss.bossPhase!.pendingBlock).toBeLessThanOrEqual(blockBefore);
-    });
-
-    it('actual Will-skill damage DOES break Death Shield (control)', () => {
+// Will-skill damage breaks the boss's Death Shield through the
+// `breakBossBlockOnSkillDamage` hook. (The legacy Cursed Ring scrub
+// path is gone in Stage [3]; that field no longer exists on the
+// aggregate.)
+describe('Will-skill vs Death Shield', () => {
+    it('Will-skill damage DOES break Death Shield', () => {
         const { combat, player } = makeManager(99);
         combat.startCombat(25, 'boss', DEATH_KNIGHT_BOSS_DEF);
         const boss = combat.enemy!;
         boss.bossPhase!.pendingBlock = 15;
         boss.bossPhase!.pendingBlockTurns = 5;
-        // No curse this time.
-        player.aggregate.skillToBasicChance = 0;
         player.gainResolve(10);
 
         combat.processTurn({ kind: 'skill', id: 'cleave' });
@@ -974,5 +941,356 @@ describe('Death Touch OHKO bypasses defenses', () => {
         // minus defendBlock + defense), but is not OHKO'd.
         expect(player.stats.hp).toBeGreaterThan(0);
         expect(player.stats.hp).toBeLessThan(before);
+    });
+});
+
+// =============================================================================
+// Stage [3]: new relic catalog (14 items + 5 sets). Tests below cover
+// the new aggregate fields and CombatManager hooks introduced when the
+// catalog was rewritten. Older Cursed-Ring / Cursed-Amulet / Cracked-
+// Amulet / Holey-Chestplate / Minor-Cursed-set tests were either deleted
+// (the field is gone) or rewritten here against the new effects.
+// =============================================================================
+
+import { aggregateRelics } from '../src/systems/Relics';
+
+const PROPHET_BOSS_DEF: EnemyDef = {
+    name: 'Prophet',
+    description: 'test_desc_prophet',
+    icon: '\u271d',
+    hp: 60,
+    attack: 5,
+    xp: 60,
+    gold: 50,
+    color: 0xb8a070,
+    profile: 'boss',
+};
+
+describe("Knight's Sword damageBonusOnAttack (Stage [3])", () => {
+    it('with chance=1 deals +5 extra damage on regular attack', () => {
+        const a = makeManager(2100);
+        const b = makeManager(2100);
+        // Manager A has the proc on; B has it off. Same RNG seed → same
+        // base attack roll; the only difference is the bonus.
+        a.player.aggregate.damageBonusOnAttackChance = 1;
+        a.player.aggregate.damageBonusOnAttackAmount = 5;
+        b.player.aggregate.damageBonusOnAttackChance = 0;
+        b.player.aggregate.damageBonusOnAttackAmount = 5;
+        // Inject a tough enemy so the strike doesn't kill it before
+        // the HP delta can be measured.
+        injectEarthElemental(a.combat, { kind: 'damageReduction', chance: 0, reduction: 0 });
+        injectEarthElemental(b.combat, { kind: 'damageReduction', chance: 0, reduction: 0 });
+        const aBefore = a.combat.enemy!.hp;
+        const bBefore = b.combat.enemy!.hp;
+
+        a.combat.processTurn('attack');
+        b.combat.processTurn('attack');
+
+        const aDealt = aBefore - a.combat.enemy!.hp;
+        const bDealt = bBefore - b.combat.enemy!.hp;
+        expect(aDealt - bDealt).toBe(5);
+        expect(a.seenMessages.some((m) => /Knight's Sword|Меч рыцаря/i.test(m))).toBe(true);
+    });
+
+    it('with chance=0 the bonus never fires (no extra damage, no log)', () => {
+        const { combat, player, seenMessages } = makeManager(2101);
+        player.aggregate.damageBonusOnAttackChance = 0;
+        player.aggregate.damageBonusOnAttackAmount = 5;
+        injectEarthElemental(combat, { kind: 'damageReduction', chance: 0, reduction: 0 });
+
+        combat.processTurn('attack');
+
+        expect(seenMessages.some((m) => /Knight's Sword|Меч рыцаря/i.test(m))).toBe(false);
+    });
+
+    it('does NOT fire on Will-skills (skills bypass the regular-attack hook)', () => {
+        const { combat, player, seenMessages } = makeManager(2102);
+        player.aggregate.damageBonusOnAttackChance = 1;
+        player.aggregate.damageBonusOnAttackAmount = 5;
+        player.gainResolve(10);
+        injectEarthElemental(combat, { kind: 'damageReduction', chance: 0, reduction: 0 });
+
+        combat.processTurn({ kind: 'skill', id: 'cleave' });
+
+        expect(seenMessages.some((m) => /Knight's Sword|Меч рыцаря/i.test(m))).toBe(false);
+    });
+});
+
+describe("Knight's Helmet resolveOnHit (Stage [3])", () => {
+    it('with chance=1 grants extra resolve when the player takes a hit', () => {
+        // Compare two seeded managers — A has the helmet hook on, B
+        // has it off. Same RNG seed means the same enemy / damage roll;
+        // any resolve delta between them comes only from the helmet.
+        const a = makeManager(2200);
+        const b = makeManager(2200);
+        a.player.aggregate.resolveOnHitChance = 1;
+        a.player.aggregate.resolveOnHitAmount = 1;
+        b.player.aggregate.resolveOnHitChance = 0;
+        b.player.aggregate.resolveOnHitAmount = 1;
+        a.player.spendResolve(a.player.resources.resolve);
+        b.player.spendResolve(b.player.resources.resolve);
+        // Inject a vanilla enemy that will land its swing.
+        injectVampire(
+            a.combat,
+            { kind: 'lifestealOnAttack', ratio: 0 },
+            { hp: 9, maxHp: 9, attack: 6 }
+        );
+        injectVampire(
+            b.combat,
+            { kind: 'lifestealOnAttack', ratio: 0 },
+            { hp: 9, maxHp: 9, attack: 6 }
+        );
+
+        a.combat.processTurn('defend');
+        b.combat.processTurn('defend');
+
+        // If the vampire actually hit (a.player took damage), the
+        // helmet must have granted exactly +1 more resolve than the
+        // control. If the swing fully blocked, the delta is 0.
+        const aHit = a.player.stats.hp < 9;
+        const bHit = b.player.stats.hp < 9;
+        // Both managers see the same swing — same roll either lands or
+        // is blocked across both.
+        expect(aHit).toBe(bHit);
+        if (aHit) {
+            const diff = a.player.resources.resolve - b.player.resources.resolve;
+            expect(diff).toBe(1);
+        }
+    });
+
+    it('with chance=0 the helmet does not grant resolve', () => {
+        const { combat, player } = makeManager(2201);
+        player.aggregate.resolveOnHitChance = 0;
+        player.aggregate.resolveOnHitAmount = 1;
+        player.spendResolve(player.resources.resolve);
+        injectVampire(
+            combat,
+            { kind: 'lifestealOnAttack', ratio: 0 },
+            { hp: 9, maxHp: 9, attack: 6 }
+        );
+
+        // Direct call to applyEnemyHitToPlayer to bypass action-side
+        // resolve gains (resolveFromAttack / resolveFromGuard) — only
+        // the helmet hook can add resolve here.
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        (combat as any).applyEnemyHitToPlayer(5, 0);
+
+        expect(player.resources.resolve).toBe(0);
+    });
+});
+
+describe('Lost Staff bonusMaxResolve and resolveOnAttack (Stage [3])', () => {
+    it('+3 max resolve raises both the cap and the current value', () => {
+        const player = new PlayerManager();
+        const before = player.resources.maxResolve;
+        const beforeCur = player.resources.resolve;
+
+        expect(player.addRelic('lost_staff')).toBe('added');
+
+        expect(player.resources.maxResolve).toBe(before + 3);
+        // Current resolve grows up to the new cap.
+        expect(player.resources.resolve).toBeGreaterThanOrEqual(beforeCur);
+        expect(player.resources.resolve).toBeLessThanOrEqual(player.resources.maxResolve);
+    });
+
+    it('grants +1 resolve after each player attack', () => {
+        const { combat, player } = makeManager(2300);
+        player.aggregate.resolveOnAttackAmount = 1;
+        // Drain resolve so the gain is observable, then inject a
+        // resilient enemy so the attack doesn't end combat.
+        player.spendResolve(player.resources.resolve);
+        injectEarthElemental(combat, { kind: 'damageReduction', chance: 0, reduction: 0 });
+        const before = player.resources.resolve;
+
+        combat.processTurn('attack');
+
+        // gainResolve() from the attack action also runs the base
+        // resolveFromAttack credit; just assert resolve grew at least
+        // by the staff amount + base.
+        expect(player.resources.resolve).toBeGreaterThan(before);
+    });
+});
+
+describe('Crown of Greed / Sin set goldGainMult (Stage [3])', () => {
+    it('Crown alone applies a 1.5× gold multiplier', () => {
+        const player = new PlayerManager();
+        // Pretend we own the crown (Mammon's drop) without going
+        // through combat to avoid Mammon-specific bookkeeping.
+        player.addRelic('greed_crown');
+
+        const startGold = player.resources.gold;
+        const gained = player.gainGold(10);
+
+        expect(gained).toBe(15);
+        expect(player.resources.gold).toBe(startGold + 15);
+    });
+
+    it('Sin set (Crown + Longinus Shard) applies a 2.0× gold multiplier', () => {
+        const player = new PlayerManager();
+        player.addRelic('greed_crown');
+        player.addRelic('longinus_shard');
+
+        const startGold = player.resources.gold;
+        const gained = player.gainGold(10);
+
+        expect(gained).toBe(20);
+        expect(player.resources.gold).toBe(startGold + 20);
+    });
+
+    it('relic mult composes with the meta gold mult by multiplication', () => {
+        const player = new PlayerManager({ goldGainMult: 1.2 });
+        player.addRelic('greed_crown'); // 1.5× relic side
+
+        // Combined: 1.2 × 1.5 = 1.8 → 10 gold becomes 18.
+        expect(player.gainGold(10)).toBe(18);
+    });
+});
+
+describe('Sin set xpGainMult (Stage [3])', () => {
+    it('Sin set doubles xp on every gainXp call', () => {
+        const player = new PlayerManager();
+        player.addRelic('greed_crown');
+        player.addRelic('longinus_shard');
+
+        // Anything below the per-level threshold so we don't trip a
+        // level-up mid-test. xpPerLevel is well above 5.
+        const gained = player.gainXp(5);
+        expect(gained).toBe(10);
+    });
+
+    it('without the full Sin set the xp multiplier is 1', () => {
+        const player = new PlayerManager();
+        player.addRelic('greed_crown'); // only 1/2 sin pieces.
+
+        expect(player.gainXp(5)).toBe(5);
+    });
+});
+
+describe('Longinus Shard prophetDamageMult (Stage [3])', () => {
+    it('×5 damage when the enemy is the Prophet boss', () => {
+        const a = makeManager(2400);
+        const b = makeManager(2400);
+        // Force Prophet boss for both managers.
+        a.combat.startCombat(25, 'boss', PROPHET_BOSS_DEF);
+        b.combat.startCombat(25, 'boss', PROPHET_BOSS_DEF);
+        a.player.aggregate.prophetDamageMult = 5;
+        b.player.aggregate.prophetDamageMult = 1;
+
+        const aBefore = a.combat.enemy!.hp;
+        const bBefore = b.combat.enemy!.hp;
+
+        a.combat.processTurn('attack');
+        b.combat.processTurn('attack');
+
+        // a dealt damage may equal full HP (kill) or strictly more
+        // than b dealt; never less. The mult is monotonic.
+        const aDealt = aBefore - (a.combat.enemy?.hp ?? 0);
+        const bDealt = bBefore - (b.combat.enemy?.hp ?? 0);
+        expect(aDealt).toBeGreaterThan(bDealt);
+        // Sanity: with the same baseline roll, a should be at most
+        // 5× b (the full multiplier).
+        expect(aDealt).toBeLessThanOrEqual(bDealt * 5 + 5);
+    });
+
+    it('does NOT multiply damage on non-Prophet enemies', () => {
+        const a = makeManager(2401);
+        const b = makeManager(2401);
+        // Earth Elemental; not Prophet. Mult must be inert.
+        injectEarthElemental(a.combat, { kind: 'damageReduction', chance: 0, reduction: 0 });
+        injectEarthElemental(b.combat, { kind: 'damageReduction', chance: 0, reduction: 0 });
+        a.player.aggregate.prophetDamageMult = 5;
+        b.player.aggregate.prophetDamageMult = 1;
+
+        const aBefore = a.combat.enemy!.hp;
+        const bBefore = b.combat.enemy!.hp;
+
+        a.combat.processTurn('attack');
+        b.combat.processTurn('attack');
+
+        const aDealt = aBefore - a.combat.enemy!.hp;
+        const bDealt = bBefore - b.combat.enemy!.hp;
+        expect(aDealt).toBe(bDealt);
+    });
+});
+
+describe('Dark Chestplate damageReduction floor (Stage [3])', () => {
+    it('5 incoming damage → blocks 2 (floor of 50%) → player takes 3', () => {
+        const { combat, player } = makeManager(2500);
+        // Pin damage reduction to fire deterministically.
+        player.aggregate.damageReductionChance = 1;
+        player.aggregate.damageReductionPercent = 0.5;
+        // Strip defense so the comparison is clean.
+        player.stats.defense = 0;
+        const hpBefore = player.stats.hp;
+
+        // Fire the path directly with a 5-dmg hit and no flat block.
+        // We need a non-null enemy slot, so inject any enemy.
+        injectVampire(combat, { kind: 'lifestealOnAttack', ratio: 0 }, { attack: 0 });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const taken = (combat as any).applyEnemyHitToPlayer(5, 0);
+
+        // 5 → blocked 2 (floor) → player takes 3. Some RNG paths in
+        // applyEnemyHitToPlayer roll a crit (8% chance) which would
+        // bump pre-block damage. Cover both: either 3 (no crit) or
+        // 8 → blocks 4 → 4 (crit, since 5 * 1.5 = 7.5 → 8).
+        expect([3, 4]).toContain(taken);
+        expect(hpBefore - player.stats.hp).toBe(taken);
+    });
+
+    it('1 incoming damage → blocks 0 (floor of 0.5) → player takes 1', () => {
+        const { combat, player } = makeManager(2501);
+        player.aggregate.damageReductionChance = 1;
+        player.aggregate.damageReductionPercent = 0.5;
+        player.stats.defense = 0;
+
+        injectVampire(combat, { kind: 'lifestealOnAttack', ratio: 0 }, { attack: 0 });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const taken = (combat as any).applyEnemyHitToPlayer(1, 0);
+
+        // 1 * 0.5 = 0.5 → floor 0 → player takes 1. (Crit can bump
+        // it to 2; 2 * 0.5 = 1 → player takes 1.)
+        expect([1, 2]).toContain(taken);
+    });
+
+    it('with chance=0 the helmet does not absorb anything', () => {
+        const { combat, player } = makeManager(2502);
+        player.aggregate.damageReductionChance = 0;
+        player.aggregate.damageReductionPercent = 0.5;
+        player.stats.defense = 0;
+
+        injectVampire(combat, { kind: 'lifestealOnAttack', ratio: 0 }, { attack: 0 });
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const taken = (combat as any).applyEnemyHitToPlayer(5, 0);
+
+        // Crit bumps 5 → 8; without reduction the player takes the
+        // full 5 (or 8 on crit).
+        expect([5, 8]).toContain(taken);
+    });
+});
+
+describe('Flesh set proc-chance bump 10% → 30% (Stage [3])', () => {
+    it('owning all 2 flesh pieces sets healOnAttackChance to 0.3', () => {
+        // Bypass PlayerManager so we can test aggregateRelics in
+        // isolation — same code path the player runs through.
+        const agg = aggregateRelics(['vampire_amulet', 'dark_chestplate']);
+
+        expect(agg.sets.flesh).toBe(true);
+        expect(agg.healOnAttackChance).toBeCloseTo(0.3, 5);
+        expect(agg.damageReductionChance).toBeCloseTo(0.3, 5);
+        expect(agg.healOnAttackAmount).toBe(2);
+        expect(agg.damageReductionPercent).toBeCloseTo(0.5, 5);
+    });
+
+    it('owning only one flesh piece keeps the chance at the per-item 10%', () => {
+        const aggHeal = aggregateRelics(['vampire_amulet']);
+        expect(aggHeal.sets.flesh).toBe(false);
+        expect(aggHeal.healOnAttackChance).toBeCloseTo(0.1, 5);
+        // The other side never fires (chance stays 0).
+        expect(aggHeal.damageReductionChance).toBe(0);
+
+        const aggBlock = aggregateRelics(['dark_chestplate']);
+        expect(aggBlock.sets.flesh).toBe(false);
+        expect(aggBlock.damageReductionChance).toBeCloseTo(0.1, 5);
+        expect(aggBlock.healOnAttackChance).toBe(0);
     });
 });

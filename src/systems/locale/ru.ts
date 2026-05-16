@@ -212,9 +212,17 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatPlayerStunned: 'Вы скованы — этот ход пропущен.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
     combatRelicHealOnAttack:
-        'Сработал эффект предмета «Треснутый амулет» — восстановлено {healed} ОЗ.',
-    combatRelicBlockOnHit:
-        'Сработал эффект предмета «Дырявый нагрудник» — поглощено {amount} урона.',
+        'Сработал эффект предмета «Амулет вампира» — восстановлено {healed} ОЗ.',
+    combatRelicDarkChestplate:
+        'Сработал эффект предмета «Нагрудник мрака» — поглощено {amount} урона.',
+    combatRelicKnightSwordBonus:
+        'Сработал эффект предмета «Меч рыцаря» — дополнительно {bonus} урона.',
+    combatRelicKnightHelmet:
+        'Сработал эффект предмета «Шлем рыцаря» — восстановлено {resolve} воли.',
+    combatRelicLostStaff:
+        'Сработал эффект предмета «Посох Заблудшего» — восстановлено {resolve} воли.',
+    combatRelicLonginusShard:
+        'Сработал эффект предмета «Осколок копья Лонгина» — урон по Пророку вырос с {before} до {damage}.',
     // Замах врагов (мышь / упырь / рысь).
     combatEnemyPrepareWindup: '{name} готовится: {action}.',
     combatEnemyPrepareResolve: '{name} применяет {action}: {takenDamage} урона.',
@@ -231,15 +239,8 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     // Намерение замаха в HUD у обычных врагов.
     hudPrepareWindupLabel: '{action} (через {turns}х)',
     hudPrepareReadyLabel: '{action} (СЕЙЧАС)',
-    // Прокковые эффекты проклятого снаряжения.
-    combatRelicCursedMiss: 'Сработал эффект предмета «Проклятый амулет» — удар уходит в пустоту.',
-    combatRelicCursedSkillBasic:
-        'Сработал эффект предмета «Проклятое кольцо» — способность стала обычным ударом.',
-    // Подбрасывание монеты малого проклятого сета на атаку.
-    combatRelicCursedDouble:
-        'Сработал эффект предмета «Малый проклятый сет» — урон удвоен до {damage}.',
-    combatRelicCursedSelfHit:
-        'Сработал эффект предмета «Малый проклятый сет» — отдача {damage} урона.',
+    // Стадия [3]: эффекты прежнего «проклятого» снаряжения сняты —
+    // новый сет cursed это пассивные +4 атаки/+2 ХП/-25% дропа.
     // Прок благословения вампиров от Сары на ударе игрока.
     combatVampireBlessingHeal:
         'Сработал эффект предмета «Благословение вампиров» — восстановлено {healed} ОЗ.',

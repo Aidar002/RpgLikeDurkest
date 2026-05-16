@@ -223,8 +223,13 @@ export const EN_STRINGS = {
     combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
     combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
-    combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
-    combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',
+    combatRelicHealOnAttack: 'Vampire Amulet effect triggered — recovered {healed} HP.',
+    combatRelicDarkChestplate: 'Dark Chestplate effect triggered — absorbed {amount} damage.',
+    combatRelicKnightSwordBonus: "Knight's Sword effect triggered — extra {bonus} damage.",
+    combatRelicKnightHelmet: "Knight's Helmet effect triggered — restored {resolve} resolve.",
+    combatRelicLostStaff: 'Lost Staff effect triggered — restored {resolve} resolve.',
+    combatRelicLonginusShard:
+        'Longinus Shard effect triggered — damage to Prophet rises from {before} to {damage}.',
     // Mid-combat windups (bat / ghoul / lynx).
     combatEnemyPrepareWindup: '{name} winds up: {action}.',
     combatEnemyPrepareResolve: '{name} unleashes {action} for {takenDamage}.',
@@ -240,12 +245,8 @@ export const EN_STRINGS = {
     // Non-boss prepare intent shown in the HUD.
     hudPrepareWindupLabel: '{action} ({turns}t)',
     hudPrepareReadyLabel: '{action} (NOW)',
-    // Cursed gear procs (cursed_amulet miss, cursed_ring skill->basic).
-    combatRelicCursedMiss: 'Cursed Amulet effect triggered — the strike whiffs.',
-    combatRelicCursedSkillBasic: 'Cursed Ring effect triggered — skill became a basic strike.',
-    // Minor Cursed set coin flip on attack.
-    combatRelicCursedDouble: 'Minor Cursed Set effect triggered — damage doubled to {damage}.',
-    combatRelicCursedSelfHit: 'Minor Cursed Set effect triggered — {damage} damage backfire.',
+    // Cursed gear procs are no longer used (Stage [3] cursed set is a
+    // passive +4 atk +2 hp -25% drop, not a coinflip / miss / scrub).
     // Sara's Vampire Blessing on-attack heal proc.
     combatVampireBlessingHeal: 'Vampire Blessing effect triggered — recovered {healed} HP.',
     // Boss windups: Death Knight (Death Shield / Death Touch).
