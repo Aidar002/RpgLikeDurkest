@@ -1,10 +1,9 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { CombatManager } from '../src/systems/CombatManager';
 import { PlayerManager } from '../src/systems/PlayerManager';
-import { Mulberry32 } from '../src/systems/Rng';
-import { emptyStatusState } from '../src/systems/StatusEffects';
-import type { EventLog } from '../src/ui/EventLog';
 import type { EnemyDef, EnemyPassive, EnemyPrepareDef } from '../src/data/GameConfig';
+import { BOSSES } from '../src/data/GameConfig';
+import { makeActiveEnemy, makeManager } from './helpers/combat';
 
 // Death Knight's boss blueprint lives in src/data/Bosses.ts (Death
 // Shield + Death Touch). Death Knight itself was demoted to the 16-20
@@ -12,35 +11,29 @@ import type { EnemyDef, EnemyPassive, EnemyPrepareDef } from '../src/data/GameCo
 // resolves to him via the random boss roll. These tests still need a
 // boss with that exact blueprint to cover the legacy Cursed Ring and
 // Death Touch interactions, so we inject the def explicitly via the
-// `startCombat` override parameter.
-const DEATH_KNIGHT_BOSS_DEF: EnemyDef = {
-    name: 'Death Knight',
-    description: 'test_desc_death_knight',
-    icon: '\u2620',
-    hp: 45,
-    attack: 8,
-    xp: 50,
-    gold: 40,
-    color: 0x2a0814,
-    profile: 'boss',
-};
-
-// Minimal stub: CombatManager only calls log.addMessage(text, color?).
-function makeManager(seed: number): {
-    combat: CombatManager;
-    player: PlayerManager;
-    seenMessages: string[];
-} {
-    const player = new PlayerManager();
-    const seenMessages: string[] = [];
-    const log = {
-        addMessage: (text: string, _color?: string) => {
-            seenMessages.push(text);
-        },
-    } as unknown as EventLog;
-    const combat = new CombatManager(player, log, undefined, new Mulberry32(seed));
-    return { combat, player, seenMessages };
-}
+// `startCombat` override parameter — sourced from BOSSES so any
+// future stat tweak in the design sheet propagates here automatically.
+const DEATH_KNIGHT_BOSS_DEF = (() => {
+    const found = BOSSES.find((b) => b.def.name === 'Death Knight');
+    if (found) {
+        // Deep clone so a test's mutation doesn't leak to the static table.
+        return JSON.parse(JSON.stringify(found.def));
+    }
+    // Death Knight is in the depth 16-20 normal pool now, not the
+    // BOSSES table; build the boss-shaped def inline as the legacy
+    // tests expected.
+    return {
+        name: 'Death Knight',
+        description: 'test_desc_death_knight',
+        icon: '\u2620',
+        hp: 45,
+        attack: 8,
+        xp: 50,
+        gold: 40,
+        color: 0x2a0814,
+        profile: 'boss' as const,
+    };
+})();
 
 describe('CombatManager (seeded)', () => {
     // Two managers with the same seed should produce identical state after
@@ -162,48 +155,32 @@ describe('CombatManager log surface', () => {
 // touches. Lets us assert windup behaviour without depending on the
 // random enemy pool or boss rotation timing.
 function injectGhoulPrepare(combat: CombatManager, prepare: EnemyPrepareDef): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Ghoul',
-        canonicalName: 'Ghoul',
-        description: 'test',
         icon: 'G',
         hp: 10,
         maxHp: 10,
         attack: 1,
         color: 0x455544,
-        xp: 0,
-        gold: 0,
         profile: 'bleeder',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         pendingPrepare: { def: prepare, turnsRemaining: 0 },
-        currentIntent: null,
-    };
+    });
 }
 
 // Direct injection of a Bee-Butterfly-shaped enemy so we can pin the
 // evade chance to 0 or 1 and assert deterministic behaviour without
 // hunting for an RNG seed that lines up with the passive trigger.
 function injectBeeButterfly(combat: CombatManager, passive: EnemyPassive): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Bee-Butterfly',
-        canonicalName: 'Bee-Butterfly',
-        description: 'test',
         icon: 'Y',
         hp: 3,
         maxHp: 3,
         attack: 2,
         color: 0xc4a01e,
-        xp: 0,
-        gold: 0,
         profile: 'stalker',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         passive,
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Bee-Butterfly Flutter and sting (evadeAndStingOnHit)', () => {
@@ -248,24 +225,16 @@ describe('Bee-Butterfly Flutter and sting (evadeAndStingOnHit)', () => {
 // Skeleton, just with stronger numbers (30% / -2). Inject directly so
 // we can pin the chance to 0 or 1 and assert the reduction log.
 function injectEarthElemental(combat: CombatManager, passive: EnemyPassive): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Earth Elemental',
-        canonicalName: 'Earth Elemental',
-        description: 'test',
         icon: 'E',
         hp: 50,
         maxHp: 50,
         attack: 2,
         color: 0x6e553b,
-        xp: 0,
-        gold: 0,
         profile: 'brute',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         passive,
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Earth Elemental Stone Skin (damageReduction)', () => {
@@ -326,24 +295,16 @@ function injectVampire(
     passive: EnemyPassive,
     overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
 ): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Vampire',
-        canonicalName: 'Vampire',
-        description: 'test',
         icon: 'V',
         hp: overrides.hp ?? 5,
         maxHp: overrides.maxHp ?? 9,
         attack: overrides.attack ?? 4,
         color: 0x4a1a1a,
-        xp: 0,
-        gold: 0,
         profile: 'stalker',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         passive,
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Vampire lifestealOnAttack', () => {
@@ -418,24 +379,16 @@ function injectGoblinHorde(
     combat: CombatManager,
     overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
 ): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Goblin Horde',
-        canonicalName: 'Goblin Horde',
-        description: 'test',
         icon: 'O',
         hp: overrides.hp ?? 13,
         maxHp: overrides.maxHp ?? 13,
         attack: overrides.attack ?? 9,
         color: 0x4d6a2a,
-        xp: 0,
-        gold: 0,
         profile: 'brute',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         passive: { kind: 'attackScalesWithHp' },
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Goblin Horde Thinning Horde (attackScalesWithHp)', () => {
@@ -482,24 +435,16 @@ function injectSuccubus(
     combat: CombatManager,
     overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
 ): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Succubus',
-        canonicalName: 'Succubus',
-        description: 'test',
         icon: 'U',
         hp: overrides.hp ?? 22,
         maxHp: overrides.maxHp ?? 22,
         attack: overrides.attack ?? 1,
         color: 0x6a2a44,
-        xp: 0,
-        gold: 0,
         profile: 'stalker',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         passive: { kind: 'painExultation', bonusPerStep: 0.1 },
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Succubus Exultation in Pain (painExultation)', () => {
@@ -546,24 +491,16 @@ function injectUndergroundEnt(
     combat: CombatManager,
     overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
 ): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Underground Ent',
-        canonicalName: 'Underground Ent',
-        description: 'test',
         icon: 'N',
         hp: overrides.hp ?? 14,
         maxHp: overrides.maxHp ?? 14,
         attack: overrides.attack ?? 4,
         color: 0x3a5532,
-        xp: 0,
-        gold: 0,
         profile: 'brute',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         passive: { kind: 'weakenPlayerEachTurn', amount: 1, turns: 2 },
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Underground Ent Strangling Roots (weakenPlayerEachTurn)', () => {
@@ -609,21 +546,14 @@ function injectGiantToadPrepare(
     combat: CombatManager,
     overrides: Partial<{ hp: number; maxHp: number; turnsRemaining: number }> = {}
 ): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Giant Toad',
-        canonicalName: 'Giant Toad',
-        description: 'test',
         icon: 'T',
         hp: overrides.hp ?? 3,
         maxHp: overrides.maxHp ?? 3,
         attack: 2,
         color: 0x4a6b2a,
-        xp: 0,
-        gold: 0,
         profile: 'brute',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         pendingPrepare: {
             def: {
                 nameEn: 'Tongue Lash',
@@ -635,8 +565,7 @@ function injectGiantToadPrepare(
             },
             turnsRemaining: overrides.turnsRemaining ?? 0,
         },
-        currentIntent: null,
-    };
+    });
 }
 
 function injectGelatinousCube(
@@ -648,21 +577,14 @@ function injectGelatinousCube(
         chance: number;
     }> = {}
 ): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Gelatinous Cube',
-        canonicalName: 'Gelatinous Cube',
-        description: 'test',
         icon: 'C',
         hp: overrides.hp ?? 9,
         maxHp: overrides.maxHp ?? 9,
         attack: overrides.attack ?? 3,
         color: 0x82c4d4,
-        xp: 0,
-        gold: 0,
         profile: 'brute',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         // Default chance=1 so existing tests stay deterministic; the
         // 40% production value lives in GameConfig.ENEMY_TIERS.
         passive: {
@@ -671,8 +593,7 @@ function injectGelatinousCube(
             amount: 1,
             turns: 99,
         },
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Gelatinous Cube Acid Vomit (acidVomitOnFirstHit)', () => {
@@ -780,11 +701,8 @@ function injectRatMatron(
     combat: CombatManager,
     overrides: Partial<{ hp: number; maxHp: number; xp: number; gold: number }> = {}
 ): void {
-    combat.enemy = {
-        kind: 'normal',
+    combat.enemy = makeActiveEnemy({
         name: 'Rat Matron',
-        canonicalName: 'Rat Matron',
-        description: 'test',
         icon: 'M',
         hp: overrides.hp ?? 1,
         maxHp: overrides.maxHp ?? 8,
@@ -793,11 +711,8 @@ function injectRatMatron(
         xp: overrides.xp ?? 5,
         gold: overrides.gold ?? 5,
         profile: 'brute',
-        turnsAlive: 0,
-        status: emptyStatusState(),
         passive: { kind: 'spawnOnDeath', spawnName: 'Rat' },
-        currentIntent: null,
-    };
+    });
 }
 
 describe('Rat Matron Litter (spawnOnDeath)', () => {
