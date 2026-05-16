@@ -577,6 +577,31 @@ export class CombatManager {
 
     private applyPlayerDamage(baseDamage: number, criticalIn: boolean) {
         if (!this.enemy) return;
+
+        // Bee-Butterfly "Flutter and sting": chance to dodge the
+        // player's incoming swing entirely and counter for a fixed
+        // amount of true damage. Resolved before any player-side
+        // procs (Minor Cursed, mark consumption, expose bonuses,
+        // Bone-Shield, damage reduction) so those are not wasted on
+        // a missed swing.
+        if (
+            this.enemy.passive?.kind === 'evadeAndStingOnHit' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            this.lastActionResult.enemyEvaded = true;
+            const sting = this.enemy.passive.damage;
+            const taken = sting > 0 ? this.player.takeDamage(sting, 0, 'true') : 0;
+            this.log.addMessage(
+                this.loc.t('combatEnemyEvadeAndSting', {
+                    name: this.enemy.name,
+                    damage: taken,
+                }),
+                '#d9bf3a'
+            );
+            if (taken > 0) this.playerHit.emit({ damage: taken });
+            return;
+        }
+
         let critical = criticalIn;
         let damage = baseDamage;
 

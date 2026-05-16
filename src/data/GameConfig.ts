@@ -54,9 +54,12 @@ export interface EnemyDef {
     profile: EnemyProfile;
     /**
      * Optional per-turn passive trigger.
-     *  - kind: 'extraDamageOnHit' (rat — 20% deal +1 dmg)
-     *  - kind: 'thornsOnTakeHit'  (slime — 30% deal 1 dmg back when hit)
-     *  - kind: 'damageReduction'  (skeleton — 10% take −1 incoming dmg)
+     *  - kind: 'extraDamageOnHit'    (rat — 20% deal +1 dmg)
+     *  - kind: 'thornsOnTakeHit'     (slime — 30% deal 1 dmg back when hit)
+     *  - kind: 'damageReduction'     (skeleton — 10% take −1 incoming dmg)
+     *  - kind: 'evadeAndStingOnHit'  (bee-butterfly — 20% dodge the player's
+     *    incoming attack entirely and counter for a small fixed amount of
+     *    true damage)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -66,7 +69,8 @@ export interface EnemyDef {
 export type EnemyPassive =
     | { kind: 'extraDamageOnHit'; chance: number; bonus: number }
     | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
-    | { kind: 'damageReduction'; chance: number; reduction: number };
+    | { kind: 'damageReduction'; chance: number; reduction: number }
+    | { kind: 'evadeAndStingOnHit'; chance: number; damage: number };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -486,6 +490,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0xc4a01e,
                 profile: 'stalker',
+                // Flutter and sting: 20% chance to dodge the player's
+                // attack outright; on dodge the bee-butterfly counters
+                // for 1 true damage.
+                passive: { kind: 'evadeAndStingOnHit', chance: 0.2, damage: 1 },
             },
             {
                 name: 'Giant Toad',
