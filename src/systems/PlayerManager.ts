@@ -44,6 +44,13 @@ export class PlayerManager {
     public killCount = 0;
     public status: StatusState = emptyStatusState();
     public relics: RelicId[] = [];
+    /**
+     * Whether the player has bought Gogi's "Initial Training" buff this
+     * run (+5 max HP, +1 defense). The buff stacks naively if applied
+     * twice, so we gate it to a single purchase per run via this flag.
+     * Resets on every new {@link PlayerManager}, i.e. on death/new run.
+     */
+    public gogiTrainingTaken = false;
 
     public readonly hpChange = new Emitter<{ hp: number; max: number }>();
     public readonly death = new Emitter<void>();
@@ -88,8 +95,14 @@ export class PlayerManager {
         this.goldGainMult = bonuses.goldGainMult ?? 1;
     }
 
+    /**
+     * XP required to reach the next level. Flat: every level costs the
+     * same {@link LEVEL_UP_CONFIG.xpPerLevel} XP. (Earlier this scaled
+     * by `level * xpPerLevel`, which made later levels feel like a slog
+     * even though the data config never said it should.)
+     */
     get xpToNextLevel(): number {
-        return this.stats.level * LEVEL_UP_CONFIG.xpPerLevel;
+        return LEVEL_UP_CONFIG.xpPerLevel;
     }
 
     get aggregate(): RelicAggregate {
