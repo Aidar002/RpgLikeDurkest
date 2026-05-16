@@ -206,6 +206,8 @@ export const EN_STRINGS = {
     combatEnemyPainExultation: '{name} drinks in the pain — +{bonus} damage.',
     combatEnemyStranglingRoots:
         '{name} curls roots around you — your swings are weakened by {amount}.',
+    combatEnemyAcidVomit:
+        '{name} spews acid over your armor — defense reduced by {amount} for the rest of the fight.',
     combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
     combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".

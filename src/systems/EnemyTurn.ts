@@ -6,6 +6,7 @@ import { narrate } from './Narrator';
 import type { Localization } from './Localization';
 import type { PlayerManager } from './PlayerManager';
 import {
+    applyArmorBreak,
     applyBleed,
     applyPoison,
     applyStun,
@@ -180,6 +181,29 @@ export function resolveEnemyTurn(
         );
     } else {
         log.addMessage(loc.t('absorb'), '#8fc6ff');
+    }
+
+    // Gelatinous Cube "Acid Vomit": on the first regular hit that
+    // actually lands, etch the player's armor — defense -amount for
+    // the rest of the fight (and a couple of rooms past it, since
+    // armorBreak.turns ticks once per combat turn). Gated on the
+    // player's existing armorBreak.turns so re-triggers from the same
+    // cube don't keep refreshing it; design says ONE acid burst per
+    // cube, not a continuous spray.
+    if (
+        takenDamage > 0 &&
+        enemy.passive?.kind === 'acidVomitOnFirstHit' &&
+        player.status.armorBreak.turns === 0
+    ) {
+        applyArmorBreak(player.status, enemy.passive.amount, enemy.passive.turns);
+        log.addMessage(
+            loc.t('combatEnemyAcidVomit', {
+                name: enemy.name,
+                amount: enemy.passive.amount,
+            }),
+            '#5fcf5a'
+        );
+        deps.emitPlayerStatus();
     }
 
     // Vampire-style lifesteal: heal a ratio of the damage that actually

@@ -639,6 +639,76 @@ function injectGiantToadPrepare(
     };
 }
 
+function injectGelatinousCube(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Gelatinous Cube',
+        canonicalName: 'Gelatinous Cube',
+        description: 'test',
+        icon: 'C',
+        hp: overrides.hp ?? 9,
+        maxHp: overrides.maxHp ?? 9,
+        attack: overrides.attack ?? 3,
+        color: 0x82c4d4,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'acidVomitOnFirstHit', amount: 1, turns: 99 },
+        currentIntent: null,
+    };
+}
+
+describe('Gelatinous Cube Acid Vomit (acidVomitOnFirstHit)', () => {
+    it('applies armor break to the player on the first landed hit', () => {
+        const { combat, player, seenMessages } = makeManager(121);
+        injectGelatinousCube(combat, { hp: 9, maxHp: 9 });
+
+        combat.processTurn('attack');
+
+        expect(player.status.armorBreak.amount).toBeGreaterThanOrEqual(1);
+        expect(player.status.armorBreak.turns).toBeGreaterThan(0);
+        // EN: "spews acid"; RU: "плюётся кислотой".
+        expect(seenMessages.some((m) => /spews acid|плюётся|плюется/i.test(m))).toBe(true);
+    });
+
+    it('reduces effective defense while armor break is active', () => {
+        const { combat, player } = makeManager(122);
+        // High cube attack so the hit lands through the bumped player
+        // defense (acid only triggers when takenDamage > 0).
+        injectGelatinousCube(combat, { hp: 9, maxHp: 9, attack: 6 });
+
+        // Bump player defense so we can measure the chip from armor
+        // break instead of clamping at the 0-floor.
+        player.stats.defense = 3;
+        const beforeDef = player.getEffectiveDefense();
+        combat.processTurn('attack');
+        const afterDef = player.getEffectiveDefense();
+
+        expect(afterDef).toBe(beforeDef - 1);
+    });
+
+    it('does not stack armor break on subsequent hits in the same fight', () => {
+        const { combat, player } = makeManager(123);
+        injectGelatinousCube(combat, { hp: 20, maxHp: 20 });
+
+        combat.processTurn('attack');
+        const firstAmount = player.status.armorBreak.amount;
+        const firstTurns = player.status.armorBreak.turns;
+        combat.processTurn('attack');
+
+        // Amount must not grow on the re-hit. Turns may have ticked
+        // down by 1 from end-of-turn status tick — we only assert it
+        // didn't get re-set back to the full 99.
+        expect(player.status.armorBreak.amount).toBe(firstAmount);
+        expect(player.status.armorBreak.turns).toBeLessThanOrEqual(firstTurns);
+    });
+});
+
 describe('Giant Toad Tongue Lash (prepare stun rider)', () => {
     it('applies a 1-turn stun to the player when not defending', () => {
         const { combat, player, seenMessages } = makeManager(111);

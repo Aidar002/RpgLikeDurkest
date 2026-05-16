@@ -78,6 +78,11 @@ export interface EnemyDef {
      *    roots": applies/refreshes weaken `amount` for `turns` turns to
      *    the player at the start of every enemy turn while the enemy
      *    is alive)
+     *  - kind: 'acidVomitOnFirstHit' (gelatinous-cube — "acid vomit":
+     *    on the first regular attack that lands, apply armorBreak
+     *    `amount` for `turns` turns to the player (defense −amount).
+     *    Fires at most once per encounter, tracked by checking the
+     *    player's existing armorBreak.turns)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -92,7 +97,8 @@ export type EnemyPassive =
     | { kind: 'lifestealOnAttack'; ratio: number }
     | { kind: 'attackScalesWithHp' }
     | { kind: 'painExultation'; bonusPerStep: number }
-    | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number };
+    | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number }
+    | { kind: 'acidVomitOnFirstHit'; amount: number; turns: number };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -601,6 +607,14 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x82c4d4,
                 profile: 'brute',
+                // Acid Vomit: on the first regular attack that lands,
+                // the cube etches the player's armor — defense −1 for
+                // the remainder of the fight (turns=99 picks a value
+                // larger than any realistic combat length without
+                // making it literally infinite). Only triggers once
+                // per encounter; the guard in EnemyTurn checks the
+                // player's existing armorBreak.turns to gate it.
+                passive: { kind: 'acidVomitOnFirstHit', amount: 1, turns: 99 },
             },
             {
                 name: 'Earth Elemental',

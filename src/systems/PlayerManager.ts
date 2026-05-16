@@ -136,7 +136,15 @@ export class PlayerManager {
         if (this.relicAggregate.sets.flesh && this.stats.hp * 2 > this.stats.maxHp) {
             setBonus += 1;
         }
-        return this.stats.defense + this.relicAggregate.bonusDefense + setBonus;
+        // Enemy-applied armor break (e.g. Gelatinous Cube acid vomit)
+        // chips a flat amount off the player's defense while active.
+        // Clamps at 0 so we never end up with negative defense (which
+        // would amplify damage rather than just remove the buffer).
+        const armorBreak = this.status.armorBreak.turns > 0 ? this.status.armorBreak.amount : 0;
+        return Math.max(
+            0,
+            this.stats.defense + this.relicAggregate.bonusDefense + setBonus - armorBreak
+        );
     }
 
     takeDamage(
