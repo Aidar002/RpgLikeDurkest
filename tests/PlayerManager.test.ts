@@ -96,6 +96,18 @@ describe('PlayerManager — damage and death', () => {
         expect(player.stats.hp).toBe(before - 2);
     });
 
+    it('treats source="trap" damage as ignoring defense (room traps + lockpick fails)', () => {
+        const player = new PlayerManager();
+        // Pile defense high so a "normal" hit would soak the trap entirely.
+        player.addDefenseBonus(20);
+        const before = player.stats.hp;
+
+        const dealt = player.takeDamage(2, 0, 'trap');
+
+        expect(dealt).toBe(2);
+        expect(player.stats.hp).toBe(before - 2);
+    });
+
     it('respects flatBlock (e.g. defend stance) before defense reduction', () => {
         const player = new PlayerManager();
         const before = player.stats.hp;

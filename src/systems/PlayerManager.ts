@@ -136,7 +136,14 @@ export class PlayerManager {
         flatBlock: number = 0,
         source: 'combat' | 'trap' | 'true' = 'combat'
     ): number {
-        const defense = source === 'true' ? 0 : this.getEffectiveDefense();
+        // Trap-typed hits (room traps + failed lockpicks) bypass defense
+        // entirely, just like 'true' damage — design choice so that
+        // late-run defense stacks don't trivialise the trap / lockpick
+        // sub-systems. The 'trap' source still uses the regular
+        // {@link COMBAT_CONFIG.minDamage} floor; only 'true' damage
+        // ignores both defense AND flat block AND the minDamage floor.
+        const bypassesDefense = source === 'true' || source === 'trap';
+        const defense = bypassesDefense ? 0 : this.getEffectiveDefense();
         const reduced = amount - flatBlock - defense;
         const actual =
             reduced <= 0 && source !== 'true'
