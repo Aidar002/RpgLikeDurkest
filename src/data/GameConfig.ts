@@ -101,6 +101,23 @@ export interface EnemyDef {
      *    instinct": chance to swing twice on a regular-attack turn.
      *    The second swing reuses the same scaled damage path so all
      *    other passive riders apply to it too)
+     *  - kind: 'curseDarknessOnce'   (lich — "curse of darkness":
+     *    `chance` per enemy turn to apply weaken `weakenAmount` for
+     *    `weakenTurns` turns to the player. Triggers AT MOST ONCE per
+     *    encounter — once a curse lands the lich never tries again.
+     *    Use a long `weakenTurns` (e.g. 99) for spec's "until end of
+     *    fight" semantics)
+     *  - kind: 'blocksSkillsAndPotions' (skeleton swordsman — "skilled
+     *    fencer": when the player tries to use a skill or potion, the
+     *    enemy has a `chance` to parry the attempt; the resolve / potion
+     *    cost is still spent, the skill effect is silenced, but the
+     *    player still occupies their turn so the enemy still acts)
+     *  - kind: 'corrosionStrikeOnAttack' (death knight — "corrosion
+     *    strike": on each regular-attack turn, `chance` to swap the
+     *    standard hit for a corrosion blow that deals `damage` (true
+     *    damage that bypasses defense) AND applies armorBreak for the
+     *    rest of the fight. Picks one or the other per turn — never
+     *    stacks on top of the regular attack)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -120,7 +137,15 @@ export type EnemyPassive =
     | { kind: 'spawnOnDeath'; spawnName: string }
     | { kind: 'hellfireOnDeath'; damagePerRelic: number }
     | { kind: 'regenPerTurn'; amount: number }
-    | { kind: 'doubleAttackChance'; chance: number };
+    | { kind: 'doubleAttackChance'; chance: number }
+    | { kind: 'curseDarknessOnce'; chance: number; weakenAmount: number; weakenTurns: number }
+    | { kind: 'blocksSkillsAndPotions'; chance: number }
+    | {
+          kind: 'corrosionStrikeOnAttack';
+          chance: number;
+          damage: number;
+          armorBreak: { amount: number; turns: number };
+      };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -764,6 +789,12 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 14,
                 color: 0x888070,
                 profile: 'brute',
+                // Skilled Fencer: 40% chance to parry the next skill or
+                // potion the player tries to use. The resolve / potion
+                // cost is still spent (the gating cost is paid before
+                // the parry roll), the effect is silenced, and the
+                // player's turn still passes so the enemy still acts.
+                passive: { kind: 'blocksSkillsAndPotions', chance: 0.4 },
             },
             {
                 name: 'Lich',
@@ -775,6 +806,19 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 14,
                 color: 0x453d5a,
                 profile: 'stalker',
+                // Curse of Darkness: each enemy turn (until first
+                // success) the lich rolls a 60% chance to apply
+                // weaken -2 to the player. Long `weakenTurns` (99)
+                // approximates the spec's "until end of fight"
+                // semantics — natural decay still ticks once per
+                // turn, so the curse follows the player for the
+                // whole encounter. Triggers exactly once per fight.
+                passive: {
+                    kind: 'curseDarknessOnce',
+                    chance: 0.6,
+                    weakenAmount: 2,
+                    weakenTurns: 99,
+                },
             },
             {
                 name: 'Succubus',
@@ -812,6 +856,19 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 18,
                 color: 0x2a0814,
                 profile: 'brute',
+                // Corrosion Strike: 40% chance per regular-attack turn
+                // to swap the standard hit for a corrosion blow — 3
+                // true damage (bypasses defense) AND apply armorBreak
+                // -1 for the rest of the fight (turns=99 for the same
+                // "until end of fight" semantics as Acid Vomit). Only
+                // one or the other per turn; never stacks on top of
+                // the regular attack.
+                passive: {
+                    kind: 'corrosionStrikeOnAttack',
+                    chance: 0.4,
+                    damage: 3,
+                    armorBreak: { amount: 1, turns: 99 },
+                },
             },
         ],
     },
