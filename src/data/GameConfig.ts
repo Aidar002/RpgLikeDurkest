@@ -63,6 +63,9 @@ export interface EnemyDef {
      *    true damage)
      *  - kind: 'lifestealOnAttack'   (vampire — heal a ratio of the damage
      *    dealt by a successful regular attack)
+     *  - kind: 'attackScalesWithHp'  (goblin-horde — the "thinning horde":
+     *    regular-attack damage is scaled by hp/maxHp so a near-dead horde
+     *    only musters a couple of hits)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -74,7 +77,8 @@ export type EnemyPassive =
     | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
     | { kind: 'damageReduction'; chance: number; reduction: number }
     | { kind: 'evadeAndStingOnHit'; chance: number; damage: number }
-    | { kind: 'lifestealOnAttack'; ratio: number };
+    | { kind: 'lifestealOnAttack'; ratio: number }
+    | { kind: 'attackScalesWithHp' };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -646,6 +650,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x4d6a2a,
                 profile: 'brute',
+                // Thinning Horde: attack scales linearly with hp/maxHp.
+                // The 9-damage swing is the *full-strength* horde; as
+                // goblins fall the surviving few hit weaker.
+                passive: { kind: 'attackScalesWithHp' },
             },
             {
                 name: 'Underground Ent',

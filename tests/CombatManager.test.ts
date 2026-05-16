@@ -414,6 +414,70 @@ describe('Vampire lifestealOnAttack', () => {
     });
 });
 
+function injectGoblinHorde(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Goblin Horde',
+        canonicalName: 'Goblin Horde',
+        description: 'test',
+        icon: 'O',
+        hp: overrides.hp ?? 13,
+        maxHp: overrides.maxHp ?? 13,
+        attack: overrides.attack ?? 9,
+        color: 0x4d6a2a,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'attackScalesWithHp' },
+        currentIntent: null,
+    };
+}
+
+describe('Goblin Horde Thinning Horde (attackScalesWithHp)', () => {
+    it('hits weaker when the horde is half-HP than when it is full-HP', () => {
+        // Same RNG sequence on both managers so player block / crit rolls
+        // line up. Force-defend so the player swing is silenced.
+        const a = makeManager(77);
+        const b = makeManager(77);
+        injectGoblinHorde(a.combat, { hp: 13, maxHp: 13, attack: 9 });
+        injectGoblinHorde(b.combat, { hp: 6, maxHp: 13, attack: 9 });
+        const aHp = a.player.stats.hp;
+        const bHp = b.player.stats.hp;
+
+        a.combat.processTurn('defend');
+        b.combat.processTurn('defend');
+
+        const aDealt = aHp - a.player.stats.hp;
+        const bDealt = bHp - b.player.stats.hp;
+        // Full-HP horde hits at least as hard as half-HP horde.
+        expect(aDealt).toBeGreaterThanOrEqual(bDealt);
+    });
+
+    it('logs the thinning message when scaled damage drops below base', () => {
+        const { combat, seenMessages } = makeManager(78);
+        injectGoblinHorde(combat, { hp: 6, maxHp: 13, attack: 9 });
+
+        combat.processTurn('defend');
+
+        // EN: "thins out"; RU: "редеет".
+        expect(seenMessages.some((m) => /thins|редеет/i.test(m))).toBe(true);
+    });
+
+    it('does not log thinning at full HP (scaled == base)', () => {
+        const { combat, seenMessages } = makeManager(79);
+        injectGoblinHorde(combat, { hp: 13, maxHp: 13, attack: 9 });
+
+        combat.processTurn('defend');
+
+        expect(seenMessages.some((m) => /thins|редеет/i.test(m))).toBe(false);
+    });
+});
+
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);

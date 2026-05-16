@@ -96,6 +96,24 @@ export function resolveEnemyTurn(
     let attackPower = enemy.attack - weakenReduction;
     if (attackPower < 1) attackPower = 1;
 
+    // Goblin Horde "Thinning Horde": scale attack by current/max HP
+    // so the surviving rump only manages a glancing blow. Applies
+    // before extraDamageOnHit so the +N bonus still applies on top.
+    if (enemy.passive?.kind === 'attackScalesWithHp' && enemy.maxHp > 0) {
+        const before = attackPower;
+        const scaled = Math.max(1, Math.floor(attackPower * (enemy.hp / enemy.maxHp)));
+        attackPower = scaled;
+        if (scaled < before) {
+            log.addMessage(
+                loc.t('combatEnemyHordeThins', {
+                    name: enemy.name,
+                    attack: scaled,
+                }),
+                '#7fa05a'
+            );
+        }
+    }
+
     if (enemy.passive?.kind === 'extraDamageOnHit' && rng.next() < enemy.passive.chance) {
         attackPower += enemy.passive.bonus;
         log.addMessage(
