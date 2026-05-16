@@ -422,6 +422,39 @@ export class CombatManager {
 
         if (this.enemy && this.enemy.hp <= 0) {
             const killedByBleed = actionName === 'defend' || actionName === 'potion';
+            // Death-trigger passive: Demon-style 'hellfireOnDeath'
+            // detonates the dying enemy for true damage scaled by
+            // the player's relic count. Resolves BEFORE finishCombat
+            // so the explosion can still kill the player and route
+            // them through the death screen — finishCombat itself
+            // then plays out as normal (rewards still pay if the
+            // player survived). The spawnOnDeath check below short-
+            // circuits combat continuation, so put hellfire first
+            // and let the spawn case handle the matron / replacement
+            // flow it already owns.
+            if (this.enemy.passive?.kind === 'hellfireOnDeath') {
+                const relicCount = this.player.relics.length;
+                const damage = relicCount * this.enemy.passive.damagePerRelic;
+                if (damage > 0) {
+                    const taken = this.player.takeDamage(damage, 0, 'true');
+                    this.log.addMessage(
+                        this.loc.t('combatEnemyHellfireOnDeath', {
+                            name: this.enemy.name,
+                            damage: taken,
+                        }),
+                        '#ff8a3a'
+                    );
+                    if (taken > 0) this.playerHit.emit({ damage: taken });
+                    if (this.player.stats.hp <= 0) {
+                        this.logDeath();
+                        // Player died to the explosion — combat ends
+                        // through the death pipeline. Don't pay
+                        // rewards.
+                        this.finishCombat(killedByBleed);
+                        return;
+                    }
+                }
+            }
             // Death-trigger passive: Rat Matron-style 'spawnOnDeath'
             // respawns the encounter as a different enemy instead of
             // ending combat. Rewards for the matron itself are paid

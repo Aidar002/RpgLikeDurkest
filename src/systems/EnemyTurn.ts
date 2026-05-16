@@ -117,6 +117,30 @@ export function resolveEnemyTurn(
         }
     }
 
+    // Skeleton "Set the Bone": heal a fixed amount at the start of
+    // every enemy turn while alive. Applied here (alongside the other
+    // start-of-enemy-turn passives) so the heal lands BEFORE the
+    // regular-attack resolution and is reflected in the next intent
+    // the player sees. No-op once at maxHp.
+    if (enemy.passive?.kind === 'regenPerTurn' && enemy.hp < enemy.maxHp) {
+        const before = enemy.hp;
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + enemy.passive.amount);
+        const healed = enemy.hp - before;
+        if (healed > 0) {
+            log.addMessage(
+                loc.t('combatEnemyRegenPerTurn', { name: enemy.name, healed }),
+                '#a8d8a0'
+            );
+            deps.emitEnemyUpdate({
+                hp: enemy.hp,
+                maxHp: enemy.maxHp,
+                color: enemy.color,
+                name: enemy.name,
+                icon: enemy.icon,
+            });
+        }
+    }
+
     // Regular attack.
     const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
     const weakenReduction = enemy.status.weaken.turns > 0 ? enemy.status.weaken.amount : 0;
@@ -230,6 +254,41 @@ export function resolveEnemyTurn(
     if (player.stats.hp <= 0) {
         deps.logDeath();
         return;
+    }
+
+    // Steel Lynx "Predator's Instinct": chance to swing a SECOND time
+    // on this same regular-attack turn. The second swing reuses the
+    // same scaled `attackPower` (so weaken/horde/exultation modifiers
+    // already applied carry over) and goes through the regular hit
+    // pipeline so player-side procs (guard, blockOnHit, crit roll)
+    // resolve normally on it. The trigger only fires when the first
+    // swing actually landed and the player is still alive — a fully
+    // absorbed first swing or a death-on-first does not feed a
+    // free second hit.
+    if (
+        takenDamage > 0 &&
+        enemy.passive?.kind === 'doubleAttackChance' &&
+        rng.next() < enemy.passive.chance &&
+        player.stats.hp > 0
+    ) {
+        log.addMessage(loc.t('combatEnemyDoubleAttack', { name: enemy.name }), '#c4a35a');
+        const secondTaken = deps.applyEnemyHitToPlayer(attackPower, flatBlock);
+        if (secondTaken > 0) {
+            log.addMessage(
+                loc.t('combatEnemyHit', {
+                    name: enemy.name,
+                    takenDamage: secondTaken,
+                    extraMessage: '',
+                }),
+                '#ff6666'
+            );
+        } else {
+            log.addMessage(loc.t('absorb'), '#8fc6ff');
+        }
+        if (player.stats.hp <= 0) {
+            deps.logDeath();
+            return;
+        }
     }
 
     if (player.stats.hp > 0 && player.stats.hp <= Math.ceil(player.stats.maxHp * 0.25)) {

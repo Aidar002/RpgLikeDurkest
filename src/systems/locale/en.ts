@@ -209,6 +209,10 @@ export const EN_STRINGS = {
     combatEnemyAcidVomit:
         '{name} spews acid over your armor — defense reduced by {amount} for the rest of the fight.',
     combatEnemySpawnsReplacement: '{name} collapses — a {spawn} crawls from the carcass!',
+    combatEnemyHellfireOnDeath:
+        '{name} erupts in hellfire on death — {damage} true damage strips through your guard.',
+    combatEnemyRegenPerTurn: '{name} sets a bone back into place and recovers {healed} HP.',
+    combatEnemyDoubleAttack: "{name}'s predator instinct kicks in — a second strike follows.",
     combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
     combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
