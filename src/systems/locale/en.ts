@@ -213,6 +213,12 @@ export const EN_STRINGS = {
         '{name} erupts in hellfire on death — {damage} true damage strips through your guard.',
     combatEnemyRegenPerTurn: '{name} sets a bone back into place and recovers {healed} HP.',
     combatEnemyDoubleAttack: "{name}'s predator instinct kicks in — a second strike follows.",
+    combatEnemyCurseDarkness:
+        '{name} weaves a curse of darkness — your strikes are weakened by {amount} for the rest of the fight.',
+    combatEnemyParrySkill: '{name} parries — your {value} is brushed aside.',
+    combatEnemyParryPotion: '{name} parries — the potion spills before you can drink it.',
+    combatEnemyCorrosionStrike:
+        '{name} lands a corrosion strike for {damage} true damage — armor reduced by {amount}.',
     combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
     combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
