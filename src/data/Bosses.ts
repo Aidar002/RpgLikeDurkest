@@ -13,6 +13,7 @@
  * requires extending the switch in CombatManager.
  */
 import type { Language } from '../systems/Localization';
+import type { EnemyDef } from './EnemyTypes';
 
 /** Locale-aware label. Mirrors LocalizedText but stays free of import
  *  cycles; CombatManager picks the right one from the Localization
@@ -318,3 +319,102 @@ const BOSS_BLUEPRINTS: BossBlueprint[] = [
 export const BOSS_BLUEPRINT_BY_NAME: Record<string, BossBlueprint> = Object.fromEntries(
     BOSS_BLUEPRINTS.map((bp) => [bp.name, bp])
 );
+
+// ---------------------------------------------------------------------------
+// Final-boss roster. Keyed by depth bucket — pre-PR-1 the map
+// generator placed forced bosses every 5 depths, so this table
+// resolved each bucket to a unique encounter. PR-1 removed those
+// hardcoded boss depths — only the final-layer encounter (depth ===
+// RUN_CONFIG.runLength) is map-driven now. The pre-final entries are
+// kept so legacy combat/narrative code can still call
+// `getBossForDepth(d)` for d <= 25, but the map graph no longer spawns
+// BOSS rooms at those depths until PR-2 wires up bossPressure-based
+// placement (MINI_BOSS / major BOSS).
+//
+// Depth 25 now resolves to one of five candidate bosses chosen
+// deterministically from the combat RNG. Stats mirror the design
+// table directly; ability blocks live in {@link BOSS_BLUEPRINT_BY_NAME}
+// above. Boss reward multipliers still apply on top in
+// `CombatManager.setupEnemy`.
+//
+// See `src/data/Enemies.ts` for the depth -> boss lookup.
+// ---------------------------------------------------------------------------
+export const BOSSES: { depth: number; def: EnemyDef }[] = [
+    {
+        depth: 25,
+        def: {
+            name: 'Prophet',
+            description: 'test_desc_prophet',
+            icon: 'P',
+            hp: 45,
+            attack: 7,
+            xp: 50,
+            gold: 40,
+            color: 0xe6d680,
+            profile: 'boss',
+            dropMod: -20,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Mammon',
+            description: 'test_desc_mammon',
+            icon: '$',
+            hp: 37,
+            attack: 8,
+            xp: 50,
+            gold: 40,
+            color: 0xa67c00,
+            profile: 'boss',
+            dropMod: 30,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Nimrod',
+            description: 'test_desc_nimrod',
+            icon: 'X',
+            hp: 41,
+            attack: 0,
+            xp: 50,
+            gold: 40,
+            color: 0x483050,
+            profile: 'boss',
+            dropMod: 25,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Mime',
+            description: 'test_desc_mime',
+            icon: '?',
+            hp: 34,
+            attack: 6,
+            xp: 50,
+            gold: 40,
+            color: 0xb0b0b0,
+            profile: 'boss',
+            // Sheet says "-20%..+20%" — 0 picked as the mean per
+            // the user's "sensible defaults" confirmation.
+            dropMod: 0,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Gilgamesh',
+            description: 'test_desc_gilgamesh',
+            icon: 'H',
+            hp: 43,
+            attack: 7,
+            xp: 50,
+            gold: 40,
+            color: 0xb87333,
+            profile: 'boss',
+            dropMod: 20,
+        },
+    },
+];
