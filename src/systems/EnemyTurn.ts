@@ -5,7 +5,13 @@ import { intentLabelForPhase, intentLabelForPrepare, prepareName } from './BossR
 import { narrate } from './Narrator';
 import type { Localization } from './Localization';
 import type { PlayerManager } from './PlayerManager';
-import { applyBleed, applyPoison, applyWeaken, consumeStunForTurn } from './StatusEffects';
+import {
+    applyBleed,
+    applyPoison,
+    applyStun,
+    applyWeaken,
+    consumeStunForTurn,
+} from './StatusEffects';
 import type { ActiveEnemy, EnemyUpdatePayload } from './CombatManager';
 import type { Rng } from './Rng';
 
@@ -320,5 +326,17 @@ function resolvePrepare(
             }),
             '#7fbf6a'
         );
+    }
+    if (def.stun) {
+        applyStun(player.status, def.stun.turns);
+        log.addMessage(
+            loc.t('combatEnemyPrepareStun', {
+                name: enemy.name,
+                action,
+                turns: def.stun.turns,
+            }),
+            '#7aaaff'
+        );
+        deps.emitPlayerStatus();
     }
 }

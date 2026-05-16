@@ -25,6 +25,7 @@ import {
     applyBleed,
     consumeGuardBlock,
     consumeMark,
+    consumeStunForTurn,
     emptyStatusState,
     statusSummary,
     tickTurn,
@@ -373,7 +374,15 @@ export class CombatManager {
 
         const actionName = typeof action === 'string' ? action : action.kind;
 
-        if (actionName === 'attack') {
+        // Giant-Toad-style player stun: if the player is bound, their
+        // chosen action is forfeit. The enemy's turn still resolves.
+        // Stun ticks here (consumeStunForTurn decrements turns) so the
+        // very next player turn after a stun=1 application is the one
+        // skipped, and the one after that is free again.
+        const playerStunned = consumeStunForTurn(this.player.status);
+        if (playerStunned) {
+            this.log.addMessage(this.loc.t('combatPlayerStunned'), '#7aaaff');
+        } else if (actionName === 'attack') {
             this.handlePlayerAttack();
         } else if (actionName === 'defend') {
             this.handlePlayerDefend();

@@ -31,6 +31,11 @@ export interface EnemyPrepareDef {
     bleed?: { stacks: number; turns: number };
     /** Poison rider added when not defended. */
     poison?: { damage: number; turns: number };
+    /**
+     * Stun rider added when not defended. The player skips their next
+     * `turns` turns. Used by the giant toad's Tongue Lash.
+     */
+    stun?: { turns: number };
     /** What the player's Defend action does to this prepared hit. */
     defenseRule: 'damageBack' | 'cancelRiders' | 'leakOnDefend';
     /** Damage the enemy takes when defenseRule === 'damageBack'. */
@@ -522,6 +527,19 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0x4a6b2a,
                 profile: 'brute',
+                // Tongue Lash: 1-turn windup, on resolve the toad licks
+                // for 1 damage and binds the player for 1 turn (skip
+                // next action). Defending cancels the stun (and the
+                // poison rider in similar windups), the player still
+                // takes the lick damage on the resolve turn.
+                prepare: {
+                    nameEn: 'Tongue Lash',
+                    nameRu: 'Языковая хватка',
+                    turns: 1,
+                    damage: 1,
+                    stun: { turns: 1 },
+                    defenseRule: 'cancelRiders',
+                },
             },
         ],
     },

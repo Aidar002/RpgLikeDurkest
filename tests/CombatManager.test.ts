@@ -605,6 +605,83 @@ describe('Underground Ent Strangling Roots (weakenPlayerEachTurn)', () => {
     });
 });
 
+function injectGiantToadPrepare(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; turnsRemaining: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Giant Toad',
+        canonicalName: 'Giant Toad',
+        description: 'test',
+        icon: 'T',
+        hp: overrides.hp ?? 3,
+        maxHp: overrides.maxHp ?? 3,
+        attack: 2,
+        color: 0x4a6b2a,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        pendingPrepare: {
+            def: {
+                nameEn: 'Tongue Lash',
+                nameRu: 'Языковая хватка',
+                turns: 1,
+                damage: 1,
+                stun: { turns: 1 },
+                defenseRule: 'cancelRiders',
+            },
+            turnsRemaining: overrides.turnsRemaining ?? 0,
+        },
+        currentIntent: null,
+    };
+}
+
+describe('Giant Toad Tongue Lash (prepare stun rider)', () => {
+    it('applies a 1-turn stun to the player when not defending', () => {
+        const { combat, player, seenMessages } = makeManager(111);
+        // Bump HP up so the toad survives the player's swing and gets
+        // to resolve its windup. With a 3-HP toad the player can crit
+        // it dead before the prepare ever fires.
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        combat.processTurn('attack');
+
+        expect(player.status.stun.turns).toBeGreaterThan(0);
+        expect(seenMessages.some((m) => /binds you|применяет/i.test(m))).toBe(true);
+    });
+
+    it('cancels the stun rider when the player defends on resolve', () => {
+        const { combat, player } = makeManager(112);
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        combat.processTurn('defend');
+
+        expect(player.status.stun.turns).toBe(0);
+    });
+
+    it('skips the player action and logs the bound line on the stunned turn', () => {
+        const { combat, player, seenMessages } = makeManager(113);
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        // Turn A: stun is applied (player still acted: attack).
+        combat.processTurn('attack');
+        const hpAfterA = combat.enemy?.hp ?? 0;
+        // Turn B: player is stunned; their attack is swallowed.
+        combat.processTurn('attack');
+        const hpAfterB = combat.enemy?.hp ?? 0;
+
+        // Bound log must appear on turn B.
+        expect(seenMessages.some((m) => /bound|скованы/i.test(m))).toBe(true);
+        // No enemy HP lost from the stunned player swing.
+        expect(hpAfterB).toBe(hpAfterA);
+        // Stun is consumed after the skipped turn.
+        expect(player.status.stun.turns).toBe(0);
+    });
+});
+
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);

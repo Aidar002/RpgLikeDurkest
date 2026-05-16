@@ -206,6 +206,8 @@ export const EN_STRINGS = {
     combatEnemyPainExultation: '{name} drinks in the pain — +{bonus} damage.',
     combatEnemyStranglingRoots:
         '{name} curls roots around you — your swings are weakened by {amount}.',
+    combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
+    combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
     combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
     combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',
