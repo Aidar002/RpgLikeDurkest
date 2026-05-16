@@ -9,7 +9,6 @@ import {
 } from '../data/Bosses';
 import type { EventLog } from '../ui/EventLog';
 import {
-    breakBossBlockOnSkillDamage,
     intentLabelForPhase,
     intentLabelForPrepare,
     maybeAdvancePhase,
@@ -19,17 +18,11 @@ import { Emitter } from './Emitter';
 import { narrate } from './Narrator';
 import { Localization } from './Localization';
 import { PlayerManager } from './PlayerManager';
-import { SKILLS } from './Skills';
 import type { SkillId } from './Skills';
 import {
     applyArmorBreak,
-    applyBleed,
-    applyMark,
-    applyPoison,
-    applyStun,
     applyWeaken,
     consumeGuardBlock,
-    consumeMark,
     consumeStunForTurn,
     emptyStatusState,
     statusSummary,
@@ -41,7 +34,20 @@ import {
     type PlayerAction,
 } from './EnemyTurn';
 import type { StatusState } from './StatusEffects';
-import { defaultRng, randomInt, type Rng } from './Rng';
+import { defaultRng, type Rng } from './Rng';
+import {
+    handlePlayerAttack as handlePlayerAttackFn,
+    handlePlayerDefend as handlePlayerDefendFn,
+    handlePlayerPotion as handlePlayerPotionFn,
+    handlePlayerSkill as handlePlayerSkillFn,
+    type PlayerActionsDeps,
+    type PlayerActionsState,
+} from './combat/PlayerActions';
+import {
+    applyRandomMimeStatus as applyRandomMimeStatusFn,
+    stealRandomRelic as stealRandomRelicFn,
+    type MimeChaosDeps,
+} from './combat/MimeChaos';
 
 export type CombatAction =
     | 'attack'
@@ -186,23 +192,31 @@ export interface EnemyUpdatePayload {
 // CombatManager routing map (see .agents/skills/rpg-like-durkest/SKILL.md)
 // -----------------------------------------------------------------------------
 // Type/payload exports (CombatAction, BossPhaseState, ActiveEnemy,
-//   CombatRewards, CombatEndPayload, EnemyUpdatePayload) . . . . . .   40 - 149
-// Field declarations + Emitter channels . . . . . . . . . . . . . . 152 - 188
-// constructor / skillName . . . . . . . . . . . . . . . . . . . . . 190 - 204
-// startCombat / setupEnemy (encounter init, scaling, intent rolls). 206 - 311
-// getSkillCooldown / isSkillOnCooldown . . . . . . . . . . . . . .  313 - 320
-// processTurn (top-level player-action dispatcher) . . . . . . . .  322 - 428
-// handlePlayerAttack / Defend / Skill / Potion . . . . . . . . . .  430 - 564
-// applyPlayerDamage (crit, mark, weaken, status, kill check) . . .  566 - 670
-// applyOnAttackRelics / tryVampireBlessingOnAttack /
-//   tryHealOnAttack . . . . . . . . . . . . . . . . . . . . . . .  672 - 716
-// resolveEnemyTurn (non-boss intent execution) . . . . . . . . . .  723 - 900
-// applyEnemyHitToPlayer / finishCombat / logDeath /
-//   rollPlayerAttack / buildRewards . . . . . . . . . . . . . . . . 902 - 1001
-// Boss machinery: intentLabel*, prepareName, resolvePrepare,
-//   maybeAdvancePhase, runBossTurn, resolveBossWindupAction,
-//   tickBossBlockAtTurnEnd, breakBossBlockOnSkillDamage . . . . .  1003 - 1478
-// enemyStatusText / playerStatusText / randomBetween . . . . . . . 1481 - end
+//   CombatRewards, CombatEndPayload, EnemyUpdatePayload).
+// Field declarations + Emitter channels.
+// constructor.
+// startCombat / setupEnemy (encounter init, scaling, intent rolls).
+// getSkillCooldown / isSkillOnCooldown.
+// processTurn (top-level player-action dispatcher).
+// handlePlayerAttack / Defend / Skill / Potion (delegate wrappers
+//   into combat/PlayerActions.ts).
+// buildPlayerActionsState / buildPlayerActionsDeps /
+//   buildMimeChaosDeps (dependency-injection bundles for the
+//   combat/ sub-modules).
+// resolveEnemyTurn (delegates to EnemyTurn.ts).
+// applyEnemyHitToPlayer.
+// spawnReplacement / finishCombat / logDeath / buildRewards.
+// stealRandomRelic / applyRandomMimeStatus (wrappers into
+//   combat/MimeChaos.ts).
+// Boss machinery: runBossTurn, resolveBossWindupAction.
+// enemyStatusText / playerStatusText.
+//
+// Player-side action implementations live in:
+//   - combat/PlayerActions.ts  (handlePlayer*, applyPlayerDamage)
+//   - combat/RelicHooks.ts     (on-attack relic procs)
+//   - combat/MimeChaos.ts      (Mime / Mammon helpers)
+// Boss-side helpers live in BossRuntime.ts; non-boss enemy turns
+// live in EnemyTurn.ts.
 // =============================================================================
 export class CombatManager {
     private player: PlayerManager;
@@ -231,13 +245,17 @@ export class CombatManager {
     /** Preparation buff: next attack +1 damage, next defend +1 defense. */
     public preparationActive = false;
     /**
-     * [FIX-13] Per-turn relic guards. Reset at the top of every player
+     * Per-turn relic guards. Reset at the top of every player
      * turn so Vampiric Sigil / Gambler's Knuckle resolve gain can fire
      * at most once per turn regardless of how many crits / kills line
      * up in that turn.
+     *
+     * `public` so the player-action handlers in {@link PlayerActions}
+     * can read/write them through {@link buildPlayerActionsState}
+     * without TypeScript complaining about cross-module access.
      */
-    private vampiricHealedThisTurn = false;
-    private gamblersResolveThisTurn = 0;
+    public vampiricHealedThisTurn = false;
+    public gamblersResolveThisTurn = 0;
 
     constructor(
         player: PlayerManager,
@@ -249,10 +267,6 @@ export class CombatManager {
         this.log = log;
         this.loc = loc;
         this.rng = rng;
-    }
-
-    private skillName(id: SkillId): string {
-        return this.loc.pick(SKILLS[id].name);
     }
 
     /**
@@ -576,335 +590,93 @@ export class CombatManager {
 
     private handlePlayerAttack() {
         if (!this.enemy) return;
-        this.player.gainResolve(COMBAT_CONFIG.resolveFromAttack);
-        const result = this.rollPlayerAttack();
-        let damage = result.damage;
-        if (this.preparationActive) {
-            damage += 1;
-            this.preparationActive = false;
-            this.log.addMessage(this.loc.t('combatPreparationAttack'), '#9bc8ff');
-        }
-        // Knight's Sword: +5 damage on a regular attack at the relic's
-        // chance. Resolved on the basic-attack path ONLY (skills, bleed
-        // ticks, Cursed-Ring scrubbed strikes do NOT receive it). Logged
-        // before the strike line so the order reads "extra → strike".
-        const agg = this.player.aggregate;
-        if (agg.damageBonusOnAttackChance > 0 && this.rng.next() < agg.damageBonusOnAttackChance) {
-            const bonus = agg.damageBonusOnAttackAmount;
-            damage += bonus;
-            this.log.addMessage(this.loc.t('combatRelicKnightSwordBonus', { bonus }), '#e6d27a');
-        }
-        this.applyPlayerDamage(damage, result.critical);
-        this.log.addMessage(
-            result.critical
-                ? this.loc.t('strikeCrit', { damage })
-                : this.loc.t('strike', { damage }),
-            result.critical ? '#ffe08a' : '#dddddd'
+        handlePlayerAttackFn(
+            this.enemy,
+            this.buildPlayerActionsState(),
+            this.buildPlayerActionsDeps()
         );
-        if (result.critical && this.rng.next() < 0.35) {
-            this.log.addMessage(narrate('crit_landed', this.loc.language), '#c4a35a');
-        }
-        this.applyOnAttackRelics();
-        this.applyResolveOnAttack();
     }
 
     private handlePlayerDefend() {
         if (!this.enemy) return;
-        this.player.gainResolve(COMBAT_CONFIG.resolveFromGuard);
-        if (this.preparationActive) {
-            this.player.addDefenseBonus(1);
-            this.preparationActive = false;
-            this.log.addMessage(this.loc.t('combatPreparationDefend'), '#9bc8ff');
-        }
-        this.log.addMessage(this.loc.t('brace'), '#66aaff');
+        handlePlayerDefendFn(
+            this.enemy,
+            this.buildPlayerActionsState(),
+            this.buildPlayerActionsDeps()
+        );
     }
 
     private handlePlayerSkill(skillId: SkillId): boolean {
         if (!this.enemy) return false;
-        const skill = SKILLS[skillId];
-        if (this.isSkillOnCooldown(skillId)) {
-            this.log.addMessage(
-                this.loc.t('combatSkillOnCooldown', {
-                    value: this.skillName(skillId),
-                    turns: this.getSkillCooldown(skillId),
-                }),
-                '#8899aa'
-            );
-            return false;
-        }
-        const cost = Math.max(1, skill.resolveCost);
-        if (!this.player.spendResolve(cost)) {
-            this.log.addMessage(
-                this.loc.t('combatNeedResolveForSkill', { cost, value: this.skillName(skillId) }),
-                '#8899aa'
-            );
-            return false;
-        }
-
-        // Skeleton Swordsman "Skilled Fencer": parry the skill before
-        // its effect resolves. The resolve cost is already spent above
-        // (and is NOT refunded — the parry just wastes the player's
-        // turn) and the player's turn still passes so the enemy still
-        // acts on top.
-        if (
-            this.enemy.passive?.kind === 'blocksSkillsAndPotions' &&
-            this.rng.next() < this.enemy.passive.chance
-        ) {
-            this.log.addMessage(
-                this.loc.t('combatEnemyParrySkill', {
-                    name: this.enemy.name,
-                    value: this.skillName(skillId),
-                }),
-                '#a89070'
-            );
-            return true;
-        }
-
-        switch (skillId) {
-            case 'cleave': {
-                const base = this.player.getAttackPower();
-                const bonus = Math.max(1, Math.floor(base * 0.5));
-                const dmg = Math.max(1, base + bonus);
-                this.applyPlayerDamage(dmg, false);
-                this.log.addMessage(this.loc.t('combatSkillCleave', { dmg }), '#b893ff');
-                this.applyOnAttackRelics();
-                this.applyResolveOnAttack();
-                breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
-                break;
-            }
-            case 'bleed_strike': {
-                const dmg = Math.max(1, this.player.getAttackPower());
-                this.applyPlayerDamage(dmg, false);
-                const bleedPerTick = Math.max(1, Math.floor(this.player.getAttackPower() * 0.2));
-                applyBleed(this.enemy.status, bleedPerTick, 3, this.enemy.bleedCap);
-                this.log.addMessage(this.loc.t('combatSkillBleedStrike', { dmg }), '#d06060');
-                this.applyOnAttackRelics();
-                this.applyResolveOnAttack();
-                breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
-                break;
-            }
-            case 'preparation': {
-                this.preparationActive = true;
-                this.log.addMessage(this.loc.t('combatSkillPreparation'), '#7fa9ff');
-                break;
-            }
-        }
-        return true;
+        return handlePlayerSkillFn(
+            this.enemy,
+            skillId,
+            this.buildPlayerActionsState(),
+            this.buildPlayerActionsDeps()
+        );
     }
 
     private handlePlayerPotion(): boolean {
-        if (!this.player.spendPotion()) {
-            this.log.addMessage(this.loc.t('noPotions'), '#8899aa');
-            return false;
-        }
-        // Skeleton Swordsman "Skilled Fencer": parry the potion as it
-        // is being drunk. The potion is already consumed (cost is the
-        // gating mechanic) but the heal is silenced. Player's turn
-        // still passes.
-        if (
-            this.enemy?.passive?.kind === 'blocksSkillsAndPotions' &&
-            this.rng.next() < this.enemy.passive.chance
-        ) {
-            this.log.addMessage(
-                this.loc.t('combatEnemyParryPotion', {
-                    name: this.enemy.name,
-                }),
-                '#a89070'
-            );
-            return true;
-        }
-        const healed = this.player.heal(COMBAT_CONFIG.potionHeal);
-        this.log.addMessage(this.loc.t('drinkPotion', { healed }), '#78e496');
-        return true;
-    }
-
-    private applyPlayerDamage(baseDamage: number, criticalIn: boolean) {
-        if (!this.enemy) return;
-
-        // Bee-Butterfly "Flutter and sting": chance to dodge the
-        // player's incoming swing entirely and counter for a fixed
-        // amount of true damage. Resolved before any player-side
-        // procs (Minor Cursed, mark consumption, expose bonuses,
-        // Bone-Shield, damage reduction) so those are not wasted on
-        // a missed swing.
-        if (
-            this.enemy.passive?.kind === 'evadeAndStingOnHit' &&
-            this.rng.next() < this.enemy.passive.chance
-        ) {
-            this.lastActionResult.enemyEvaded = true;
-            const sting = this.enemy.passive.damage;
-            const taken = sting > 0 ? this.player.takeDamage(sting, 0, 'true') : 0;
-            this.log.addMessage(
-                this.loc.t('combatEnemyEvadeAndSting', {
-                    name: this.enemy.name,
-                    damage: taken,
-                }),
-                '#d9bf3a'
-            );
-            if (taken > 0) this.playerHit.emit({ damage: taken });
-            return;
-        }
-
-        let critical = criticalIn;
-        let damage = baseDamage;
-
-        // Consume mark for guaranteed crit.
-        if (!critical && consumeMark(this.enemy.status)) {
-            critical = true;
-            damage = Math.max(1, Math.round(damage * COMBAT_CONFIG.criticalMultiplier));
-        }
-
-        // [FIX-10] Boss "Exposed" actions queue +N damage on the next
-        // player hit. Consume the queue here so subsequent hits (e.g.
-        // bleed tick) do NOT eat the bonus.
-        if (this.enemy.bossPhase && this.enemy.bossPhase.pendingExposeBonus > 0) {
-            damage += this.enemy.bossPhase.pendingExposeBonus;
-            this.enemy.bossPhase.pendingExposeBonus = 0;
-        }
-
-        // [FIX-10] Bone-Shield style block on the boss soaks the next
-        // player hit before HP loss.
-        if (this.enemy.bossPhase && this.enemy.bossPhase.pendingBlock > 0) {
-            const blocked = Math.min(this.enemy.bossPhase.pendingBlock, damage);
-            damage -= blocked;
-            this.enemy.bossPhase.pendingBlock -= blocked;
-        }
-
-        // Skeleton-style passive: on a successful hit, the enemy may
-        // shrug off N points of damage. Mirrored as a chance-gated
-        // flat reduction so it interacts cleanly with crits/expose.
-        if (
-            damage > 0 &&
-            this.enemy.passive?.kind === 'damageReduction' &&
-            this.rng.next() < this.enemy.passive.chance
-        ) {
-            const before = damage;
-            damage = Math.max(0, damage - this.enemy.passive.reduction);
-            if (damage < before) {
-                this.log.addMessage(
-                    this.loc.t('combatEnemyDamageReduction', {
-                        name: this.enemy.name,
-                        amount: before - damage,
-                    }),
-                    '#9aa6b3'
-                );
-            }
-        }
-
-        // Longinus Shard: ×N damage when the enemy is the Prophet
-        // boss. Applied AFTER all other damage modifiers but BEFORE
-        // the HP write so the multiplied damage feeds the death
-        // check and the boss-block / spawn paths.
-        if (damage > 0 && this.enemy.canonicalName === 'Prophet') {
-            const mult = this.player.aggregate.prophetDamageMult;
-            if (mult > 1) {
-                const before = damage;
-                damage = Math.max(1, Math.round(damage * mult));
-                this.log.addMessage(
-                    this.loc.t('combatRelicLonginusShard', {
-                        before,
-                        damage,
-                    }),
-                    '#ffd9d9'
-                );
-            }
-        }
-
-        if (damage > 0) {
-            this.enemy.hp = Math.max(0, this.enemy.hp - damage);
-            if (this.enemy.bossPhase) this.enemy.bossPhase.damagedThisTurn = true;
-        }
-        this.lastActionResult.critical = this.lastActionResult.critical || critical;
-        this.enemyUpdate.emit({
-            hp: this.enemy.hp,
-            maxHp: this.enemy.maxHp,
-            color: this.enemy.color,
-            name: this.enemy.name,
-            icon: this.enemy.icon,
-        });
-
-        // Slime-style thorns: when struck, the enemy may reflect a
-        // small fixed amount back to the player as untyped damage.
-        if (
-            damage > 0 &&
-            this.enemy.passive?.kind === 'thornsOnTakeHit' &&
-            this.rng.next() < this.enemy.passive.chance
-        ) {
-            const reflect = this.enemy.passive.damage;
-            const taken = this.player.takeDamage(reflect, 0, 'true');
-            if (taken > 0) {
-                this.log.addMessage(
-                    this.loc.t('combatEnemyThorns', {
-                        name: this.enemy.name,
-                        thorns: taken,
-                    }),
-                    '#7fbf6a'
-                );
-                this.playerHit.emit({ damage: taken });
-            }
-        }
-
-        if (critical) {
-            // Crit-based relic effects are deferred to a follow-up PR.
-            void this.vampiricHealedThisTurn;
-            void this.gamblersResolveThisTurn;
-        }
-    }
-
-    private applyOnAttackRelics() {
-        if (!this.enemy) return;
-        this.tryHealOnAttack();
-        this.tryVampireBlessingOnAttack();
+        return handlePlayerPotionFn(this.enemy, this.buildPlayerActionsDeps());
     }
 
     /**
-     * Sara's Vampire Blessing: while active, every damaging player
-     * action has an aggregate-defined chance (25%) to restore a fixed
-     * amount (2) of HP. Stored on the relic aggregate so the combat
-     * pipeline reads it through the same hook as relic on-attack
-     * effects; granted via {@link PlayerManager.setVampireBlessing}.
+     * Build the mutable state object the player-action handlers
+     * read & write. Returns a live view backed by the manager's own
+     * fields — handlers mutate `state.preparationActive` /
+     * `state.skillCooldowns` etc. through the proxy and the changes
+     * land directly on `this`.
      */
-    private tryVampireBlessingOnAttack() {
-        const agg = this.player.aggregate;
-        if (agg.vampireBlessingChance <= 0 || agg.vampireBlessingAmount <= 0) return;
-        if (this.rng.next() >= agg.vampireBlessingChance) return;
-        const healed = this.player.heal(agg.vampireBlessingAmount);
-        if (healed > 0) {
-            this.log.addMessage(this.loc.t('combatVampireBlessingHeal', { healed }), '#d7b6ff');
-        }
+    private buildPlayerActionsState(): PlayerActionsState {
+        // Use property accessors so writes propagate back to `this`.
+        // Cooldowns + lastActionResult are object refs so mutations on
+        // them are already visible through `this`; primitives need
+        // explicit writeback.
+        // eslint-disable-next-line @typescript-eslint/no-this-alias
+        const manager: CombatManager = this;
+        return {
+            get preparationActive(): boolean {
+                return manager.preparationActive;
+            },
+            set preparationActive(v: boolean) {
+                manager.preparationActive = v;
+            },
+            get vampiricHealedThisTurn(): boolean {
+                return manager.vampiricHealedThisTurn;
+            },
+            set vampiricHealedThisTurn(v: boolean) {
+                manager.vampiricHealedThisTurn = v;
+            },
+            get gamblersResolveThisTurn(): number {
+                return manager.gamblersResolveThisTurn;
+            },
+            set gamblersResolveThisTurn(v: number) {
+                manager.gamblersResolveThisTurn = v;
+            },
+            skillCooldowns: this.skillCooldowns,
+            lastActionResult: this.lastActionResult,
+        };
     }
 
-    /**
-     * Vampire Amulet (and similar): a chance to recover HP after any
-     * attack action. Uses the player's `aggregate.healOnAttackChance`
-     * so multiple sources stack via max() in {@link aggregateRelics}.
-     * The flesh-set proc-bump (10% → 30%) is folded into the chance
-     * by `applyUnconditionalSetBonuses`.
-     */
-    private tryHealOnAttack() {
-        if (!this.enemy) return;
-        const agg = this.player.aggregate;
-        if (agg.healOnAttackChance <= 0) return;
-        if (this.rng.next() >= agg.healOnAttackChance) return;
-        const healed = this.player.heal(agg.healOnAttackAmount);
-        if (healed > 0) {
-            this.log.addMessage(this.loc.t('combatRelicHealOnAttack', { healed }), '#8be0a7');
-        }
+    private buildPlayerActionsDeps(): PlayerActionsDeps {
+        return {
+            player: this.player,
+            log: this.log,
+            loc: this.loc,
+            rng: this.rng,
+            emitPlayerHit: (damage) => this.playerHit.emit({ damage }),
+            emitEnemyUpdate: (payload) => this.enemyUpdate.emit(payload),
+        };
     }
 
-    /**
-     * Lost Staff: +N current resolve every time the player takes an
-     * attack action (basic strike OR Will-skill). Capped at maxResolve
-     * by `gainResolve`. Logged only when something was actually
-     * gained, so a full bar stays quiet.
-     */
-    private applyResolveOnAttack() {
-        const agg = this.player.aggregate;
-        if (agg.resolveOnAttackAmount <= 0) return;
-        const gained = this.player.gainResolve(agg.resolveOnAttackAmount);
-        if (gained > 0) {
-            this.log.addMessage(this.loc.t('combatRelicLostStaff', { resolve: gained }), '#9bc8ff');
-        }
+    private buildMimeChaosDeps(): MimeChaosDeps {
+        return {
+            player: this.player,
+            log: this.log,
+            loc: this.loc,
+            rng: this.rng,
+            emitPlayerStatus: () => this.playerStatusChange.emit(),
+        };
     }
 
     private resolveEnemyTurn(playerAction: PlayerAction) {
@@ -1100,32 +872,11 @@ export class CombatManager {
     }
 
     /**
-     * Mammon's "Greed Lord" relic theft. Picks one of the player's
-     * relics deterministically through `this.rng.next()` and stashes
-     * the id on `BossPhaseState.stolenRelicId` so finishCombat can
-     * return it on the boss's death. No-op when the player has no
-     * relics.
+     * Mammon's "Greed Lord" relic theft. Delegates to
+     * {@link MimeChaos.stealRandomRelic}.
      */
     private stealRandomRelic(state: BossPhaseState): void {
-        if (!this.enemy) return;
-        const relics = this.player.relics;
-        if (relics.length === 0) {
-            // Player carries nothing — narrate the fizzle so the cue
-            // is still visible.
-            this.log.addMessage(
-                this.loc.t('combatBossRelicTheftEmpty', { name: this.enemy.name }),
-                '#a89070'
-            );
-            return;
-        }
-        const idx = Math.floor(this.rng.next() * relics.length) % relics.length;
-        const stolen = relics[idx];
-        this.player.removeRelic(stolen);
-        state.stolenRelicId = stolen;
-        this.log.addMessage(
-            this.loc.t('combatBossRelicStolen', { name: this.enemy.name }),
-            '#d09a4f'
-        );
+        stealRandomRelicFn(this.enemy, state, this.buildMimeChaosDeps());
     }
 
     private logDeath() {
@@ -1133,11 +884,8 @@ export class CombatManager {
     }
 
     /**
-     * Mime "Chaos Lord's Laughter" — pick one status from the action's
-     * pool that is NOT the same as the last status applied. The
-     * anti-repeat tracker lives on `BossPhaseState.lastRandomStatus`
-     * so it survives turn boundaries but resets per-encounter (a
-     * fresh `setupEnemy` builds a new BossPhaseState).
+     * Mime "Chaos Lord's Laughter" — delegates to
+     * {@link MimeChaos.applyRandomMimeStatus}.
      */
     private applyRandomMimeStatus(
         state: BossPhaseState,
@@ -1147,70 +895,7 @@ export class CombatManager {
             turns: number;
         }
     ): void {
-        if (!this.enemy) return;
-        const candidates = cfg.pool.filter((s) => s !== state.lastRandomStatus);
-        // If anti-repeat would empty the pool (single-element pool),
-        // fall back to the full pool so we still apply something.
-        const choices = candidates.length > 0 ? candidates : cfg.pool;
-        if (choices.length === 0) return;
-        const idx = Math.floor(this.rng.next() * choices.length) % choices.length;
-        const pick = choices[idx];
-        state.lastRandomStatus = pick;
-        // Map status id → its localised display label. The keys are
-        // referenced as string literals here so the orphan-key test
-        // (`tests/Locale.consistency.test.ts`) can statically detect
-        // each call site.
-        let statusLabel: string;
-        switch (pick) {
-            case 'bleed':
-                applyBleed(this.player.status, cfg.amount, cfg.turns);
-                statusLabel = this.loc.t('combatBossMimeStatus_bleed');
-                break;
-            case 'poison':
-                applyPoison(this.player.status, cfg.amount, cfg.turns);
-                statusLabel = this.loc.t('combatBossMimeStatus_poison');
-                break;
-            case 'stun':
-                applyStun(this.player.status, cfg.turns);
-                statusLabel = this.loc.t('combatBossMimeStatus_stun');
-                break;
-            case 'weaken':
-                applyWeaken(this.player.status, cfg.amount, cfg.turns);
-                statusLabel = this.loc.t('combatBossMimeStatus_weaken');
-                break;
-            case 'armorBreak':
-                applyArmorBreak(this.player.status, cfg.amount, cfg.turns);
-                statusLabel = this.loc.t('combatBossMimeStatus_armorBreak');
-                break;
-            case 'mark':
-                applyMark(this.player.status, cfg.turns);
-                statusLabel = this.loc.t('combatBossMimeStatus_mark');
-                break;
-        }
-        this.log.addMessage(
-            this.loc.t('combatBossMimeChaos', {
-                name: this.enemy.name,
-                status: statusLabel,
-            }),
-            '#c0a0d0'
-        );
-        this.playerStatusChange.emit();
-    }
-
-    private rollPlayerAttack() {
-        const variance =
-            COMBAT_CONFIG.randomVariance > 0
-                ? this.randomBetween(-COMBAT_CONFIG.randomVariance, COMBAT_CONFIG.randomVariance)
-                : 0;
-        const baseDamage = Math.max(1, this.player.getAttackPower() + variance);
-        const critical = this.rng.next() < this.player.getCritChance();
-
-        return {
-            damage: critical
-                ? Math.max(1, Math.round(baseDamage * COMBAT_CONFIG.criticalMultiplier))
-                : baseDamage,
-            critical,
-        };
+        applyRandomMimeStatusFn(this.enemy, state, cfg, this.buildMimeChaosDeps());
     }
 
     private buildRewards(enemy: ActiveEnemy, killedByBleed: boolean): CombatEndPayload {
@@ -1579,9 +1264,5 @@ export class CombatManager {
 
     playerStatusText(): string {
         return statusSummary(this.player.status, this.loc.language);
-    }
-
-    private randomBetween(min: number, max: number): number {
-        return randomInt(this.rng, min, max);
     }
 }
