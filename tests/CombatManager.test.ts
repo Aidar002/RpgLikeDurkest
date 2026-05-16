@@ -4,7 +4,7 @@ import { PlayerManager } from '../src/systems/PlayerManager';
 import { Mulberry32 } from '../src/systems/Rng';
 import { emptyStatusState } from '../src/systems/StatusEffects';
 import type { EventLog } from '../src/ui/EventLog';
-import type { EnemyDef, EnemyPrepareDef } from '../src/data/GameConfig';
+import type { EnemyDef, EnemyPassive, EnemyPrepareDef } from '../src/data/GameConfig';
 
 // Death Knight's boss blueprint lives in src/data/Bosses.ts (Death
 // Shield + Death Touch). Death Knight itself was demoted to the 16-20
@@ -181,6 +181,68 @@ function injectGhoulPrepare(combat: CombatManager, prepare: EnemyPrepareDef): vo
         currentIntent: null,
     };
 }
+
+// Direct injection of a Bee-Butterfly-shaped enemy so we can pin the
+// evade chance to 0 or 1 and assert deterministic behaviour without
+// hunting for an RNG seed that lines up with the passive trigger.
+function injectBeeButterfly(combat: CombatManager, passive: EnemyPassive): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Bee-Butterfly',
+        canonicalName: 'Bee-Butterfly',
+        description: 'test',
+        icon: 'Y',
+        hp: 3,
+        maxHp: 3,
+        attack: 2,
+        color: 0xc4a01e,
+        xp: 0,
+        gold: 0,
+        profile: 'stalker',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive,
+        currentIntent: null,
+    };
+}
+
+describe('Bee-Butterfly Flutter and sting (evadeAndStingOnHit)', () => {
+    it('on evade, the bee-butterfly is unharmed and the sting message lands', () => {
+        const { combat, player, seenMessages } = makeManager(31);
+        injectBeeButterfly(combat, { kind: 'evadeAndStingOnHit', chance: 1, damage: 1 });
+        const enemyHpBefore = combat.enemy!.hp;
+        const playerHpBefore = player.stats.hp;
+
+        combat.processTurn('attack');
+
+        // The player's swing missed, so the enemy keeps full HP. The
+        // bee's own counter-attack still fires afterwards as part of
+        // the same turn, so we only assert that the player took at
+        // least the sting on top of whatever the regular attack did.
+        expect(combat.enemy!.hp).toBe(enemyHpBefore);
+        expect(combat.lastActionResult.enemyEvaded).toBe(true);
+        expect(playerHpBefore - player.stats.hp).toBeGreaterThanOrEqual(1);
+        expect(seenMessages.some((m) => /Bee-Butterfly/.test(m) && /1/.test(m))).toBe(true);
+    });
+
+    it('with chance 0 the swing lands normally and the evade message stays silent', () => {
+        const { combat, player, seenMessages } = makeManager(32);
+        injectBeeButterfly(combat, { kind: 'evadeAndStingOnHit', chance: 0, damage: 1 });
+        // Drop enemy HP to 1 so the swing kills it; ending combat
+        // skips the enemy counter-turn and lets us assert that the
+        // player took zero damage from this round.
+        combat.enemy!.hp = 1;
+        combat.enemy!.maxHp = 1;
+        const playerHpBefore = player.stats.hp;
+
+        combat.processTurn('attack');
+
+        expect(combat.enemy === null || combat.enemy.hp === 0).toBe(true);
+        expect(player.stats.hp).toBe(playerHpBefore);
+        expect(combat.lastActionResult.enemyEvaded).toBe(false);
+        expect(seenMessages.some((m) => /flit/.test(m))).toBe(false);
+    });
+});
 
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {

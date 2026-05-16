@@ -196,10 +196,11 @@ export const EN_STRINGS = {
     combatSkillPreparation: 'Preparation: next attack +1 dmg, next defend +1 def.',
     combatPreparationAttack: 'Preparation lands: +1 damage on this attack.',
     combatPreparationDefend: 'Preparation steadies you: +1 defense on this guard.',
-    // Per-enemy passive triggers (rat / slime / skeleton).
+    // Per-enemy passive triggers (rat / slime / skeleton / bee-butterfly).
     combatEnemyExtraDamage: '{name} lunges for an extra +{bonus} damage.',
     combatEnemyThorns: '{name} retaliates for {thorns} damage.',
     combatEnemyDamageReduction: '{name} shrugs off {amount} damage.',
+    combatEnemyEvadeAndSting: '{name} flits aside and stings for {damage} damage.',
     // Item triggers — unified format "X effect triggered — Y".
     combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
     combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',
