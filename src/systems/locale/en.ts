@@ -213,6 +213,13 @@ export const EN_STRINGS = {
         '{name} erupts in hellfire on death — {damage} true damage strips through your guard.',
     combatEnemyRegenPerTurn: '{name} sets a bone back into place and recovers {healed} HP.',
     combatEnemyDoubleAttack: "{name}'s predator instinct kicks in — a second strike follows.",
+    combatEnemyCurseDarkness:
+        '{name} weaves a curse of darkness — your strikes are weakened by {amount} for the rest of the fight.',
+    combatEnemyParrySkill: '{name} parries — your {value} is brushed aside.',
+    combatEnemyParryPotion: '{name} parries — the potion spills before you can drink it.',
+    combatEnemyCorrosionStrike:
+        '{name} lands a corrosion strike for {damage} true damage — armor reduced by {amount}.',
+    combatEnemySelfHeal: '{name} drinks a healing potion and recovers {healed} HP.',
     combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
     combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
@@ -249,6 +256,21 @@ export const EN_STRINGS = {
     combatBossDeathShieldBroken: "Your Will-skill shatters {name}'s Death Shield.",
     combatBossDeathTouchOhko: "{name}'s {action} lands — you fall.",
     combatBossDeathTouchDefended: "You brace through {name}'s {action} for {damage} damage.",
+    combatBossNimrodGodkiller: "{name}'s {action} resolves — your soul is unmade.",
+    combatBossHeroCry:
+        '{name} bellows — your strikes weaken by {weaken}, armor breaks by {armor}, resolve drains by {resolve}.',
+    combatBossResurrect:
+        '{name} rises again — restored to {hp} HP and roaring with {attack} attack.',
+    combatBossRelicStolen: '{name} snatches a relic from your pack.',
+    combatBossRelicReturned: 'You reclaim the relic from {name}.',
+    combatBossRelicTheftEmpty: '{name} reaches for a relic — your pack is empty.',
+    combatBossMimeChaos: '{name} laughs — chaos imprints {status} on you.',
+    combatBossMimeStatus_bleed: 'a bleeding wound',
+    combatBossMimeStatus_poison: 'a creeping poison',
+    combatBossMimeStatus_stun: 'a stunning shock',
+    combatBossMimeStatus_weaken: 'a weakening hex',
+    combatBossMimeStatus_armorBreak: 'an armor-rending mark',
+    combatBossMimeStatus_mark: 'a vulnerability mark',
     // ── Lockpick mini-game ──────────────────────────────────────
     // Room card / button labels for the locked-chest variant of the
     // treasure room, plus modal copy and log lines for the player's

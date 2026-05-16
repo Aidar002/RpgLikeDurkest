@@ -201,6 +201,13 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
         '{name} взрывается адским пламенем — {damage} истинного урона прорывает твою защиту.',
     combatEnemyRegenPerTurn: '{name} вправляет кость и восстанавливает {healed} ОЗ.',
     combatEnemyDoubleAttack: 'Хищный инстинкт {name} срабатывает — следует второй удар.',
+    combatEnemyCurseDarkness:
+        '{name} плетёт проклятие тьмы — ваши удары ослаблены на {amount} до конца боя.',
+    combatEnemyParrySkill: '{name} парирует — ваш {value} уходит в пустоту.',
+    combatEnemyParryPotion: '{name} парирует — зелье разливается, не дойдя до губ.',
+    combatEnemyCorrosionStrike:
+        '{name} наносит удар коррозии: {damage} истинного урона — броня снижена на {amount}.',
+    combatEnemySelfHeal: '{name} выпивает зелье лечения и восстанавливает {healed} ОЗ.',
     combatEnemyPrepareStun: '{name} применяет {action} — вы оглушены на {turns}х.',
     combatPlayerStunned: 'Вы скованы — этот ход пропущен.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
@@ -244,6 +251,21 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatBossDeathShieldBroken: 'Удар по Воле сбивает Щит смерти {name}.',
     combatBossDeathTouchOhko: '{action} {name} касается тебя — ты повержен.',
     combatBossDeathTouchDefended: 'Ты ставишь блок и переживаешь {action} {name}: {damage} урона.',
+    combatBossNimrodGodkiller: '{action} {name} разрешается — твоя душа развеяна.',
+    combatBossHeroCry:
+        '{name} испускает клич — атака ослаблена на {weaken}, броня снижена на {armor}, воля упала на {resolve}.',
+    combatBossResurrect:
+        '{name} возрождается — восстановлен до {hp} ОЗ, с яростью бьёт за {attack} урона.',
+    combatBossRelicStolen: '{name} вырывает реликвию из твоего мешка.',
+    combatBossRelicReturned: 'Ты забираешь реликвию из мёртвой руки {name}.',
+    combatBossRelicTheftEmpty: '{name} тянется за реликвией — мешок пуст.',
+    combatBossMimeChaos: '{name} хохочет — хаос накладывает на тебя {status}.',
+    combatBossMimeStatus_bleed: 'кровоточащую рану',
+    combatBossMimeStatus_poison: 'ползучий яд',
+    combatBossMimeStatus_stun: 'оглушение',
+    combatBossMimeStatus_weaken: 'ослабление',
+    combatBossMimeStatus_armorBreak: 'разрыв брони',
+    combatBossMimeStatus_mark: 'метку уязвимости',
     // ── Мини-игра «Взлом замка» ─────────────────────────────────
     // Карточка комнаты и кнопки для запертого сундука + тексты
     // модалки и сообщения в логе.

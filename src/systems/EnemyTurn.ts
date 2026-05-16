@@ -141,6 +141,87 @@ export function resolveEnemyTurn(
         }
     }
 
+    // Lich "Curse of Darkness": once per encounter, on a winning roll,
+    // apply a long-lasting weaken to the player. The roll runs every
+    // enemy turn UNTIL it lands — once `curseDarknessFired` is set the
+    // lich never tries again, matching the spec's "60% chance each
+    // turn until first application" wording.
+    if (enemy.passive?.kind === 'curseDarknessOnce' && !enemy.curseDarknessFired) {
+        if (rng.next() < enemy.passive.chance) {
+            applyWeaken(player.status, enemy.passive.weakenAmount, enemy.passive.weakenTurns);
+            enemy.curseDarknessFired = true;
+            log.addMessage(
+                loc.t('combatEnemyCurseDarkness', {
+                    name: enemy.name,
+                    amount: enemy.passive.weakenAmount,
+                }),
+                '#8a4dc8'
+            );
+            deps.emitPlayerStatus();
+        }
+    }
+
+    // Lost Adventurer "Healing Potions": when hp/maxHp drops below
+    // the threshold, chug a potion and recover a fraction of maxHp.
+    // Limited to `maxUses` heals per encounter — counter lives on the
+    // ActiveEnemy and resets with the next setupEnemy call. Resolves
+    // BEFORE the regular attack so the tank still gets to swing at
+    // higher HP this same turn.
+    if (
+        enemy.passive?.kind === 'selfHealOnLowHp' &&
+        enemy.maxHp > 0 &&
+        enemy.hp / enemy.maxHp < enemy.passive.threshold &&
+        (enemy.selfHealsUsed ?? 0) < enemy.passive.maxUses &&
+        enemy.hp < enemy.maxHp
+    ) {
+        const want = Math.max(1, Math.floor(enemy.maxHp * enemy.passive.healFraction));
+        const before = enemy.hp;
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + want);
+        const healed = enemy.hp - before;
+        enemy.selfHealsUsed = (enemy.selfHealsUsed ?? 0) + 1;
+        if (healed > 0) {
+            log.addMessage(loc.t('combatEnemySelfHeal', { name: enemy.name, healed }), '#a8d8a0');
+            deps.emitEnemyUpdate({
+                hp: enemy.hp,
+                maxHp: enemy.maxHp,
+                color: enemy.color,
+                name: enemy.name,
+                icon: enemy.icon,
+            });
+        }
+    }
+
+    // Death Knight "Corrosion Strike": chance to swap the regular
+    // attack for a corrosion blow — `damage` true damage (bypasses
+    // defense) AND apply armorBreak for the rest of the fight. Picks
+    // one or the other per turn, never stacks on top of the regular
+    // attack. Resolves before the standard attack pipeline so we can
+    // early-return cleanly without firing the rest of the regular
+    // attack passives below.
+    if (enemy.passive?.kind === 'corrosionStrikeOnAttack' && rng.next() < enemy.passive.chance) {
+        const taken = player.takeDamage(enemy.passive.damage, 0, 'true');
+        applyArmorBreak(
+            player.status,
+            enemy.passive.armorBreak.amount,
+            enemy.passive.armorBreak.turns
+        );
+        log.addMessage(
+            loc.t('combatEnemyCorrosionStrike', {
+                name: enemy.name,
+                damage: taken,
+                amount: enemy.passive.armorBreak.amount,
+            }),
+            '#7faf6a'
+        );
+        if (taken > 0) deps.emitPlayerHit(taken);
+        deps.emitPlayerStatus();
+        if (player.stats.hp <= 0) {
+            deps.logDeath();
+            return;
+        }
+        return;
+    }
+
     // Regular attack.
     const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
     const weakenReduction = enemy.status.weaken.turns > 0 ? enemy.status.weaken.amount : 0;
