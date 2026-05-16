@@ -56,7 +56,8 @@ export interface EnemyDef {
      * Optional per-turn passive trigger.
      *  - kind: 'extraDamageOnHit'    (rat — 20% deal +1 dmg)
      *  - kind: 'thornsOnTakeHit'     (slime — 30% deal 1 dmg back when hit)
-     *  - kind: 'damageReduction'     (skeleton — 10% take −1 incoming dmg)
+     *  - kind: 'damageReduction'     (skeleton — 10% take −1 incoming dmg;
+     *                                  earth-elemental — 30% take −2)
      *  - kind: 'evadeAndStingOnHit'  (bee-butterfly — 20% dodge the player's
      *    incoming attack entirely and counter for a small fixed amount of
      *    true damage)
@@ -577,6 +578,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x6e553b,
                 profile: 'brute',
+                // Stone Skin: 30% chance to shrug off 2 points of an
+                // incoming player hit. Same damageReduction passive as
+                // Skeleton, just thicker.
+                passive: { kind: 'damageReduction', chance: 0.3, reduction: 2 },
             },
         ],
     },
