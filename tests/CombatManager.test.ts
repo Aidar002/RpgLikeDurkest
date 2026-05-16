@@ -244,6 +244,81 @@ describe('Bee-Butterfly Flutter and sting (evadeAndStingOnHit)', () => {
     });
 });
 
+// Earth Elemental shape — uses the same damageReduction passive as
+// Skeleton, just with stronger numbers (30% / -2). Inject directly so
+// we can pin the chance to 0 or 1 and assert the reduction log.
+function injectEarthElemental(combat: CombatManager, passive: EnemyPassive): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Earth Elemental',
+        canonicalName: 'Earth Elemental',
+        description: 'test',
+        icon: 'E',
+        hp: 50,
+        maxHp: 50,
+        attack: 2,
+        color: 0x6e553b,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive,
+        currentIntent: null,
+    };
+}
+
+describe('Earth Elemental Stone Skin (damageReduction)', () => {
+    it('shrugs off the configured points when the passive triggers', () => {
+        // Two managers, same seed -> identical pre-passive damage roll.
+        // Manager A has Stone Skin always firing, B has it disabled.
+        // The HP delta must show A took strictly less damage than B.
+        const a = makeManager(2024);
+        const b = makeManager(2024);
+        injectEarthElemental(a.combat, {
+            kind: 'damageReduction',
+            chance: 1,
+            reduction: 2,
+        });
+        injectEarthElemental(b.combat, {
+            kind: 'damageReduction',
+            chance: 0,
+            reduction: 2,
+        });
+        const aHpBefore = a.combat.enemy!.hp;
+        const bHpBefore = b.combat.enemy!.hp;
+
+        a.combat.processTurn('attack');
+        b.combat.processTurn('attack');
+
+        const aDealt = aHpBefore - a.combat.enemy!.hp;
+        const bDealt = bHpBefore - b.combat.enemy!.hp;
+        expect(aDealt).toBeLessThan(bDealt);
+        expect(bDealt - aDealt).toBeLessThanOrEqual(2);
+        expect(a.seenMessages.some((m) => /Earth Elemental/.test(m) && /\d/.test(m))).toBe(true);
+        expect(b.seenMessages.some((m) => /shrug/i.test(m))).toBe(false);
+    });
+
+    it('does not reduce damage below zero (only soaks up to the reduction)', () => {
+        // A 1-damage hit against a 2-point shrug must clamp at 0, not
+        // wrap into negative damage / heal.
+        const { combat } = makeManager(2025);
+        injectEarthElemental(combat, {
+            kind: 'damageReduction',
+            chance: 1,
+            reduction: 2,
+        });
+        const hpBefore = combat.enemy!.hp;
+
+        combat.processTurn('attack');
+
+        // Damage dealt is whatever the player's variance roll produced,
+        // minus up to 2 — never below 0.
+        const dealt = hpBefore - combat.enemy!.hp;
+        expect(dealt).toBeGreaterThanOrEqual(0);
+    });
+});
+
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);
