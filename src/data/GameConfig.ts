@@ -69,6 +69,10 @@ export interface EnemyDef {
      *  - kind: 'painExultation'      (succubus — "exultation in pain":
      *    +1 regular-attack damage per `bonusPerStep` fraction of missing
      *    HP (default 0.1 → +1 per 10% missing))
+     *  - kind: 'weakenPlayerEachTurn' (underground-ent — "strangling
+     *    roots": applies/refreshes weaken `amount` for `turns` turns to
+     *    the player at the start of every enemy turn while the enemy
+     *    is alive)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -82,7 +86,8 @@ export type EnemyPassive =
     | { kind: 'evadeAndStingOnHit'; chance: number; damage: number }
     | { kind: 'lifestealOnAttack'; ratio: number }
     | { kind: 'attackScalesWithHp' }
-    | { kind: 'painExultation'; bonusPerStep: number };
+    | { kind: 'painExultation'; bonusPerStep: number }
+    | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -669,6 +674,11 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x3a5532,
                 profile: 'brute',
+                // Strangling Roots: each enemy turn, refresh a weaken-1
+                // for 2 turns on the player so the player's next swing
+                // is chipped by 1 while the ent is alive. Decays
+                // naturally after the ent dies.
+                passive: { kind: 'weakenPlayerEachTurn', amount: 1, turns: 2 },
             },
         ],
     },

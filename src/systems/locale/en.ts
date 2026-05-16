@@ -204,6 +204,8 @@ export const EN_STRINGS = {
     combatEnemyLifesteal: '{name} drains the wound and recovers {healed} HP.',
     combatEnemyHordeThins: '{name} thins out — only mustering {attack} damage.',
     combatEnemyPainExultation: '{name} drinks in the pain — +{bonus} damage.',
+    combatEnemyStranglingRoots:
+        '{name} curls roots around you — your swings are weakened by {amount}.',
     // Item triggers — unified format "X effect triggered — Y".
     combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
     combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',

@@ -542,6 +542,69 @@ describe('Succubus Exultation in Pain (painExultation)', () => {
     });
 });
 
+function injectUndergroundEnt(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Underground Ent',
+        canonicalName: 'Underground Ent',
+        description: 'test',
+        icon: 'N',
+        hp: overrides.hp ?? 14,
+        maxHp: overrides.maxHp ?? 14,
+        attack: overrides.attack ?? 4,
+        color: 0x3a5532,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'weakenPlayerEachTurn', amount: 1, turns: 2 },
+        currentIntent: null,
+    };
+}
+
+describe('Underground Ent Strangling Roots (weakenPlayerEachTurn)', () => {
+    it('applies weaken to the player on the first turn and logs it', () => {
+        const { combat, player, seenMessages } = makeManager(101);
+        injectUndergroundEnt(combat, { hp: 14, maxHp: 14 });
+
+        combat.processTurn('defend');
+
+        expect(player.status.weaken.amount).toBeGreaterThanOrEqual(1);
+        // EN: "curls roots"; RU: "обвивает".
+        expect(seenMessages.some((m) => /curls roots|обвивает/i.test(m))).toBe(true);
+    });
+
+    it('keeps the weaken active across the player tick (turns=2 buffer)', () => {
+        const { combat, player } = makeManager(102);
+        injectUndergroundEnt(combat, { hp: 14, maxHp: 14 });
+
+        combat.processTurn('defend');
+        // Player tick at end of the full turn decrements weaken by 1.
+        expect(player.status.weaken.turns).toBeGreaterThan(0);
+
+        // Bump player attack high so getAttackPower stays >1 after the
+        // -1 weaken; we want to assert the weaken is reducing it, not
+        // that the floor clamps it.
+        player.stats.attack = 5;
+        expect(player.getAttackPower()).toBe(4);
+    });
+
+    it('does not log a second time when the weaken is just refreshed', () => {
+        const { combat, seenMessages } = makeManager(103);
+        injectUndergroundEnt(combat, { hp: 14, maxHp: 14 });
+
+        combat.processTurn('defend');
+        combat.processTurn('defend');
+
+        const hits = seenMessages.filter((m) => /curls roots|обвивает/i.test(m));
+        expect(hits.length).toBe(1);
+    });
+});
+
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);

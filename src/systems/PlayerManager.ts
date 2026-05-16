@@ -115,7 +115,15 @@ export class PlayerManager {
         if (this.relicAggregate.sets.flesh && this.stats.hp * 2 < this.stats.maxHp) {
             setBonus += 2;
         }
-        return this.stats.attack + this.relicAggregate.bonusAttack + setBonus;
+        // Enemy-applied weaken (e.g. Underground Ent's strangling roots)
+        // chips a flat amount off the player's swing while active. Mirror
+        // of the enemy-side reduction in EnemyTurn/CombatManager. Min
+        // clamp at 1 keeps a swing always-meaningful.
+        const weakenAmount = this.status.weaken.turns > 0 ? this.status.weaken.amount : 0;
+        return Math.max(
+            1,
+            this.stats.attack + this.relicAggregate.bonusAttack + setBonus - weakenAmount
+        );
     }
 
     getCritChance(): number {

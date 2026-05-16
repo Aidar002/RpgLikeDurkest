@@ -5,7 +5,7 @@ import { intentLabelForPhase, intentLabelForPrepare, prepareName } from './BossR
 import { narrate } from './Narrator';
 import type { Localization } from './Localization';
 import type { PlayerManager } from './PlayerManager';
-import { applyBleed, applyPoison, consumeStunForTurn } from './StatusEffects';
+import { applyBleed, applyPoison, applyWeaken, consumeStunForTurn } from './StatusEffects';
 import type { ActiveEnemy, EnemyUpdatePayload } from './CombatManager';
 import type { Rng } from './Rng';
 
@@ -88,6 +88,26 @@ export function resolveEnemyTurn(
         deps.emitPlayerStatus();
         deps.emitEnemyStatus();
         return;
+    }
+
+    // Underground Ent "Strangling Roots": refresh a small weaken on
+    // the player every turn the ent is alive. Applied BEFORE the
+    // regular-attack resolution so it is in place for the very next
+    // player turn (player ticks run at end-of-full-turn, so a
+    // turns=2 application survives the tick exactly long enough).
+    if (enemy.passive?.kind === 'weakenPlayerEachTurn') {
+        const had = player.status.weaken.turns > 0;
+        applyWeaken(player.status, enemy.passive.amount, enemy.passive.turns);
+        if (!had) {
+            log.addMessage(
+                loc.t('combatEnemyStranglingRoots', {
+                    name: enemy.name,
+                    amount: enemy.passive.amount,
+                }),
+                '#6a8f5a'
+            );
+            deps.emitPlayerStatus();
+        }
     }
 
     // Regular attack.
