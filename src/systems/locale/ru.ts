@@ -254,6 +254,18 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatBossNimrodGodkiller: '{action} {name} разрешается — твоя душа развеяна.',
     combatBossHeroCry:
         '{name} испускает клич — атака ослаблена на {weaken}, броня снижена на {armor}, воля упала на {resolve}.',
+    combatBossResurrect:
+        '{name} возрождается — восстановлен до {hp} ОЗ, с яростью бьёт за {attack} урона.',
+    combatBossRelicStolen: '{name} вырывает реликвию из твоего мешка.',
+    combatBossRelicReturned: 'Ты забираешь реликвию из мёртвой руки {name}.',
+    combatBossRelicTheftEmpty: '{name} тянется за реликвией — мешок пуст.',
+    combatBossMimeChaos: '{name} хохочет — хаос накладывает на тебя {status}.',
+    combatBossMimeStatus_bleed: 'кровоточащую рану',
+    combatBossMimeStatus_poison: 'ползучий яд',
+    combatBossMimeStatus_stun: 'оглушение',
+    combatBossMimeStatus_weaken: 'ослабление',
+    combatBossMimeStatus_armorBreak: 'разрыв брони',
+    combatBossMimeStatus_mark: 'метку уязвимости',
     // ── Мини-игра «Взлом замка» ─────────────────────────────────
     // Карточка комнаты и кнопки для запертого сундука + тексты
     // модалки и сообщения в логе.

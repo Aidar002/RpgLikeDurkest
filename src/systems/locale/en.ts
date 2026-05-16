@@ -259,6 +259,18 @@ export const EN_STRINGS = {
     combatBossNimrodGodkiller: "{name}'s {action} resolves — your soul is unmade.",
     combatBossHeroCry:
         '{name} bellows — your strikes weaken by {weaken}, armor breaks by {armor}, resolve drains by {resolve}.',
+    combatBossResurrect:
+        '{name} rises again — restored to {hp} HP and roaring with {attack} attack.',
+    combatBossRelicStolen: '{name} snatches a relic from your pack.',
+    combatBossRelicReturned: 'You reclaim the relic from {name}.',
+    combatBossRelicTheftEmpty: '{name} reaches for a relic — your pack is empty.',
+    combatBossMimeChaos: '{name} laughs — chaos imprints {status} on you.',
+    combatBossMimeStatus_bleed: 'a bleeding wound',
+    combatBossMimeStatus_poison: 'a creeping poison',
+    combatBossMimeStatus_stun: 'a stunning shock',
+    combatBossMimeStatus_weaken: 'a weakening hex',
+    combatBossMimeStatus_armorBreak: 'an armor-rending mark',
+    combatBossMimeStatus_mark: 'a vulnerability mark',
     // ── Lockpick mini-game ──────────────────────────────────────
     // Room card / button labels for the locked-chest variant of the
     // treasure room, plus modal copy and log lines for the player's

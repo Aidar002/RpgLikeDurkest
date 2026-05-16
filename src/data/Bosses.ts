@@ -26,7 +26,13 @@ export function pickLine(line: BossLine, lang: Language): string {
     return lang === 'ru' ? line.ru : line.en;
 }
 
-type BossActionId = 'attack' | 'death_shield' | 'death_touch' | 'nimrod_godkiller' | 'hero_call';
+type BossActionId =
+    | 'attack'
+    | 'death_shield'
+    | 'death_touch'
+    | 'nimrod_godkiller'
+    | 'hero_call'
+    | 'mime_chaos';
 
 export interface BossActionDef {
     id: BossActionId;
@@ -66,6 +72,22 @@ export interface BossActionDef {
         resolveDrain: number;
         turns: number;
     };
+    /**
+     * Mime's "Chaos Lord's Laughter": every turn the boss applies one
+     * random status from `randomStatus.pool` to the player. The same
+     * status cannot fire twice in a row (anti-repeat tracked via
+     * `BossPhaseState.lastRandomStatus`). Each status uses
+     * `randomStatus.amount` / `randomStatus.turns` for its parameters.
+     */
+    randomStatus?: {
+        pool: Array<'bleed' | 'poison' | 'stun' | 'weaken' | 'armorBreak' | 'mark'>;
+        amount: number;
+        turns: number;
+    };
+    /** Mime's swings bypass defense entirely (true damage). */
+    ignoreArmor?: boolean;
+    /** Mime heals a flat amount whenever a regular attack lands damage. */
+    lifestealFlat?: number;
 }
 
 interface BossPhaseDef {
@@ -75,12 +97,35 @@ interface BossPhaseDef {
     actions: BossActionDef[];
     /** Optional name shown in the combat log on phase change. */
     label?: BossLine;
+    /** Mammon's "Greed Lord" once-per-fight relic theft. When this
+     *  flag is set on a phase entry, the boss steals one random relic
+     *  from the player's inventory; the stolen id is preserved on
+     *  `ActiveEnemy.stolenRelicId` and returned on death. */
+    onEnterStealRelic?: boolean;
+    /** Optional flat attack bonus applied on phase entry (Prophet's
+     *  fury bonus uses {@link BossBlueprint.resurrectOnDeath} instead,
+     *  but other bosses can layer flat buffs here). */
+    onEnterAttackBonus?: number;
 }
 
 export interface BossBlueprint {
     /** Must match an EnemyDef.name in BOSSES. */
     name: string;
     phases: BossPhaseDef[];
+    /**
+     * Prophet's "Furious Resurrection": once per encounter, the first
+     * time the boss's HP drops to 0, restore HP to
+     * `maxHp * hpFraction` and multiply current attack by
+     * `attackMultiplier`. Resolves in `processTurn` BEFORE
+     * finishCombat. After the resurrection the boss continues from
+     * phase 1 onwards (the resurrection consumes the boss's death
+     * trigger; subsequent kills go through the normal finishCombat
+     * pipeline).
+     */
+    resurrectOnDeath?: {
+        hpFraction: number;
+        attackMultiplier: number;
+    };
 }
 
 // ---------------------------------------------------------------------------
@@ -181,6 +226,87 @@ const BOSS_BLUEPRINTS: BossBlueprint[] = [
                             defenseArmorBreak: 1,
                             resolveDrain: 1,
                             turns: 99,
+                        },
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        // Prophet, "Furious Resurrection": single-phase rotation of
+        // basic attacks. The first time HP drops to 0, blueprint-level
+        // `resurrectOnDeath` restores HP to 40% maxHp and multiplies
+        // the boss's current attack by 1.5 (per the design sheet:
+        // "hp = 40%, urgon +50%"). Resolution lives in
+        // CombatManager.processTurn before finishCombat — by that
+        // point the resurrection already wrote the new hp/attack so
+        // the next enemy turn just hits with the buffed values.
+        name: 'Prophet',
+        resurrectOnDeath: { hpFraction: 0.4, attackMultiplier: 1.5 },
+        phases: [
+            {
+                enterAtHpRatio: 1.0,
+                actions: [
+                    {
+                        id: 'attack',
+                        intent: { en: 'Prophet Strike', ru: 'Удар пророка' },
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        // Mammon, "Greed Lord": once per fight, when HP first drops
+        // below 50% of maxHp the boss steals a random relic from the
+        // player's inventory. The relic is preserved on
+        // `ActiveEnemy.stolenRelicId` and returned to the player when
+        // Mammon dies (via finishCombat hook). Subsequent phase 2
+        // turns are normal attacks.
+        name: 'Mammon',
+        phases: [
+            {
+                enterAtHpRatio: 1.0,
+                actions: [
+                    {
+                        id: 'attack',
+                        intent: { en: 'Greed Strike', ru: 'Удар жадности' },
+                    },
+                ],
+            },
+            {
+                enterAtHpRatio: 0.5,
+                onEnterStealRelic: true,
+                label: { en: 'Mammon takes what he wants.', ru: 'Маммон берёт своё.' },
+                actions: [
+                    {
+                        id: 'attack',
+                        intent: { en: 'Greed Strike', ru: 'Удар жадности' },
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        // Mime, "the First Reveler": single-phase rotation that hits
+        // for true damage (ignoreArmor), heals 5 HP whenever a regular
+        // hit lands (lifestealFlat), and applies one random status
+        // from the pool every turn. The same status cannot fire twice
+        // in a row — anti-repeat lives on
+        // `BossPhaseState.lastRandomStatus`.
+        name: 'Mime',
+        phases: [
+            {
+                enterAtHpRatio: 1.0,
+                actions: [
+                    {
+                        id: 'mime_chaos',
+                        intent: { en: "Chaos Lord's Laughter", ru: 'Смех владыки Хаоса' },
+                        ignoreArmor: true,
+                        lifestealFlat: 5,
+                        randomStatus: {
+                            pool: ['bleed', 'poison', 'stun', 'weaken', 'armorBreak', 'mark'],
+                            amount: 1,
+                            turns: 1,
                         },
                     },
                 ],
