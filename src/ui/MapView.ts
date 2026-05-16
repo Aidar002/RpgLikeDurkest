@@ -5,9 +5,8 @@
  * - the `mapContainer` children that represent each node (background
  *   rect, icon glyph, optional spritesheet image, optional carved
  *   frame overlay),
- * - per-node "fire" particle effects and the legacy "glow" overlay
- *   map (kept for cleanup compatibility — actual reachable-node
- *   pulse is now rendered as a yoyo on the carved frame inside
+ * - per-node "fire" particle effects (the reachable-node pulse is
+ *   rendered as a yoyo on the carved frame inside
  *   {@link MapView.startNodePulse}),
  * - the edge `Graphics` strip that draws connections between nodes.
  *
@@ -94,7 +93,6 @@ export class MapView {
     private onNodeClickDelegate: (node: MapNode) => void;
 
     public readonly visuals: Map<string, NodeVisual> = new Map();
-    public readonly glowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
     public readonly fireMap: Map<string, { destroy: () => void }> = new Map();
     private edgeGfx!: Phaser.GameObjects.Graphics;
 
@@ -501,19 +499,15 @@ export class MapView {
      * Cheap idempotent pass; safe to call after every move or unlock.
      *
      * Also re-attaches the per-frame fire effect to camp/altar nodes
-     * (REST/START/SHRINE) and clears the legacy `glowMap` overlay.
+     * (REST/START/SHRINE).
      */
     refresh(_unlocks?: UiUnlockState): void {
         const unlocks = _unlocks ?? this.meta.getUiUnlockState();
 
-        // The reachable-node affordance used to be a separate grey
-        // VFX.nodeGlow rectangle; we now pulsate the carved frame
-        // itself instead, so this map only holds left-over glows from
-        // older runs and is always cleared here. The active "pulse"
-        // tween on each frame is killed below as part of the per-node
-        // refresh so it doesn't compound.
-        this.glowMap.forEach((glow) => glow.destroy());
-        this.glowMap.clear();
+        // The reachable-node affordance is rendered by pulsating the
+        // carved frame itself; the active "pulse" tween on each
+        // frame is killed below as part of the per-node refresh so
+        // it doesn't compound.
         this.fireMap.forEach((fire) => fire.destroy());
         this.fireMap.clear();
 

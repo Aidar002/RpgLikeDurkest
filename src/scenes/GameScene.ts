@@ -32,7 +32,7 @@ import {
     TOP_BAR_H,
 } from '../ui/Layout';
 import { setupSceneChrome } from '../ui/SceneChrome';
-import type { RoomButtonAction, RoomButtonsHandle } from '../ui/RoomButtons';
+import type { RoomButtonsHandle } from '../ui/RoomButtons';
 import type { LockpickShowOptions } from '../ui/LockpickOverlay';
 import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
@@ -378,15 +378,6 @@ export class GameScene extends Phaser.Scene {
             kind,
             enemyName
         );
-    }
-
-    /**
-     * @deprecated Use `this.roomButtons.setActions(...)` directly.
-     * Kept as a thin shim so RoomFlow / CombatHud call sites compile
-     * unchanged after the RoomButtons extraction.
-     */
-    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
-        this.room.setRoomButtons(actions, useWideOnly);
     }
 
     /** Forward to {@link GameMapController.applyRoomTint}. */

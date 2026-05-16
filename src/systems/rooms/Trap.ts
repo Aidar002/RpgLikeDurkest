@@ -24,7 +24,7 @@ export function handleTrapRoom(scene: GameScene): void {
 
     scene.showRoomCard(scene.loc.t('trap'), trap.title, trap.desc, 0x75458a, trap.icon, 'TRAP');
 
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: scene.loc.t('actionRush'),
             callback: () => {
@@ -43,7 +43,7 @@ export function handleTrapRoom(scene: GameScene): void {
                     scene.roomFlavorText.setText(scene.loc.t('trapAfterRush'));
                 }
             },
-            fill: 0x5a1d1d,
+            variant: 'default',
         },
         {
             label: scene.loc.t('actionDisarm'),
@@ -75,7 +75,7 @@ export function handleTrapRoom(scene: GameScene): void {
                     scene.showReturnButton();
                 }
             },
-            fill: 0x2a3d5a,
+            variant: 'silver',
         },
     ]);
 }

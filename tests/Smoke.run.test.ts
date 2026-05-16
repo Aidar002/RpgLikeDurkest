@@ -397,6 +397,11 @@ function makeFakeScene(
         setRoomButtons: (actions: RoomButtonAction[], _useWideOnly?: boolean) => {
             for (const a of actions) record.buttonLabels.push(a.label);
         },
+        roomButtons: {
+            setActions: (actions: RoomButtonAction[], _useWideOnly?: boolean) => {
+                for (const a of actions) record.buttonLabels.push(a.label);
+            },
+        },
         showReturnButton: () => {
             record.returnButtonShown += 1;
         },
@@ -461,19 +466,20 @@ function captureRoomHandlerOutput(
     // Second-Nth pass: re-run from a fresh fake and click each
     // enabled button, capturing whatever it logs.
     // We snapshot button labels from the first run; on each replay we
-    // pick the matching action by index from a fresh setRoomButtons
-    // call.
+    // pick the matching action by index from a fresh setActions call.
     const seenLabels = [...first.record.buttonLabels];
     for (let i = 0; i < seenLabels.length; i += 1) {
         // Re-run handler so buttons are constructed fresh.
         let captured2: RoomButtonAction[] = [];
         const second = makeFakeScene(language, seed);
-        // Patch setRoomButtons to grab the action list.
+        // Patch roomButtons.setActions to grab the action list.
         const sceneAny = second.scene as unknown as {
-            setRoomButtons: (actions: RoomButtonAction[]) => void;
+            roomButtons: {
+                setActions: (actions: RoomButtonAction[]) => void;
+            };
         };
-        const originalSet = sceneAny.setRoomButtons;
-        sceneAny.setRoomButtons = (actions: RoomButtonAction[]) => {
+        const originalSet = sceneAny.roomButtons.setActions;
+        sceneAny.roomButtons.setActions = (actions: RoomButtonAction[]) => {
             captured2 = actions;
             originalSet(actions);
         };
