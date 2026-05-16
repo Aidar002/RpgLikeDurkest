@@ -207,6 +207,7 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatEnemyParryPotion: '{name} парирует — зелье разливается, не дойдя до губ.',
     combatEnemyCorrosionStrike:
         '{name} наносит удар коррозии: {damage} истинного урона — броня снижена на {amount}.',
+    combatEnemySelfHeal: '{name} выпивает зелье лечения и восстанавливает {healed} ОЗ.',
     combatEnemyPrepareStun: '{name} применяет {action} — вы оглушены на {turns}х.',
     combatPlayerStunned: 'Вы скованы — этот ход пропущен.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
@@ -250,6 +251,9 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatBossDeathShieldBroken: 'Удар по Воле сбивает Щит смерти {name}.',
     combatBossDeathTouchOhko: '{action} {name} касается тебя — ты повержен.',
     combatBossDeathTouchDefended: 'Ты ставишь блок и переживаешь {action} {name}: {damage} урона.',
+    combatBossNimrodGodkiller: '{action} {name} разрешается — твоя душа развеяна.',
+    combatBossHeroCry:
+        '{name} испускает клич — атака ослаблена на {weaken}, броня снижена на {armor}, воля упала на {resolve}.',
     // ── Мини-игра «Взлом замка» ─────────────────────────────────
     // Карточка комнаты и кнопки для запертого сундука + тексты
     // модалки и сообщения в логе.
