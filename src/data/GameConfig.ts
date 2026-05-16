@@ -83,8 +83,9 @@ export interface EnemyDef {
      *  - kind: 'lifestealOnAttack'   (vampire — heal a ratio of the damage
      *    dealt by a successful regular attack)
      *  - kind: 'attackScalesWithHp'  (goblin-horde — the "thinning horde":
-     *    regular-attack damage is scaled by hp/maxHp so a near-dead horde
-     *    only musters a couple of hits)
+     *    regular-attack damage is reduced by 1 per missing HP, so a
+     *    9-attack horde at 6/13 HP hits for `9 - (13-6) = 2` instead
+     *    of the full 9. Floors at 1.)
      *  - kind: 'painExultation'      (succubus — "exultation in pain":
      *    +1 regular-attack damage per `bonusPerStep` fraction of missing
      *    HP (default 0.1 → +1 per 10% missing))
@@ -93,10 +94,11 @@ export interface EnemyDef {
      *    the player at the start of every enemy turn while the enemy
      *    is alive)
      *  - kind: 'acidVomitOnFirstHit' (gelatinous-cube — "acid vomit":
-     *    on the first regular attack that lands, apply armorBreak
-     *    `amount` for `turns` turns to the player (defense −amount).
-     *    Fires at most once per encounter, tracked by checking the
-     *    player's existing armorBreak.turns)
+     *    on every regular attack that lands, `chance` to apply
+     *    armorBreak `amount` for `turns` turns to the player (defense
+     *    −amount). Re-rolls per landed hit until it triggers ONCE per
+     *    encounter, then locks; tracked by checking the player's
+     *    existing armorBreak.turns)
      *  - kind: 'spawnOnDeath'        (rat-matron — "litter": on the
      *    turn the enemy's hp drops to 0, instead of ending combat the
      *    encounter respawns as the enemy named `spawnName` (canonical
@@ -152,7 +154,7 @@ export type EnemyPassive =
     | { kind: 'attackScalesWithHp' }
     | { kind: 'painExultation'; bonusPerStep: number }
     | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number }
-    | { kind: 'acidVomitOnFirstHit'; amount: number; turns: number }
+    | { kind: 'acidVomitOnFirstHit'; chance: number; amount: number; turns: number }
     | { kind: 'spawnOnDeath'; spawnName: string }
     | { kind: 'hellfireOnDeath'; damagePerRelic: number }
     | { kind: 'regenPerTurn'; amount: number }
@@ -738,14 +740,19 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 color: 0x82c4d4,
                 profile: 'brute',
                 dropMod: 10,
-                // Acid Vomit: on the first regular attack that lands,
-                // the cube etches the player's armor — defense −1 for
-                // the remainder of the fight (turns=99 picks a value
-                // larger than any realistic combat length without
-                // making it literally infinite). Only triggers once
-                // per encounter; the guard in EnemyTurn checks the
-                // player's existing armorBreak.turns to gate it.
-                passive: { kind: 'acidVomitOnFirstHit', amount: 1, turns: 99 },
+                // Acid Vomit: on every regular attack that lands, 40%
+                // to apply armorBreak −1 to the player for the rest of
+                // the fight (turns=99 picks a value larger than any
+                // realistic combat length without making it literally
+                // infinite). Locks after the first successful trigger
+                // — `turns=0` on the player gates re-rolls so each cube
+                // gets at most one acid burst per encounter.
+                passive: {
+                    kind: 'acidVomitOnFirstHit',
+                    chance: 0.4,
+                    amount: 1,
+                    turns: 99,
+                },
             },
             {
                 name: 'Earth Elemental',
@@ -797,10 +804,12 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 color: 0x4a1a1a,
                 profile: 'stalker',
                 dropMod: 15,
-                // Vampirism: heal half of any damage the regular attack
+                // Vampirism: heal 65% of any damage the regular attack
                 // dealt to the player (clamped to maxHp, min 1 when the
-                // hit landed).
-                passive: { kind: 'lifestealOnAttack', ratio: 0.5 },
+                // hit landed). Sheet specifies ceil rounding so a 1-dmg
+                // hit still heals 1; a 2-dmg hit heals 2 (ceil 1.3); a
+                // 3-dmg hit heals 2 (ceil 1.95); a 5-dmg hit heals 4.
+                passive: { kind: 'lifestealOnAttack', ratio: 0.65 },
             },
             {
                 name: 'Demon',

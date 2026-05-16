@@ -228,12 +228,16 @@ export function resolveEnemyTurn(
     let attackPower = enemy.attack - weakenReduction;
     if (attackPower < 1) attackPower = 1;
 
-    // Goblin Horde "Thinning Horde": scale attack by current/max HP
-    // so the surviving rump only manages a glancing blow. Applies
-    // before extraDamageOnHit so the +N bonus still applies on top.
+    // Goblin Horde "Thinning Horde": each missing HP shaves 1 off the
+    // attack — so a full horde hits at full strength, but as goblins
+    // fall the survivors hit weaker. Floor at 1 so a 1-HP horde still
+    // manages a glancing blow. (Replaces the old hp/maxHp ratio scaling
+    // — sheet specifies "урон снижается на столько, сколько ХП не
+    // хватает", i.e. linear flat subtraction, not a multiplier.)
     if (enemy.passive?.kind === 'attackScalesWithHp' && enemy.maxHp > 0) {
         const before = attackPower;
-        const scaled = Math.max(1, Math.floor(attackPower * (enemy.hp / enemy.maxHp)));
+        const missing = Math.max(0, enemy.maxHp - enemy.hp);
+        const scaled = Math.max(1, attackPower - missing);
         attackPower = scaled;
         if (scaled < before) {
             log.addMessage(
@@ -288,17 +292,19 @@ export function resolveEnemyTurn(
         log.addMessage(loc.t('absorb'), '#8fc6ff');
     }
 
-    // Gelatinous Cube "Acid Vomit": on the first regular hit that
-    // actually lands, etch the player's armor — defense -amount for
-    // the rest of the fight (and a couple of rooms past it, since
-    // armorBreak.turns ticks once per combat turn). Gated on the
-    // player's existing armorBreak.turns so re-triggers from the same
-    // cube don't keep refreshing it; design says ONE acid burst per
-    // cube, not a continuous spray.
+    // Gelatinous Cube "Acid Vomit": on each regular hit that actually
+    // lands, the cube has a chance to etch the player's armor — defense
+    // -amount for the rest of the fight (and a couple of rooms past
+    // it, since armorBreak.turns ticks once per combat turn). Locks
+    // after the first successful trigger; the guard checks the
+    // player's existing armorBreak.turns so re-rolls keep happening
+    // until it lands once, then stop (design: ONE acid burst per
+    // cube, not a continuous spray).
     if (
         takenDamage > 0 &&
         enemy.passive?.kind === 'acidVomitOnFirstHit' &&
-        player.status.armorBreak.turns === 0
+        player.status.armorBreak.turns === 0 &&
+        rng.next() < enemy.passive.chance
     ) {
         applyArmorBreak(player.status, enemy.passive.amount, enemy.passive.turns);
         log.addMessage(
@@ -312,11 +318,12 @@ export function resolveEnemyTurn(
     }
 
     // Vampire-style lifesteal: heal a ratio of the damage that actually
-    // landed on the player. Floor + min 1 on a successful hit keeps
-    // attack=1 vampires from ever leaving the field at half HP with
-    // nothing healed.
+    // landed on the player (Math.ceil + min 1). Ceil rounding per the
+    // design sheet — a 1-dmg hit heals 1, a 2-dmg hit at 65% heals 2
+    // (ceil 1.3), etc. Min 1 keeps attack=1 vampires from ever leaving
+    // the field at half HP with nothing healed.
     if (takenDamage > 0 && enemy.passive?.kind === 'lifestealOnAttack' && enemy.hp < enemy.maxHp) {
-        const want = Math.max(1, Math.floor(takenDamage * enemy.passive.ratio));
+        const want = Math.max(1, Math.ceil(takenDamage * enemy.passive.ratio));
         const before = enemy.hp;
         enemy.hp = Math.min(enemy.maxHp, enemy.hp + want);
         const healed = enemy.hp - before;
