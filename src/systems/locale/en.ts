@@ -219,6 +219,7 @@ export const EN_STRINGS = {
     combatEnemyParryPotion: '{name} parries — the potion spills before you can drink it.',
     combatEnemyCorrosionStrike:
         '{name} lands a corrosion strike for {damage} true damage — armor reduced by {amount}.',
+    combatEnemySelfHeal: '{name} drinks a healing potion and recovers {healed} HP.',
     combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
     combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
@@ -255,6 +256,9 @@ export const EN_STRINGS = {
     combatBossDeathShieldBroken: "Your Will-skill shatters {name}'s Death Shield.",
     combatBossDeathTouchOhko: "{name}'s {action} lands — you fall.",
     combatBossDeathTouchDefended: "You brace through {name}'s {action} for {damage} damage.",
+    combatBossNimrodGodkiller: "{name}'s {action} resolves — your soul is unmade.",
+    combatBossHeroCry:
+        '{name} bellows — your strikes weaken by {weaken}, armor breaks by {armor}, resolve drains by {resolve}.',
     // ── Lockpick mini-game ──────────────────────────────────────
     // Room card / button labels for the locked-chest variant of the
     // treasure room, plus modal copy and log lines for the player's

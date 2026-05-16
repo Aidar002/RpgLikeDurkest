@@ -22,7 +22,9 @@ import { PlayerManager } from './PlayerManager';
 import { SKILLS } from './Skills';
 import type { SkillId } from './Skills';
 import {
+    applyArmorBreak,
     applyBleed,
+    applyWeaken,
     consumeGuardBlock,
     consumeMark,
     consumeStunForTurn,
@@ -105,6 +107,12 @@ export interface ActiveEnemy {
      * scratch.
      */
     curseDarknessFired?: boolean;
+    /**
+     * Lost Adventurer's "Healing Potions" counter. Increments each
+     * time the `selfHealOnLowHp` passive fires; the passive stops
+     * triggering once it reaches the configured `maxUses`.
+     */
+    selfHealsUsed?: number;
     /** Per-spec passive trigger copied from EnemyDef at combat start. */
     passive?: EnemyPassive;
     /**
@@ -1131,6 +1139,34 @@ export class CombatManager {
         if (action.damageBonus) attackPower += action.damageBonus;
         if (attackPower < 1) attackPower = 1;
 
+        // Gilgamesh "Hero's Cry": rider on the regular attack — on a
+        // 10% roll, drain weaken / armorBreak / resolve from the
+        // player on top of the swing. Resolved BEFORE the attack so
+        // the resolve drain registers immediately and the player can
+        // see the cumulative effect on the next turn's intent.
+        if (
+            action.id === 'hero_call' &&
+            action.heroCryChance &&
+            action.heroCryDrain &&
+            this.rng.next() < action.heroCryChance
+        ) {
+            const drain = action.heroCryDrain;
+            applyWeaken(this.player.status, drain.attackWeaken, drain.turns);
+            applyArmorBreak(this.player.status, drain.defenseArmorBreak, drain.turns);
+            const drained = Math.min(this.player.resources.resolve, drain.resolveDrain);
+            if (drained > 0) this.player.spendResolve(drained);
+            this.log.addMessage(
+                this.loc.t('combatBossHeroCry', {
+                    name: this.enemy.name,
+                    weaken: drain.attackWeaken,
+                    armor: drain.defenseArmorBreak,
+                    resolve: drained,
+                }),
+                '#d09a4f'
+            );
+            this.playerStatusChange.emit();
+        }
+
         // Damage-dealing actions hit the player.
         if (!action.noAttack) {
             const taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
@@ -1237,6 +1273,25 @@ export class CombatManager {
                 );
                 this.playerHit.emit({ damage: lethal });
             }
+            return;
+        }
+
+        // Nimrod's "God-Killer": unconditional OHKO when the 5-turn
+        // windup resolves. No Defend smoothing — the only counterplay
+        // is burning Nimrod down before resolution. Reuses the same
+        // `oneShot: true` flag as Death Touch but skips the
+        // oneShotDefendDamage branch.
+        if (action.id === 'nimrod_godkiller' && action.oneShot) {
+            const lethal = Math.max(this.player.stats.hp, 1);
+            this.player.takeDamage(lethal, 0, 'true');
+            this.log.addMessage(
+                this.loc.t('combatBossNimrodGodkiller', {
+                    name: this.enemy.name,
+                    action: actionLabel,
+                }),
+                '#ff6666'
+            );
+            this.playerHit.emit({ damage: lethal });
             return;
         }
 

@@ -118,6 +118,11 @@ export interface EnemyDef {
      *    damage that bypasses defense) AND applies armorBreak for the
      *    rest of the fight. Picks one or the other per turn — never
      *    stacks on top of the regular attack)
+     *  - kind: 'selfHealOnLowHp'     (lost-adventurer — "healing
+     *    potions": when the enemy's hp/maxHp ratio drops below
+     *    `threshold`, the enemy heals `healFraction` of maxHp at the
+     *    start of its turn. Limited to `maxUses` heals per encounter,
+     *    tracked on `ActiveEnemy.selfHealsUsed`)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -145,6 +150,12 @@ export type EnemyPassive =
           chance: number;
           damage: number;
           armorBreak: { amount: number; turns: number };
+      }
+    | {
+          kind: 'selfHealOnLowHp';
+          threshold: number;
+          healFraction: number;
+          maxUses: number;
       };
 
 export const PLAYER_CONFIG = {
@@ -845,6 +856,16 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 16,
                 color: 0x9a8a6a,
                 profile: 'brute',
+                // Healing Potions: when hp falls below 50% of maxHp,
+                // the adventurer chugs a potion at the start of his
+                // turn and recovers 50% of maxHp. Limited to two
+                // potions per encounter (per the design sheet).
+                passive: {
+                    kind: 'selfHealOnLowHp',
+                    threshold: 0.5,
+                    healFraction: 0.5,
+                    maxUses: 2,
+                },
             },
             {
                 name: 'Death Knight',
