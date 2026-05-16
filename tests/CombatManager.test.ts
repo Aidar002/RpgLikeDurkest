@@ -347,7 +347,7 @@ function injectVampire(
 }
 
 describe('Vampire lifestealOnAttack', () => {
-    it('heals the vampire by floor(damage * ratio) on a successful hit', () => {
+    it('heals the vampire by ceil(damage * ratio) on a successful hit', () => {
         const { combat, player, seenMessages } = makeManager(11);
         injectVampire(
             combat,
@@ -364,7 +364,7 @@ describe('Vampire lifestealOnAttack', () => {
         const healed = combat.enemy!.hp - hpBefore;
         if (damageDealt > 0) {
             expect(healed).toBeGreaterThanOrEqual(1);
-            expect(healed).toBeLessThanOrEqual(Math.max(1, Math.floor(damageDealt * 0.5)));
+            expect(healed).toBeLessThanOrEqual(Math.max(1, Math.ceil(damageDealt * 0.5)));
             // Default locale is RU; match either the EN or RU lifesteal
             // phrase so the assertion doesn't accidentally depend on
             // saved language.
@@ -408,7 +408,7 @@ describe('Vampire lifestealOnAttack', () => {
         // valid; the only invariant is "no heal without damage".
         if (combat.enemy!.hp > hpBefore) {
             // Some damage leaked through — verify heal is exactly
-            // floor(damage * 0.5) clamped to 1.
+            // ceil(damage * 0.5) clamped to 1.
             expect(combat.enemy!.hp - hpBefore).toBeGreaterThanOrEqual(1);
         }
     });
@@ -641,7 +641,12 @@ function injectGiantToadPrepare(
 
 function injectGelatinousCube(
     combat: CombatManager,
-    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+    overrides: Partial<{
+        hp: number;
+        maxHp: number;
+        attack: number;
+        chance: number;
+    }> = {}
 ): void {
     combat.enemy = {
         kind: 'normal',
@@ -658,7 +663,14 @@ function injectGelatinousCube(
         profile: 'brute',
         turnsAlive: 0,
         status: emptyStatusState(),
-        passive: { kind: 'acidVomitOnFirstHit', amount: 1, turns: 99 },
+        // Default chance=1 so existing tests stay deterministic; the
+        // 40% production value lives in GameConfig.ENEMY_TIERS.
+        passive: {
+            kind: 'acidVomitOnFirstHit',
+            chance: overrides.chance ?? 1,
+            amount: 1,
+            turns: 99,
+        },
         currentIntent: null,
     };
 }
@@ -706,6 +718,18 @@ describe('Gelatinous Cube Acid Vomit (acidVomitOnFirstHit)', () => {
         // didn't get re-set back to the full 99.
         expect(player.status.armorBreak.amount).toBe(firstAmount);
         expect(player.status.armorBreak.turns).toBeLessThanOrEqual(firstTurns);
+    });
+
+    it('does not apply armor break when the chance roll fails', () => {
+        // chance=0 short-circuits the apply path even on a landed
+        // hit. Mirrors what the live 40% does on a missed roll: the
+        // hit goes through but armor stays intact.
+        const { combat, player } = makeManager(124);
+        injectGelatinousCube(combat, { hp: 9, maxHp: 9, chance: 0 });
+
+        combat.processTurn('attack');
+
+        expect(player.status.armorBreak.turns).toBe(0);
     });
 });
 
