@@ -115,7 +115,15 @@ export class PlayerManager {
         if (this.relicAggregate.sets.flesh && this.stats.hp * 2 < this.stats.maxHp) {
             setBonus += 2;
         }
-        return this.stats.attack + this.relicAggregate.bonusAttack + setBonus;
+        // Enemy-applied weaken (e.g. Underground Ent's strangling roots)
+        // chips a flat amount off the player's swing while active. Mirror
+        // of the enemy-side reduction in EnemyTurn/CombatManager. Min
+        // clamp at 1 keeps a swing always-meaningful.
+        const weakenAmount = this.status.weaken.turns > 0 ? this.status.weaken.amount : 0;
+        return Math.max(
+            1,
+            this.stats.attack + this.relicAggregate.bonusAttack + setBonus - weakenAmount
+        );
     }
 
     getCritChance(): number {
@@ -128,7 +136,15 @@ export class PlayerManager {
         if (this.relicAggregate.sets.flesh && this.stats.hp * 2 > this.stats.maxHp) {
             setBonus += 1;
         }
-        return this.stats.defense + this.relicAggregate.bonusDefense + setBonus;
+        // Enemy-applied armor break (e.g. Gelatinous Cube acid vomit)
+        // chips a flat amount off the player's defense while active.
+        // Clamps at 0 so we never end up with negative defense (which
+        // would amplify damage rather than just remove the buffer).
+        const armorBreak = this.status.armorBreak.turns > 0 ? this.status.armorBreak.amount : 0;
+        return Math.max(
+            0,
+            this.stats.defense + this.relicAggregate.bonusDefense + setBonus - armorBreak
+        );
     }
 
     takeDamage(

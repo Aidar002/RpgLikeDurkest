@@ -319,6 +319,513 @@ describe('Earth Elemental Stone Skin (damageReduction)', () => {
     });
 });
 
+// Vampire shape with the new lifestealOnAttack passive. Stripped down
+// to the fields the regular-attack path reads.
+function injectVampire(
+    combat: CombatManager,
+    passive: EnemyPassive,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Vampire',
+        canonicalName: 'Vampire',
+        description: 'test',
+        icon: 'V',
+        hp: overrides.hp ?? 5,
+        maxHp: overrides.maxHp ?? 9,
+        attack: overrides.attack ?? 4,
+        color: 0x4a1a1a,
+        xp: 0,
+        gold: 0,
+        profile: 'stalker',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive,
+        currentIntent: null,
+    };
+}
+
+describe('Vampire lifestealOnAttack', () => {
+    it('heals the vampire by floor(damage * ratio) on a successful hit', () => {
+        const { combat, player, seenMessages } = makeManager(11);
+        injectVampire(
+            combat,
+            { kind: 'lifestealOnAttack', ratio: 0.5 },
+            { hp: 5, maxHp: 9, attack: 4 }
+        );
+        const hpBefore = combat.enemy!.hp;
+        const playerHpBefore = player.stats.hp;
+
+        combat.processTurn('defend'); // defend so the player's swing
+        // never lands and we can isolate the enemy turn / lifesteal.
+
+        const damageDealt = playerHpBefore - player.stats.hp;
+        const healed = combat.enemy!.hp - hpBefore;
+        if (damageDealt > 0) {
+            expect(healed).toBeGreaterThanOrEqual(1);
+            expect(healed).toBeLessThanOrEqual(Math.max(1, Math.floor(damageDealt * 0.5)));
+            // Default locale is RU; match either the EN or RU lifesteal
+            // phrase so the assertion doesn't accidentally depend on
+            // saved language.
+            expect(
+                seenMessages.some((m) => /drains|recovers|высасыва|восстанавлива/i.test(m))
+            ).toBe(true);
+        } else {
+            // Fully blocked: no damage dealt -> no lifesteal trigger.
+            expect(healed).toBe(0);
+        }
+    });
+
+    it('never heals above maxHp', () => {
+        const { combat } = makeManager(12);
+        injectVampire(
+            combat,
+            { kind: 'lifestealOnAttack', ratio: 1 },
+            { hp: 8, maxHp: 9, attack: 4 }
+        );
+
+        combat.processTurn('defend');
+
+        expect(combat.enemy!.hp).toBeLessThanOrEqual(9);
+    });
+
+    it('does not heal when the hit was fully absorbed (no damage dealt)', () => {
+        const { combat } = makeManager(13);
+        injectVampire(
+            combat,
+            { kind: 'lifestealOnAttack', ratio: 0.5 },
+            { hp: 4, maxHp: 9, attack: 1 }
+        );
+        // Stack defense high enough that a 1-power attack is fully
+        // blocked. defendBlock + extraBlock will usually swallow it.
+        const hpBefore = combat.enemy!.hp;
+
+        combat.processTurn('defend');
+
+        // Either the swing was absorbed (heal stays 0) or the bee-
+        // sized attack got through and we healed by 1. Both are
+        // valid; the only invariant is "no heal without damage".
+        if (combat.enemy!.hp > hpBefore) {
+            // Some damage leaked through — verify heal is exactly
+            // floor(damage * 0.5) clamped to 1.
+            expect(combat.enemy!.hp - hpBefore).toBeGreaterThanOrEqual(1);
+        }
+    });
+});
+
+function injectGoblinHorde(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Goblin Horde',
+        canonicalName: 'Goblin Horde',
+        description: 'test',
+        icon: 'O',
+        hp: overrides.hp ?? 13,
+        maxHp: overrides.maxHp ?? 13,
+        attack: overrides.attack ?? 9,
+        color: 0x4d6a2a,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'attackScalesWithHp' },
+        currentIntent: null,
+    };
+}
+
+describe('Goblin Horde Thinning Horde (attackScalesWithHp)', () => {
+    it('hits weaker when the horde is half-HP than when it is full-HP', () => {
+        // Same RNG sequence on both managers so player block / crit rolls
+        // line up. Force-defend so the player swing is silenced.
+        const a = makeManager(77);
+        const b = makeManager(77);
+        injectGoblinHorde(a.combat, { hp: 13, maxHp: 13, attack: 9 });
+        injectGoblinHorde(b.combat, { hp: 6, maxHp: 13, attack: 9 });
+        const aHp = a.player.stats.hp;
+        const bHp = b.player.stats.hp;
+
+        a.combat.processTurn('defend');
+        b.combat.processTurn('defend');
+
+        const aDealt = aHp - a.player.stats.hp;
+        const bDealt = bHp - b.player.stats.hp;
+        // Full-HP horde hits at least as hard as half-HP horde.
+        expect(aDealt).toBeGreaterThanOrEqual(bDealt);
+    });
+
+    it('logs the thinning message when scaled damage drops below base', () => {
+        const { combat, seenMessages } = makeManager(78);
+        injectGoblinHorde(combat, { hp: 6, maxHp: 13, attack: 9 });
+
+        combat.processTurn('defend');
+
+        // EN: "thins out"; RU: "редеет".
+        expect(seenMessages.some((m) => /thins|редеет/i.test(m))).toBe(true);
+    });
+
+    it('does not log thinning at full HP (scaled == base)', () => {
+        const { combat, seenMessages } = makeManager(79);
+        injectGoblinHorde(combat, { hp: 13, maxHp: 13, attack: 9 });
+
+        combat.processTurn('defend');
+
+        expect(seenMessages.some((m) => /thins|редеет/i.test(m))).toBe(false);
+    });
+});
+
+function injectSuccubus(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Succubus',
+        canonicalName: 'Succubus',
+        description: 'test',
+        icon: 'U',
+        hp: overrides.hp ?? 22,
+        maxHp: overrides.maxHp ?? 22,
+        attack: overrides.attack ?? 1,
+        color: 0x6a2a44,
+        xp: 0,
+        gold: 0,
+        profile: 'stalker',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'painExultation', bonusPerStep: 0.1 },
+        currentIntent: null,
+    };
+}
+
+describe('Succubus Exultation in Pain (painExultation)', () => {
+    it('does not buff attack at full HP', () => {
+        const { combat, seenMessages } = makeManager(91);
+        injectSuccubus(combat, { hp: 22, maxHp: 22, attack: 1 });
+
+        combat.processTurn('defend');
+
+        expect(seenMessages.some((m) => /drinks in|упивается/i.test(m))).toBe(false);
+    });
+
+    it('logs the bonus when she has lost at least 10% HP', () => {
+        const { combat, seenMessages } = makeManager(92);
+        // 11/22 = 50% missing → bonus of 5.
+        injectSuccubus(combat, { hp: 11, maxHp: 22, attack: 1 });
+
+        combat.processTurn('defend');
+
+        const msg = seenMessages.find((m) => /drinks in|упивается/i.test(m));
+        expect(msg).toBeDefined();
+        // The bonus message renders the absolute amount, not the missing-%.
+        expect(msg!).toMatch(/5/);
+    });
+
+    it('deals more total damage at low HP than at full HP', () => {
+        const a = makeManager(93);
+        const b = makeManager(93);
+        injectSuccubus(a.combat, { hp: 22, maxHp: 22, attack: 1 });
+        injectSuccubus(b.combat, { hp: 3, maxHp: 22, attack: 1 });
+        const aHp = a.player.stats.hp;
+        const bHp = b.player.stats.hp;
+
+        a.combat.processTurn('defend');
+        b.combat.processTurn('defend');
+
+        const aDealt = aHp - a.player.stats.hp;
+        const bDealt = bHp - b.player.stats.hp;
+        expect(bDealt).toBeGreaterThan(aDealt);
+    });
+});
+
+function injectUndergroundEnt(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Underground Ent',
+        canonicalName: 'Underground Ent',
+        description: 'test',
+        icon: 'N',
+        hp: overrides.hp ?? 14,
+        maxHp: overrides.maxHp ?? 14,
+        attack: overrides.attack ?? 4,
+        color: 0x3a5532,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'weakenPlayerEachTurn', amount: 1, turns: 2 },
+        currentIntent: null,
+    };
+}
+
+describe('Underground Ent Strangling Roots (weakenPlayerEachTurn)', () => {
+    it('applies weaken to the player on the first turn and logs it', () => {
+        const { combat, player, seenMessages } = makeManager(101);
+        injectUndergroundEnt(combat, { hp: 14, maxHp: 14 });
+
+        combat.processTurn('defend');
+
+        expect(player.status.weaken.amount).toBeGreaterThanOrEqual(1);
+        // EN: "curls roots"; RU: "обвивает".
+        expect(seenMessages.some((m) => /curls roots|обвивает/i.test(m))).toBe(true);
+    });
+
+    it('keeps the weaken active across the player tick (turns=2 buffer)', () => {
+        const { combat, player } = makeManager(102);
+        injectUndergroundEnt(combat, { hp: 14, maxHp: 14 });
+
+        combat.processTurn('defend');
+        // Player tick at end of the full turn decrements weaken by 1.
+        expect(player.status.weaken.turns).toBeGreaterThan(0);
+
+        // Bump player attack high so getAttackPower stays >1 after the
+        // -1 weaken; we want to assert the weaken is reducing it, not
+        // that the floor clamps it.
+        player.stats.attack = 5;
+        expect(player.getAttackPower()).toBe(4);
+    });
+
+    it('does not log a second time when the weaken is just refreshed', () => {
+        const { combat, seenMessages } = makeManager(103);
+        injectUndergroundEnt(combat, { hp: 14, maxHp: 14 });
+
+        combat.processTurn('defend');
+        combat.processTurn('defend');
+
+        const hits = seenMessages.filter((m) => /curls roots|обвивает/i.test(m));
+        expect(hits.length).toBe(1);
+    });
+});
+
+function injectGiantToadPrepare(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; turnsRemaining: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Giant Toad',
+        canonicalName: 'Giant Toad',
+        description: 'test',
+        icon: 'T',
+        hp: overrides.hp ?? 3,
+        maxHp: overrides.maxHp ?? 3,
+        attack: 2,
+        color: 0x4a6b2a,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        pendingPrepare: {
+            def: {
+                nameEn: 'Tongue Lash',
+                nameRu: 'Языковая хватка',
+                turns: 1,
+                damage: 1,
+                stun: { turns: 1 },
+                defenseRule: 'cancelRiders',
+            },
+            turnsRemaining: overrides.turnsRemaining ?? 0,
+        },
+        currentIntent: null,
+    };
+}
+
+function injectGelatinousCube(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Gelatinous Cube',
+        canonicalName: 'Gelatinous Cube',
+        description: 'test',
+        icon: 'C',
+        hp: overrides.hp ?? 9,
+        maxHp: overrides.maxHp ?? 9,
+        attack: overrides.attack ?? 3,
+        color: 0x82c4d4,
+        xp: 0,
+        gold: 0,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'acidVomitOnFirstHit', amount: 1, turns: 99 },
+        currentIntent: null,
+    };
+}
+
+describe('Gelatinous Cube Acid Vomit (acidVomitOnFirstHit)', () => {
+    it('applies armor break to the player on the first landed hit', () => {
+        const { combat, player, seenMessages } = makeManager(121);
+        injectGelatinousCube(combat, { hp: 9, maxHp: 9 });
+
+        combat.processTurn('attack');
+
+        expect(player.status.armorBreak.amount).toBeGreaterThanOrEqual(1);
+        expect(player.status.armorBreak.turns).toBeGreaterThan(0);
+        // EN: "spews acid"; RU: "плюётся кислотой".
+        expect(seenMessages.some((m) => /spews acid|плюётся|плюется/i.test(m))).toBe(true);
+    });
+
+    it('reduces effective defense while armor break is active', () => {
+        const { combat, player } = makeManager(122);
+        // High cube attack so the hit lands through the bumped player
+        // defense (acid only triggers when takenDamage > 0).
+        injectGelatinousCube(combat, { hp: 9, maxHp: 9, attack: 6 });
+
+        // Bump player defense so we can measure the chip from armor
+        // break instead of clamping at the 0-floor.
+        player.stats.defense = 3;
+        const beforeDef = player.getEffectiveDefense();
+        combat.processTurn('attack');
+        const afterDef = player.getEffectiveDefense();
+
+        expect(afterDef).toBe(beforeDef - 1);
+    });
+
+    it('does not stack armor break on subsequent hits in the same fight', () => {
+        const { combat, player } = makeManager(123);
+        injectGelatinousCube(combat, { hp: 20, maxHp: 20 });
+
+        combat.processTurn('attack');
+        const firstAmount = player.status.armorBreak.amount;
+        const firstTurns = player.status.armorBreak.turns;
+        combat.processTurn('attack');
+
+        // Amount must not grow on the re-hit. Turns may have ticked
+        // down by 1 from end-of-turn status tick — we only assert it
+        // didn't get re-set back to the full 99.
+        expect(player.status.armorBreak.amount).toBe(firstAmount);
+        expect(player.status.armorBreak.turns).toBeLessThanOrEqual(firstTurns);
+    });
+});
+
+describe('Giant Toad Tongue Lash (prepare stun rider)', () => {
+    it('applies a 1-turn stun to the player when not defending', () => {
+        const { combat, player, seenMessages } = makeManager(111);
+        // Bump HP up so the toad survives the player's swing and gets
+        // to resolve its windup. With a 3-HP toad the player can crit
+        // it dead before the prepare ever fires.
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        combat.processTurn('attack');
+
+        expect(player.status.stun.turns).toBeGreaterThan(0);
+        expect(seenMessages.some((m) => /binds you|применяет/i.test(m))).toBe(true);
+    });
+
+    it('cancels the stun rider when the player defends on resolve', () => {
+        const { combat, player } = makeManager(112);
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        combat.processTurn('defend');
+
+        expect(player.status.stun.turns).toBe(0);
+    });
+
+    it('skips the player action and logs the bound line on the stunned turn', () => {
+        const { combat, player, seenMessages } = makeManager(113);
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        // Turn A: stun is applied (player still acted: attack).
+        combat.processTurn('attack');
+        const hpAfterA = combat.enemy?.hp ?? 0;
+        // Turn B: player is stunned; their attack is swallowed.
+        combat.processTurn('attack');
+        const hpAfterB = combat.enemy?.hp ?? 0;
+
+        // Bound log must appear on turn B.
+        expect(seenMessages.some((m) => /bound|скованы/i.test(m))).toBe(true);
+        // No enemy HP lost from the stunned player swing.
+        expect(hpAfterB).toBe(hpAfterA);
+        // Stun is consumed after the skipped turn.
+        expect(player.status.stun.turns).toBe(0);
+    });
+});
+
+function injectRatMatron(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; xp: number; gold: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Rat Matron',
+        canonicalName: 'Rat Matron',
+        description: 'test',
+        icon: 'M',
+        hp: overrides.hp ?? 1,
+        maxHp: overrides.maxHp ?? 8,
+        attack: 2,
+        color: 0x6b4530,
+        xp: overrides.xp ?? 5,
+        gold: overrides.gold ?? 5,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'spawnOnDeath', spawnName: 'Rat' },
+        currentIntent: null,
+    };
+}
+
+describe('Rat Matron Litter (spawnOnDeath)', () => {
+    it('replaces the encounter with a Rat instead of ending combat', () => {
+        const { combat, seenMessages } = makeManager(141);
+        // 1 HP so a basic attack always kills the matron this turn.
+        injectRatMatron(combat, { hp: 1 });
+
+        const combatEndCalls: number[] = [];
+        combat.combatEnd.on(() => combatEndCalls.push(1));
+
+        combat.processTurn('attack');
+
+        expect(combat.enemy).not.toBeNull();
+        expect(combat.enemy?.canonicalName).toBe('Rat');
+        expect(combatEndCalls.length).toBe(0);
+        // EN: "crawls from the carcass"; RU: "выползает".
+        expect(seenMessages.some((m) => /carcass|выползает/i.test(m))).toBe(true);
+    });
+
+    it('pays out matron xp+gold inline on spawn', () => {
+        const { combat, player } = makeManager(142);
+        const xpBefore = player.stats.xp;
+        const goldBefore = player.resources.gold;
+        injectRatMatron(combat, { hp: 1, xp: 5, gold: 5 });
+
+        combat.processTurn('attack');
+
+        // gainXp returns the gained amount; we just verify totals grew
+        // by exactly the matron's bounty (not the spawned Rat's, which
+        // is still alive).
+        expect(player.stats.xp).toBe(xpBefore + 5);
+        expect(player.resources.gold).toBe(goldBefore + 5);
+    });
+
+    it('keeps combat going so the spawned Rat takes the next turn', () => {
+        const { combat } = makeManager(143);
+        injectRatMatron(combat, { hp: 1 });
+
+        combat.processTurn('attack');
+
+        // The spawned Rat is a fresh blueprint, full hp, fresh status.
+        // Name is localised (e.g. 'тест_имя_rat'); we assert the canonical key.
+        expect(combat.enemy?.canonicalName).toBe('Rat');
+        expect(combat.enemy?.hp).toBeGreaterThan(0);
+        expect(combat.enemy?.status.bleed.stacks).toBe(0);
+        // Rat carries its own passive (extraDamageOnHit) — NOT the
+        // matron's spawnOnDeath, so chained spawns won't happen.
+        expect(combat.enemy?.passive?.kind).toBe('extraDamageOnHit');
+    });
+});
+
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);

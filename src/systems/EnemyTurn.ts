@@ -5,7 +5,14 @@ import { intentLabelForPhase, intentLabelForPrepare, prepareName } from './BossR
 import { narrate } from './Narrator';
 import type { Localization } from './Localization';
 import type { PlayerManager } from './PlayerManager';
-import { applyBleed, applyPoison, consumeStunForTurn } from './StatusEffects';
+import {
+    applyArmorBreak,
+    applyBleed,
+    applyPoison,
+    applyStun,
+    applyWeaken,
+    consumeStunForTurn,
+} from './StatusEffects';
 import type { ActiveEnemy, EnemyUpdatePayload } from './CombatManager';
 import type { Rng } from './Rng';
 
@@ -90,11 +97,69 @@ export function resolveEnemyTurn(
         return;
     }
 
+    // Underground Ent "Strangling Roots": refresh a small weaken on
+    // the player every turn the ent is alive. Applied BEFORE the
+    // regular-attack resolution so it is in place for the very next
+    // player turn (player ticks run at end-of-full-turn, so a
+    // turns=2 application survives the tick exactly long enough).
+    if (enemy.passive?.kind === 'weakenPlayerEachTurn') {
+        const had = player.status.weaken.turns > 0;
+        applyWeaken(player.status, enemy.passive.amount, enemy.passive.turns);
+        if (!had) {
+            log.addMessage(
+                loc.t('combatEnemyStranglingRoots', {
+                    name: enemy.name,
+                    amount: enemy.passive.amount,
+                }),
+                '#6a8f5a'
+            );
+            deps.emitPlayerStatus();
+        }
+    }
+
     // Regular attack.
     const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
     const weakenReduction = enemy.status.weaken.turns > 0 ? enemy.status.weaken.amount : 0;
     let attackPower = enemy.attack - weakenReduction;
     if (attackPower < 1) attackPower = 1;
+
+    // Goblin Horde "Thinning Horde": scale attack by current/max HP
+    // so the surviving rump only manages a glancing blow. Applies
+    // before extraDamageOnHit so the +N bonus still applies on top.
+    if (enemy.passive?.kind === 'attackScalesWithHp' && enemy.maxHp > 0) {
+        const before = attackPower;
+        const scaled = Math.max(1, Math.floor(attackPower * (enemy.hp / enemy.maxHp)));
+        attackPower = scaled;
+        if (scaled < before) {
+            log.addMessage(
+                loc.t('combatEnemyHordeThins', {
+                    name: enemy.name,
+                    attack: scaled,
+                }),
+                '#7fa05a'
+            );
+        }
+    }
+
+    // Succubus "Exultation in Pain": +1 damage per `bonusPerStep`
+    // fraction of *missing* HP. Mirror image of Thinning Horde —
+    // gets stronger as she takes damage. Floors fractional steps so
+    // a 5% chip doesn't yet earn the bonus.
+    if (enemy.passive?.kind === 'painExultation' && enemy.maxHp > 0) {
+        const step = enemy.passive.bonusPerStep > 0 ? enemy.passive.bonusPerStep : 0.1;
+        const missingRatio = (enemy.maxHp - enemy.hp) / enemy.maxHp;
+        const bonus = Math.floor(missingRatio / step);
+        if (bonus > 0) {
+            attackPower += bonus;
+            log.addMessage(
+                loc.t('combatEnemyPainExultation', {
+                    name: enemy.name,
+                    bonus,
+                }),
+                '#c45a8a'
+            );
+        }
+    }
 
     if (enemy.passive?.kind === 'extraDamageOnHit' && rng.next() < enemy.passive.chance) {
         attackPower += enemy.passive.bonus;
@@ -116,6 +181,50 @@ export function resolveEnemyTurn(
         );
     } else {
         log.addMessage(loc.t('absorb'), '#8fc6ff');
+    }
+
+    // Gelatinous Cube "Acid Vomit": on the first regular hit that
+    // actually lands, etch the player's armor — defense -amount for
+    // the rest of the fight (and a couple of rooms past it, since
+    // armorBreak.turns ticks once per combat turn). Gated on the
+    // player's existing armorBreak.turns so re-triggers from the same
+    // cube don't keep refreshing it; design says ONE acid burst per
+    // cube, not a continuous spray.
+    if (
+        takenDamage > 0 &&
+        enemy.passive?.kind === 'acidVomitOnFirstHit' &&
+        player.status.armorBreak.turns === 0
+    ) {
+        applyArmorBreak(player.status, enemy.passive.amount, enemy.passive.turns);
+        log.addMessage(
+            loc.t('combatEnemyAcidVomit', {
+                name: enemy.name,
+                amount: enemy.passive.amount,
+            }),
+            '#5fcf5a'
+        );
+        deps.emitPlayerStatus();
+    }
+
+    // Vampire-style lifesteal: heal a ratio of the damage that actually
+    // landed on the player. Floor + min 1 on a successful hit keeps
+    // attack=1 vampires from ever leaving the field at half HP with
+    // nothing healed.
+    if (takenDamage > 0 && enemy.passive?.kind === 'lifestealOnAttack' && enemy.hp < enemy.maxHp) {
+        const want = Math.max(1, Math.floor(takenDamage * enemy.passive.ratio));
+        const before = enemy.hp;
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + want);
+        const healed = enemy.hp - before;
+        if (healed > 0) {
+            log.addMessage(loc.t('combatEnemyLifesteal', { name: enemy.name, healed }), '#c45a5a');
+            deps.emitEnemyUpdate({
+                hp: enemy.hp,
+                maxHp: enemy.maxHp,
+                color: enemy.color,
+                name: enemy.name,
+                icon: enemy.icon,
+            });
+        }
     }
 
     if (player.stats.hp <= 0) {
@@ -241,5 +350,17 @@ function resolvePrepare(
             }),
             '#7fbf6a'
         );
+    }
+    if (def.stun) {
+        applyStun(player.status, def.stun.turns);
+        log.addMessage(
+            loc.t('combatEnemyPrepareStun', {
+                name: enemy.name,
+                action,
+                turns: def.stun.turns,
+            }),
+            '#7aaaff'
+        );
+        deps.emitPlayerStatus();
     }
 }

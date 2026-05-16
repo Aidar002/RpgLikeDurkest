@@ -191,6 +191,14 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatEnemyThorns: '{name} жалит в ответ на {thorns} урона.',
     combatEnemyDamageReduction: '{name} стряхивает {amount} урона.',
     combatEnemyEvadeAndSting: '{name} уклоняется и жалит на {damage} урона.',
+    combatEnemyLifesteal: '{name} высасывает рану и восстанавливает {healed} ОЗ.',
+    combatEnemyHordeThins: '{name} редеет — наскребает лишь {attack} урона.',
+    combatEnemyPainExultation: '{name} упивается болью — +{bonus} к урону.',
+    combatEnemyStranglingRoots: '{name} обвивает вас корнями — ваши удары ослаблены на {amount}.',
+    combatEnemyAcidVomit: '{name} плюётся кислотой — броня снижена на {amount} до конца боя.',
+    combatEnemySpawnsReplacement: '{name} падает — из туши выползает {spawn}!',
+    combatEnemyPrepareStun: '{name} применяет {action} — вы оглушены на {turns}х.',
+    combatPlayerStunned: 'Вы скованы — этот ход пропущен.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
     combatRelicHealOnAttack:
         'Сработал эффект предмета «Треснутый амулет» — восстановлено {healed} ОЗ.',

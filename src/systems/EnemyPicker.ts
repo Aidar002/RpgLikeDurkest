@@ -20,6 +20,22 @@ export function getEnemyForDepth(depth: number, rng: Rng = defaultRng): EnemyDef
 }
 
 /**
+ * Look up an EnemyDef by its canonical English name across all tiers.
+ * Used by death-trigger passives (e.g. Rat Matron's spawnOnDeath ->
+ * Rat) to grab a fresh blueprint of the spawned enemy regardless of
+ * the current depth band. Returns undefined when the name is not in
+ * the roster — callers are expected to bail gracefully instead of
+ * throwing so a typo in a data file doesn't soft-lock a run.
+ */
+export function getEnemyByName(name: string): EnemyDef | undefined {
+    for (const tier of ENEMY_TIERS) {
+        const found = tier.pool.find((e) => e.name === name);
+        if (found) return found;
+    }
+    return undefined;
+}
+
+/**
  * Pick a boss for the given depth. When multiple BOSSES entries share
  * the same depth, the `rng` decides which candidate runs this fight,
  * so the boss roll stays inside the deterministic envelope.

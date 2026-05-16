@@ -31,6 +31,11 @@ export interface EnemyPrepareDef {
     bleed?: { stacks: number; turns: number };
     /** Poison rider added when not defended. */
     poison?: { damage: number; turns: number };
+    /**
+     * Stun rider added when not defended. The player skips their next
+     * `turns` turns. Used by the giant toad's Tongue Lash.
+     */
+    stun?: { turns: number };
     /** What the player's Defend action does to this prepared hit. */
     defenseRule: 'damageBack' | 'cancelRiders' | 'leakOnDefend';
     /** Damage the enemy takes when defenseRule === 'damageBack'. */
@@ -61,6 +66,29 @@ export interface EnemyDef {
      *  - kind: 'evadeAndStingOnHit'  (bee-butterfly — 20% dodge the player's
      *    incoming attack entirely and counter for a small fixed amount of
      *    true damage)
+     *  - kind: 'lifestealOnAttack'   (vampire — heal a ratio of the damage
+     *    dealt by a successful regular attack)
+     *  - kind: 'attackScalesWithHp'  (goblin-horde — the "thinning horde":
+     *    regular-attack damage is scaled by hp/maxHp so a near-dead horde
+     *    only musters a couple of hits)
+     *  - kind: 'painExultation'      (succubus — "exultation in pain":
+     *    +1 regular-attack damage per `bonusPerStep` fraction of missing
+     *    HP (default 0.1 → +1 per 10% missing))
+     *  - kind: 'weakenPlayerEachTurn' (underground-ent — "strangling
+     *    roots": applies/refreshes weaken `amount` for `turns` turns to
+     *    the player at the start of every enemy turn while the enemy
+     *    is alive)
+     *  - kind: 'acidVomitOnFirstHit' (gelatinous-cube — "acid vomit":
+     *    on the first regular attack that lands, apply armorBreak
+     *    `amount` for `turns` turns to the player (defense −amount).
+     *    Fires at most once per encounter, tracked by checking the
+     *    player's existing armorBreak.turns)
+     *  - kind: 'spawnOnDeath'        (rat-matron — "litter": on the
+     *    turn the enemy's hp drops to 0, instead of ending combat the
+     *    encounter respawns as the enemy named `spawnName` (canonical
+     *    English name). The spawned enemy keeps its own passive/
+     *    prepare from the roster so chained spawns are possible only
+     *    if explicitly modelled in data)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -71,7 +99,13 @@ export type EnemyPassive =
     | { kind: 'extraDamageOnHit'; chance: number; bonus: number }
     | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
     | { kind: 'damageReduction'; chance: number; reduction: number }
-    | { kind: 'evadeAndStingOnHit'; chance: number; damage: number };
+    | { kind: 'evadeAndStingOnHit'; chance: number; damage: number }
+    | { kind: 'lifestealOnAttack'; ratio: number }
+    | { kind: 'attackScalesWithHp' }
+    | { kind: 'painExultation'; bonusPerStep: number }
+    | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number }
+    | { kind: 'acidVomitOnFirstHit'; amount: number; turns: number }
+    | { kind: 'spawnOnDeath'; spawnName: string };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -506,6 +540,19 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0x4a6b2a,
                 profile: 'brute',
+                // Tongue Lash: 1-turn windup, on resolve the toad licks
+                // for 1 damage and binds the player for 1 turn (skip
+                // next action). Defending cancels the stun (and the
+                // poison rider in similar windups), the player still
+                // takes the lick damage on the resolve turn.
+                prepare: {
+                    nameEn: 'Tongue Lash',
+                    nameRu: 'Языковая хватка',
+                    turns: 1,
+                    damage: 1,
+                    stun: { turns: 1 },
+                    defenseRule: 'cancelRiders',
+                },
             },
         ],
     },
@@ -522,6 +569,11 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x6b4530,
                 profile: 'brute',
+                // Litter: when the matron is killed, the encounter
+                // doesn't end — it continues with a fresh Rat. The
+                // spawned Rat carries its own (lighter) reward yield,
+                // so killing both creatures gives you both bounties.
+                passive: { kind: 'spawnOnDeath', spawnName: 'Rat' },
             },
             {
                 name: 'Skeleton',
@@ -567,6 +619,14 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x82c4d4,
                 profile: 'brute',
+                // Acid Vomit: on the first regular attack that lands,
+                // the cube etches the player's armor — defense −1 for
+                // the remainder of the fight (turns=99 picks a value
+                // larger than any realistic combat length without
+                // making it literally infinite). Only triggers once
+                // per encounter; the guard in EnemyTurn checks the
+                // player's existing armorBreak.turns to gate it.
+                passive: { kind: 'acidVomitOnFirstHit', amount: 1, turns: 99 },
             },
             {
                 name: 'Earth Elemental',
@@ -617,6 +677,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 8,
                 color: 0x4a1a1a,
                 profile: 'stalker',
+                // Vampirism: heal half of any damage the regular attack
+                // dealt to the player (clamped to maxHp, min 1 when the
+                // hit landed).
+                passive: { kind: 'lifestealOnAttack', ratio: 0.5 },
             },
             {
                 name: 'Demon',
@@ -639,6 +703,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x4d6a2a,
                 profile: 'brute',
+                // Thinning Horde: attack scales linearly with hp/maxHp.
+                // The 9-damage swing is the *full-strength* horde; as
+                // goblins fall the surviving few hit weaker.
+                passive: { kind: 'attackScalesWithHp' },
             },
             {
                 name: 'Underground Ent',
@@ -650,6 +718,11 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x3a5532,
                 profile: 'brute',
+                // Strangling Roots: each enemy turn, refresh a weaken-1
+                // for 2 turns on the player so the player's next swing
+                // is chipped by 1 while the ent is alive. Decays
+                // naturally after the ent dies.
+                passive: { kind: 'weakenPlayerEachTurn', amount: 1, turns: 2 },
             },
         ],
     },
@@ -688,6 +761,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 18,
                 color: 0x6a2a44,
                 profile: 'stalker',
+                // Exultation in Pain: +1 damage per 10% missing HP.
+                // Base attack of 1 is *almost* pillow-soft at full HP;
+                // the threat scales as the player chips her down.
+                passive: { kind: 'painExultation', bonusPerStep: 0.1 },
             },
             {
                 name: 'Lost Adventurer',

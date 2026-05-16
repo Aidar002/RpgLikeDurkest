@@ -201,6 +201,16 @@ export const EN_STRINGS = {
     combatEnemyThorns: '{name} retaliates for {thorns} damage.',
     combatEnemyDamageReduction: '{name} shrugs off {amount} damage.',
     combatEnemyEvadeAndSting: '{name} flits aside and stings for {damage} damage.',
+    combatEnemyLifesteal: '{name} drains the wound and recovers {healed} HP.',
+    combatEnemyHordeThins: '{name} thins out — only mustering {attack} damage.',
+    combatEnemyPainExultation: '{name} drinks in the pain — +{bonus} damage.',
+    combatEnemyStranglingRoots:
+        '{name} curls roots around you — your swings are weakened by {amount}.',
+    combatEnemyAcidVomit:
+        '{name} spews acid over your armor — defense reduced by {amount} for the rest of the fight.',
+    combatEnemySpawnsReplacement: '{name} collapses — a {spawn} crawls from the carcass!',
+    combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
+    combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
     combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
     combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',
