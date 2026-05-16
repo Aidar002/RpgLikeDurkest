@@ -577,20 +577,22 @@ export class CombatManager {
     private handlePlayerAttack() {
         if (!this.enemy) return;
         this.player.gainResolve(COMBAT_CONFIG.resolveFromAttack);
-        // Cursed Amulet (and similar): the curse may make the strike
-        // miss outright. The Resolve gain above is preserved so the
-        // economy is not punished, but no damage / on-hit procs run.
-        const agg = this.player.aggregate;
-        if (agg.missChance > 0 && this.rng.next() < agg.missChance) {
-            this.log.addMessage(this.loc.t('combatRelicCursedMiss'), '#a08070');
-            return;
-        }
         const result = this.rollPlayerAttack();
         let damage = result.damage;
         if (this.preparationActive) {
             damage += 1;
             this.preparationActive = false;
             this.log.addMessage(this.loc.t('combatPreparationAttack'), '#9bc8ff');
+        }
+        // Knight's Sword: +5 damage on a regular attack at the relic's
+        // chance. Resolved on the basic-attack path ONLY (skills, bleed
+        // ticks, Cursed-Ring scrubbed strikes do NOT receive it). Logged
+        // before the strike line so the order reads "extra → strike".
+        const agg = this.player.aggregate;
+        if (agg.damageBonusOnAttackChance > 0 && this.rng.next() < agg.damageBonusOnAttackChance) {
+            const bonus = agg.damageBonusOnAttackAmount;
+            damage += bonus;
+            this.log.addMessage(this.loc.t('combatRelicKnightSwordBonus', { bonus }), '#e6d27a');
         }
         this.applyPlayerDamage(damage, result.critical);
         this.log.addMessage(
@@ -603,6 +605,7 @@ export class CombatManager {
             this.log.addMessage(narrate('crit_landed', this.loc.language), '#c4a35a');
         }
         this.applyOnAttackRelics();
+        this.applyResolveOnAttack();
     }
 
     private handlePlayerDefend() {
@@ -638,24 +641,6 @@ export class CombatManager {
             return false;
         }
 
-        // Cursed Ring (and similar): the curse may scrub the skill and
-        // resolve it as a basic strike instead. Resolve already paid is
-        // NOT refunded — the curse keeps the cost as a tax.
-        const agg = this.player.aggregate;
-        if (agg.skillToBasicChance > 0 && this.rng.next() < agg.skillToBasicChance) {
-            this.log.addMessage(this.loc.t('combatRelicCursedSkillBasic'), '#a08070');
-            const result = this.rollPlayerAttack();
-            this.applyPlayerDamage(result.damage, result.critical);
-            this.log.addMessage(
-                result.critical
-                    ? this.loc.t('strikeCrit', { damage: result.damage })
-                    : this.loc.t('strike', { damage: result.damage }),
-                result.critical ? '#ffe08a' : '#dddddd'
-            );
-            this.applyOnAttackRelics();
-            return true;
-        }
-
         // Skeleton Swordsman "Skilled Fencer": parry the skill before
         // its effect resolves. The resolve cost is already spent above
         // (and is NOT refunded — the parry just wastes the player's
@@ -683,6 +668,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 this.log.addMessage(this.loc.t('combatSkillCleave', { dmg }), '#b893ff');
                 this.applyOnAttackRelics();
+                this.applyResolveOnAttack();
                 breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
                 break;
             }
@@ -693,6 +679,7 @@ export class CombatManager {
                 applyBleed(this.enemy.status, bleedPerTick, 3, this.enemy.bleedCap);
                 this.log.addMessage(this.loc.t('combatSkillBleedStrike', { dmg }), '#d06060');
                 this.applyOnAttackRelics();
+                this.applyResolveOnAttack();
                 breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
                 break;
             }
@@ -761,26 +748,6 @@ export class CombatManager {
         let critical = criticalIn;
         let damage = baseDamage;
 
-        // Minor Cursed set: each player damaging action coin-flips
-        // between doubling the strike OR backfiring 2 untyped damage
-        // onto the player. Resolved BEFORE crit/expose/passives so the
-        // doubled damage can ride the rest of the pipeline.
-        if (this.player.aggregate.sets.minor_cursed) {
-            if (this.rng.next() < 0.5) {
-                damage *= 2;
-                this.log.addMessage(this.loc.t('combatRelicCursedDouble', { damage }), '#c98aff');
-            } else {
-                const taken = this.player.takeDamage(2, 0, 'true');
-                if (taken > 0) {
-                    this.log.addMessage(
-                        this.loc.t('combatRelicCursedSelfHit', { damage: taken }),
-                        '#c98aff'
-                    );
-                    this.playerHit.emit({ damage: taken });
-                }
-            }
-        }
-
         // Consume mark for guaranteed crit.
         if (!critical && consumeMark(this.enemy.status)) {
             critical = true;
@@ -820,6 +787,25 @@ export class CombatManager {
                         amount: before - damage,
                     }),
                     '#9aa6b3'
+                );
+            }
+        }
+
+        // Longinus Shard: ×N damage when the enemy is the Prophet
+        // boss. Applied AFTER all other damage modifiers but BEFORE
+        // the HP write so the multiplied damage feeds the death
+        // check and the boss-block / spawn paths.
+        if (damage > 0 && this.enemy.canonicalName === 'Prophet') {
+            const mult = this.player.aggregate.prophetDamageMult;
+            if (mult > 1) {
+                const before = damage;
+                damage = Math.max(1, Math.round(damage * mult));
+                this.log.addMessage(
+                    this.loc.t('combatRelicLonginusShard', {
+                        before,
+                        damage,
+                    }),
+                    '#ffd9d9'
                 );
             }
         }
@@ -889,9 +875,11 @@ export class CombatManager {
     }
 
     /**
-     * Cracked Amulet (and similar): a small chance to recover HP after
-     * any attack action. Uses the player's `aggregate.healOnAttackChance`
+     * Vampire Amulet (and similar): a chance to recover HP after any
+     * attack action. Uses the player's `aggregate.healOnAttackChance`
      * so multiple sources stack via max() in {@link aggregateRelics}.
+     * The flesh-set proc-bump (10% → 30%) is folded into the chance
+     * by `applyUnconditionalSetBonuses`.
      */
     private tryHealOnAttack() {
         if (!this.enemy) return;
@@ -901,6 +889,21 @@ export class CombatManager {
         const healed = this.player.heal(agg.healOnAttackAmount);
         if (healed > 0) {
             this.log.addMessage(this.loc.t('combatRelicHealOnAttack', { healed }), '#8be0a7');
+        }
+    }
+
+    /**
+     * Lost Staff: +N current resolve every time the player takes an
+     * attack action (basic strike OR Will-skill). Capped at maxResolve
+     * by `gainResolve`. Logged only when something was actually
+     * gained, so a full bar stays quiet.
+     */
+    private applyResolveOnAttack() {
+        const agg = this.player.aggregate;
+        if (agg.resolveOnAttackAmount <= 0) return;
+        const gained = this.player.gainResolve(agg.resolveOnAttackAmount);
+        if (gained > 0) {
+            this.log.addMessage(this.loc.t('combatRelicLostStaff', { resolve: gained }), '#9bc8ff');
         }
     }
 
@@ -941,22 +944,50 @@ export class CombatManager {
             amount = Math.max(1, Math.round(amount * 1.5));
         }
 
-        // Holey Chestplate (and similar): a chance to soak a fixed
-        // amount of damage before defense / HP loss is computed.
+        // Dark Chestplate (and similar): a chance to halve the
+        // incoming damage (50% block, rounded with Math.floor on the
+        // BLOCKED side so 5 → blocks 2 → player takes 3, and a 1-dmg
+        // hit blocks 0 so the player still takes the full 1). Stacks
+        // before defense / flatBlock so the surviving amount still
+        // gets reduced by guard + defense afterwards.
         const agg = this.player.aggregate;
         let extraBlock = 0;
-        if (agg.blockOnHitChance > 0 && this.rng.next() < agg.blockOnHitChance) {
-            extraBlock = agg.blockOnHitAmount;
-            this.log.addMessage(
-                this.loc.t('combatRelicBlockOnHit', { amount: extraBlock }),
-                '#9fc4f0'
-            );
+        if (
+            agg.damageReductionChance > 0 &&
+            agg.damageReductionPercent > 0 &&
+            this.rng.next() < agg.damageReductionChance
+        ) {
+            extraBlock = Math.floor(amount * agg.damageReductionPercent);
+            if (extraBlock > 0) {
+                this.log.addMessage(
+                    this.loc.t('combatRelicDarkChestplate', { amount: extraBlock }),
+                    '#9fc4f0'
+                );
+            }
         }
 
         const taken = this.player.takeDamage(amount, flatBlock + extraBlock, 'combat');
         if (taken > 0) {
             if (crit) this.log.addMessage(narrate('crit_received', this.loc.language), '#c4a35a');
             this.playerHit.emit({ damage: taken });
+
+            // Knight's Helmet: chance to restore N resolve when the
+            // player takes a hit. Resolved AFTER damage is applied so
+            // the chance fires once per landed enemy hit; misses /
+            // fully-blocked hits do NOT trigger.
+            if (
+                agg.resolveOnHitChance > 0 &&
+                agg.resolveOnHitAmount > 0 &&
+                this.rng.next() < agg.resolveOnHitChance
+            ) {
+                const gained = this.player.gainResolve(agg.resolveOnHitAmount);
+                if (gained > 0) {
+                    this.log.addMessage(
+                        this.loc.t('combatRelicKnightHelmet', { resolve: gained }),
+                        '#9fc4f0'
+                    );
+                }
+            }
         }
         return taken;
     }

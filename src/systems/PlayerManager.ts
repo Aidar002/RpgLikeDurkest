@@ -68,7 +68,18 @@ export class PlayerManager {
      */
     public readonly relicOffer = new Emitter<{ id: RelicId }>();
 
-    private goldGainMult: number;
+    /**
+     * Multiplier on every gainGold call coming from MetaProgression
+     * (Gogi's "Greedy hands" + permanent unlocks). The relic-side
+     * multiplier (Crown of Greed / Sin set) lives on
+     * {@link RelicAggregate.goldGainMult} so it can update as the
+     * player picks up / drops relics. The two are combined in
+     * {@link gainGold} by straight multiplication; same pattern in
+     * {@link gainXp} for the xp side, which has no meta multiplier
+     * yet but is plumbed through the aggregate so the Sin set can
+     * grant +100% XP.
+     */
+    private metaGoldGainMult: number;
     private relicAggregate: RelicAggregate = emptyAggregate();
 
     constructor(bonuses: Partial<PlayerMetaBonuses> = {}) {
@@ -92,7 +103,7 @@ export class PlayerManager {
             maxResolve: PLAYER_CONFIG.maxResolve,
         };
 
-        this.goldGainMult = bonuses.goldGainMult ?? 1;
+        this.metaGoldGainMult = bonuses.goldGainMult ?? 1;
     }
 
     /**
@@ -110,20 +121,12 @@ export class PlayerManager {
     }
 
     getAttackPower(): number {
-        let setBonus = 0;
-        // Flesh set: +2 attack while HP < 50% (lives/max strictly less).
-        if (this.relicAggregate.sets.flesh && this.stats.hp * 2 < this.stats.maxHp) {
-            setBonus += 2;
-        }
         // Enemy-applied weaken (e.g. Underground Ent's strangling roots)
         // chips a flat amount off the player's swing while active. Mirror
         // of the enemy-side reduction in EnemyTurn/CombatManager. Min
         // clamp at 1 keeps a swing always-meaningful.
         const weakenAmount = this.status.weaken.turns > 0 ? this.status.weaken.amount : 0;
-        return Math.max(
-            1,
-            this.stats.attack + this.relicAggregate.bonusAttack + setBonus - weakenAmount
-        );
+        return Math.max(1, this.stats.attack + this.relicAggregate.bonusAttack - weakenAmount);
     }
 
     getCritChance(): number {
@@ -131,20 +134,12 @@ export class PlayerManager {
     }
 
     getEffectiveDefense(): number {
-        let setBonus = 0;
-        // Flesh set: +1 defense while HP > 50% (strictly more).
-        if (this.relicAggregate.sets.flesh && this.stats.hp * 2 > this.stats.maxHp) {
-            setBonus += 1;
-        }
         // Enemy-applied armor break (e.g. Gelatinous Cube acid vomit)
         // chips a flat amount off the player's defense while active.
         // Clamps at 0 so we never end up with negative defense (which
         // would amplify damage rather than just remove the buffer).
         const armorBreak = this.status.armorBreak.turns > 0 ? this.status.armorBreak.amount : 0;
-        return Math.max(
-            0,
-            this.stats.defense + this.relicAggregate.bonusDefense + setBonus - armorBreak
-        );
+        return Math.max(0, this.stats.defense + this.relicAggregate.bonusDefense - armorBreak);
     }
 
     takeDamage(
@@ -192,7 +187,7 @@ export class PlayerManager {
             this.emitStats();
             return 0;
         }
-        const scaledAmount = Math.max(1, Math.round(amount));
+        const scaledAmount = Math.max(1, Math.round(amount * this.relicAggregate.xpGainMult));
         this.stats.xp += scaledAmount;
 
         while (this.stats.level < LEVEL_UP_CONFIG.levelCap && this.stats.xp >= this.xpToNextLevel) {
@@ -220,7 +215,8 @@ export class PlayerManager {
 
     gainGold(amount: number): number {
         if (amount <= 0) return 0;
-        const scaled = Math.max(0, Math.round(amount * this.goldGainMult));
+        const mult = this.metaGoldGainMult * this.relicAggregate.goldGainMult;
+        const scaled = Math.max(0, Math.round(amount * mult));
         if (scaled <= 0) return 0;
         this.resources.gold += scaled;
         this.emitResources();
@@ -345,6 +341,23 @@ export class PlayerManager {
         } else if (addedMaxHp < 0) {
             this.stats.maxHp = Math.max(1, this.stats.maxHp + addedMaxHp);
             this.stats.hp = Math.min(this.stats.hp, this.stats.maxHp);
+        }
+
+        // MaxResolve relic bonus follows the same pattern: aggregate
+        // growth raises both max and current resolve so the Lost
+        // Staff "+3 max resolve" picks up immediately, and a shrink
+        // (Cursed Ring "-2 max resolve") clamps current resolve down
+        // so the bar can't show > max.
+        const addedMaxResolve = next.bonusMaxResolve - prev.bonusMaxResolve;
+        if (addedMaxResolve > 0) {
+            this.resources.maxResolve += addedMaxResolve;
+            this.resources.resolve = Math.min(
+                this.resources.maxResolve,
+                this.resources.resolve + addedMaxResolve
+            );
+        } else if (addedMaxResolve < 0) {
+            this.resources.maxResolve = Math.max(0, this.resources.maxResolve + addedMaxResolve);
+            this.resources.resolve = Math.min(this.resources.resolve, this.resources.maxResolve);
         }
 
         // Preserve the Sara vampire-blessing buff across relic changes.

@@ -296,8 +296,8 @@ describe('PlayerManager — relics', () => {
             'worn_ring',
             'cracked_shield',
             'tattered_cloak',
-            'cracked_amulet',
-            'simple_sword',
+            'vampire_amulet',
+            'knight_sword',
         ];
         // Sanity: the catalog must offer at least MAX_RELICS distinct
         // ids for the test to fill the inventory.
@@ -314,7 +314,7 @@ describe('PlayerManager — relics', () => {
         // `relicsChange` (the manager doesn't mutate); the caller
         // (`RelicDrops`) is expected to translate this into a
         // `relicOffer` emit, but `addRelic` itself is silent.
-        expect(player.addRelic('simple_chestplate')).toBe('full');
+        expect(player.addRelic('knight_armor')).toBe('full');
         expect(player.relics).toHaveLength(MAX_RELICS);
         expect(offers).toBe(0);
     });
@@ -325,21 +325,21 @@ describe('PlayerManager — relics', () => {
             'worn_ring',
             'cracked_shield',
             'tattered_cloak',
-            'cracked_amulet',
-            'simple_sword',
+            'vampire_amulet',
+            'knight_sword',
         ];
         for (const id of fillers) player.addRelic(id);
 
         // Cap reached, candidate rejected.
-        expect(player.addRelic('simple_chestplate')).toBe('full');
+        expect(player.addRelic('knight_armor')).toBe('full');
 
         // Drop one, then retry with the candidate — mirrors the
         // RelicSwapModal path.
         player.removeRelic('worn_ring');
-        expect(player.addRelic('simple_chestplate')).toBe('added');
+        expect(player.addRelic('knight_armor')).toBe('added');
         expect(player.relics).toHaveLength(MAX_RELICS);
         expect(player.relics).not.toContain('worn_ring');
-        expect(player.relics).toContain('simple_chestplate');
+        expect(player.relics).toContain('knight_armor');
     });
 
     it('removeRelic removes only the matching id and emits change', () => {
