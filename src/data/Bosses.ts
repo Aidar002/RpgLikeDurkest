@@ -26,7 +26,7 @@ export function pickLine(line: BossLine, lang: Language): string {
     return lang === 'ru' ? line.ru : line.en;
 }
 
-type BossActionId = 'attack' | 'death_shield' | 'death_touch';
+type BossActionId = 'attack' | 'death_shield' | 'death_touch' | 'nimrod_godkiller' | 'hero_call';
 
 export interface BossActionDef {
     id: BossActionId;
@@ -51,6 +51,21 @@ export interface BossActionDef {
     oneShot?: boolean;
     /** Damage dealt instead of the OHKO when the player Defends on resolution. */
     oneShotDefendDamage?: number;
+    /**
+     * Gilgamesh's "Hero's Cry": chance per turn to also drain
+     * `heroCryDrain.attack` weaken / `heroCryDrain.defense` armorBreak
+     * for the rest of the fight (turns: 99) and 1 resolve from the
+     * player. The boss still does its regular attack on top —
+     * `id: 'hero_call'` actions roll the cry, then fall through to
+     * the normal attack pipeline.
+     */
+    heroCryChance?: number;
+    heroCryDrain?: {
+        attackWeaken: number;
+        defenseArmorBreak: number;
+        resolveDrain: number;
+        turns: number;
+    };
 }
 
 interface BossPhaseDef {
@@ -69,7 +84,7 @@ export interface BossBlueprint {
 }
 
 // ---------------------------------------------------------------------------
-// Death Knight boss blueprint.
+// Boss blueprints.
 // ---------------------------------------------------------------------------
 
 const BOSS_BLUEPRINTS: BossBlueprint[] = [
@@ -111,6 +126,62 @@ const BOSS_BLUEPRINTS: BossBlueprint[] = [
                         windupTurns: 3,
                         oneShot: true,
                         oneShotDefendDamage: 8,
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        // Nimrod, "the God-Killer": single-phase rotation that opens
+        // with a 5-turn `nimrod_godkiller` windup and resolves into an
+        // unconditional one-shot kill. Defend does NOT soften it (no
+        // `oneShotDefendDamage` set) — the only counterplay is to
+        // burst Nimrod down before the windup ticks out. His regular
+        // attack stat is 0 (per the design sheet) so the `attack`
+        // padding actions in the rotation are a no-damage filler that
+        // exist only so the windup can re-arm if the player burns him
+        // through 5 turns and continues the fight somehow.
+        name: 'Nimrod',
+        phases: [
+            {
+                enterAtHpRatio: 1.0,
+                actions: [
+                    {
+                        id: 'nimrod_godkiller',
+                        intent: { en: 'God-Killer', ru: 'Убийца богов' },
+                        noAttack: true,
+                        windupTurns: 5,
+                        oneShot: true,
+                        // No oneShotDefendDamage on purpose: Defend
+                        // does not soften the kill.
+                    },
+                ],
+            },
+        ],
+    },
+    {
+        // Gilgamesh, "the First Hero": every turn rolls a 10% chance
+        // to bellow a Hero's Cry alongside his swing. The cry stacks
+        // weaken -1 (attack), armorBreak -1 (defense) for the rest of
+        // the fight (turns: 99 → natural one-per-turn decay) AND
+        // drains 1 resolve from the player. He still hits for his
+        // base attack on the same turn — `hero_call` is a rider, not
+        // a windup.
+        name: 'Gilgamesh',
+        phases: [
+            {
+                enterAtHpRatio: 1.0,
+                actions: [
+                    {
+                        id: 'hero_call',
+                        intent: { en: "Hero's Cry", ru: 'Клич героя' },
+                        heroCryChance: 0.1,
+                        heroCryDrain: {
+                            attackWeaken: 1,
+                            defenseArmorBreak: 1,
+                            resolveDrain: 1,
+                            turns: 99,
+                        },
                     },
                 ],
             },
