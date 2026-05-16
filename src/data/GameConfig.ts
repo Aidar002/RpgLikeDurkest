@@ -61,6 +61,8 @@ export interface EnemyDef {
      *  - kind: 'evadeAndStingOnHit'  (bee-butterfly — 20% dodge the player's
      *    incoming attack entirely and counter for a small fixed amount of
      *    true damage)
+     *  - kind: 'lifestealOnAttack'   (vampire — heal a ratio of the damage
+     *    dealt by a successful regular attack)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -71,7 +73,8 @@ export type EnemyPassive =
     | { kind: 'extraDamageOnHit'; chance: number; bonus: number }
     | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
     | { kind: 'damageReduction'; chance: number; reduction: number }
-    | { kind: 'evadeAndStingOnHit'; chance: number; damage: number };
+    | { kind: 'evadeAndStingOnHit'; chance: number; damage: number }
+    | { kind: 'lifestealOnAttack'; ratio: number };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -617,6 +620,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 8,
                 color: 0x4a1a1a,
                 profile: 'stalker',
+                // Vampirism: heal half of any damage the regular attack
+                // dealt to the player (clamped to maxHp, min 1 when the
+                // hit landed).
+                passive: { kind: 'lifestealOnAttack', ratio: 0.5 },
             },
             {
                 name: 'Demon',

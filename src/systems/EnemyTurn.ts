@@ -118,6 +118,27 @@ export function resolveEnemyTurn(
         log.addMessage(loc.t('absorb'), '#8fc6ff');
     }
 
+    // Vampire-style lifesteal: heal a ratio of the damage that actually
+    // landed on the player. Floor + min 1 on a successful hit keeps
+    // attack=1 vampires from ever leaving the field at half HP with
+    // nothing healed.
+    if (takenDamage > 0 && enemy.passive?.kind === 'lifestealOnAttack' && enemy.hp < enemy.maxHp) {
+        const want = Math.max(1, Math.floor(takenDamage * enemy.passive.ratio));
+        const before = enemy.hp;
+        enemy.hp = Math.min(enemy.maxHp, enemy.hp + want);
+        const healed = enemy.hp - before;
+        if (healed > 0) {
+            log.addMessage(loc.t('combatEnemyLifesteal', { name: enemy.name, healed }), '#c45a5a');
+            deps.emitEnemyUpdate({
+                hp: enemy.hp,
+                maxHp: enemy.maxHp,
+                color: enemy.color,
+                name: enemy.name,
+                icon: enemy.icon,
+            });
+        }
+    }
+
     if (player.stats.hp <= 0) {
         deps.logDeath();
         return;
