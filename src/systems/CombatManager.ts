@@ -97,6 +97,14 @@ export interface ActiveEnemy {
     status: StatusState;
     firstHitEvaded?: boolean;
     firstStunResisted?: boolean;
+    /**
+     * Lich's "Curse of Darkness" tracks whether its single per-fight
+     * curse has already landed. Set to `true` once the weaken applies
+     * so the lich never tries to re-curse later turns. Reset by
+     * encounter setup since `setupEnemy` builds an `ActiveEnemy` from
+     * scratch.
+     */
+    curseDarknessFired?: boolean;
     /** Per-spec passive trigger copied from EnemyDef at combat start. */
     passive?: EnemyPassive;
     /**
@@ -587,6 +595,25 @@ export class CombatManager {
             return true;
         }
 
+        // Skeleton Swordsman "Skilled Fencer": parry the skill before
+        // its effect resolves. The resolve cost is already spent above
+        // (and is NOT refunded — the parry just wastes the player's
+        // turn) and the player's turn still passes so the enemy still
+        // acts on top.
+        if (
+            this.enemy.passive?.kind === 'blocksSkillsAndPotions' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            this.log.addMessage(
+                this.loc.t('combatEnemyParrySkill', {
+                    name: this.enemy.name,
+                    value: this.skillName(skillId),
+                }),
+                '#a89070'
+            );
+            return true;
+        }
+
         switch (skillId) {
             case 'cleave': {
                 const base = this.player.getAttackPower();
@@ -621,6 +648,22 @@ export class CombatManager {
         if (!this.player.spendPotion()) {
             this.log.addMessage(this.loc.t('noPotions'), '#8899aa');
             return false;
+        }
+        // Skeleton Swordsman "Skilled Fencer": parry the potion as it
+        // is being drunk. The potion is already consumed (cost is the
+        // gating mechanic) but the heal is silenced. Player's turn
+        // still passes.
+        if (
+            this.enemy?.passive?.kind === 'blocksSkillsAndPotions' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            this.log.addMessage(
+                this.loc.t('combatEnemyParryPotion', {
+                    name: this.enemy.name,
+                }),
+                '#a89070'
+            );
+            return true;
         }
         const healed = this.player.heal(COMBAT_CONFIG.potionHeal);
         this.log.addMessage(this.loc.t('drinkPotion', { healed }), '#78e496');

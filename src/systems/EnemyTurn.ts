@@ -141,6 +141,57 @@ export function resolveEnemyTurn(
         }
     }
 
+    // Lich "Curse of Darkness": once per encounter, on a winning roll,
+    // apply a long-lasting weaken to the player. The roll runs every
+    // enemy turn UNTIL it lands — once `curseDarknessFired` is set the
+    // lich never tries again, matching the spec's "60% chance each
+    // turn until first application" wording.
+    if (enemy.passive?.kind === 'curseDarknessOnce' && !enemy.curseDarknessFired) {
+        if (rng.next() < enemy.passive.chance) {
+            applyWeaken(player.status, enemy.passive.weakenAmount, enemy.passive.weakenTurns);
+            enemy.curseDarknessFired = true;
+            log.addMessage(
+                loc.t('combatEnemyCurseDarkness', {
+                    name: enemy.name,
+                    amount: enemy.passive.weakenAmount,
+                }),
+                '#8a4dc8'
+            );
+            deps.emitPlayerStatus();
+        }
+    }
+
+    // Death Knight "Corrosion Strike": chance to swap the regular
+    // attack for a corrosion blow — `damage` true damage (bypasses
+    // defense) AND apply armorBreak for the rest of the fight. Picks
+    // one or the other per turn, never stacks on top of the regular
+    // attack. Resolves before the standard attack pipeline so we can
+    // early-return cleanly without firing the rest of the regular
+    // attack passives below.
+    if (enemy.passive?.kind === 'corrosionStrikeOnAttack' && rng.next() < enemy.passive.chance) {
+        const taken = player.takeDamage(enemy.passive.damage, 0, 'true');
+        applyArmorBreak(
+            player.status,
+            enemy.passive.armorBreak.amount,
+            enemy.passive.armorBreak.turns
+        );
+        log.addMessage(
+            loc.t('combatEnemyCorrosionStrike', {
+                name: enemy.name,
+                damage: taken,
+                amount: enemy.passive.armorBreak.amount,
+            }),
+            '#7faf6a'
+        );
+        if (taken > 0) deps.emitPlayerHit(taken);
+        deps.emitPlayerStatus();
+        if (player.stats.hp <= 0) {
+            deps.logDeath();
+            return;
+        }
+        return;
+    }
+
     // Regular attack.
     const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
     const weakenReduction = enemy.status.weaken.turns > 0 ? enemy.status.weaken.amount : 0;

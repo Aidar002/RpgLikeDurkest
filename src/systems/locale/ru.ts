@@ -201,6 +201,12 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
         '{name} взрывается адским пламенем — {damage} истинного урона прорывает твою защиту.',
     combatEnemyRegenPerTurn: '{name} вправляет кость и восстанавливает {healed} ОЗ.',
     combatEnemyDoubleAttack: 'Хищный инстинкт {name} срабатывает — следует второй удар.',
+    combatEnemyCurseDarkness:
+        '{name} плетёт проклятие тьмы — ваши удары ослаблены на {amount} до конца боя.',
+    combatEnemyParrySkill: '{name} парирует — ваш {value} уходит в пустоту.',
+    combatEnemyParryPotion: '{name} парирует — зелье разливается, не дойдя до губ.',
+    combatEnemyCorrosionStrike:
+        '{name} наносит удар коррозии: {damage} истинного урона — броня снижена на {amount}.',
     combatEnemyPrepareStun: '{name} применяет {action} — вы оглушены на {turns}х.',
     combatPlayerStunned: 'Вы скованы — этот ход пропущен.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
