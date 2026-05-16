@@ -4,7 +4,26 @@ import { PlayerManager } from '../src/systems/PlayerManager';
 import { Mulberry32 } from '../src/systems/Rng';
 import { emptyStatusState } from '../src/systems/StatusEffects';
 import type { EventLog } from '../src/ui/EventLog';
-import type { EnemyPrepareDef } from '../src/data/GameConfig';
+import type { EnemyDef, EnemyPrepareDef } from '../src/data/GameConfig';
+
+// Death Knight's boss blueprint lives in src/data/Bosses.ts (Death
+// Shield + Death Touch). Death Knight itself was demoted to the 16-20
+// normal pool in the design-sheet port, so depth 25 no longer
+// resolves to him via the random boss roll. These tests still need a
+// boss with that exact blueprint to cover the legacy Cursed Ring and
+// Death Touch interactions, so we inject the def explicitly via the
+// `startCombat` override parameter.
+const DEATH_KNIGHT_BOSS_DEF: EnemyDef = {
+    name: 'Death Knight',
+    description: 'test_desc_death_knight',
+    icon: '\u2620',
+    hp: 45,
+    attack: 8,
+    xp: 50,
+    gold: 40,
+    color: 0x2a0814,
+    profile: 'boss',
+};
 
 // Minimal stub: CombatManager only calls log.addMessage(text, color?).
 function makeManager(seed: number): {
@@ -210,8 +229,9 @@ describe('Ghoul Decay (leakOnDefend)', () => {
 describe('Cursed Ring vs Death Shield', () => {
     it('skill scrubbed to basic attack does NOT break Death Shield', () => {
         const { combat, player } = makeManager(99);
-        // Boss encounter at depth 25 = Death Knight (deterministic).
-        combat.startCombat(25, 'boss');
+        // Force Death Knight as the boss so the Death Shield phase
+        // blueprint is wired up (he is no longer the default depth-25 boss).
+        combat.startCombat(25, 'boss', DEATH_KNIGHT_BOSS_DEF);
         const boss = combat.enemy!;
         // Force the boss into the post-Shield state we need: pretend it
         // has already finished the death_shield windup so a 15-block
@@ -240,7 +260,7 @@ describe('Cursed Ring vs Death Shield', () => {
 
     it('actual Will-skill damage DOES break Death Shield (control)', () => {
         const { combat, player } = makeManager(99);
-        combat.startCombat(25, 'boss');
+        combat.startCombat(25, 'boss', DEATH_KNIGHT_BOSS_DEF);
         const boss = combat.enemy!;
         boss.bossPhase!.pendingBlock = 15;
         boss.bossPhase!.pendingBlockTurns = 5;
@@ -261,7 +281,7 @@ describe('Cursed Ring vs Death Shield', () => {
 describe('Death Touch OHKO bypasses defenses', () => {
     it('drops the player to 0 HP regardless of defense buffs (no defend)', () => {
         const { combat, player } = makeManager(101);
-        combat.startCombat(25, 'boss');
+        combat.startCombat(25, 'boss', DEATH_KNIGHT_BOSS_DEF);
         const boss = combat.enemy!;
         // Stack defense to absurd levels — Death Touch must still kill.
         player.addDefenseBonus(50);
@@ -287,7 +307,7 @@ describe('Death Touch OHKO bypasses defenses', () => {
 
     it('softens to oneShotDefendDamage when the player Defends', () => {
         const { combat, player } = makeManager(102);
-        combat.startCombat(25, 'boss');
+        combat.startCombat(25, 'boss', DEATH_KNIGHT_BOSS_DEF);
         const boss = combat.enemy!;
         // Big HP pool so the soft damage doesn't kill.
         player.addMaxHpBonus(50);

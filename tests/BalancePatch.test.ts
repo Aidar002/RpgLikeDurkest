@@ -1,23 +1,40 @@
 import { describe, expect, it } from 'vitest';
-import { EXPECTED_BOSS_NAMES, assertBossMapping, getBossForDepth } from '../src/data/Enemies';
+import { EXPECTED_BOSS_NAMES, assertBossMapping } from '../src/data/Enemies';
+import { getBossForDepth } from '../src/systems/EnemyPicker';
 import {
     EXPEDITION_CONFIG,
     LEVEL_UP_CONFIG,
     PLAYER_CONFIG,
     MAP_CONFIG,
 } from '../src/data/GameConfig';
+import { Mulberry32 } from '../src/systems/Rng';
 import { PlayerManager } from '../src/systems/PlayerManager';
 
-describe('[FIX-4] Boss mapping (canonical depth -> name)', () => {
-    it('maps every required depth to the expected boss', () => {
-        for (const [depthStr, expectedName] of Object.entries(EXPECTED_BOSS_NAMES)) {
-            const def = getBossForDepth(Number(depthStr));
-            expect(def.name).toBe(expectedName);
+describe('[FIX-4] Boss mapping (canonical depth -> name set)', () => {
+    it('every depth resolves to one of the expected candidate names', () => {
+        // Deterministic RNG so the picked boss is reproducible per
+        // depth; we re-seed each depth so the test isn't biased by an
+        // unrelated earlier roll.
+        for (const [depthStr, expectedNames] of Object.entries(EXPECTED_BOSS_NAMES)) {
+            const def = getBossForDepth(Number(depthStr), new Mulberry32(1));
+            expect(expectedNames).toContain(def.name);
         }
     });
 
+    it('depth 25 covers every candidate boss over many rolls', () => {
+        // With multiple equal-depth candidates we expect each one to
+        // be reachable; seed-stable RNG over enough draws hits them.
+        const expected = new Set(EXPECTED_BOSS_NAMES[MAP_CONFIG.finalDepth]);
+        const seen = new Set<string>();
+        const rng = new Mulberry32(42);
+        for (let i = 0; i < 200 && seen.size < expected.size; i++) {
+            seen.add(getBossForDepth(MAP_CONFIG.finalDepth, rng).name);
+        }
+        expect(seen).toEqual(expected);
+    });
+
     it('does NOT regress to Nameless Maw at depth 25', () => {
-        const def = getBossForDepth(MAP_CONFIG.finalDepth);
+        const def = getBossForDepth(MAP_CONFIG.finalDepth, new Mulberry32(7));
         expect(def.name).not.toBe('Nameless Maw');
     });
 
