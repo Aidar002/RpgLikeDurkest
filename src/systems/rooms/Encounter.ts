@@ -35,6 +35,28 @@ function isNpcOfferEnabled(scene: GameScene, offer: NpcOfferTemplate, npcId: Npc
     }
 }
 
+/**
+ * Per-run visibility gate, layered on top of NpcManager's static
+ * `onlyAfterMet` / `requiresAffinity` filtering. NpcManager doesn't
+ * know about transient PlayerManager state (per-run flags), so any
+ * "you already did this in this run" gating lives here.
+ *
+ * Currently used to hide Gogi's two paid-training offers once the
+ * player has already bought the buff this run — both offers lead to
+ * the same `presentGogiPayChoice` flow, and the +5 HP / +1 def bonus
+ * stacks naively if applied twice.
+ */
+function isNpcOfferAvailableThisRun(
+    scene: GameScene,
+    offer: NpcOfferTemplate,
+    npcId: NpcId
+): boolean {
+    if (npcId === 'gogi' && (offer.id === 'gogi_what' || offer.id === 'gogi_who')) {
+        return !scene.player.gogiTrainingTaken;
+    }
+    return true;
+}
+
 export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: string): void {
     const ctx = buildNpcEvalContext(scene);
     const picked = scene.npcs.pickDialog(npcId, ctx);
@@ -55,7 +77,10 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
     // it in the timeline without the log getting flooded by speech.
     scene.log.addMessage(scene.loc.t('dialogStarted', { name: npcName }), '#cdb8ff');
 
-    const actions = picked.offers.map<RoomButtonAction>((offer, idx) => {
+    const availableOffers = picked.offers.filter((offer) =>
+        isNpcOfferAvailableThisRun(scene, offer, npcId)
+    );
+    const actions = availableOffers.map<RoomButtonAction>((offer, idx) => {
         const cost = npcOfferCost(offer.id, npcId);
         const label = scene.npcOfferLabel(offer, cost, idx + 1);
         return {
@@ -239,6 +264,7 @@ function presentGogiPayChoice(scene: GameScene): void {
                 scene.tracker.record('goldSpent', 10);
                 scene.npcs.adjustAffinity('gogi', 2);
                 scene.npcs.addFlag('gogi', 'initial-training');
+                scene.player.gogiTrainingTaken = true;
                 scene.player.addMaxHpBonus(5, 5);
                 scene.player.addDefenseBonus(1);
                 const grantLine =

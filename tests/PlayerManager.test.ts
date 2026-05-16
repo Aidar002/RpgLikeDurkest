@@ -207,6 +207,19 @@ describe('PlayerManager — xp and level up', () => {
         expect(levelUps).toBeGreaterThanOrEqual(2);
         expect(player.stats.level).toBeGreaterThanOrEqual(3);
     });
+
+    it('xpToNextLevel is flat — every level requires the same xpPerLevel', () => {
+        // Locks in the flat-cost design choice. If a future change reverts
+        // to "level * xpPerLevel" scaling, this test goes red.
+        const player = new PlayerManager();
+        expect(player.xpToNextLevel).toBe(LEVEL_UP_CONFIG.xpPerLevel);
+        player.gainXp(LEVEL_UP_CONFIG.xpPerLevel);
+        expect(player.stats.level).toBe(2);
+        expect(player.xpToNextLevel).toBe(LEVEL_UP_CONFIG.xpPerLevel);
+        player.gainXp(LEVEL_UP_CONFIG.xpPerLevel);
+        expect(player.stats.level).toBe(3);
+        expect(player.xpToNextLevel).toBe(LEVEL_UP_CONFIG.xpPerLevel);
+    });
 });
 
 describe('PlayerManager — kills and stat bonuses', () => {
