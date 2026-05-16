@@ -1,5 +1,4 @@
-import { getBossForDepth } from '../data/Enemies';
-import { getEnemyForDepth } from './EnemyPicker';
+import { getBossForDepth, getEnemyForDepth } from './EnemyPicker';
 import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';
 import {
@@ -216,12 +215,21 @@ export class CombatManager {
         return this.loc.pick(SKILLS[id].name);
     }
 
-    startCombat(depth: number, kind: EncounterKind) {
+    /**
+     * Begin a new combat at the given depth. When `kind === 'boss'`
+     * and the depth maps to multiple boss candidates, the seeded RNG
+     * picks one deterministically. Tests can short-circuit the pool /
+     * boss lookup entirely by passing an explicit `override` def.
+     */
+    startCombat(depth: number, kind: EncounterKind, override?: EnemyDef) {
         // Reset per-combat state.
         this.skillCooldowns = {};
         this.preparationActive = false;
         const definition =
-            kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth, this.rng);
+            override ??
+            (kind === 'boss'
+                ? getBossForDepth(depth, this.rng)
+                : getEnemyForDepth(depth, this.rng));
         this.setupEnemy(depth, kind, definition);
     }
 
@@ -804,7 +812,7 @@ export class CombatManager {
     }
 
     private buildRewards(enemy: ActiveEnemy, killedByBleed: boolean): CombatEndPayload {
-        // Death Knight is the only boss in the spec, so a boss kill
+        // Every BOSSES entry lives on the final depth, so a boss kill
         // here is always the final-boss kill. The victoryWishArtifact
         // log line fires on that single event.
         const finalBoss = enemy.kind === 'boss';
