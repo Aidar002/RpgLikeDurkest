@@ -114,6 +114,26 @@ export function resolveEnemyTurn(
         }
     }
 
+    // Succubus "Exultation in Pain": +1 damage per `bonusPerStep`
+    // fraction of *missing* HP. Mirror image of Thinning Horde —
+    // gets stronger as she takes damage. Floors fractional steps so
+    // a 5% chip doesn't yet earn the bonus.
+    if (enemy.passive?.kind === 'painExultation' && enemy.maxHp > 0) {
+        const step = enemy.passive.bonusPerStep > 0 ? enemy.passive.bonusPerStep : 0.1;
+        const missingRatio = (enemy.maxHp - enemy.hp) / enemy.maxHp;
+        const bonus = Math.floor(missingRatio / step);
+        if (bonus > 0) {
+            attackPower += bonus;
+            log.addMessage(
+                loc.t('combatEnemyPainExultation', {
+                    name: enemy.name,
+                    bonus,
+                }),
+                '#c45a8a'
+            );
+        }
+    }
+
     if (enemy.passive?.kind === 'extraDamageOnHit' && rng.next() < enemy.passive.chance) {
         attackPower += enemy.passive.bonus;
         log.addMessage(

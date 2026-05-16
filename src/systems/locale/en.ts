@@ -203,6 +203,7 @@ export const EN_STRINGS = {
     combatEnemyEvadeAndSting: '{name} flits aside and stings for {damage} damage.',
     combatEnemyLifesteal: '{name} drains the wound and recovers {healed} HP.',
     combatEnemyHordeThins: '{name} thins out — only mustering {attack} damage.',
+    combatEnemyPainExultation: '{name} drinks in the pain — +{bonus} damage.',
     // Item triggers — unified format "X effect triggered — Y".
     combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
     combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',

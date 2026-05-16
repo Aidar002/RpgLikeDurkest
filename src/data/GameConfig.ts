@@ -66,6 +66,9 @@ export interface EnemyDef {
      *  - kind: 'attackScalesWithHp'  (goblin-horde — the "thinning horde":
      *    regular-attack damage is scaled by hp/maxHp so a near-dead horde
      *    only musters a couple of hits)
+     *  - kind: 'painExultation'      (succubus — "exultation in pain":
+     *    +1 regular-attack damage per `bonusPerStep` fraction of missing
+     *    HP (default 0.1 → +1 per 10% missing))
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -78,7 +81,8 @@ export type EnemyPassive =
     | { kind: 'damageReduction'; chance: number; reduction: number }
     | { kind: 'evadeAndStingOnHit'; chance: number; damage: number }
     | { kind: 'lifestealOnAttack'; ratio: number }
-    | { kind: 'attackScalesWithHp' };
+    | { kind: 'attackScalesWithHp' }
+    | { kind: 'painExultation'; bonusPerStep: number };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -703,6 +707,10 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 18,
                 color: 0x6a2a44,
                 profile: 'stalker',
+                // Exultation in Pain: +1 damage per 10% missing HP.
+                // Base attack of 1 is *almost* pillow-soft at full HP;
+                // the threat scales as the player chips her down.
+                passive: { kind: 'painExultation', bonusPerStep: 0.1 },
             },
             {
                 name: 'Lost Adventurer',

@@ -478,6 +478,70 @@ describe('Goblin Horde Thinning Horde (attackScalesWithHp)', () => {
     });
 });
 
+function injectSuccubus(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; attack: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Succubus',
+        canonicalName: 'Succubus',
+        description: 'test',
+        icon: 'U',
+        hp: overrides.hp ?? 22,
+        maxHp: overrides.maxHp ?? 22,
+        attack: overrides.attack ?? 1,
+        color: 0x6a2a44,
+        xp: 0,
+        gold: 0,
+        profile: 'stalker',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'painExultation', bonusPerStep: 0.1 },
+        currentIntent: null,
+    };
+}
+
+describe('Succubus Exultation in Pain (painExultation)', () => {
+    it('does not buff attack at full HP', () => {
+        const { combat, seenMessages } = makeManager(91);
+        injectSuccubus(combat, { hp: 22, maxHp: 22, attack: 1 });
+
+        combat.processTurn('defend');
+
+        expect(seenMessages.some((m) => /drinks in|упивается/i.test(m))).toBe(false);
+    });
+
+    it('logs the bonus when she has lost at least 10% HP', () => {
+        const { combat, seenMessages } = makeManager(92);
+        // 11/22 = 50% missing → bonus of 5.
+        injectSuccubus(combat, { hp: 11, maxHp: 22, attack: 1 });
+
+        combat.processTurn('defend');
+
+        const msg = seenMessages.find((m) => /drinks in|упивается/i.test(m));
+        expect(msg).toBeDefined();
+        // The bonus message renders the absolute amount, not the missing-%.
+        expect(msg!).toMatch(/5/);
+    });
+
+    it('deals more total damage at low HP than at full HP', () => {
+        const a = makeManager(93);
+        const b = makeManager(93);
+        injectSuccubus(a.combat, { hp: 22, maxHp: 22, attack: 1 });
+        injectSuccubus(b.combat, { hp: 3, maxHp: 22, attack: 1 });
+        const aHp = a.player.stats.hp;
+        const bHp = b.player.stats.hp;
+
+        a.combat.processTurn('defend');
+        b.combat.processTurn('defend');
+
+        const aDealt = aHp - a.player.stats.hp;
+        const bDealt = bHp - b.player.stats.hp;
+        expect(bDealt).toBeGreaterThan(aDealt);
+    });
+});
+
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);
