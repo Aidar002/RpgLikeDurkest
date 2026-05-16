@@ -752,6 +752,80 @@ describe('Giant Toad Tongue Lash (prepare stun rider)', () => {
     });
 });
 
+function injectRatMatron(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; xp: number; gold: number }> = {}
+): void {
+    combat.enemy = {
+        kind: 'normal',
+        name: 'Rat Matron',
+        canonicalName: 'Rat Matron',
+        description: 'test',
+        icon: 'M',
+        hp: overrides.hp ?? 1,
+        maxHp: overrides.maxHp ?? 8,
+        attack: 2,
+        color: 0x6b4530,
+        xp: overrides.xp ?? 5,
+        gold: overrides.gold ?? 5,
+        profile: 'brute',
+        turnsAlive: 0,
+        status: emptyStatusState(),
+        passive: { kind: 'spawnOnDeath', spawnName: 'Rat' },
+        currentIntent: null,
+    };
+}
+
+describe('Rat Matron Litter (spawnOnDeath)', () => {
+    it('replaces the encounter with a Rat instead of ending combat', () => {
+        const { combat, seenMessages } = makeManager(141);
+        // 1 HP so a basic attack always kills the matron this turn.
+        injectRatMatron(combat, { hp: 1 });
+
+        const combatEndCalls: number[] = [];
+        combat.combatEnd.on(() => combatEndCalls.push(1));
+
+        combat.processTurn('attack');
+
+        expect(combat.enemy).not.toBeNull();
+        expect(combat.enemy?.canonicalName).toBe('Rat');
+        expect(combatEndCalls.length).toBe(0);
+        // EN: "crawls from the carcass"; RU: "выползает".
+        expect(seenMessages.some((m) => /carcass|выползает/i.test(m))).toBe(true);
+    });
+
+    it('pays out matron xp+gold inline on spawn', () => {
+        const { combat, player } = makeManager(142);
+        const xpBefore = player.stats.xp;
+        const goldBefore = player.resources.gold;
+        injectRatMatron(combat, { hp: 1, xp: 5, gold: 5 });
+
+        combat.processTurn('attack');
+
+        // gainXp returns the gained amount; we just verify totals grew
+        // by exactly the matron's bounty (not the spawned Rat's, which
+        // is still alive).
+        expect(player.stats.xp).toBe(xpBefore + 5);
+        expect(player.resources.gold).toBe(goldBefore + 5);
+    });
+
+    it('keeps combat going so the spawned Rat takes the next turn', () => {
+        const { combat } = makeManager(143);
+        injectRatMatron(combat, { hp: 1 });
+
+        combat.processTurn('attack');
+
+        // The spawned Rat is a fresh blueprint, full hp, fresh status.
+        // Name is localised (e.g. 'тест_имя_rat'); we assert the canonical key.
+        expect(combat.enemy?.canonicalName).toBe('Rat');
+        expect(combat.enemy?.hp).toBeGreaterThan(0);
+        expect(combat.enemy?.status.bleed.stacks).toBe(0);
+        // Rat carries its own passive (extraDamageOnHit) — NOT the
+        // matron's spawnOnDeath, so chained spawns won't happen.
+        expect(combat.enemy?.passive?.kind).toBe('extraDamageOnHit');
+    });
+});
+
 describe('Ghoul Decay (leakOnDefend)', () => {
     it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);

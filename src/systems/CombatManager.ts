@@ -1,4 +1,4 @@
-import { getBossForDepth, getEnemyForDepth } from './EnemyPicker';
+import { getBossForDepth, getEnemyByName, getEnemyForDepth } from './EnemyPicker';
 import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';
 import {
@@ -422,6 +422,16 @@ export class CombatManager {
 
         if (this.enemy && this.enemy.hp <= 0) {
             const killedByBleed = actionName === 'defend' || actionName === 'potion';
+            // Death-trigger passive: Rat Matron-style 'spawnOnDeath'
+            // respawns the encounter as a different enemy instead of
+            // ending combat. Rewards for the matron itself are paid
+            // now (the spawnReplacement helper emits a separate
+            // combatEnd-shaped log line); the spawned creature has
+            // its own xp/gold yield when it dies later.
+            if (this.enemy.passive?.kind === 'spawnOnDeath') {
+                this.spawnReplacement(this.enemy.passive.spawnName, killedByBleed);
+                return;
+            }
             this.finishCombat(killedByBleed);
             return;
         }
@@ -812,6 +822,86 @@ export class CombatManager {
             this.playerHit.emit({ damage: taken });
         }
         return taken;
+    }
+
+    /**
+     * Replace the current dying enemy with a fresh blueprint pulled
+     * from the roster by canonical name (Rat Matron's "litter" spawns
+     * a Rat). The matron's xp/gold are paid out inline via the player
+     * manager — we do NOT emit combatEnd here, because that signal
+     * advances the room and closes the fight. Player status carries
+     * through (bleeds, armor break, etc. don't reset mid-encounter).
+     */
+    private spawnReplacement(spawnName: string, _killedByBleed: boolean) {
+        if (!this.enemy) return;
+        const fallenName = this.enemy.name;
+        const fallenXp = this.enemy.xp;
+        const fallenGold = this.enemy.gold;
+        const spawnDef = getEnemyByName(spawnName);
+        if (!spawnDef) {
+            // Roster typo — fail open by ending combat normally so a
+            // bad data entry doesn't soft-lock a run.
+            this.finishCombat(_killedByBleed);
+            return;
+        }
+        // Pay out the matron's xp/gold FIRST, then keep combat going
+        // with the spawned creature. No relic roll on the matron —
+        // the spawned rat carries the encounter's drop instead, so
+        // 'one fight = one relic chance' invariant holds.
+        this.log.addMessage(this.loc.t('enemyFalls', { name: fallenName }), '#66ff88');
+        if (fallenXp > 0) {
+            const gained = this.player.gainXp(fallenXp);
+            if (gained > 0) this.log.addMessage(this.loc.t('plusXp', { value: gained }), '#a8e0a8');
+        }
+        if (fallenGold > 0) {
+            const gained = this.player.gainGold(fallenGold);
+            if (gained > 0)
+                this.log.addMessage(this.loc.t('plusGold', { value: gained }), '#e0c468');
+        }
+
+        // Build the replacement in-place. No depth scaling — we just
+        // copy the def numbers since the spawned creature is meant to
+        // be a "child" not a power-scaled enemy.
+        this.enemy = {
+            kind: 'normal',
+            name: this.loc.enemyName(spawnDef.name),
+            canonicalName: spawnDef.name,
+            description: this.loc.enemyDescription(spawnDef.name, spawnDef.description),
+            icon: spawnDef.icon,
+            hp: spawnDef.hp,
+            maxHp: spawnDef.hp,
+            attack: spawnDef.attack,
+            color: spawnDef.color,
+            xp: spawnDef.xp,
+            gold: spawnDef.gold,
+            profile: spawnDef.profile,
+            turnsAlive: 0,
+            status: emptyStatusState(),
+            passive: spawnDef.passive,
+            pendingPrepare: spawnDef.prepare
+                ? { def: spawnDef.prepare, turnsRemaining: spawnDef.prepare.turns }
+                : undefined,
+            currentIntent: null,
+        };
+        if (this.enemy.pendingPrepare) {
+            this.enemy.currentIntent = intentLabelForPrepare(this.enemy.pendingPrepare, this.loc);
+        }
+        this.log.addMessage(
+            this.loc.t('combatEnemySpawnsReplacement', {
+                name: fallenName,
+                spawn: this.enemy.name,
+            }),
+            '#c4a35a'
+        );
+        this.enemyUpdate.emit({
+            hp: this.enemy.hp,
+            maxHp: this.enemy.maxHp,
+            color: this.enemy.color,
+            name: this.enemy.name,
+            icon: this.enemy.icon,
+        });
+        this.playerStatusChange.emit();
+        this.enemyStatusChange.emit();
     }
 
     private finishCombat(killedByBleed: boolean) {

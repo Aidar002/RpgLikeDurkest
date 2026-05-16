@@ -83,6 +83,12 @@ export interface EnemyDef {
      *    `amount` for `turns` turns to the player (defense −amount).
      *    Fires at most once per encounter, tracked by checking the
      *    player's existing armorBreak.turns)
+     *  - kind: 'spawnOnDeath'        (rat-matron — "litter": on the
+     *    turn the enemy's hp drops to 0, instead of ending combat the
+     *    encounter respawns as the enemy named `spawnName` (canonical
+     *    English name). The spawned enemy keeps its own passive/
+     *    prepare from the roster so chained spawns are possible only
+     *    if explicitly modelled in data)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -98,7 +104,8 @@ export type EnemyPassive =
     | { kind: 'attackScalesWithHp' }
     | { kind: 'painExultation'; bonusPerStep: number }
     | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number }
-    | { kind: 'acidVomitOnFirstHit'; amount: number; turns: number };
+    | { kind: 'acidVomitOnFirstHit'; amount: number; turns: number }
+    | { kind: 'spawnOnDeath'; spawnName: string };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -562,6 +569,11 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x6b4530,
                 profile: 'brute',
+                // Litter: when the matron is killed, the encounter
+                // doesn't end — it continues with a fresh Rat. The
+                // spawned Rat carries its own (lighter) reward yield,
+                // so killing both creatures gives you both bounties.
+                passive: { kind: 'spawnOnDeath', spawnName: 'Rat' },
             },
             {
                 name: 'Skeleton',
