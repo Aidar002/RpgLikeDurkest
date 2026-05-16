@@ -36,6 +36,27 @@ export function getEnemyByName(name: string): EnemyDef | undefined {
 }
 
 /**
+ * Look up the Z term (per-enemy `dropMod`) for the Stage [4] relic
+ * drop formula. Searches the regular tier roster first, then falls
+ * back to the {@link BOSSES} table so depth-25 boss kills land on
+ * the boss-side number (e.g. Mammon = +30) instead of the matching
+ * minDepth=21 entry (which is identical, but the BOSSES table is the
+ * canonical combat blueprint for boss fights — see
+ * {@link CombatManager.setupEnemy}).
+ *
+ * Missing entries fall back to 0 so an unknown name (e.g. an enemy
+ * spawned by a death-trigger that the data file forgot to mark up)
+ * is treated as a neutral Z modifier rather than throwing.
+ */
+export function getEnemyDropMod(name: string): number {
+    const fromTier = getEnemyByName(name);
+    if (fromTier && typeof fromTier.dropMod === 'number') return fromTier.dropMod;
+    const fromBosses = BOSSES.find((b) => b.def.name === name);
+    if (fromBosses && typeof fromBosses.def.dropMod === 'number') return fromBosses.def.dropMod;
+    return 0;
+}
+
+/**
  * Pick a boss for the given depth. When multiple BOSSES entries share
  * the same depth, the `rng` decides which candidate runs this fight,
  * so the boss roll stays inside the deterministic envelope.

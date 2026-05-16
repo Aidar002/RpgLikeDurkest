@@ -1,6 +1,7 @@
 import type { LocalizedText } from './LocalizedText';
 import { lt } from './LocalizedText';
 import { defaultRng, type Rng } from './Rng';
+import { DROP_FORMULA } from '../data/GameConfig';
 
 // Relic catalog (Stage [3] of the design-sheet port). 14 items grouped
 // into 5 sets, see the design sheet:
@@ -35,11 +36,27 @@ export type RelicRarity = 'common' | 'rare' | 'unique';
 
 type RelicSetId = 'wanderer' | 'flesh' | 'knight' | 'cursed' | 'sin';
 
-/** Drop table entry: which enemy drops this item with what chance (0..1). */
+/** Drop table entry: which enemy can drop this item. */
 interface RelicDropEntry {
     /** Canonical English enemy `name` (matches GameConfig.ENEMY_TIERS / BOSSES). */
     enemyName: string;
-    /** Probability the item drops on that enemy's death. */
+    /**
+     * For Stage [4] combat drops this is no longer a probability.
+     * It is the WEIGHT used by `rollRelicForEnemy` for the
+     * weighted-random pick across the dead enemy's unowned drop
+     * entries, AFTER the X+Y+Z+K formula in
+     * {@link DROP_FORMULA} gates the roll.
+     *
+     * Special case: a value `>= 1.0` is reserved for GUARANTEED
+     * drops (used by Crown of Greed on Mammon). When any unowned
+     * entry for the dead enemy has `chance >= 1.0`,
+     * `rollRelicForEnemy` returns it immediately and the formula
+     * does not run.
+     *
+     * The field name is kept (instead of "weight") so the existing
+     * data tables and tests stay compatible without touching every
+     * call site.
+     */
     chance: number;
 }
 
@@ -300,10 +317,9 @@ export interface RelicAggregate {
      * [item: four_leaf_clover / cursed set] Additive modifier to relic
      * drop chance, e.g. +0.1 from clover, -0.25 from full cursed set.
      *
-     * **Dormant in Stage [3].** The field is wired through
-     * `applyRelic` / `applyUnconditionalSetBonuses` so Stage [4]'s
-     * drop-chance rework (in `RelicDrops.maybeDropRelic`) can read it
-     * without further plumbing changes here.
+     * Read in `rollRelicForEnemy` (Stage [4] drop formula). Added on
+     * top of the `(X + Y*depth + Z + K*owned)/100` percent term as a
+     * raw 0..1 fraction before clamping.
      */
     relicDropChanceMod: number;
     /** [npc Sara: vampire blessing] 25% chance to restore 2 HP on attack. */
@@ -468,31 +484,88 @@ function applyUnconditionalSetBonuses(agg: RelicAggregate, ids: RelicId[]) {
 }
 
 /**
- * Roll a relic drop for the slain enemy. Each entry in the enemy's
- * drop table is rolled independently; if multiple succeed, one is
- * picked uniformly. Returns null when nothing drops or every match
- * is already owned.
+ * Roll a relic drop for the slain enemy under the Stage [4] formula.
+ *
+ * Pipeline:
+ *   1. Filter the global `RELICS` table down to entries whose
+ *      `drops` mention `enemyName` AND whose `id` is not in `owned`.
+ *   2. If any such entry has `chance >= 1.0`, return it immediately
+ *      (guaranteed drop — used by Crown of Greed on Mammon). The
+ *      formula is bypassed in that case.
+ *   3. Otherwise compute the drop chance:
+ *        dropChance = (X + Y*depth + Z + K*owned)/100 + relicMod
+ *      where X is a uniform integer in `[xMin..xMax]`, Y/K from
+ *      {@link DROP_FORMULA}, Z is `enemyDropMod` (read from the
+ *      enemy table by callers via `getEnemyDropMod`), and relicMod
+ *      is `aggregate.relicDropChanceMod` (Clover, Cursed set).
+ *      Clamped to `[0..1]`.
+ *   4. Roll `rng.next() < dropChance`. On miss, return null. On
+ *      hit, weighted-random pick across the candidate list using
+ *      each entry's per-enemy `chance` as the weight.
+ *
+ * Returns null when nothing drops or every match is already owned.
  */
 export function rollRelicForEnemy(
     enemyName: string,
     owned: RelicId[],
+    depth: number,
+    relicMod: number,
+    enemyDropMod: number,
     rng: Rng = defaultRng
 ): RelicId | null {
     const ownedSet = new Set(owned);
-    const candidates: RelicId[] = [];
+    // Collect every (relicId, weight) pair whose drop entry matches
+    // this enemy and which the player doesn't already have.
+    const candidates: { id: RelicId; weight: number }[] = [];
+    let guaranteed: RelicId | null = null;
     for (const rid of RELIC_ORDER) {
         if (ownedSet.has(rid)) continue;
         const def = RELICS[rid];
         for (const drop of def.drops) {
             if (drop.enemyName !== enemyName) continue;
-            if (rng.next() < drop.chance) {
-                candidates.push(rid);
+            if (drop.chance >= 1) {
+                // First guaranteed drop wins; no further candidates
+                // are evaluated. Mirrors the design sheet's
+                // "guaranteed" semantics for Crown of Greed on Mammon.
+                guaranteed = rid;
                 break;
             }
+            candidates.push({ id: rid, weight: drop.chance });
+            break;
         }
+        if (guaranteed) break;
     }
+
+    if (guaranteed) return guaranteed;
     if (candidates.length === 0) return null;
-    return candidates[Math.floor(rng.next() * candidates.length)];
+
+    // X term: uniform integer in [xMin..xMax] inclusive.
+    const xRange = DROP_FORMULA.xMax - DROP_FORMULA.xMin + 1;
+    const x = Math.floor(rng.next() * xRange) + DROP_FORMULA.xMin;
+    const y = DROP_FORMULA.perDepth * depth;
+    const z = enemyDropMod;
+    const k = DROP_FORMULA.perOwnedRelic * owned.length;
+    const dropChance = Math.max(0, Math.min(1, (x + y + z + k) / 100 + relicMod));
+    if (dropChance <= 0) return null;
+    if (rng.next() >= dropChance) return null;
+
+    // Weighted pick across the unowned candidate list. Weights are
+    // the per-enemy `chance` field reinterpreted as relative weights
+    // under the Stage [4] semantics.
+    const totalWeight = candidates.reduce((sum, c) => sum + c.weight, 0);
+    if (totalWeight <= 0) {
+        // Fall back to uniform pick if every weight is 0 (shouldn't
+        // happen with the current data but the math has to be safe).
+        return candidates[Math.floor(rng.next() * candidates.length)].id;
+    }
+    let target = rng.next() * totalWeight;
+    for (const c of candidates) {
+        target -= c.weight;
+        if (target < 0) return c.id;
+    }
+    // Floating-point guard: return the last candidate if the loop
+    // exits without picking (target ≈ 0 right at the boundary).
+    return candidates[candidates.length - 1].id;
 }
 
 /**

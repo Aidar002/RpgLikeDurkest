@@ -357,6 +357,11 @@ export class GameScene extends Phaser.Scene {
      * here only so external callers (`CombatHud`, `RoomFlow`) can keep
      * using the familiar `scene.maybeDropRelic(...)` shape. Returns
      * `true` if the player picked up a new relic.
+     *
+     * Plumbs `dungeon.currentDepth` and `player.aggregate.relicDropChanceMod`
+     * into the dispatcher so the Stage [4] `X + Y*depth + Z + K + relicMod`
+     * formula in `Relics.rollRelicForEnemy` has its full input vector
+     * even though the call sites still spell `scene.maybeDropRelic(kind, name)`.
      */
     public maybeDropRelic(kind: RelicDropKind, enemyName?: string): boolean {
         return maybeDropRelicImpl(
@@ -367,6 +372,8 @@ export class GameScene extends Phaser.Scene {
                 sfx: this.sfx,
                 log: this.log,
                 loc: this.loc,
+                depth: this.dungeon.currentDepth,
+                relicMod: this.player.aggregate.relicDropChanceMod,
             },
             kind,
             enemyName

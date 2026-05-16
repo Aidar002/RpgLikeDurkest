@@ -58,6 +58,20 @@ export interface EnemyDef {
     color: number;
     profile: EnemyProfile;
     /**
+     * Per-enemy contribution to the Stage [4] relic drop formula
+     * (Z term). Integer percent, e.g. `+15` = +15% drop chance,
+     * `-10` = -10%. Missing = 0.
+     *
+     * The formula `X + Y*depth + Z + K*owned + relicMod` is rolled
+     * once per kill in `RelicDrops.maybeDropRelic`; the per-relic
+     * `RELICS[id].drops[*].chance` is then used purely as a WEIGHT
+     * for the weighted-random pick (with `chance >= 1.0` reserved
+     * for guaranteed drops, e.g. Crown of Greed on Mammon).
+     *
+     * See {@link DROP_FORMULA} for the X / Y / K knobs.
+     */
+    dropMod?: number;
+    /**
      * Optional per-turn passive trigger.
      *  - kind: 'extraDamageOnHit'    (rat — 20% deal +1 dmg)
      *  - kind: 'thornsOnTakeHit'     (slime — 30% deal 1 dmg back when hit)
@@ -400,7 +414,48 @@ export const ROOM_CONFIG = {
 } as const;
 
 // ---------------------------------------------------------------------------
-// Lockpick mini-game (treasure room locked-chest variant).
+// Stage [4] relic drop formula.
+//
+// Per design sheet, the chance that a slain combat enemy drops a relic
+// is computed each kill as
+//
+//     dropChance% = X + Y*depth + Z + K*owned + relicMod*100
+//
+// then clamped to [0..100] and rolled. After the roll passes, the
+// per-relic `RELICS[id].drops[*].chance` field is reinterpreted as a
+// WEIGHT for a weighted-random pick across the dead enemy's unowned
+// drop entries (with `chance >= 1.0` reserved for guaranteed drops,
+// e.g. Crown of Greed on Mammon).
+//
+// Knobs:
+//   - X (`xMin`..`xMax`): per-encounter base chance, picked uniformly
+//     in `[xMin..xMax]` inclusive. Sheet says 20..30%.
+//   - Y (`perDepth`): flat % bonus per current room depth. Sheet says
+//     +2 / room.
+//   - K (`perOwnedRelic`): % penalty per relic the player already has.
+//     Sheet says -5 / relic. Stored as a negative number so the
+//     formula is just an additive sum.
+//   - Z: per-enemy `dropMod` (see {@link EnemyDef.dropMod}). Stored
+//     on the enemy table, not here.
+//   - relicMod: aggregate.relicDropChanceMod (Clover +0.10, Cursed
+//     set -0.25). Already computed in `Relics.aggregateRelics` —
+//     this PR is what wakes it up.
+//
+// Treasure / shrine / unknown-enemy drop paths are NOT covered by
+// this formula and continue to use {@link ROOM_CONFIG} chances.
+// ---------------------------------------------------------------------------
+export const DROP_FORMULA = {
+    /** Lower bound (inclusive) of the per-encounter base chance X, in %. */
+    xMin: 20,
+    /** Upper bound (inclusive) of the per-encounter base chance X, in %. */
+    xMax: 30,
+    /** Y term: % added per dungeon depth. */
+    perDepth: 2,
+    /** K term: % added per equipped relic. Negative so the formula
+     *  is a plain sum. */
+    perOwnedRelic: -5,
+} as const;
+
 //
 // Tuning is intentionally exposed as plain numbers so the designer can
 // edit ring rotation speeds and difficulty weighting without touching
@@ -533,6 +588,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0x5a5040,
                 profile: 'stalker',
+                dropMod: 5,
                 passive: { kind: 'extraDamageOnHit', chance: 0.2, bonus: 1 },
             },
             {
@@ -545,6 +601,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0x3e6636,
                 profile: 'brute',
+                dropMod: -5,
                 passive: { kind: 'thornsOnTakeHit', chance: 0.3, damage: 1 },
             },
             {
@@ -557,6 +614,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 4,
                 color: 0x36463f,
                 profile: 'stalker',
+                dropMod: 0,
                 prepare: {
                     nameEn: 'Bite',
                     nameRu: 'Укус',
@@ -576,6 +634,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0xc4a01e,
                 profile: 'stalker',
+                dropMod: 10,
                 // Flutter and sting: 20% chance to dodge the player's
                 // attack outright; on dodge the bee-butterfly counters
                 // for 1 true damage.
@@ -591,6 +650,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 3,
                 color: 0x4a6b2a,
                 profile: 'brute',
+                dropMod: 5,
                 // Tongue Lash: 1-turn windup, on resolve the toad licks
                 // for 1 damage and binds the player for 1 turn (skip
                 // next action). Defending cancels the stun (and the
@@ -620,6 +680,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x6b4530,
                 profile: 'brute',
+                dropMod: 15,
                 // Litter: when the matron is killed, the encounter
                 // doesn't end — it continues with a fresh Rat. The
                 // spawned Rat carries its own (lighter) reward yield,
@@ -636,6 +697,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 4,
                 color: 0x888070,
                 profile: 'brute',
+                dropMod: 5,
                 // Set the Bone: regenerates 1 HP at the start of every
                 // enemy turn while alive. Per the design sheet replaces
                 // the legacy 10% damage-reduction passive — the
@@ -652,6 +714,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x455544,
                 profile: 'bleeder',
+                dropMod: 0,
                 prepare: {
                     nameEn: 'Decay',
                     nameRu: 'Разложение',
@@ -674,6 +737,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x82c4d4,
                 profile: 'brute',
+                dropMod: 10,
                 // Acid Vomit: on the first regular attack that lands,
                 // the cube etches the player's armor — defense −1 for
                 // the remainder of the fight (turns=99 picks a value
@@ -693,6 +757,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 5,
                 color: 0x6e553b,
                 profile: 'brute',
+                dropMod: -10,
                 // Stone Skin: 30% chance to shrug off 2 points of an
                 // incoming player hit. Same damageReduction passive as
                 // Skeleton, just thicker.
@@ -713,6 +778,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x6a6a7a,
                 profile: 'bleeder',
+                dropMod: 10,
                 // Predator's Instinct: 40% chance to swing twice on a
                 // regular-attack turn. Replaces the legacy "Claws"
                 // 1-turn windup with bleed rider — per the design
@@ -730,6 +796,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 8,
                 color: 0x4a1a1a,
                 profile: 'stalker',
+                dropMod: 15,
                 // Vampirism: heal half of any damage the regular attack
                 // dealt to the player (clamped to maxHp, min 1 when the
                 // hit landed).
@@ -745,6 +812,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x8a1a1a,
                 profile: 'brute',
+                dropMod: -15,
                 // Hellfire: when killed, the demon detonates and the
                 // player takes 1 true damage per relic they carry into
                 // the encounter. Bypasses defense (terminal explosion
@@ -764,6 +832,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x4d6a2a,
                 profile: 'brute',
+                dropMod: 20,
                 // Thinning Horde: attack scales linearly with hp/maxHp.
                 // The 9-damage swing is the *full-strength* horde; as
                 // goblins fall the surviving few hit weaker.
@@ -779,6 +848,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x3a5532,
                 profile: 'brute',
+                dropMod: 10,
                 // Strangling Roots: each enemy turn, refresh a weaken-1
                 // for 2 turns on the player so the player's next swing
                 // is chipped by 1 while the ent is alive. Decays
@@ -800,6 +870,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 14,
                 color: 0x888070,
                 profile: 'brute',
+                dropMod: 15,
                 // Skilled Fencer: 40% chance to parry the next skill or
                 // potion the player tries to use. The resolve / potion
                 // cost is still spent (the gating cost is paid before
@@ -817,6 +888,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 14,
                 color: 0x453d5a,
                 profile: 'stalker',
+                dropMod: 20,
                 // Curse of Darkness: each enemy turn (until first
                 // success) the lich rolls a 60% chance to apply
                 // weaken -2 to the player. Long `weakenTurns` (99)
@@ -841,6 +913,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 18,
                 color: 0x6a2a44,
                 profile: 'stalker',
+                dropMod: -15,
                 // Exultation in Pain: +1 damage per 10% missing HP.
                 // Base attack of 1 is *almost* pillow-soft at full HP;
                 // the threat scales as the player chips her down.
@@ -856,6 +929,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 16,
                 color: 0x9a8a6a,
                 profile: 'brute',
+                dropMod: 25,
                 // Healing Potions: when hp falls below 50% of maxHp,
                 // the adventurer chugs a potion at the start of his
                 // turn and recovers 50% of maxHp. Limited to two
@@ -877,6 +951,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 18,
                 color: 0x2a0814,
                 profile: 'brute',
+                dropMod: 15,
                 // Corrosion Strike: 40% chance per regular-attack turn
                 // to swap the standard hit for a corrosion blow — 3
                 // true damage (bypasses defense) AND apply armorBreak
@@ -906,6 +981,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 35,
                 color: 0xe6d680,
                 profile: 'brute',
+                dropMod: -20,
             },
             {
                 name: 'Mammon',
@@ -917,6 +993,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 30,
                 color: 0xa67c00,
                 profile: 'brute',
+                dropMod: 30,
             },
             {
                 name: 'Nimrod',
@@ -928,6 +1005,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 32,
                 color: 0x483050,
                 profile: 'stalker',
+                dropMod: 25,
             },
             {
                 name: 'Mime',
@@ -939,6 +1017,9 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 28,
                 color: 0xb0b0b0,
                 profile: 'stalker',
+                // Sheet says "-20%..+20%" — 0 picked as the mean per
+                // the user's "sensible defaults" confirmation.
+                dropMod: 0,
             },
             {
                 name: 'Gilgamesh',
@@ -950,6 +1031,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 34,
                 color: 0xb87333,
                 profile: 'brute',
+                dropMod: 20,
             },
         ],
     },
@@ -985,6 +1067,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0xe6d680,
             profile: 'boss',
+            dropMod: -20,
         },
     },
     {
@@ -999,6 +1082,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0xa67c00,
             profile: 'boss',
+            dropMod: 30,
         },
     },
     {
@@ -1013,6 +1097,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0x483050,
             profile: 'boss',
+            dropMod: 25,
         },
     },
     {
@@ -1027,6 +1112,9 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0xb0b0b0,
             profile: 'boss',
+            // Sheet says "-20%..+20%" — 0 picked as the mean per
+            // the user's "sensible defaults" confirmation.
+            dropMod: 0,
         },
     },
     {
@@ -1041,6 +1129,7 @@ export const BOSSES: { depth: number; def: EnemyDef }[] = [
             gold: 40,
             color: 0xb87333,
             profile: 'boss',
+            dropMod: 20,
         },
     },
 ];
