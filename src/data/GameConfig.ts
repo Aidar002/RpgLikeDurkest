@@ -89,6 +89,18 @@ export interface EnemyDef {
      *    English name). The spawned enemy keeps its own passive/
      *    prepare from the roster so chained spawns are possible only
      *    if explicitly modelled in data)
+     *  - kind: 'hellfireOnDeath'     (demon — "hellfire": on the
+     *    turn the enemy's hp drops to 0, deal `damagePerRelic` true
+     *    damage per relic in the player's inventory before combat
+     *    ends. Resolves in `finishCombat` so it is a terminal proc —
+     *    rewards still pay out as normal afterwards)
+     *  - kind: 'regenPerTurn'        (skeleton — "set the bone":
+     *    heals `amount` HP at the start of every enemy turn while
+     *    alive, capped at maxHp. Logs only on a successful heal)
+     *  - kind: 'doubleAttackChance'  (steel lynx — "predator's
+     *    instinct": chance to swing twice on a regular-attack turn.
+     *    The second swing reuses the same scaled damage path so all
+     *    other passive riders apply to it too)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -105,7 +117,10 @@ export type EnemyPassive =
     | { kind: 'painExultation'; bonusPerStep: number }
     | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number }
     | { kind: 'acidVomitOnFirstHit'; amount: number; turns: number }
-    | { kind: 'spawnOnDeath'; spawnName: string };
+    | { kind: 'spawnOnDeath'; spawnName: string }
+    | { kind: 'hellfireOnDeath'; damagePerRelic: number }
+    | { kind: 'regenPerTurn'; amount: number }
+    | { kind: 'doubleAttackChance'; chance: number };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -585,7 +600,11 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 4,
                 color: 0x888070,
                 profile: 'brute',
-                passive: { kind: 'damageReduction', chance: 0.1, reduction: 1 },
+                // Set the Bone: regenerates 1 HP at the start of every
+                // enemy turn while alive. Per the design sheet replaces
+                // the legacy 10% damage-reduction passive — the
+                // skeleton is a sustain threat, not a soak threat.
+                passive: { kind: 'regenPerTurn', amount: 1 },
             },
             {
                 name: 'Ghoul',
@@ -658,14 +677,12 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x6a6a7a,
                 profile: 'bleeder',
-                prepare: {
-                    nameEn: 'Claws',
-                    nameRu: 'Когти',
-                    turns: 1,
-                    damage: 3,
-                    bleed: { stacks: 3, turns: 3 },
-                    defenseRule: 'cancelRiders',
-                },
+                // Predator's Instinct: 40% chance to swing twice on a
+                // regular-attack turn. Replaces the legacy "Claws"
+                // 1-turn windup with bleed rider — per the design
+                // sheet the lynx is a burst-pressure mob, not a
+                // bleed setup.
+                passive: { kind: 'doubleAttackChance', chance: 0.4 },
             },
             {
                 name: 'Vampire',
@@ -692,6 +709,14 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 gold: 10,
                 color: 0x8a1a1a,
                 profile: 'brute',
+                // Hellfire: when killed, the demon detonates and the
+                // player takes 1 true damage per relic they carry into
+                // the encounter. Bypasses defense (terminal explosion
+                // resolves in finishCombat). With MAX_RELICS=5 the
+                // worst case is 5 damage — non-trivial but never
+                // outright lethal at the depth tier where the demon
+                // appears.
+                passive: { kind: 'hellfireOnDeath', damagePerRelic: 1 },
             },
             {
                 name: 'Goblin Horde',
