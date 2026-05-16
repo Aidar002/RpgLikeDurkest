@@ -18,6 +18,7 @@
  */
 import { ROOM_CONFIG } from '../data/GameConfig';
 import type { EventLog } from '../ui/EventLog';
+import { getEnemyDropMod } from './EnemyPicker';
 import type { Localization } from './Localization';
 import type { MetaProgressionManager } from './MetaProgressionManager';
 import type { PlayerManager } from './PlayerManager';
@@ -36,6 +37,22 @@ interface RelicDropContext {
     sfx: SoundManager;
     log: EventLog;
     loc: Localization;
+    /**
+     * Stage [4] drop-formula context. Combat drops (`normal` /
+     * `elite` / `boss` with a known enemy) use the X+Y*depth+Z+K
+     * formula in `Relics.rollRelicForEnemy`; treasure / shrine
+     * paths ignore both fields and gate on {@link ROOM_CONFIG}
+     * percentages instead.
+     *
+     *  - `depth`  → `dungeon.currentDepth` at the time of the kill.
+     *               Default 0 if the caller doesn't supply it (e.g.
+     *               legacy treasure / shrine paths that don't need
+     *               it).
+     *  - `relicMod` → `player.aggregate.relicDropChanceMod` (Clover
+     *                 +0.10, Cursed set -0.25). Default 0.
+     */
+    depth?: number;
+    relicMod?: number;
     /** Optional override (defaults to {@link defaultRng}). Tests can
      *  inject a seeded {@link Rng} to make rolls deterministic. */
     rng?: Rng;
@@ -48,9 +65,11 @@ interface RelicDropContext {
  *
  * Rules:
  *   - Combat drops with a known `enemyName` (`normal` / `elite` /
- *     `boss`) consult the per-enemy drop table directly: each entry
- *     rolls its own chance, so the legacy kind-level chance gate is
- *     skipped.
+ *     `boss`) go through the Stage [4] X+Y+Z+K formula in
+ *     {@link rollRelicForEnemy}: any unowned drop entry with
+ *     `chance >= 1.0` is returned immediately as a guaranteed drop;
+ *     otherwise the formula clamps to [0..1] and the post-roll
+ *     winner is picked weighted by the per-relic `chance` field.
  *   - Treasure / shrine / unknown-enemy paths gate on a per-kind
  *     chance (see {@link ROOM_CONFIG}) and then roll from the
  *     generic rarity pool.
@@ -69,7 +88,10 @@ export function maybeDropRelic(
 
     let relicId: RelicId | null = null;
     if (enemyName && (kind === 'normal' || kind === 'elite' || kind === 'boss')) {
-        relicId = rollRelicForEnemy(enemyName, player.relics, rng);
+        const depth = ctx.depth ?? 0;
+        const relicMod = ctx.relicMod ?? 0;
+        const enemyDropMod = getEnemyDropMod(enemyName);
+        relicId = rollRelicForEnemy(enemyName, player.relics, depth, relicMod, enemyDropMod, rng);
         if (!relicId) return false;
     } else {
         const chance =
