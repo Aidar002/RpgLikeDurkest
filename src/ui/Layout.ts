@@ -47,42 +47,50 @@ export const HudLayout = {
         torchIconY: 56,
         /** X offset (from `statsX`) of the second column. */
         secondColumnDx: 130,
+        /** Horizontal offset between the HP/XP label ("ОЗ" / "УР")
+         *  and the start of the bar it anchors. The previous layout
+         *  reserved 76 px here for a heart glyph that has since been
+         *  removed; 30 px lets the bar tuck right up against the
+         *  bold 13 px label with a ~6 px breathing gap. */
+        vitalsBarOffsetX: 30,
         /** X anchor (icon centre of the leftmost slot — coin) for
-         *  the big ЗОЛОТО / ЭЛИК. / ВОЛЯ resource trio. The three
-         *  icons sit horizontally with their value text centred
-         *  directly below, replacing the previous stacked
-         *  `icon|label|value` rows so the resources read as the
-         *  visual centrepiece of the top bar.
+         *  the big ЗОЛОТО / ЭЛИК. / ВОЛЯ resource trio. Each slot
+         *  renders as icon-on-top, label below, value below — three
+         *  blocks side-by-side read as the visual centrepiece of
+         *  the top bar.
          *
          *  ATK/DEF value column ends ~530 (statsX + statsValueOffset
-         *  + value width). 596 leaves a ~50 px gap before the first
-         *  big icon. */
-        resourcesX: 596,
+         *  + value width). 556 leaves a ~10 px gap to the leftmost
+         *  resource label ("Монеты" ≈ 50 px wide centred at 556). */
+        resourcesX: 556,
         /** X step between adjacent stacked slots in the resource
-         *  trio. 64 px between centres comfortably clears a 36 px
-         *  icon plus the "0/3" Will value beneath it. */
+         *  trio. 64 px between centres comfortably fits a 32 px
+         *  icon and the widest label ("Монеты" / "Зелье") below it. */
         resourcesStepX: 64,
         /** Y of the icon top edge for the big resource and progress
          *  stacked slots. The top bar is 96 px tall with a carved
-         *  rim of ~16 px, so y=14 lets a 36 px icon centre at
-         *  y=32 — comfortably below the rim — and the value text
-         *  below it lands around y=58, leaving ~10 px of breathing
-         *  room before the bar's bottom edge. */
-        resourceIconTopY: 14,
+         *  rim of ~14 px, so y=10 lets a 32 px icon centre at
+         *  y=26 — clear of the rim — with the label landing around
+         *  y=44 and the value at y=60, leaving ~14 px of headroom
+         *  before the bar's bottom edge. */
+        resourceIconTopY: 10,
         /** Icon side length for the big resource / progress stacked
          *  slots. */
-        resourceIconSize: 36,
+        resourceIconSize: 32,
+        /** X centre of the carved pillar that visually separates the
+         *  resource trio from the run-progress trio. Sits midway
+         *  between the rightmost resource slot (556 + 2*64 = 684)
+         *  and the leftmost progress slot (`progressX`, see below). */
+        dividerX: 730,
         /** X anchor (icon centre of the leftmost slot — depth) for
          *  the big ГЛУБИНА / УБИТО / БОССЫ run-progress trio. Mirrors
-         *  the resource trio's `icon + value below` style on the
-         *  right of the top bar, shifted right per the design mock's
-         *  right-pointing arrow on the progress block. With
-         *  resourcesX=596 + 2*64=724 for the rightmost resource
-         *  icon, progressX=820 leaves a ~96 px breathing gap (the
-         *  empty box in the mock) before the depth icon, then the
-         *  three progress icons end at 820+2*64=948 — comfortably
-         *  inside the 1024 px canvas. */
-        progressX: 820,
+         *  the resource trio's `icon + label + value` style on the
+         *  right of the top bar, separated from the resources by
+         *  the divider pillar at `dividerX`. The three centres land
+         *  at 776, 840, 904 — the rightmost label / value extends
+         *  ~32 px past the centre, ending ~936 inside the 1024 px
+         *  canvas (~88 px right margin). */
+        progressX: 776,
         /** X step between adjacent stacked slots in the progress
          *  trio. Matches `resourcesStepX` so the two trios share
          *  the same rhythm. */
