@@ -112,10 +112,18 @@ export class GameRoomController {
         // shake/tint lives on `enemySpriteImage` / `enemyIconText`
         // instead (see CombatHudController.updateEnemyUI).
         //
-        // portraitCY shifted down to panelY + 138 (was +132) so the
-        // 230×230 box clears the "ВРАГ" header strip at the top of the
-        // panel by ~5 px instead of butting against it.
-        const portraitCY = panelY + 138;
+        // portraitCY pulled up to panelY + 123 (was +138) per design
+        // follow-up: the 230×230 icon sat a touch too low after the
+        // 250→230 shrink, which crowded the name + flavour rows
+        // below it (room cards in particular had the description
+        // line butting up against the wide [5] button). The "ВРАГ"
+        // header lives in the top-LEFT of the panel and the icon is
+        // horizontally centred, so the two never share horizontal
+        // space — the icon's top edge can sit ~8 px below the panel
+        // border without colliding with the header text. The 15-px
+        // lift frees the same 15 px below the icon for the
+        // name/flavour stack.
+        const portraitCY = panelY + 123;
         // For NPC rooms the portrait slides over to the right side of
         // the panel so the dialog window can claim the left half.
         const rightCx = panelX + panelW - 160;
