@@ -41,11 +41,22 @@ const UPGRADE_ICON: Record<UpgradeId, IconKey> = {
     goldGain: 'coin',
 };
 
+/**
+ * Phaser GameObjects in this module need `setAlpha` so we can dim the
+ * card icon when the upgrade is unaffordable; both `Image` (the
+ * spritesheet path of `createHudIcon`) and `Text` (the fallback) expose
+ * it, so a structural cast is enough.
+ */
+type DimmableIcon = Phaser.GameObjects.GameObject & {
+    setDepth(d: number): unknown;
+    setAlpha(value: number): unknown;
+};
+
 interface UpgradeCardVisual {
     id: UpgradeId;
     background: PanelBackground;
     textured: boolean;
-    icon: Phaser.GameObjects.GameObject;
+    icon: DimmableIcon;
     title: Phaser.GameObjects.Text;
     level: Phaser.GameObjects.Text;
     body: Phaser.GameObjects.Text;
@@ -237,11 +248,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
      * textured path overrides every state with a saturated gold tint
      * so the carved-bronze panel reads as a glowing plaque rather
      * than a charcoal placeholder — purchasable cards glow brightest,
-     * unaffordable cards sit at a slightly dimmer (but still gold)
-     * tone, and hover lifts the idle gold up to a near-white
-     * highlight. Falls back to the rect-stroke states for the
-     * procedural path so headless / first-frame renders still look
-     * sensible.
+     * unaffordable cards drop to a desaturated grey so the player can
+     * see at a glance that the upgrade is out of reach, and hover
+     * lifts the idle gold up to a near-white highlight. Falls back to
+     * the rect-stroke states for the procedural path so headless /
+     * first-frame renders still look sensible.
      */
     const applyCardState = (
         background: PanelBackground,
@@ -261,7 +272,12 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 ns.setTint(0xfff2b0);
                 break;
             case 'disabled':
-                ns.setTint(0xc8a050);
+                // Desaturated grey so a card the player can't afford
+                // reads as inactive next to the bright gold of the
+                // affordable cards. Matches the global disabled tint
+                // used by `applyPanelState` so the whole UI stays
+                // visually consistent.
+                ns.setTint(0x707070);
                 break;
         }
     };
@@ -282,7 +298,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
             const iconX = position.x - CARD_W / 2 + ICON_OFFSET_X;
             const cardIcon = createHudIcon(scene, iconX, position.y, UPGRADE_ICON[card.id], {
                 pixelSize: ICON_SIZE,
-            }) as Phaser.GameObjects.GameObject & { setDepth(d: number): unknown };
+            }) as DimmableIcon;
             cardIcon.setDepth(Depths.EndScreenForeground);
 
             const textLeftX = position.x - CARD_W / 2 + TEXT_OFFSET_X;
@@ -740,18 +756,25 @@ export function showDeathScreen(ctx: EndScreenContext) {
             );
             applyCardState(card.background, info.canPurchase ? 'idle' : 'disabled', card.textured);
             card.canPurchase = info.canPurchase;
+            // Cost colour: green for maxed-out (no further spend
+            // possible), gold when affordable, red when the player
+            // can't afford the next tier — the red signal pairs with
+            // the grey card body so an inaccessible upgrade reads
+            // unambiguously at a glance.
             card.cost.setColor(
-                info.cost === null ? '#9bf0ad' : info.canPurchase ? '#ffd86a' : '#e8c878'
+                info.cost === null ? '#9bf0ad' : info.canPurchase ? '#ffd86a' : '#ff6b6b'
             );
-            // Solid, fully-opaque text colours for both states. The
-            // previous mid-grey tones (#c8c0a8 disabled title,
-            // #a89c80 disabled body/level) read like translucent text
-            // on the dark panel fill; both states now use bright
-            // parchment shades so a maxed-out / unaffordable card is
-            // still easy to read.
-            card.title.setColor('#ffffff');
-            card.body.setColor(info.canPurchase ? '#fff4cc' : '#f0e0b0');
-            card.level.setColor(info.canPurchase ? '#fff0c0' : '#e8d8a8');
+            // Affordable cards keep their bright parchment palette.
+            // Unaffordable cards drop to a clearly desaturated grey
+            // on every text element so the whole card reads as
+            // "can't buy this yet" rather than the previous near-
+            // identical bright-on-bright look. Icon alpha follows the
+            // same axis — full-bright when buyable, dimmed to ~45 %
+            // when not.
+            card.title.setColor(info.canPurchase ? '#ffffff' : '#9a9a9a');
+            card.body.setColor(info.canPurchase ? '#fff4cc' : '#8a8a8a');
+            card.level.setColor(info.canPurchase ? '#fff0c0' : '#9a9a9a');
+            card.icon.setAlpha(info.canPurchase ? 1 : 0.45);
             // Run the perimeter comet only when the player can
             // actually buy this upgrade — same cue the HUD uses to
             // tell them "the escape button matters right now".
