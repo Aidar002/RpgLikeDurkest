@@ -43,11 +43,16 @@ import type { RelicId } from '../../systems/Relics';
 import type { GameScene } from '../GameScene';
 
 /** Pixel size of the bold value text under each big resource /
- *  progress icon's label. Bumped from 18 to 20 so the headline
- *  numbers read clearly under the 12 px labels. The icon pixel
- *  size and X anchors come from `HudLayout.topHud.*` so a "nudge
- *  the icon up 2px" tweak is a one-line edit in Layout.ts. */
-const RESOURCE_VALUE_FONT_SIZE = '20px';
+ *  progress icon's label. Shrunk from 20 to 17 (-15 %) per player
+ *  feedback so the trios stop bleeding into the right frame
+ *  ornament. The icon pixel size and X anchors come from
+ *  `HudLayout.topHud.*` so a "nudge the icon up 2px" tweak is a
+ *  one-line edit in Layout.ts. */
+const RESOURCE_VALUE_FONT_SIZE = '17px';
+/** Pixel size of the ALL-CAPS label under each big icon. Shrunk
+ *  from 12 to 10 (-15 %) in lockstep with the icon / value so the
+ *  trios share the same compact rhythm. */
+const RESOURCE_LABEL_FONT_SIZE = '10px';
 
 /**
  * Owns the global HUD: top bar (HP/XP, ATK/DEF, gold/potion/resolve),
@@ -170,7 +175,6 @@ export class GameHudController {
         this.buildTopCombatStats(TOP_H);
         this.buildTopResources();
         this.buildTopProgress();
-        const topDivider = this.buildTopDivider();
 
         // ── BOTTOM BAR ──────────────────────────────────────────
         const bottom = this.buildBottomBar(BOT_Y, BOT_H);
@@ -201,7 +205,6 @@ export class GameHudController {
             this.goldStat.root,
             this.potionStat.root,
             this.resolveStat.root,
-            topDivider,
             this.depthStat.root,
             this.killsStat.root,
             this.bossStat.root,
@@ -646,6 +649,7 @@ export class GameHudController {
             icon: 'coin',
             iconSize,
             label: loc.t('goldShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentGold,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
@@ -653,6 +657,7 @@ export class GameHudController {
             icon: 'potion',
             iconSize,
             label: loc.t('potionShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentPotion,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
@@ -664,6 +669,7 @@ export class GameHudController {
                 icon: 'quill',
                 iconSize,
                 label: loc.t('resolveShort').toUpperCase(),
+                labelFontSize: RESOURCE_LABEL_FONT_SIZE,
                 valueColor: HudHex.accentResolve,
                 valueFontSize: RESOURCE_VALUE_FONT_SIZE,
             }
@@ -709,6 +715,7 @@ export class GameHudController {
             icon: 'depth',
             iconSize,
             label: loc.t('depthShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentDepth,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
@@ -716,6 +723,7 @@ export class GameHudController {
             icon: 'kills',
             iconSize,
             label: loc.t('killShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentKills,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
@@ -723,50 +731,10 @@ export class GameHudController {
             icon: 'boss',
             iconSize,
             label: loc.t('bossShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentBoss,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
-    }
-
-    /**
-     * Carved vertical pillar dividing the resource trio (gold /
-     * potion / will) from the run-progress trio (depth / kills /
-     * bosses). Drawn as an 8 px wide chiselled-stone column: a dark
-     * recessed groove flanked by bright gold rims, with rune-dot
-     * accents at the top, middle, and bottom — same vocabulary as
-     * the panel corners and bar frames, so the eye reads the two
-     * trios as separate groups instead of one long six-icon row.
-     */
-    private buildTopDivider(): Phaser.GameObjects.Graphics {
-        const cx = HudLayout.topHud.dividerX;
-        // Pillar lives within the top bar's interior (y 12..84) so
-        // it spans most of the bar without crowding the gold rim.
-        const top = 12;
-        const height = 72;
-        const g = this.scene.add.graphics();
-        // Outer dark rim — 8 px wide ribbon of panel-outer colour so
-        // the pillar reads as a recessed slot in the bar.
-        g.fillStyle(HudColors.panelOuter, 1);
-        g.fillRect(cx - 4, top, 8, height);
-        // Dark recessed groove (4 px wide) inside the rim.
-        g.fillStyle(HudColors.panelLo, 1);
-        g.fillRect(cx - 2, top + 2, 4, height - 4);
-        // Bright gold rim along both vertical edges of the pillar.
-        g.fillStyle(HudColors.cellGoldEdge, 0.85);
-        g.fillRect(cx - 4, top, 1, height);
-        g.fillRect(cx + 3, top, 1, height);
-        // Softer secondary gold lines just inside the bright rim.
-        g.fillStyle(HudColors.cellGoldEdge, 0.35);
-        g.fillRect(cx - 3, top + 2, 1, height - 4);
-        g.fillRect(cx + 2, top + 2, 1, height - 4);
-        // Rune-dot accents at the top, middle, and bottom of the
-        // pillar — picks up the corner-rune motif from `drawHudPanel`.
-        const dotY = [top + 4, top + height / 2 - 1, top + height - 6];
-        g.fillStyle(HudColors.cellGoldEdge, 1);
-        for (const y of dotY) {
-            g.fillRect(cx - 1, y, 2, 2);
-        }
-        return g;
     }
 
     /**

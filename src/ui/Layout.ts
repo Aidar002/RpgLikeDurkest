@@ -48,11 +48,12 @@ export const HudLayout = {
         /** X offset (from `statsX`) of the second column. */
         secondColumnDx: 130,
         /** Horizontal offset between the HP/XP label ("ОЗ" / "УР")
-         *  and the start of the bar it anchors. The previous layout
-         *  reserved 76 px here for a heart glyph that has since been
-         *  removed; 30 px lets the bar tuck right up against the
-         *  bold 13 px label with a ~6 px breathing gap. */
-        vitalsBarOffsetX: 30,
+         *  and the start of the bar it anchors. Bumped from 30 to 40
+         *  so the bar no longer crowds the bold 13 px label — the
+         *  filled HP track was visually clipping the "З" / "Р"
+         *  letters of the labels on dense backgrounds. 40 px leaves
+         *  ~16 px of breathing room. */
+        vitalsBarOffsetX: 40,
         /** Pixel width of the HP and XP bar tracks. Tightened from
          *  200 to 150 so the vitals column doesn't dominate the top
          *  bar — the freed 50 px gives the resource/progress trios
@@ -64,44 +65,41 @@ export const HudLayout = {
          *  blocks side-by-side read as the visual centrepiece of
          *  the top bar.
          *
-         *  ATK/DEF value column ends ~530 (statsX + statsValueOffset
-         *  + value width). 552 leaves ~12 px of gap before the
-         *  leftmost resource block at icon size 40. */
-        resourcesX: 552,
+         *  ATK/DEF value column ends ~533 (statsX + statsValueOffset
+         *  + value width). 580 leaves a comfortable ~25 px gap from
+         *  the leftmost label edge of the resource trio ("МОНЕТЫ"
+         *  half-width ≈ 18 px at 10 px font) so the values don't
+         *  butt up against ATK/DEF. */
+        resourcesX: 580,
         /** X step between adjacent stacked slots in the resource
-         *  trio. 72 px between centres clears a 40 px icon plus
-         *  the widest 12 px label ("Монеты" ≈ 52 px) with breathing
-         *  room on each side. */
-        resourcesStepX: 72,
+         *  trio. Tightened from 72 to 61 (-15 %) so the icon + label
+         *  + value column packs without bleeding into the right
+         *  frame ornament. */
+        resourcesStepX: 61,
         /** Y of the icon top edge for the big resource and progress
          *  stacked slots. The top bar is 96 px tall with a carved
-         *  rim of ~14 px, so y=8 lets a 40 px icon centre at
-         *  y=28 — clear of the rim — with the label landing around
-         *  y=50 and the bold value at y=66, leaving ~10 px of
+         *  rim of ~14 px, so y=10 lets a 34 px icon centre at
+         *  y=27 — clear of the rim — with the label landing around
+         *  y=46 and the bold value at y=58, leaving ~10 px of
          *  headroom before the bar's bottom edge. */
-        resourceIconTopY: 8,
+        resourceIconTopY: 10,
         /** Icon side length for the big resource / progress stacked
-         *  slots. Bumped from 32 to 40 so the trios read as the
-         *  visual centrepieces of the top bar (per player feedback
-         *  — the 32 px icons felt undersized next to the bars). */
-        resourceIconSize: 40,
-        /** X centre of the carved pillar that visually separates the
-         *  resource trio from the run-progress trio. Sits midway
-         *  between the rightmost resource slot (552 + 2*72 = 696)
-         *  and the leftmost progress slot (`progressX`, see below). */
-        dividerX: 728,
+         *  slots. Shrunk from 40 to 34 (-15 %) per player feedback —
+         *  at 40 px the trios were bleeding into the right frame
+         *  ornament and felt cramped. */
+        resourceIconSize: 34,
         /** X anchor (icon centre of the leftmost slot — depth) for
          *  the big ГЛУБИНА / УБИТО / БОССЫ run-progress trio. Mirrors
          *  the resource trio's `icon + label + value` style on the
-         *  right of the top bar, separated from the resources by
-         *  the divider pillar at `dividerX`. The three centres land
-         *  at 760, 832, 904 — the rightmost block ends ~940 inside
-         *  the 1024 px canvas (~84 px right margin). */
-        progressX: 760,
+         *  right of the top bar. The three centres land at
+         *  778, 839, 900 — the rightmost block ends ~922 inside
+         *  the 1024 px canvas (~100 px right margin so the carved
+         *  frame ornament has room to breathe). */
+        progressX: 778,
         /** X step between adjacent stacked slots in the progress
          *  trio. Matches `resourcesStepX` so the two trios share
          *  the same rhythm. */
-        progressStepX: 72,
+        progressStepX: 61,
     },
     chrome: {
         /** Y of the music/settings/language icon row. Sits in the
