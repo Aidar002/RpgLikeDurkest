@@ -285,6 +285,30 @@ export const EN_STRINGS = {
     lockpickSuccess: 'Success!',
     lockpickFailure: 'Failure… the pick broke ({damage} damage).',
     lockpickLeft: 'You leave the chest untouched.',
+    // ── Effects gallery ────────────────────────────────────────
+    // Map-screen button + overlay chrome + per-recipe labels. The
+    // gallery overlay (`src/ui/EffectsGalleryOverlay.ts`) resolves
+    // every recipe's label via `loc.t(recipe.labelKey)`; the recipes
+    // themselves live in `src/ui/EffectsLibrary.ts`.
+    effectsButton: 'Effects & particles',
+    effectsGalleryTitle: 'Effects & particles',
+    effectsGalleryHint: 'Click a tile to preview the effect.',
+    effectsGalleryClose: 'Close',
+    effectRadialBurst: 'Radial Burst',
+    effectRingShock: 'Ring Shock',
+    effectStarFountain: 'Star Fountain',
+    effectGoldShower: 'Gold Shower',
+    effectSparkleConfetti: 'Sparkle Confetti',
+    effectShockwaveTriple: 'Triple Shockwave',
+    effectDustImplosion: 'Dust Implosion',
+    effectEmberFloat: 'Floating Embers',
+    effectLightningArc: 'Lightning Arc',
+    effectCometSweep: 'Comet Sweep',
+    effectMagicSigil: 'Magic Sigil',
+    effectHealPulse: 'Heal Pulse',
+    effectRunicCircle: 'Runic Circle',
+    effectCritFlashRing: 'Crit Flash Ring',
+    effectPulseBurst: 'Pulse Burst',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */

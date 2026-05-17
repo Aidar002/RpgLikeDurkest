@@ -59,6 +59,15 @@ export class PlayerManager {
     public readonly resourcesChange = new Emitter<void>();
     public readonly relicsChange = new Emitter<void>();
     /**
+     * Fires when {@link addRelic} actually appends a new relic to
+     * {@link relics} (i.e. the `'added'` branch). Distinct from
+     * `relicsChange` (which also fires on `removeRelic` / aggregate
+     * recompute) so the HUD can play a "pickup" VFX exclusively on
+     * the gain. Payload is the granted relic id so call-sites can
+     * tint / position the effect by rarity if needed.
+     */
+    public readonly relicGained = new Emitter<{ id: RelicId }>();
+    /**
      * Fires when {@link addRelic} is called with the inventory already
      * at {@link MAX_RELICS}. The HUD listens here to put up the
      * `RelicSwapModal` so the player can decide which relic to drop
@@ -286,6 +295,11 @@ export class PlayerManager {
         if (this.relics.length >= MAX_RELICS) return 'full';
         this.relics.push(id);
         this.recomputeAggregate();
+        // Pickup-specific signal — `relicsChange` also fires here
+        // (from `recomputeAggregate`) and on every later swap/drop,
+        // so the HUD distinguishes "new relic just landed" from
+        // "row re-rendered" by listening on `relicGained` instead.
+        this.relicGained.emit({ id });
         return 'added';
     }
 

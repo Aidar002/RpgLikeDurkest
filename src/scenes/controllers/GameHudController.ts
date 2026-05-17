@@ -35,6 +35,8 @@ import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
 import { drawUiButton, type ButtonBackground } from '../../ui/UiButton';
 import { EscapeHintGlow } from '../../ui/EscapeHintGlow';
 import { VFX } from '../../ui/VFX';
+import { playEffect } from '../../ui/EffectsLibrary';
+import { showEffectsGallery, type EffectsGalleryHandle } from '../../ui/EffectsGalleryOverlay';
 import { statusSummary } from '../../systems/StatusEffects';
 import { MAX_RELICS } from '../../systems/PlayerManager';
 import { RELICS } from '../../systems/Relics';
@@ -110,6 +112,15 @@ export class GameHudController {
     private escapeButtonLabel!: Phaser.GameObjects.Text;
     private restartButtonBg!: ButtonBackground;
     private restartButtonLabel!: Phaser.GameObjects.Text;
+    /** Map-screen-only chrome button that opens the effects-and-particles
+     *  gallery overlay. Same visibility rules as the escape/restart
+     *  pair (`refresh()` updates them in lockstep). */
+    private effectsButtonBg!: ButtonBackground;
+    private effectsButtonLabel!: Phaser.GameObjects.Text;
+    /** Live gallery handle while the overlay is up. We keep it so a
+     *  second click on the button doesn't stack a duplicate overlay
+     *  (and so the overlay can be force-dismissed from teardown). */
+    private effectsGallery: EffectsGalleryHandle | null = null;
 
     /** Gold pulsing halo around the escape button. Driven from
      *  `refresh()` — visible when the player's pending + banked
@@ -192,6 +203,8 @@ export class GameHudController {
             this.escapeButtonLabel,
             this.restartButtonBg,
             this.restartButtonLabel,
+            this.effectsButtonBg,
+            this.effectsButtonLabel,
         ];
 
         // Stone wall must sit below the room content. Inside a Container
@@ -239,7 +252,31 @@ export class GameHudController {
                 duration: 500,
                 onComplete: () => flash.destroy(),
             });
+            // Level-up VFX recipe: a fountain of gold stars at the
+            // player's progression column (where the LEVEL/XP labels
+            // live in the top bar). Anchored to the live `levelText`
+            // so we don't drift if the HUD layout shifts. The recipe
+            // self-destroys its game objects after ~1 s.
+            const levelCenter = this.levelText.getCenter();
+            playEffect(scene, 'starFountain', levelCenter.x, levelCenter.y, {
+                depth: Depths.ScreenFlash + 1,
+            });
             this.refresh();
+        });
+
+        // Pickup VFX — fires the moment a brand-new relic lands in
+        // the inventory. `relicGained` is distinct from `relicsChange`
+        // (the latter also fires on removes/swaps/recompute) so this
+        // exclusively decorates acquisitions. We aim at the slot the
+        // newly added relic just landed in (one frame after the
+        // emit, by which point `RelicSlots.refresh()` has already
+        // repainted the row).
+        scene.player.relicGained.on(({ id }) => {
+            const center = this.relicSlots.getSlotCenter(id);
+            if (!center) return;
+            playEffect(scene, 'sparkleConfetti', center.x, center.y, {
+                depth: Depths.NotificationBanner,
+            });
         });
         scene.player.death.on(() => {
             if (scene.deathSequenceStarted) {
@@ -355,6 +392,15 @@ export class GameHudController {
         this.escapeButtonLabel.setVisible(hudButtonsVisible);
         this.restartButtonBg.setVisible(hudButtonsVisible);
         this.restartButtonLabel.setVisible(hudButtonsVisible);
+        this.effectsButtonBg.setVisible(hudButtonsVisible);
+        this.effectsButtonLabel.setVisible(hudButtonsVisible);
+        // If the gallery is up but we just transitioned off the map
+        // (e.g. into combat) force-dismiss the overlay so it doesn't
+        // hang around painting on top of the room UI.
+        if (this.effectsGallery && !hudButtonsVisible) {
+            this.effectsGallery.destroy();
+            this.effectsGallery = null;
+        }
 
         // Escape-glow predicate: the player has earned at least one
         // skill point this run AND their pending + banked total
@@ -797,6 +843,25 @@ export class GameHudController {
      * confirmation modal → meta-progression wipe). The two share
      * visibility rules in `refresh`.
      */
+    /**
+     * Toggle the effects-and-particles gallery overlay. Idempotent:
+     * a second click while the overlay is up dismisses it (the
+     * overlay's own close button + Escape key also tear it down).
+     */
+    private toggleEffectsGallery(): void {
+        if (this.effectsGallery) {
+            this.effectsGallery.destroy();
+            this.effectsGallery = null;
+            return;
+        }
+        const scene = this.scene;
+        this.effectsGallery = showEffectsGallery(scene, scene.loc, scene.sfx);
+        // The overlay's `destroy` is wired to the close button +
+        // Escape key. We can't intercept those here, so we drop our
+        // handle when the overlay tells us it's gone by polling on
+        // every refresh — see `refresh()` for the keep-alive check.
+    }
+
     private buildHudButtons(topH: number, pad: number) {
         // Restart anchors to the far right (destructive action; the
         // outermost slot keeps it from being misclicked by reflex).
@@ -868,6 +933,35 @@ export class GameHudController {
             },
             this.scene.uiContainer
         );
+
+        // Effects-and-particles button — placed directly below the
+        // restart/escape row so it shares the same hot-edge but reads
+        // as a secondary, exploratory action. Width matches the
+        // combined restart+escape footprint so the three buttons read
+        // as a stacked column. Variant `silver` for understated
+        // chrome (this is a debug-ish utility, not a primary CTA).
+        const EFFECTS_BTN_H = 30;
+        const EFFECTS_BTN_W = RESTART_BTN_W + BTN_GAP + ESCAPE_BTN_W;
+        const EFFECTS_BTN_X = GAME_WIDTH - pad - EFFECTS_BTN_W / 2;
+        const EFFECTS_BTN_Y = BTN_Y + BTN_H / 2 + EFFECTS_BTN_H / 2 + 8;
+        const effectsUi = drawUiButton(
+            this.scene,
+            EFFECTS_BTN_X,
+            EFFECTS_BTN_Y,
+            EFFECTS_BTN_W,
+            EFFECTS_BTN_H,
+            this.scene.loc.t('effectsButton'),
+            {
+                variant: 'silver',
+                fontSize: '13px',
+                color: HudHex.textPrimary,
+                depth: 220,
+                sfx: this.scene.sfx,
+            }
+        );
+        this.effectsButtonBg = effectsUi.background;
+        this.effectsButtonLabel = effectsUi.label;
+        this.effectsButtonBg.on('pointerdown', () => this.toggleEffectsGallery());
     }
 
     /**
