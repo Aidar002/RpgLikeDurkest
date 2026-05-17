@@ -22,12 +22,7 @@ import {
 } from '../../ui/HudTheme';
 import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../../ui/HudFrame';
 import { createTorchlightOverlay } from '../../ui/Torchlight';
-import {
-    createHudCell,
-    createHudInlineSlot,
-    type HudCellHandle,
-    type HudInlineSlotHandle,
-} from '../../ui/HudCell';
+import { createHudInlineSlot, type HudInlineSlotHandle } from '../../ui/HudCell';
 import { createHudIcon } from '../../ui/HudIcons';
 import { RelicSlots } from '../../ui/RelicSlots';
 import { RelicSwapModal } from '../../ui/RelicSwapModal';
@@ -89,10 +84,12 @@ export class GameHudController {
     private potionStat!: HudInlineSlotHandle;
     private resolveStat!: HudInlineSlotHandle;
 
-    // Bottom-bar cells.
-    private depthStat!: HudCellHandle;
-    private killsStat!: HudCellHandle;
-    private bossStat!: HudCellHandle;
+    // Top-bar run-progress slots (depth / kills / bosses). Stacked in
+    // the rightmost column of the top bar, mirroring the gold/potion/will
+    // column on their left.
+    private depthStat!: HudInlineSlotHandle;
+    private killsStat!: HudInlineSlotHandle;
+    private bossStat!: HudInlineSlotHandle;
 
     /** Inline relic-icon row that lives in the bottom bar before the
      *  pillar divider. Hover-aware; tooltips are owned by the
@@ -157,6 +154,7 @@ export class GameHudController {
         const vitals = this.buildTopVitals(PAD);
         this.buildTopCombatStats(TOP_H);
         this.buildTopResources();
+        this.buildTopProgress();
 
         // ── BOTTOM BAR ──────────────────────────────────────────
         const bottom = this.buildBottomBar(BOT_Y, BOT_H);
@@ -188,15 +186,14 @@ export class GameHudController {
             this.goldStat.root,
             this.potionStat.root,
             this.resolveStat.root,
+            this.depthStat.root,
+            this.killsStat.root,
+            this.bossStat.root,
             this.playerStatusText,
         ];
 
         const bottomWidgets: Phaser.GameObjects.GameObject[] = [
             bottom.botFrame,
-            bottom.pillarG,
-            this.depthStat.root,
-            this.killsStat.root,
-            this.bossStat.root,
             ...this.relicSlots.widgets(),
             this.hintText,
             this.escapeButtonBg,
@@ -643,76 +640,58 @@ export class GameHudController {
     }
 
     /**
-     * Bottom carved bar: relic-shard cell (gated behind an unlock),
-     * divider pillar, 3 progress cells (depth / kills / bosses). The
-     * 3 resources moved to the top bar have left the left half of
-     * the bottom bar mostly empty in the early game; once the shard
-     * unlock fires the cell fills in.
-     *
-     * cellH grew 70 → 110 so the resource icons can render at ~2×
-     * their old pixel size (18 → 36) without crowding the
-     * label/value rows. Stat label / value font sizes are bumped a
-     * tier to keep visual hierarchy consistent with the chunkier
-     * icons.
+     * Bottom carved bar: just the carved panel art now. The 3 progress
+     * cells (depth / kills / bosses) used to live here next to the
+     * relic-slot block but were promoted to the top bar so the bottom
+     * panel reads as the player's inventory + chrome row. The relic
+     * row is built separately in `buildRelicSlots` and the
+     * audio/language icons in `setupSceneChrome` (called from the
+     * scene); the bottom-bar PNG already carves its own corner
+     * ornaments so no extra dividers are needed.
      */
     private buildBottomBar(
         botY: number,
         botH: number
     ): {
         botFrame: Phaser.GameObjects.GameObject;
-        pillarG: Phaser.GameObjects.Graphics;
     } {
         const botFrame = drawBottomFrame(this.scene, botY, GAME_WIDTH, botH);
+        return { botFrame };
+    }
 
-        // Bottom-bar PNG carved corners eat ~32 px on each side; cells
-        // are sized so the row sits comfortably inside that safe area
-        // (left margin 36, right margin ~36 to the carved frame).
-        // Cells are vertically centred inside the bar so they don't
-        // crowd the top gold rim and leave a dead strip at the bottom.
-        const cellH = 110;
-        const cellTop = botY + Math.round((botH - cellH) / 2);
-        const resW = 112;
-        const resStart = 36;
-        const progW = 88;
-        const progStart = 624;
-        const STAT_ICON_SIZE = 36;
-        const STAT_LABEL_FONT = '12px';
-        const STAT_VALUE_FONT = '17px';
-
-        // Pillar divider between the relic-slot block and the progress block.
-        const pillarG = this.scene.add.graphics();
-        pillarG.fillStyle(HudColors.panelOuter, 0.95);
-        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, cellH - 12);
-        pillarG.fillStyle(HudColors.panelHi, 0.7);
-        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, 1);
-        pillarG.fillRect(resStart + 5 * resW + 2, cellTop + cellH - 7, 4, 1);
-
-        this.depthStat = createHudCell(this.scene, progStart + 0 * progW, cellTop, progW, cellH, {
+    /**
+     * Top-bar run-progress column (Group E): depth / kills / bosses
+     * inline slots stacked at the right edge of the top bar, mirroring
+     * the gold/potion/will column on their left. The trio used to live
+     * in the bottom carved bar as larger vertical cells; the swap
+     * keeps them in the same eye-line as HP/XP/ATK so a glance at the
+     * top bar gives the player both their combat state and their run
+     * progress. Row Ys are reused from the resources column so the two
+     * columns align vertically.
+     */
+    private buildTopProgress() {
+        const { topHud } = HudLayout;
+        this.depthStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow1Y, {
             icon: 'depth',
             label: this.scene.loc.t('depthShort').toUpperCase(),
             valueColor: HudHex.accentDepth,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.progressValueOffset,
         });
-        this.killsStat = createHudCell(this.scene, progStart + 1 * progW, cellTop, progW, cellH, {
+        this.killsStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow2Y, {
             icon: 'kills',
             label: this.scene.loc.t('killShort').toUpperCase(),
             valueColor: HudHex.accentKills,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.progressValueOffset,
         });
-        this.bossStat = createHudCell(this.scene, progStart + 2 * progW, cellTop, progW, cellH, {
+        this.bossStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow3Y, {
             icon: 'boss',
             label: this.scene.loc.t('bossShort').toUpperCase(),
             valueColor: HudHex.accentBoss,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
+            valueFontSize: '15px',
+            valueOffsetX: topHud.progressValueOffset,
         });
-
-        return { botFrame, pillarG };
     }
 
     /**

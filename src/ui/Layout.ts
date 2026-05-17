@@ -13,9 +13,9 @@ export const CENTER_Y = GAME_HEIGHT / 2;
  * `GameScene.ts`/`SceneChrome.ts`. Section groups:
  *
  * - `topHud.*`: stat slots in the carved top bar (АТАКА/ЗАЩИТА column,
- *   torch column).
- * - `chrome.*`: bottom-left audio/language toggle row anchored to the
- *   top-right corner of the canvas.
+ *   torch column, resource column, run-progress column).
+ * - `chrome.*`: audio/language toggle row anchored to the bottom-right
+ *   corner of the bottom bar.
  *
  * Add new groups here as you split rendering out of `GameScene`.
  */
@@ -52,10 +52,25 @@ export const HudLayout = {
         resourceRow3Y: 62,
         /** Horizontal offset between a resource slot's icon and value. */
         resourceValueOffset: 124,
+        /** X anchor for the ГЛУБИНА / УБИТО / БОССЫ run-progress
+         *  column. Sits ~50 px right of the resources value column
+         *  (resourcesX + resourceValueOffset = 664) so the two
+         *  columns read as a pair without crowding. Reuses the same
+         *  three row Ys as the resources column so the two columns
+         *  align vertically. */
+        progressX: 720,
+        /** Horizontal offset between a progress slot's icon and value. */
+        progressValueOffset: 124,
     },
     chrome: {
-        /** Y of the music/settings/language icon row. */
-        iconY: 32,
+        /** Y of the music/settings/language icon row. Sits in the
+         *  vertical centre of the carved bottom bar so the icons
+         *  read as anchored to the bottom panel rather than the
+         *  top bar. The bottom bar spans
+         *  `GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET` to
+         *  `GAME_HEIGHT - HUD_BOTTOM_OFFSET` (618..758 with the
+         *  current constants), so 688 ≈ the visual centre. */
+        iconY: 688,
         /** X of the rightmost icon (language toggle). Other icons sit
          *  to the left at -32 / -64 px from this anchor. */
         iconRightX: GAME_WIDTH - 57,
