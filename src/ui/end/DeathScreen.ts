@@ -176,7 +176,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     // Bigger, more prominent upgrade cards (was 380×70). The extra
     // height makes room for a 48px icon on the left and a more
-    // readable 2-line description block in the middle.
+    // readable 2-line description block in the middle. The vertical
+    // gap below the banner was tightened from 28 → 8 (per-feedback
+    // "move the buttons up by ~20 px") so the cards sit closer to
+    // the skill-points pilule and the logs below shift up in
+    // lockstep via `cardsBottomY`.
     const CARD_W = 420;
     const CARD_H = 96;
     const CARD_GAP_X = 24;
@@ -184,7 +188,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const ICON_SIZE = 48;
     const ICON_OFFSET_X = 38;
     const TEXT_OFFSET_X = ICON_OFFSET_X + ICON_SIZE / 2 + 12;
-    const cardsStartY = bannerY + BANNER_H / 2 + 28 + CARD_H / 2;
+    const cardsStartY = bannerY + BANNER_H / 2 + 8 + CARD_H / 2;
     const cards: UpgradeCardVisual[] = [];
     const cardPositions = [
         { x: CENTER_X - CARD_W / 2 - CARD_GAP_X / 2, y: cardsStartY },
@@ -199,6 +203,31 @@ export function showDeathScreen(ctx: EndScreenContext) {
         },
     ];
     const cardsBottomY = cardsStartY + (CARD_H + CARD_GAP_Y) + CARD_H / 2;
+
+    /**
+     * Card-specific wrapper around {@link applyPanelState}. Behaves
+     * identically for the procedural fallback, but on the textured
+     * path applies a warm brightening tint to the idle/hover states
+     * so the carved-bronze fill reads as a lit-up affordance instead
+     * of the same charcoal the rest of the panel uses. Disabled
+     * cards keep the stock 0x707070 dim tint from `applyPanelState`.
+     */
+    const applyCardState = (
+        background: PanelBackground,
+        state: 'idle' | 'hover' | 'disabled',
+        textured: boolean
+    ) => {
+        applyPanelState(background, state, textured);
+        if (textured && state !== 'disabled') {
+            const ns = background as Phaser.GameObjects.NineSlice;
+            // 'hover' already set 0xfff2c0 inside applyPanelState; we
+            // only re-tint the idle path so an unhovered purchasable
+            // card glows warmly instead of sitting in shadow.
+            if (state === 'idle') {
+                ns.setTint(0xe8d8b0);
+            }
+        }
+    };
 
     if (escaped) {
         meta.getUpgradeCards(loc.language).forEach((card, index) => {
@@ -220,36 +249,41 @@ export function showDeathScreen(ctx: EndScreenContext) {
             cardIcon.setDepth(Depths.EndScreenForeground);
 
             const textLeftX = position.x - CARD_W / 2 + TEXT_OFFSET_X;
+            // Bigger, brighter copy (was 18/14/13/14 with greys
+            // around #9a9a9a). The body line read as charcoal on
+            // charcoal at 13 px / #9a — bumped to 16 px with a warm
+            // parchment shade so the description actually reads
+            // against the carved-bronze fill.
             const cardTitle = scene.add
-                .text(textLeftX, position.y - CARD_H / 2 + 14, card.title, {
+                .text(textLeftX, position.y - CARD_H / 2 + 12, card.title, {
                     fontFamily: BODY_FONT,
-                    fontSize: '18px',
-                    color: '#f0f0f0',
+                    fontSize: '22px',
+                    color: '#ffffff',
                 })
                 .setDepth(Depths.EndScreenForeground);
 
             const cardLevel = scene.add
                 .text(position.x + CARD_W / 2 - 14, position.y - CARD_H / 2 + 14, '', {
                     fontFamily: BODY_FONT,
-                    fontSize: '14px',
-                    color: '#a8a8a8',
+                    fontSize: '16px',
+                    color: '#e8dcbc',
                 })
                 .setOrigin(1, 0)
                 .setDepth(Depths.EndScreenForeground);
 
             const cardBody = scene.add
-                .text(textLeftX, position.y - CARD_H / 2 + 40, '', {
+                .text(textLeftX, position.y - CARD_H / 2 + 44, '', {
                     fontFamily: BODY_FONT,
-                    fontSize: '13px',
-                    color: '#9a9a9a',
+                    fontSize: '16px',
+                    color: '#e0d4b4',
                     wordWrap: { width: CARD_W - TEXT_OFFSET_X - 24 },
                 })
                 .setDepth(Depths.EndScreenForeground);
 
             const cardCost = scene.add
-                .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 22, '', {
+                .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 24, '', {
                     fontFamily: BODY_FONT,
-                    fontSize: '14px',
+                    fontSize: '16px',
                     color: '#ffd36e',
                 })
                 .setOrigin(1, 0)
@@ -280,11 +314,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
             background.on('pointerover', () => {
                 if (visual.canPurchase) {
-                    applyPanelState(background, 'hover', visual.textured);
+                    applyCardState(background, 'hover', visual.textured);
                 }
             });
             background.on('pointerout', () => {
-                applyPanelState(
+                applyCardState(
                     background,
                     visual.canPurchase ? 'idle' : 'disabled',
                     visual.textured
@@ -549,13 +583,19 @@ export function showDeathScreen(ctx: EndScreenContext) {
                     ? loc.t('shopMaxLabel')
                     : `${loc.t('shopCostLabel')} ${info.cost}`
             );
-            applyPanelState(card.background, info.canPurchase ? 'idle' : 'disabled', card.textured);
+            applyCardState(card.background, info.canPurchase ? 'idle' : 'disabled', card.textured);
             card.canPurchase = info.canPurchase;
             card.cost.setColor(
-                info.cost === null ? '#6acb7f' : info.canPurchase ? '#ffd36e' : '#6f6f6f'
+                info.cost === null ? '#7ee197' : info.canPurchase ? '#ffd36e' : '#9a8a6a'
             );
-            card.title.setColor(info.canPurchase ? '#f0f0f0' : '#a7a7a7');
-            card.body.setColor(info.canPurchase ? '#9a9a9a' : '#727272');
+            // Brighter copy for both states — the previous greys
+            // (#a7a7a7 disabled, #9a9a9a body) read as nearly the
+            // same charcoal as the panel fill. Purchasable cards now
+            // get pure white titles + parchment body; disabled cards
+            // keep readable mid-tones rather than charcoal.
+            card.title.setColor(info.canPurchase ? '#ffffff' : '#c8c0a8');
+            card.body.setColor(info.canPurchase ? '#e0d4b4' : '#a89c80');
+            card.level.setColor(info.canPurchase ? '#e8dcbc' : '#a89c80');
             // Run the perimeter comet only when the player can
             // actually buy this upgrade — same cue the HUD uses to
             // tell them "the escape button matters right now".
