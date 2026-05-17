@@ -24,6 +24,8 @@ export type SoundId =
     | 'enemyHit'
     | 'evade'
     | 'skillUse'
+    | 'cleave'
+    | 'bleedStrike'
     | 'potion'
     | 'treasure'
     | 'trapTrigger'
@@ -75,6 +77,10 @@ export function playSfx(deps: SfxDeps, id: SoundId): void {
             return playEvade(deps);
         case 'skillUse':
             return playSkillUse(deps);
+        case 'cleave':
+            return playCleave(deps);
+        case 'bleedStrike':
+            return playBleedStrike(deps);
         case 'potion':
             return playPotion(deps);
         case 'treasure':
@@ -125,7 +131,12 @@ export function playSfx(deps: SfxDeps, id: SoundId): void {
 }
 
 /** Short metallic slash. */
-function playHit({ core }: SfxDeps): void {
+function playHit({ core, samples }: SfxDeps): void {
+    // Prefer the hand-authored `hit_sound.ogg` sample when it has
+    // preloaded — the synth body below stays as the cold-boot
+    // fallback so the cue never goes silent on the very first
+    // player attack before preload resolves.
+    if (samples.play('combatHit', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
     const { gain } = noise(ctx, master, 0.08, 0.25);
@@ -146,7 +157,11 @@ function playCrit({ core }: SfxDeps): void {
 }
 
 /** Shield clang. */
-function playDefend({ core }: SfxDeps): void {
+function playDefend({ core, samples }: SfxDeps): void {
+    // Prefer the hand-authored `shield_sound.wav` sample (deep
+    // wooden block / shield brace) when preloaded. Synth fallback
+    // below keeps the cue alive before preload resolves.
+    if (samples.play('shieldBlock', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
     osc(ctx, master, 'triangle', 520, 0.1, 0.2);
@@ -156,7 +171,11 @@ function playDefend({ core }: SfxDeps): void {
 }
 
 /** Dull thud when enemy hits player. */
-function playEnemyHit({ core }: SfxDeps): void {
+function playEnemyHit({ core, samples }: SfxDeps): void {
+    // Prefer the hand-authored `mob_hit.wav` sample (recorded
+    // bone/flesh impact). Synth thud below is the fallback for the
+    // pre-preload window.
+    if (samples.play('mobHit', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
     const { gain } = noise(ctx, master, 0.1, 0.2);
@@ -186,8 +205,31 @@ function playSkillUse({ core }: SfxDeps): void {
     }, 100);
 }
 
+/**
+ * Hand-authored "Рубка / Cleave" skill cue (`rubka_sound.ogg`).
+ * Played from {@link CombatHudController.performAction} in place of
+ * the generic `skillUse` synth when the player triggers the
+ * `cleave` skill. Falls back to `playSkillUse` if the sample
+ * hasn't preloaded yet so the cue is never silent.
+ */
+function playCleave(deps: SfxDeps): void {
+    if (deps.samples.play('cleaveSwing', 1.0)) return;
+    playSkillUse(deps);
+}
+
+/**
+ * Hand-authored "Кровавый разрез / Bleed Strike" skill cue
+ * (`blood_hit_sound.ogg`). Same fallback path as {@link playCleave}.
+ */
+function playBleedStrike(deps: SfxDeps): void {
+    if (deps.samples.play('bleedStrike', 1.0)) return;
+    playSkillUse(deps);
+}
+
 /** Bubbly gulp. */
-function playPotion({ core }: SfxDeps): void {
+function playPotion({ core, samples }: SfxDeps): void {
+    // Prefer the hand-authored `potion_use_sound.wav` sample.
+    if (samples.play('potionUse', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
     const t = ctx.currentTime;
@@ -237,7 +279,12 @@ function playTrapTrigger({ core }: SfxDeps): void {
 }
 
 /** Tight metallic tick when a lockpick ring locks into place. */
-function playLockpickClick({ core }: SfxDeps): void {
+function playLockpickClick({ core, samples }: SfxDeps): void {
+    // Prefer the hand-authored `good_open_chest_sound.wav` sample —
+    // user wants the satisfying lock-snap fired for every chest
+    // puzzle ring that the player nails. Synth tick below is the
+    // pre-preload fallback.
+    if (samples.play('chestRing', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
     // Quick triangle bell + faint noise transient = pin-tumbler tick.
@@ -547,7 +594,9 @@ function playButtonHover({ core, samples }: SfxDeps): void {
 }
 
 /** Ascending fanfare. */
-function playLevelUp({ core }: SfxDeps): void {
+function playLevelUp({ core, samples }: SfxDeps): void {
+    // Prefer the hand-authored `level_up_sound.ogg` sample.
+    if (samples.play('levelUp', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
     const t = ctx.currentTime;
@@ -568,7 +617,9 @@ function playLevelUp({ core }: SfxDeps): void {
 }
 
 /** Dark descending drone. */
-function playDeath({ core }: SfxDeps): void {
+function playDeath({ core, samples }: SfxDeps): void {
+    // Prefer the hand-authored `death_sound.wav` sample.
+    if (samples.play('playerDeath', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
     const t = ctx.currentTime;
