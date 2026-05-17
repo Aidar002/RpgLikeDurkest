@@ -22,7 +22,12 @@ import {
 } from '../../ui/HudTheme';
 import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../../ui/HudFrame';
 import { createTorchlightOverlay } from '../../ui/Torchlight';
-import { createHudInlineSlot, type HudInlineSlotHandle } from '../../ui/HudCell';
+import {
+    createHudInlineSlot,
+    createHudStackedSlot,
+    type HudInlineSlotHandle,
+    type HudStackedSlotHandle,
+} from '../../ui/HudCell';
 import { RelicSlots } from '../../ui/RelicSlots';
 import { RelicSwapModal } from '../../ui/RelicSwapModal';
 import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
@@ -37,16 +42,11 @@ import { RELICS } from '../../systems/Relics';
 import type { RelicId } from '../../systems/Relics';
 import type { GameScene } from '../GameScene';
 
-/** Pixel size of the icon, label, and value text in the resource and
- *  progress columns of the top bar. Bumped from the legacy 18 / 13 /
- *  15 (still used by the ATK/DEF column to its left) so the
- *  gold / potion / will trio and the depth / kills / boss trio read
- *  as the visual centrepiece of the bar — both columns share the
- *  same constants so their icons / labels / values line up
- *  vertically across the top bar's right half. */
-const RESOURCE_ICON_SIZE = 24;
-const RESOURCE_LABEL_FONT_SIZE = '14px';
-const RESOURCE_VALUE_FONT_SIZE = '17px';
+/** Pixel size of the value text under each big resource / progress
+ *  icon in the top bar. The icon pixel size and X anchors come from
+ *  `HudLayout.topHud.*` so a "nudge the icon up 2px" tweak is a
+ *  one-line edit in Layout.ts. */
+const RESOURCE_VALUE_FONT_SIZE = '18px';
 
 /**
  * Owns the global HUD: top bar (HP/XP, ATK/DEF, gold/potion/resolve),
@@ -90,16 +90,18 @@ export class GameHudController {
     // Top combat stats and resources.
     private atkStat!: HudInlineSlotHandle;
     private defStat!: HudInlineSlotHandle;
-    private goldStat!: HudInlineSlotHandle;
-    private potionStat!: HudInlineSlotHandle;
-    private resolveStat!: HudInlineSlotHandle;
+    // Big icon-over-value resource trio (gold / potion / will) sitting
+    // horizontally in the centre-right of the top bar.
+    private goldStat!: HudStackedSlotHandle;
+    private potionStat!: HudStackedSlotHandle;
+    private resolveStat!: HudStackedSlotHandle;
 
-    // Top-bar run-progress slots (depth / kills / bosses). Stacked in
-    // the rightmost column of the top bar, mirroring the gold/potion/will
-    // column on their left.
-    private depthStat!: HudInlineSlotHandle;
-    private killsStat!: HudInlineSlotHandle;
-    private bossStat!: HudInlineSlotHandle;
+    // Top-bar run-progress slots (depth / kills / bosses). Same big
+    // icon-over-value style as the resource trio, pushed to the right
+    // edge of the bar so the two trios balance visually.
+    private depthStat!: HudStackedSlotHandle;
+    private killsStat!: HudStackedSlotHandle;
+    private bossStat!: HudStackedSlotHandle;
 
     /** Inline relic-icon row that lives in the bottom bar before the
      *  pillar divider. Hover-aware; tooltips are owned by the
@@ -621,51 +623,45 @@ export class GameHudController {
     }
 
     /**
-     * Top-bar resources (Group D): gold / potion / resolve stacked as
-     * inline icon|label|value rows. They used to live in the bottom
-     * carved bar but were promoted to the top so the player can keep
-     * core resources in the same eye-line as HP/XP/АТАКА during
-     * combat. valueOffsetX keeps the numeric column aligned even
-     * though the labels are different lengths.
+     * Top-bar resources (Group D): the gold / potion / resolve trio
+     * sits as three large icon-over-value blocks in the centre-right
+     * of the top bar. Each block centres a 36 px icon over its value
+     * text so the resources read as the visual centrepiece of the
+     * bar, per player feedback ("сделай большими 3 значками а под
+     * ними уже значение"). The labels (ЗОЛОТО / ЭЛИК. / ВОЛЯ) are
+     * dropped — the spritesheet icons (coin / potion / quill)
+     * already carry the identity, and the larger value typography
+     * needs the room.
      *
-     * The shared `RESOURCE_*` constants below scale up the icon /
-     * label / value typography (vs the ATK/DEF column) so the
-     * resource trio reads as the visual centrepiece of the top bar,
-     * per player feedback. The progress column on the right mirrors
-     * the same sizes so the two columns balance visually.
+     * The progress trio on the right (`buildTopProgress`) mirrors
+     * the same style so the two trios balance visually.
      */
     private buildTopResources() {
         const { topHud } = HudLayout;
-        this.goldStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow1Y, {
+        const iconTopY = topHud.resourceIconTopY;
+        const iconSize = topHud.resourceIconSize;
+        const step = topHud.resourcesStepX;
+        this.goldStat = createHudStackedSlot(this.scene, topHud.resourcesX, iconTopY, {
             icon: 'coin',
-            iconSize: RESOURCE_ICON_SIZE,
-            label: this.scene.loc.t('goldShort').toUpperCase(),
-            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
+            iconSize,
             valueColor: HudHex.accentGold,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
-            valueOffsetX: topHud.resourceValueOffset,
         });
-        this.potionStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow2Y, {
+        this.potionStat = createHudStackedSlot(this.scene, topHud.resourcesX + step, iconTopY, {
             icon: 'potion',
-            iconSize: RESOURCE_ICON_SIZE,
-            label: this.scene.loc.t('potionShort').toUpperCase(),
-            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
+            iconSize,
             valueColor: HudHex.accentPotion,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
-            valueOffsetX: topHud.resourceValueOffset,
         });
-        this.resolveStat = createHudInlineSlot(
+        this.resolveStat = createHudStackedSlot(
             this.scene,
-            topHud.resourcesX,
-            topHud.resourceRow3Y,
+            topHud.resourcesX + step * 2,
+            iconTopY,
             {
                 icon: 'quill',
-                iconSize: RESOURCE_ICON_SIZE,
-                label: this.scene.loc.t('resolveShort').toUpperCase(),
-                labelFontSize: RESOURCE_LABEL_FONT_SIZE,
+                iconSize,
                 valueColor: HudHex.accentResolve,
                 valueFontSize: RESOURCE_VALUE_FONT_SIZE,
-                valueOffsetX: topHud.resourceValueOffset,
             }
         );
     }
@@ -691,43 +687,37 @@ export class GameHudController {
     }
 
     /**
-     * Top-bar run-progress column (Group E): depth / kills / bosses
-     * inline slots stacked at the right edge of the top bar, mirroring
-     * the gold/potion/will column on their left. The trio used to live
-     * in the bottom carved bar as larger vertical cells; the swap
-     * keeps them in the same eye-line as HP/XP/ATK so a glance at the
-     * top bar gives the player both their combat state and their run
-     * progress. Row Ys are reused from the resources column so the two
-     * columns align vertically.
+     * Top-bar run-progress trio (Group E): depth / kills / bosses
+     * rendered as three large icon-over-value blocks at the right
+     * edge of the top bar, mirroring the gold/potion/will trio on
+     * their left. Labels (ГЛУБИНА / УБИТО / БОССЫ) are dropped —
+     * the spritesheet icons (depth glyph, dagger, omega) already
+     * carry the identity, and the larger value typography needs
+     * the room. X anchors and the icon size come from
+     * `HudLayout.topHud.*` so both trios share the same rhythm.
      */
     private buildTopProgress() {
         const { topHud } = HudLayout;
-        this.depthStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow1Y, {
+        const iconTopY = topHud.resourceIconTopY;
+        const iconSize = topHud.resourceIconSize;
+        const step = topHud.progressStepX;
+        this.depthStat = createHudStackedSlot(this.scene, topHud.progressX, iconTopY, {
             icon: 'depth',
-            iconSize: RESOURCE_ICON_SIZE,
-            label: this.scene.loc.t('depthShort').toUpperCase(),
-            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
+            iconSize,
             valueColor: HudHex.accentDepth,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
-            valueOffsetX: topHud.progressValueOffset,
         });
-        this.killsStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow2Y, {
+        this.killsStat = createHudStackedSlot(this.scene, topHud.progressX + step, iconTopY, {
             icon: 'kills',
-            iconSize: RESOURCE_ICON_SIZE,
-            label: this.scene.loc.t('killShort').toUpperCase(),
-            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
+            iconSize,
             valueColor: HudHex.accentKills,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
-            valueOffsetX: topHud.progressValueOffset,
         });
-        this.bossStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow3Y, {
+        this.bossStat = createHudStackedSlot(this.scene, topHud.progressX + step * 2, iconTopY, {
             icon: 'boss',
-            iconSize: RESOURCE_ICON_SIZE,
-            label: this.scene.loc.t('bossShort').toUpperCase(),
-            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
+            iconSize,
             valueColor: HudHex.accentBoss,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
-            valueOffsetX: topHud.progressValueOffset,
         });
     }
 
