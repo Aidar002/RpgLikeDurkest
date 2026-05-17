@@ -96,6 +96,18 @@ describe('PlayerManager — damage and death', () => {
         expect(player.stats.hp).toBe(before - 2);
     });
 
+    it('treats source="trap" damage as ignoring defense (room traps + lockpick fails)', () => {
+        const player = new PlayerManager();
+        // Pile defense high so a "normal" hit would soak the trap entirely.
+        player.addDefenseBonus(20);
+        const before = player.stats.hp;
+
+        const dealt = player.takeDamage(2, 0, 'trap');
+
+        expect(dealt).toBe(2);
+        expect(player.stats.hp).toBe(before - 2);
+    });
+
     it('respects flatBlock (e.g. defend stance) before defense reduction', () => {
         const player = new PlayerManager();
         const before = player.stats.hp;
@@ -207,6 +219,19 @@ describe('PlayerManager — xp and level up', () => {
         expect(levelUps).toBeGreaterThanOrEqual(2);
         expect(player.stats.level).toBeGreaterThanOrEqual(3);
     });
+
+    it('xpToNextLevel is flat — every level requires the same xpPerLevel', () => {
+        // Locks in the flat-cost design choice. If a future change reverts
+        // to "level * xpPerLevel" scaling, this test goes red.
+        const player = new PlayerManager();
+        expect(player.xpToNextLevel).toBe(LEVEL_UP_CONFIG.xpPerLevel);
+        player.gainXp(LEVEL_UP_CONFIG.xpPerLevel);
+        expect(player.stats.level).toBe(2);
+        expect(player.xpToNextLevel).toBe(LEVEL_UP_CONFIG.xpPerLevel);
+        player.gainXp(LEVEL_UP_CONFIG.xpPerLevel);
+        expect(player.stats.level).toBe(3);
+        expect(player.xpToNextLevel).toBe(LEVEL_UP_CONFIG.xpPerLevel);
+    });
 });
 
 describe('PlayerManager — kills and stat bonuses', () => {
@@ -271,8 +296,8 @@ describe('PlayerManager — relics', () => {
             'worn_ring',
             'cracked_shield',
             'tattered_cloak',
-            'cracked_amulet',
-            'simple_sword',
+            'vampire_amulet',
+            'knight_sword',
         ];
         // Sanity: the catalog must offer at least MAX_RELICS distinct
         // ids for the test to fill the inventory.
@@ -289,7 +314,7 @@ describe('PlayerManager — relics', () => {
         // `relicsChange` (the manager doesn't mutate); the caller
         // (`RelicDrops`) is expected to translate this into a
         // `relicOffer` emit, but `addRelic` itself is silent.
-        expect(player.addRelic('simple_chestplate')).toBe('full');
+        expect(player.addRelic('knight_armor')).toBe('full');
         expect(player.relics).toHaveLength(MAX_RELICS);
         expect(offers).toBe(0);
     });
@@ -300,21 +325,21 @@ describe('PlayerManager — relics', () => {
             'worn_ring',
             'cracked_shield',
             'tattered_cloak',
-            'cracked_amulet',
-            'simple_sword',
+            'vampire_amulet',
+            'knight_sword',
         ];
         for (const id of fillers) player.addRelic(id);
 
         // Cap reached, candidate rejected.
-        expect(player.addRelic('simple_chestplate')).toBe('full');
+        expect(player.addRelic('knight_armor')).toBe('full');
 
         // Drop one, then retry with the candidate — mirrors the
         // RelicSwapModal path.
         player.removeRelic('worn_ring');
-        expect(player.addRelic('simple_chestplate')).toBe('added');
+        expect(player.addRelic('knight_armor')).toBe('added');
         expect(player.relics).toHaveLength(MAX_RELICS);
         expect(player.relics).not.toContain('worn_ring');
-        expect(player.relics).toContain('simple_chestplate');
+        expect(player.relics).toContain('knight_armor');
     });
 
     it('removeRelic removes only the matching id and emits change', () => {

@@ -1,6 +1,7 @@
 import type { NpcEvalContext, PickedDialog } from '../NpcManager';
 import type { NpcId, NpcOfferTemplate } from '../Npcs';
 import type { GameScene, RoomButtonAction } from '../../scenes/GameScene';
+import { variantFromFill } from '../../ui/RoomButtonVariant';
 
 function buildNpcEvalContext(scene: GameScene): NpcEvalContext {
     const hpFrac =
@@ -35,6 +36,28 @@ function isNpcOfferEnabled(scene: GameScene, offer: NpcOfferTemplate, npcId: Npc
     }
 }
 
+/**
+ * Per-run visibility gate, layered on top of NpcManager's static
+ * `onlyAfterMet` / `requiresAffinity` filtering. NpcManager doesn't
+ * know about transient PlayerManager state (per-run flags), so any
+ * "you already did this in this run" gating lives here.
+ *
+ * Currently used to hide Gogi's two paid-training offers once the
+ * player has already bought the buff this run — both offers lead to
+ * the same `presentGogiPayChoice` flow, and the +5 HP / +1 def bonus
+ * stacks naively if applied twice.
+ */
+function isNpcOfferAvailableThisRun(
+    scene: GameScene,
+    offer: NpcOfferTemplate,
+    npcId: NpcId
+): boolean {
+    if (npcId === 'gogi' && (offer.id === 'gogi_what' || offer.id === 'gogi_who')) {
+        return !scene.player.gogiTrainingTaken;
+    }
+    return true;
+}
+
 export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: string): void {
     const ctx = buildNpcEvalContext(scene);
     const picked = scene.npcs.pickDialog(npcId, ctx);
@@ -55,14 +78,17 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
     // it in the timeline without the log getting flooded by speech.
     scene.log.addMessage(scene.loc.t('dialogStarted', { name: npcName }), '#cdb8ff');
 
-    const actions = picked.offers.map<RoomButtonAction>((offer, idx) => {
+    const availableOffers = picked.offers.filter((offer) =>
+        isNpcOfferAvailableThisRun(scene, offer, npcId)
+    );
+    const actions = availableOffers.map<RoomButtonAction>((offer, idx) => {
         const cost = npcOfferCost(offer.id, npcId);
         const label = scene.npcOfferLabel(offer, cost, idx + 1);
         return {
             label,
             callback: () => handleNpcOffer(scene, npcId, offer, label),
             enabled: isNpcOfferEnabled(scene, offer, npcId),
-            fill: picked.npc.color,
+            variant: variantFromFill(picked.npc.color),
         };
     });
 
@@ -74,10 +100,10 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
                 picked,
                 scene.loc.t('actionDynamicLeave', { num: actions.length + 1 })
             ),
-        fill: 0x202020,
+        variant: 'dark',
     });
 
-    scene.setRoomButtons(actions);
+    scene.roomButtons.setActions(actions);
 }
 
 function leaveNpcRoom(scene: GameScene, picked: PickedDialog, leaveLabel: string): void {
@@ -181,7 +207,7 @@ function handleNpcOffer(
 
 function presentSaraWhoFollowup(scene: GameScene): void {
     const whoLabel = scene.loc.language === 'ru' ? '[1] Кто ты?' : '[1] Who are you?';
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: whoLabel,
             callback: () => {
@@ -190,7 +216,7 @@ function presentSaraWhoFollowup(scene: GameScene): void {
                 scene.updateRoomDialog({ player: whoLabel, npc: reply });
                 scene.showReturnButton();
             },
-            fill: 0x8a6cb6,
+            variant: 'danger',
         },
     ]);
 }
@@ -198,7 +224,7 @@ function presentSaraWhoFollowup(scene: GameScene): void {
 function presentSaraAdviceChoice(scene: GameScene): void {
     const yesLabel = scene.loc.language === 'ru' ? '[1] Да' : '[1] Yes';
     const noLabel = scene.loc.language === 'ru' ? '[2] Нет' : '[2] No';
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: yesLabel,
             callback: () => {
@@ -213,7 +239,7 @@ function presentSaraAdviceChoice(scene: GameScene): void {
                 scene.updateRoomDialog({ player: yesLabel, npc: grantLine });
                 scene.showReturnButton();
             },
-            fill: 0x8a6cb6,
+            variant: 'danger',
         },
         {
             label: noLabel,
@@ -222,7 +248,7 @@ function presentSaraAdviceChoice(scene: GameScene): void {
                 scene.updateRoomDialog({ player: noLabel, npc: refuseLine });
                 scene.showReturnButton();
             },
-            fill: 0x202020,
+            variant: 'dark',
         },
     ]);
 }
@@ -231,7 +257,7 @@ function presentGogiPayChoice(scene: GameScene): void {
     const canPay = scene.player.resources.gold >= 10;
     const payLabel = scene.loc.language === 'ru' ? '[1] Держи (10 монет)' : '[1] Here (10 gold)';
     const refuseLabel = scene.loc.language === 'ru' ? '[2] Нет' : '[2] No';
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: payLabel,
             callback: () => {
@@ -239,6 +265,7 @@ function presentGogiPayChoice(scene: GameScene): void {
                 scene.tracker.record('goldSpent', 10);
                 scene.npcs.adjustAffinity('gogi', 2);
                 scene.npcs.addFlag('gogi', 'initial-training');
+                scene.player.gogiTrainingTaken = true;
                 scene.player.addMaxHpBonus(5, 5);
                 scene.player.addDefenseBonus(1);
                 const grantLine =
@@ -250,7 +277,7 @@ function presentGogiPayChoice(scene: GameScene): void {
                 scene.showReturnButton();
             },
             enabled: canPay,
-            fill: 0xb6a44a,
+            variant: 'gold',
         },
         {
             label: refuseLabel,
@@ -262,7 +289,7 @@ function presentGogiPayChoice(scene: GameScene): void {
                 scene.updateRoomDialog({ player: refuseLabel, npc: dismissLine });
                 scene.showReturnButton();
             },
-            fill: 0x202020,
+            variant: 'dark',
         },
     ]);
 }

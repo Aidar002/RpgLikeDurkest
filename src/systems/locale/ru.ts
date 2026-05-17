@@ -186,15 +186,43 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatSkillPreparation: 'Подготовка: следующий удар +1 урона, следующая защита +1.',
     combatPreparationAttack: 'Подготовка срабатывает: +1 урона на этой атаке.',
     combatPreparationDefend: 'Подготовка укрепляет защиту: +1 защиты на этом блоке.',
-    // Сработавшие пассивки врагов (крыса / слизень / скелет).
+    // Сработавшие пассивки врагов (крыса / слизень / скелет / пчелобабочка).
     combatEnemyExtraDamage: '{name} рвётся в атаку: +{bonus} урона.',
     combatEnemyThorns: '{name} жалит в ответ на {thorns} урона.',
     combatEnemyDamageReduction: '{name} стряхивает {amount} урона.',
+    combatEnemyEvadeAndSting: '{name} уклоняется и жалит на {damage} урона.',
+    combatEnemyLifesteal: '{name} высасывает рану и восстанавливает {healed} ОЗ.',
+    combatEnemyHordeThins: '{name} редеет — наскребает лишь {attack} урона.',
+    combatEnemyPainExultation: '{name} упивается болью — +{bonus} к урону.',
+    combatEnemyStranglingRoots: '{name} обвивает вас корнями — ваши удары ослаблены на {amount}.',
+    combatEnemyAcidVomit: '{name} плюётся кислотой — броня снижена на {amount} до конца боя.',
+    combatEnemySpawnsReplacement: '{name} падает — из туши выползает {spawn}!',
+    combatEnemyHellfireOnDeath:
+        '{name} взрывается адским пламенем — {damage} истинного урона прорывает твою защиту.',
+    combatEnemyRegenPerTurn: '{name} вправляет кость и восстанавливает {healed} ОЗ.',
+    combatEnemyDoubleAttack: 'Хищный инстинкт {name} срабатывает — следует второй удар.',
+    combatEnemyCurseDarkness:
+        '{name} плетёт проклятие тьмы — ваши удары ослаблены на {amount} до конца боя.',
+    combatEnemyParrySkill: '{name} парирует — ваш {value} уходит в пустоту.',
+    combatEnemyParryPotion: '{name} парирует — зелье разливается, не дойдя до губ.',
+    combatEnemyCorrosionStrike:
+        '{name} наносит удар коррозии: {damage} истинного урона — броня снижена на {amount}.',
+    combatEnemySelfHeal: '{name} выпивает зелье лечения и восстанавливает {healed} ОЗ.',
+    combatEnemyPrepareStun: '{name} применяет {action} — вы оглушены на {turns}х.',
+    combatPlayerStunned: 'Вы скованы — этот ход пропущен.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
     combatRelicHealOnAttack:
-        'Сработал эффект предмета «Треснутый амулет» — восстановлено {healed} ОЗ.',
-    combatRelicBlockOnHit:
-        'Сработал эффект предмета «Дырявый нагрудник» — поглощено {amount} урона.',
+        'Сработал эффект предмета «Амулет вампира» — восстановлено {healed} ОЗ.',
+    combatRelicDarkChestplate:
+        'Сработал эффект предмета «Нагрудник мрака» — поглощено {amount} урона.',
+    combatRelicKnightSwordBonus:
+        'Сработал эффект предмета «Меч рыцаря» — дополнительно {bonus} урона.',
+    combatRelicKnightHelmet:
+        'Сработал эффект предмета «Шлем рыцаря» — восстановлено {resolve} воли.',
+    combatRelicLostStaff:
+        'Сработал эффект предмета «Посох Заблудшего» — восстановлено {resolve} воли.',
+    combatRelicLonginusShard:
+        'Сработал эффект предмета «Осколок копья Лонгина» — урон по Пророку вырос с {before} до {damage}.',
     // Замах врагов (мышь / упырь / рысь).
     combatEnemyPrepareWindup: '{name} готовится: {action}.',
     combatEnemyPrepareResolve: '{name} применяет {action}: {takenDamage} урона.',
@@ -211,15 +239,8 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     // Намерение замаха в HUD у обычных врагов.
     hudPrepareWindupLabel: '{action} (через {turns}х)',
     hudPrepareReadyLabel: '{action} (СЕЙЧАС)',
-    // Прокковые эффекты проклятого снаряжения.
-    combatRelicCursedMiss: 'Сработал эффект предмета «Проклятый амулет» — удар уходит в пустоту.',
-    combatRelicCursedSkillBasic:
-        'Сработал эффект предмета «Проклятое кольцо» — способность стала обычным ударом.',
-    // Подбрасывание монеты малого проклятого сета на атаку.
-    combatRelicCursedDouble:
-        'Сработал эффект предмета «Малый проклятый сет» — урон удвоен до {damage}.',
-    combatRelicCursedSelfHit:
-        'Сработал эффект предмета «Малый проклятый сет» — отдача {damage} урона.',
+    // Стадия [3]: эффекты прежнего «проклятого» снаряжения сняты —
+    // новый сет cursed это пассивные +4 атаки/+2 ХП/-25% дропа.
     // Прок благословения вампиров от Сары на ударе игрока.
     combatVampireBlessingHeal:
         'Сработал эффект предмета «Благословение вампиров» — восстановлено {healed} ОЗ.',
@@ -231,4 +252,30 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatBossDeathShieldBroken: 'Удар по Воле сбивает Щит смерти {name}.',
     combatBossDeathTouchOhko: '{action} {name} касается тебя — ты повержен.',
     combatBossDeathTouchDefended: 'Ты ставишь блок и переживаешь {action} {name}: {damage} урона.',
+    combatBossNimrodGodkiller: '{action} {name} разрешается — твоя душа развеяна.',
+    combatBossHeroCry:
+        '{name} испускает клич — атака ослаблена на {weaken}, броня снижена на {armor}, воля упала на {resolve}.',
+    combatBossResurrect:
+        '{name} возрождается — восстановлен до {hp} ОЗ, с яростью бьёт за {attack} урона.',
+    combatBossRelicStolen: '{name} вырывает реликвию из твоего мешка.',
+    combatBossRelicReturned: 'Ты забираешь реликвию из мёртвой руки {name}.',
+    combatBossRelicTheftEmpty: '{name} тянется за реликвией — мешок пуст.',
+    combatBossMimeChaos: '{name} хохочет — хаос накладывает на тебя {status}.',
+    combatBossMimeStatus_bleed: 'кровоточащую рану',
+    combatBossMimeStatus_poison: 'ползучий яд',
+    combatBossMimeStatus_stun: 'оглушение',
+    combatBossMimeStatus_weaken: 'ослабление',
+    combatBossMimeStatus_armorBreak: 'разрыв брони',
+    combatBossMimeStatus_mark: 'метку уязвимости',
+    // ── Мини-игра «Взлом замка» ─────────────────────────────────
+    // Карточка комнаты и кнопки для запертого сундука + тексты
+    // модалки и сообщения в логе.
+    roomTreasureLockedName: 'Запертый сундук',
+    roomTreasureLockedDesc: 'Тяжёлый замок преграждает путь к добыче.',
+    actionLockpickAttempt: '[1] Взломать',
+    actionLockpickLeave: '[2] Уйти',
+    lockpickStart: 'Вы начали взламывать замок.',
+    lockpickSuccess: 'Успех!',
+    lockpickFailure: 'Провал… отмычка сломалась ({damage} урона).',
+    lockpickLeft: 'Ты оставляешь сундук в покое.',
 };

@@ -398,6 +398,74 @@ export class MusicManager {
         return this._muted;
     }
 
+    /**
+     * Fade the currently playing track out over `durationMs`, then
+     * pause and clear it so a subsequent `setPlaylist(...) + start()`
+     * spins up a fresh element. Passing `0` (or calling with no
+     * current track) clears immediately. Safe to call when nothing
+     * is playing.
+     *
+     * Used to swap playlists between scenes (e.g. menu loop on the
+     * title screen -> dungeon score after the door opens) without
+     * carrying the old paused element into the next playlist.
+     */
+    fadeOut(durationMs: number): void {
+        this.playRequested = false;
+        if (this.fadeRaf != null && typeof cancelAnimationFrame !== 'undefined') {
+            cancelAnimationFrame(this.fadeRaf);
+            this.fadeRaf = null;
+        }
+        const current = this.current;
+        const clear = () => {
+            if (current) {
+                try {
+                    current.pause();
+                } catch {
+                    /* ignored */
+                }
+                current.src = '';
+            }
+            if (this.current === current) {
+                this.current = null;
+            }
+            if (this.next) {
+                try {
+                    this.next.pause();
+                } catch {
+                    /* ignored */
+                }
+                this.next.src = '';
+                this.next = null;
+            }
+            this.playing = false;
+        };
+        if (!current) {
+            clear();
+            return;
+        }
+        const durS = Math.max(0, durationMs / 1000);
+        if (durS === 0) {
+            clear();
+            return;
+        }
+        const startVol = current.volume;
+        const start = nowSeconds();
+        const tick = () => {
+            if (this.destroyed || this.current !== current) {
+                clear();
+                return;
+            }
+            const t = Math.min(1, (nowSeconds() - start) / durS);
+            current.volume = Math.max(0, startVol * (1 - t));
+            if (t < 1) {
+                this.fadeRaf = scheduleFrame(tick);
+            } else {
+                clear();
+            }
+        };
+        tick();
+    }
+
     /** Stop all playback and detach. */
     destroy(): void {
         this.destroyed = true;

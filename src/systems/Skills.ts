@@ -15,7 +15,6 @@ interface SkillDef {
     resolveCost: number;
     description: LocalizedText;
     color: number; // button fill color
-    starter: boolean;
 }
 
 export const SKILLS: Record<SkillId, SkillDef> = {
@@ -26,7 +25,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
         resolveCost: 2,
         description: lt('Урон +50% (минимум +1 урон).', 'Damage +50% (min +1 damage).'),
         color: 0x5a2d78,
-        starter: true,
     },
     bleed_strike: {
         id: 'bleed_strike',
@@ -38,7 +36,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
             'Normal attack damage. Bleed: 20% of player damage for 3 turns (min 1).'
         ),
         color: 0x8a2a2a,
-        starter: true,
     },
     preparation: {
         id: 'preparation',
@@ -50,7 +47,6 @@ export const SKILLS: Record<SkillId, SkillDef> = {
             'Next attack +1 damage. Next defense +1 defense.'
         ),
         color: 0x2a5080,
-        starter: true,
     },
 };
 

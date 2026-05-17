@@ -41,6 +41,7 @@ import { roomTypeName } from '../src/ui/RoomVisuals';
 import type { EventLog } from '../src/ui/EventLog';
 import type { CombatEndPayload } from '../src/systems/CombatManager';
 import type { GameScene, RoomButtonAction } from '../src/scenes/GameScene';
+import { makeEventLogStub } from './helpers/combat';
 
 // `Localization.getSavedLanguage()` reads `window.localStorage`.
 // The vitest default environment is jsdom, but other tests that
@@ -86,11 +87,7 @@ function makeLog(messages: string[]): EventLog {
     // CombatManager only calls `addMessage(text, color?)`. Mirroring
     // the shape used in `tests/CombatManager.test.ts` keeps the
     // smoke test free of the real EventLog (which pulls Phaser).
-    return {
-        addMessage: (text: string, _color?: string) => {
-            messages.push(text);
-        },
-    } as unknown as EventLog;
+    return makeEventLogStub(messages).log;
 }
 
 const COMBAT_ROOMS: ReadonlySet<RoomType> = new Set([
@@ -313,6 +310,7 @@ interface FakeSceneRecord {
     buttonLabels: string[];
     returnButtonShown: number;
     relicDrops: number;
+    lockpickShown: number;
 }
 
 function makeFakeScene(
@@ -329,6 +327,7 @@ function makeFakeScene(
         buttonLabels: [],
         returnButtonShown: 0,
         relicDrops: 0,
+        lockpickShown: 0,
     };
 
     const loc = new Localization(language);
@@ -349,11 +348,7 @@ function makeFakeScene(
         () => undefined
     );
 
-    const log: EventLog = {
-        addMessage: (text: string, _color?: string) => {
-            record.logs.push(text);
-        },
-    } as unknown as EventLog;
+    const log: EventLog = makeEventLogStub(record.logs).log;
 
     // The handlers also reach into `scene.npcs`, `scene.meta`, `scene.sfx`
     // and a couple of text widgets. We stub each as just enough to keep
@@ -395,6 +390,11 @@ function makeFakeScene(
         setRoomButtons: (actions: RoomButtonAction[], _useWideOnly?: boolean) => {
             for (const a of actions) record.buttonLabels.push(a.label);
         },
+        roomButtons: {
+            setActions: (actions: RoomButtonAction[], _useWideOnly?: boolean) => {
+                for (const a of actions) record.buttonLabels.push(a.label);
+            },
+        },
         showReturnButton: () => {
             record.returnButtonShown += 1;
         },
@@ -406,6 +406,16 @@ function makeFakeScene(
         maybeDropRelic: (_kind: string) => {
             record.relicDrops += 1;
             return false;
+        },
+        // Lockpick modal is a UI-layer effect — for the headless
+        // smoke test we record that the modal was opened and resolve
+        // it as `leave` so the room handler walks the no-reward
+        // branch without needing Phaser.
+        showLockpickModal: (options: {
+            onResolve: (result: 'success' | 'failure' | 'leave') => void;
+        }) => {
+            record.lockpickShown += 1;
+            options.onResolve('leave');
         },
         roomFlavorText: {
             setText: (text: string) => {
@@ -449,19 +459,20 @@ function captureRoomHandlerOutput(
     // Second-Nth pass: re-run from a fresh fake and click each
     // enabled button, capturing whatever it logs.
     // We snapshot button labels from the first run; on each replay we
-    // pick the matching action by index from a fresh setRoomButtons
-    // call.
+    // pick the matching action by index from a fresh setActions call.
     const seenLabels = [...first.record.buttonLabels];
     for (let i = 0; i < seenLabels.length; i += 1) {
         // Re-run handler so buttons are constructed fresh.
         let captured2: RoomButtonAction[] = [];
         const second = makeFakeScene(language, seed);
-        // Patch setRoomButtons to grab the action list.
+        // Patch roomButtons.setActions to grab the action list.
         const sceneAny = second.scene as unknown as {
-            setRoomButtons: (actions: RoomButtonAction[]) => void;
+            roomButtons: {
+                setActions: (actions: RoomButtonAction[]) => void;
+            };
         };
-        const originalSet = sceneAny.setRoomButtons;
-        sceneAny.setRoomButtons = (actions: RoomButtonAction[]) => {
+        const originalSet = sceneAny.roomButtons.setActions;
+        sceneAny.roomButtons.setActions = (actions: RoomButtonAction[]) => {
             captured2 = actions;
             originalSet(actions);
         };

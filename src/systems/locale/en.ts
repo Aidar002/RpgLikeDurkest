@@ -182,27 +182,54 @@ export const EN_STRINGS = {
     musicVolumeLabel: 'Music',
     sfxVolumeLabel: 'Effects',
     soundOptionsHint: 'Mute icon silences both channels.',
-    // [FIX-5] Cooldown gating for skills (Rupture).
+    // Cooldown gating for skills (Rupture).
     combatSkillOnCooldown: '{value} is recovering ({turns}t).',
-    // [FIX-6] Adrenaline can only be used once per combat.
-    // [FIX-11] Stun-resistance log line.
-    // [FIX-10] Boss intent / phase combat lines.
+    // Adrenaline can only be used once per combat.
+    // Stun-resistance log line.
+    // Boss intent / phase combat lines.
     combatEnemyHeal: '{name} feeds on your hesitation and recovers {heal} HP.',
-    // [FIX-1] Final-boss victory text.
+    // Final-boss victory text.
     victoryWishArtifact: 'Wish Artifact obtained.',
-    // [FIX-15] HUD intent / phase / band labels.
+    // HUD intent / phase / band labels.
     hudIntentLabel: 'Intent: {intent}',
     hudPhaseLabel: 'Phase {current}/{total}',
     combatSkillPreparation: 'Preparation: next attack +1 dmg, next defend +1 def.',
     combatPreparationAttack: 'Preparation lands: +1 damage on this attack.',
     combatPreparationDefend: 'Preparation steadies you: +1 defense on this guard.',
-    // Per-enemy passive triggers (rat / slime / skeleton).
+    // Per-enemy passive triggers (rat / slime / skeleton / bee-butterfly).
     combatEnemyExtraDamage: '{name} lunges for an extra +{bonus} damage.',
     combatEnemyThorns: '{name} retaliates for {thorns} damage.',
     combatEnemyDamageReduction: '{name} shrugs off {amount} damage.',
+    combatEnemyEvadeAndSting: '{name} flits aside and stings for {damage} damage.',
+    combatEnemyLifesteal: '{name} drains the wound and recovers {healed} HP.',
+    combatEnemyHordeThins: '{name} thins out — only mustering {attack} damage.',
+    combatEnemyPainExultation: '{name} drinks in the pain — +{bonus} damage.',
+    combatEnemyStranglingRoots:
+        '{name} curls roots around you — your swings are weakened by {amount}.',
+    combatEnemyAcidVomit:
+        '{name} spews acid over your armor — defense reduced by {amount} for the rest of the fight.',
+    combatEnemySpawnsReplacement: '{name} collapses — a {spawn} crawls from the carcass!',
+    combatEnemyHellfireOnDeath:
+        '{name} erupts in hellfire on death — {damage} true damage strips through your guard.',
+    combatEnemyRegenPerTurn: '{name} sets a bone back into place and recovers {healed} HP.',
+    combatEnemyDoubleAttack: "{name}'s predator instinct kicks in — a second strike follows.",
+    combatEnemyCurseDarkness:
+        '{name} weaves a curse of darkness — your strikes are weakened by {amount} for the rest of the fight.',
+    combatEnemyParrySkill: '{name} parries — your {value} is brushed aside.',
+    combatEnemyParryPotion: '{name} parries — the potion spills before you can drink it.',
+    combatEnemyCorrosionStrike:
+        '{name} lands a corrosion strike for {damage} true damage — armor reduced by {amount}.',
+    combatEnemySelfHeal: '{name} drinks a healing potion and recovers {healed} HP.',
+    combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
+    combatPlayerStunned: 'You are bound — no action this turn.',
     // Item triggers — unified format "X effect triggered — Y".
-    combatRelicHealOnAttack: 'Cracked Amulet effect triggered — recovered {healed} HP.',
-    combatRelicBlockOnHit: 'Holey Chestplate effect triggered — absorbed {amount} damage.',
+    combatRelicHealOnAttack: 'Vampire Amulet effect triggered — recovered {healed} HP.',
+    combatRelicDarkChestplate: 'Dark Chestplate effect triggered — absorbed {amount} damage.',
+    combatRelicKnightSwordBonus: "Knight's Sword effect triggered — extra {bonus} damage.",
+    combatRelicKnightHelmet: "Knight's Helmet effect triggered — restored {resolve} resolve.",
+    combatRelicLostStaff: 'Lost Staff effect triggered — restored {resolve} resolve.',
+    combatRelicLonginusShard:
+        'Longinus Shard effect triggered — damage to Prophet rises from {before} to {damage}.',
     // Mid-combat windups (bat / ghoul / lynx).
     combatEnemyPrepareWindup: '{name} winds up: {action}.',
     combatEnemyPrepareResolve: '{name} unleashes {action} for {takenDamage}.',
@@ -218,12 +245,8 @@ export const EN_STRINGS = {
     // Non-boss prepare intent shown in the HUD.
     hudPrepareWindupLabel: '{action} ({turns}t)',
     hudPrepareReadyLabel: '{action} (NOW)',
-    // Cursed gear procs (cursed_amulet miss, cursed_ring skill->basic).
-    combatRelicCursedMiss: 'Cursed Amulet effect triggered — the strike whiffs.',
-    combatRelicCursedSkillBasic: 'Cursed Ring effect triggered — skill became a basic strike.',
-    // Minor Cursed set coin flip on attack.
-    combatRelicCursedDouble: 'Minor Cursed Set effect triggered — damage doubled to {damage}.',
-    combatRelicCursedSelfHit: 'Minor Cursed Set effect triggered — {damage} damage backfire.',
+    // Cursed gear procs are no longer used (Stage [3] cursed set is a
+    // passive +4 atk +2 hp -25% drop, not a coinflip / miss / scrub).
     // Sara's Vampire Blessing on-attack heal proc.
     combatVampireBlessingHeal: 'Vampire Blessing effect triggered — recovered {healed} HP.',
     // Boss windups: Death Knight (Death Shield / Death Touch).
@@ -234,6 +257,33 @@ export const EN_STRINGS = {
     combatBossDeathShieldBroken: "Your Will-skill shatters {name}'s Death Shield.",
     combatBossDeathTouchOhko: "{name}'s {action} lands — you fall.",
     combatBossDeathTouchDefended: "You brace through {name}'s {action} for {damage} damage.",
+    combatBossNimrodGodkiller: "{name}'s {action} resolves — your soul is unmade.",
+    combatBossHeroCry:
+        '{name} bellows — your strikes weaken by {weaken}, armor breaks by {armor}, resolve drains by {resolve}.',
+    combatBossResurrect:
+        '{name} rises again — restored to {hp} HP and roaring with {attack} attack.',
+    combatBossRelicStolen: '{name} snatches a relic from your pack.',
+    combatBossRelicReturned: 'You reclaim the relic from {name}.',
+    combatBossRelicTheftEmpty: '{name} reaches for a relic — your pack is empty.',
+    combatBossMimeChaos: '{name} laughs — chaos imprints {status} on you.',
+    combatBossMimeStatus_bleed: 'a bleeding wound',
+    combatBossMimeStatus_poison: 'a creeping poison',
+    combatBossMimeStatus_stun: 'a stunning shock',
+    combatBossMimeStatus_weaken: 'a weakening hex',
+    combatBossMimeStatus_armorBreak: 'an armor-rending mark',
+    combatBossMimeStatus_mark: 'a vulnerability mark',
+    // ── Lockpick mini-game ──────────────────────────────────────
+    // Room card / button labels for the locked-chest variant of the
+    // treasure room, plus modal copy and log lines for the player's
+    // attempt. See `src/ui/LockpickOverlay.ts` + `src/systems/rooms/Treasure.ts`.
+    roomTreasureLockedName: 'Locked Chest',
+    roomTreasureLockedDesc: 'A heavy lock guards whatever is inside.',
+    actionLockpickAttempt: '[1] Lockpick',
+    actionLockpickLeave: '[2] Walk away',
+    lockpickStart: 'You start picking the lock.',
+    lockpickSuccess: 'Success!',
+    lockpickFailure: 'Failure… the pick broke ({damage} damage).',
+    lockpickLeft: 'You leave the chest untouched.',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */

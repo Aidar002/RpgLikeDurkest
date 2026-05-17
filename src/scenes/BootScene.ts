@@ -16,7 +16,7 @@ const DOOR_TEXTURE_KEY = 'boot_door';
 const DOOR_FRAME_SIZE = 887;
 /** On-screen height used to scale the door inside the BootScene
  *  layout. Width matches because the source frames are square. */
-const DOOR_DISPLAY_HEIGHT = 442;
+const DOOR_DISPLAY_HEIGHT = 530;
 
 /** Tint multiplier applied to the door so the lit stone arch + wood
  *  read as part of the dim torch-lit room behind it rather than
@@ -99,6 +99,10 @@ export class BootScene extends Phaser.Scene {
         // Each is optional; the HUD layer renders procedural fallbacks
         // when a file is missing. See public/assets/ui/README.md for
         // canonical sizes and the hud_icons.png frame order.
+        // Title logo for the boot screen. Replaces the previous
+        // text-based title so the brand reads as art rather than
+        // typography. Locale-neutral.
+        this.load.image('boot_title_logo', `${base}assets/ui/title_logo.png`);
         this.load.image('hud_top_bar', `${base}assets/ui/top_bar.png`);
         this.load.image('hud_bottom_bar', `${base}assets/ui/bottom_bar.png`);
         this.load.image('hud_stone_wall', `${base}assets/ui/stone_wall.png`);
@@ -232,23 +236,29 @@ export class BootScene extends Phaser.Scene {
         if (devSeed?.lang) {
             loc.language = devSeed.lang;
         }
-        // The boot screen intentionally has no music — it's silent
-        // except for the procedural torch crackle started below. The
-        // dungeon track is set up + kicked off by `GameScene.startGame`
-        // instead. We still call `music.stop()` here so a *restart*
-        // (death / escape -> back to title) doesn't bleed the dungeon
-        // music into the title screen.
-        music.stop();
-        // Fetch + decode the UI hover/click samples in the background
-        // so the first map-node hover and the first button click after
-        // boot fire instantly. Memoised inside SoundManager, so calling
-        // it on every BootScene restart is a no-op after the first run.
-        void sfx.preloadUiSfx();
+        // Swap to the title-screen music loop. On a fresh boot the
+        // manager has nothing playing and `fadeOut(0)` is a no-op; on
+        // a restart (death / escape -> back to title) the inherited
+        // dungeon track is cleared so the new playlist takes effect.
+        // `start()` here fades the menu loop in via the manager's
+        // built-in initial fade.
+        const audioBase = `${import.meta.env.BASE_URL}audio`;
+        music.fadeOut(0);
+        music.setPlaylist([{ url: `${audioBase}/menu_sound2.ogg` }]);
+        music.start();
+        // Fetch + decode the UI hover/click + title-reveal samples in
+        // the background so the first map-node hover, the first
+        // button click, and the title cue all fire without a fetch
+        // gap. Memoised inside SoundManager, so calling it on every
+        // BootScene restart is a no-op after the first run.
+        void sfx.preloadUiSfx().then(() => {
+            // Guard against the scene shutting down between preload
+            // start and resolution (e.g. instant restart through the
+            // HUD menu) — only play the cue if BootScene is still the
+            // active scene.
+            if (this.scene.isActive('BootScene')) sfx.playShowName(800);
+        });
         this.cameras.main.setBackgroundColor('#050505');
-        // Brand name. Identical in every locale — the colon splits the
-        // string onto two lines so the layout matches the previous
-        // two-word title without changing y-anchors.
-        const titleText = () => 'WISHBOUND:\nETERNAL DUNGEON';
 
         // Procedural carved-stone backdrop sets the dungeon mood; the
         // faint blue/violet wash on top keeps the existing colour-graded
@@ -310,21 +320,33 @@ export class BootScene extends Phaser.Scene {
         // the two torches keep sounding independent without any
         // extra wiring here.
         const IGNITION_STAGGER = 250;
-        createBootTorch(this, 170, 420, {
+        // Anchor torches 105 px nearer the central door than the
+        // original (170 / GAME_WIDTH - 170 -> 240 -> 275) so the lit
+        // pair hugs the arch tightly on the title screen. `sfxLeadMs`
+        // pre-rolls the flint/whoosh cue 500 ms before the visible
+        // flame catches, and the sprite/glow fade-ins are shortened
+        // (1200/1500 -> 500/500) so the room reads as lighting up
+        // crisply instead of slowly brightening.
+        const TORCH_SFX_LEAD_MS = 500;
+        const TORCH_FADE_MS = 500;
+        const TORCH_GLOW_FADE_MS = 500;
+        createBootTorch(this, 275, 420, {
             sfx,
             delayMs: IGNITION_DELAY,
             displayHeight: 168,
             depth: 7,
-            fadeDuration: 1200,
-            glowFadeDuration: 1500,
+            fadeDuration: TORCH_FADE_MS,
+            glowFadeDuration: TORCH_GLOW_FADE_MS,
+            sfxLeadMs: TORCH_SFX_LEAD_MS,
         });
-        createBootTorch(this, GAME_WIDTH - 170, 420, {
+        createBootTorch(this, GAME_WIDTH - 275, 420, {
             sfx,
             delayMs: IGNITION_DELAY + IGNITION_STAGGER,
             displayHeight: 168,
             depth: 7,
-            fadeDuration: 1200,
-            glowFadeDuration: 1500,
+            fadeDuration: TORCH_FADE_MS,
+            glowFadeDuration: TORCH_GLOW_FADE_MS,
+            sfxLeadMs: TORCH_SFX_LEAD_MS,
         });
         this.time.delayedCall(IGNITION_DELAY, () => {
             this.tweens.add({
@@ -367,36 +389,52 @@ export class BootScene extends Phaser.Scene {
             });
         }
 
-        // The longer second line ("ETERNAL DUNGEON" — 15 chars in
-        // JetBrains Mono) is what bounds the font size; 40 px keeps
-        // it under ~360 px wide and leaves a comfortable gap to the
-        // door arch below.
-        // Depth 6 puts the title above the dim overlay (depth 5) and
-        // below the torch sprites (depth 7). That makes its visible
-        // brightness a clean function of its own alpha alone —
-        // critical for the smooth fade-in below, see the timeline
-        // comment near the dim-overlay block for the full rationale.
-        const title = this.add
-            .text(CENTER_X, 110, titleText(), {
-                fontFamily: HUD_FONT,
-                fontSize: '40px',
-                color: '#f1c75d',
-                align: 'center',
-                lineSpacing: 8,
-                stroke: '#000000',
-                strokeThickness: 4,
-            })
-            .setOrigin(0.5)
-            .setDepth(6);
+        // Title art (`title_logo.png`) replaces the previous two-line
+        // text title so the brand renders as authored art. Sized to
+        // ~350 x 197 px (preserves the source 1672 x 941 aspect) and
+        // anchored at y=100 with origin centred. Depth 6 puts the
+        // logo above the dim overlay (depth 5) and below the torch
+        // sprites (depth 7), so its visible brightness is a clean
+        // function of its own alpha alone — critical for the smooth
+        // fade-in below (see the timeline comment near the
+        // dim-overlay block). Falls back to the historical text
+        // title when the texture is missing so the boot screen still
+        // reads on a partial asset load.
+        const titleNode: Phaser.GameObjects.Image | Phaser.GameObjects.Text = this.textures.exists(
+            'boot_title_logo'
+        )
+            ? this.add
+                  .image(CENTER_X, 100, 'boot_title_logo')
+                  .setOrigin(0.5)
+                  // Display size scaled up another ~36 % (455 -> 620 wide)
+                  // so the brand reads at roughly the full width of the
+                  // door arch + flanking torches below it. Source aspect
+                  // (1672 x 941) preserved -> 620 x 349.
+                  .setDisplaySize(620, 349)
+                  .setDepth(6)
+            : this.add
+                  .text(CENTER_X, 110, 'WISHBOUND:\nETERNAL DUNGEON', {
+                      fontFamily: HUD_FONT,
+                      fontSize: '40px',
+                      color: '#f1c75d',
+                      align: 'center',
+                      lineSpacing: 8,
+                      stroke: '#000000',
+                      strokeThickness: 4,
+                  })
+                  .setOrigin(0.5)
+                  .setDepth(6);
 
         // Title fade is a single 3 s Sine.inOut alpha ramp — no
         // y-motion, no compounding with the dim overlay. The 3 s
         // duration lands the title at full brightness almost exactly
         // as the dim layer finishes lifting at t=3.5 s, so the whole
         // intro reads as one continuous dawn cue rather than a fade
-        // followed by a flash.
+        // followed by a flash. The `show_name.ogg` cue is scheduled
+        // alongside the preload chain above and uses its own ~0.8 s
+        // fade-in so it rises with the title rather than punching in.
         this.tweens.add({
-            targets: title,
+            targets: titleNode,
             alpha: { from: 0, to: 1 },
             duration: 3000,
             ease: 'Sine.inOut',
@@ -409,9 +447,13 @@ export class BootScene extends Phaser.Scene {
         // invisible during the title screen and is cross-faded with
         // the closed door in the click handler below to play the
         // "opens into the dungeon" beat before transitioning out.
+        // Door y-anchor moved down 20 px (was 410) to keep its arched
+        // top clear of the title baseline now that the door is ~20 %
+        // taller. The closed + open frames share this anchor so the
+        // cross-fade stays pixel-aligned.
         const door = this.textures.exists(DOOR_TEXTURE_KEY)
             ? this.add
-                  .sprite(CENTER_X, 410, DOOR_TEXTURE_KEY, 0)
+                  .sprite(CENTER_X, 430, DOOR_TEXTURE_KEY, 0)
                   .setOrigin(0.5, 0.5)
                   .setDisplaySize(DOOR_DISPLAY_HEIGHT, DOOR_DISPLAY_HEIGHT)
                   .setTint(DOOR_AMBIENT_TINT)
@@ -420,7 +462,7 @@ export class BootScene extends Phaser.Scene {
             : null;
         const doorOpenSprite = door
             ? this.add
-                  .sprite(CENTER_X, 410, DOOR_TEXTURE_KEY, 1)
+                  .sprite(CENTER_X, 430, DOOR_TEXTURE_KEY, 1)
                   .setOrigin(0.5, 0.5)
                   .setDisplaySize(DOOR_DISPLAY_HEIGHT, DOOR_DISPLAY_HEIGHT)
                   .setTint(DOOR_AMBIENT_TINT)
@@ -437,10 +479,12 @@ export class BootScene extends Phaser.Scene {
             });
         }
 
-        // Start button anchor moved down (was 660) so the taller
-        // door above has clearance to its lower foundation stones
-        // without overlapping the gold button frame.
-        const startUi = drawUiButton(this, CENTER_X, 705, 260, 48, loc.t('bootStart'), {
+        // Start button pulled even closer to the door (was 725 -> 695).
+        // The door texture has padding inside its display rectangle,
+        // so anchoring the button at the bottom of the door bbox
+        // (y=695) still tucks it just under the visible foundation
+        // stones instead of overlapping them.
+        const startUi = drawUiButton(this, CENTER_X, 695, 260, 48, loc.t('bootStart'), {
             variant: 'gold',
             fontSize: '18px',
             color: '#ffffff',
@@ -468,17 +512,25 @@ export class BootScene extends Phaser.Scene {
             // cleared the master gain and the dungeon ambience +
             // music start in silence.
             sfx.stopTorchAmbient(500);
+            // Fade the menu music out alongside the door swing so
+            // the title loop tapers off cleanly before GameScene
+            // starts the dungeon track. The fade duration matches
+            // the door swing so the music ends at the same beat the
+            // camera fade kicks in.
+            music.fadeOut(3500);
 
             // Door-open beat: play creak SFX, then cross-fade the
-            // closed door into the open-door sprite over 3 s so the
+            // closed door into the open-door sprite over 4 s so the
             // door visibly "swings open" through transparency
             // instead of snapping to the open frame. Camera fade-out
             // begins toward the end of the cross-fade so the dungeon
             // transition lands the moment the open door is fully
-            // resolved.
+            // resolved. Door swing and camera fade are both 1 s
+            // longer than the previous values so the transition to
+            // the dungeon reads as a slower, weightier moment.
             const proceed = () => this.scene.start('GameScene', { loc, sfx, music, devSeed });
-            const DOOR_OPEN_MS = 3000;
-            const CAMERA_FADE_MS = 400;
+            const DOOR_OPEN_MS = 4000;
+            const CAMERA_FADE_MS = 1400;
             if (door && doorOpenSprite) {
                 sfx.play('doorOpen');
                 this.tweens.add({
@@ -525,7 +577,8 @@ export class BootScene extends Phaser.Scene {
         langLabel.on('pointerdown', () => {
             const next = loc.toggle();
             langLabel.setText(next === 'ru' ? 'RU' : 'EN');
-            title.setText(titleText());
+            // Title art is locale-neutral; only the Start button
+            // label needs refreshing on a language toggle.
             startText.setText(loc.t('bootStart'));
         });
         langLabel.on('pointerover', () => langLabel.setColor('#ffffff'));

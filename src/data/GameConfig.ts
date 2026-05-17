@@ -1,14 +1,3 @@
-/**
- * Feature flags. Toggle individual game systems on/off without removing
- * their logic. When `false`, the corresponding system is hidden from
- * the UI and skipped at all call sites, but the underlying code stays
- * intact so a feature can be re-enabled later by flipping the flag.
- */
-export const FEATURES = {
-    /** Boss / mini-boss `grantsSeal` tagging and seal-coverage validation. */
-    seals: false,
-} as const;
-
 // Enemy profile is purely a visual / sprite category. Mob behaviour
 // comes from per-mob `passive` and `prepare` blocks below — there is no
 // extra mechanic attached to the profile field.
@@ -42,6 +31,11 @@ export interface EnemyPrepareDef {
     bleed?: { stacks: number; turns: number };
     /** Poison rider added when not defended. */
     poison?: { damage: number; turns: number };
+    /**
+     * Stun rider added when not defended. The player skips their next
+     * `turns` turns. Used by the giant toad's Tongue Lash.
+     */
+    stun?: { turns: number };
     /** What the player's Defend action does to this prepared hit. */
     defenseRule: 'damageBack' | 'cancelRiders' | 'leakOnDefend';
     /** Damage the enemy takes when defenseRule === 'damageBack'. */
@@ -64,10 +58,87 @@ export interface EnemyDef {
     color: number;
     profile: EnemyProfile;
     /**
+     * Per-enemy contribution to the Stage [4] relic drop formula
+     * (Z term). Integer percent, e.g. `+15` = +15% drop chance,
+     * `-10` = -10%. Missing = 0.
+     *
+     * The formula `X + Y*depth + Z + K*owned + relicMod` is rolled
+     * once per kill in `RelicDrops.maybeDropRelic`; the per-relic
+     * `RELICS[id].drops[*].chance` is then used purely as a WEIGHT
+     * for the weighted-random pick (with `chance >= 1.0` reserved
+     * for guaranteed drops, e.g. Crown of Greed on Mammon).
+     *
+     * See {@link DROP_FORMULA} for the X / Y / K knobs.
+     */
+    dropMod?: number;
+    /**
      * Optional per-turn passive trigger.
-     *  - kind: 'extraDamageOnHit' (rat — 20% deal +1 dmg)
-     *  - kind: 'thornsOnTakeHit'  (slime — 30% deal 1 dmg back when hit)
-     *  - kind: 'damageReduction'  (skeleton — 10% take −1 incoming dmg)
+     *  - kind: 'extraDamageOnHit'    (rat — 20% deal +1 dmg)
+     *  - kind: 'thornsOnTakeHit'     (slime — 30% deal 1 dmg back when hit)
+     *  - kind: 'damageReduction'     (skeleton — 10% take −1 incoming dmg;
+     *                                  earth-elemental — 30% take −2)
+     *  - kind: 'evadeAndStingOnHit'  (bee-butterfly — 20% dodge the player's
+     *    incoming attack entirely and counter for a small fixed amount of
+     *    true damage)
+     *  - kind: 'lifestealOnAttack'   (vampire — heal a ratio of the damage
+     *    dealt by a successful regular attack)
+     *  - kind: 'attackScalesWithHp'  (goblin-horde — the "thinning horde":
+     *    regular-attack damage is reduced by 1 per missing HP, so a
+     *    9-attack horde at 6/13 HP hits for `9 - (13-6) = 2` instead
+     *    of the full 9. Floors at 1.)
+     *  - kind: 'painExultation'      (succubus — "exultation in pain":
+     *    +1 regular-attack damage per `bonusPerStep` fraction of missing
+     *    HP (default 0.1 → +1 per 10% missing))
+     *  - kind: 'weakenPlayerEachTurn' (underground-ent — "strangling
+     *    roots": applies/refreshes weaken `amount` for `turns` turns to
+     *    the player at the start of every enemy turn while the enemy
+     *    is alive)
+     *  - kind: 'acidVomitOnFirstHit' (gelatinous-cube — "acid vomit":
+     *    on every regular attack that lands, `chance` to apply
+     *    armorBreak `amount` for `turns` turns to the player (defense
+     *    −amount). Re-rolls per landed hit until it triggers ONCE per
+     *    encounter, then locks; tracked by checking the player's
+     *    existing armorBreak.turns)
+     *  - kind: 'spawnOnDeath'        (rat-matron — "litter": on the
+     *    turn the enemy's hp drops to 0, instead of ending combat the
+     *    encounter respawns as the enemy named `spawnName` (canonical
+     *    English name). The spawned enemy keeps its own passive/
+     *    prepare from the roster so chained spawns are possible only
+     *    if explicitly modelled in data)
+     *  - kind: 'hellfireOnDeath'     (demon — "hellfire": on the
+     *    turn the enemy's hp drops to 0, deal `damagePerRelic` true
+     *    damage per relic in the player's inventory before combat
+     *    ends. Resolves in `finishCombat` so it is a terminal proc —
+     *    rewards still pay out as normal afterwards)
+     *  - kind: 'regenPerTurn'        (skeleton — "set the bone":
+     *    heals `amount` HP at the start of every enemy turn while
+     *    alive, capped at maxHp. Logs only on a successful heal)
+     *  - kind: 'doubleAttackChance'  (steel lynx — "predator's
+     *    instinct": chance to swing twice on a regular-attack turn.
+     *    The second swing reuses the same scaled damage path so all
+     *    other passive riders apply to it too)
+     *  - kind: 'curseDarknessOnce'   (lich — "curse of darkness":
+     *    `chance` per enemy turn to apply weaken `weakenAmount` for
+     *    `weakenTurns` turns to the player. Triggers AT MOST ONCE per
+     *    encounter — once a curse lands the lich never tries again.
+     *    Use a long `weakenTurns` (e.g. 99) for spec's "until end of
+     *    fight" semantics)
+     *  - kind: 'blocksSkillsAndPotions' (skeleton swordsman — "skilled
+     *    fencer": when the player tries to use a skill or potion, the
+     *    enemy has a `chance` to parry the attempt; the resolve / potion
+     *    cost is still spent, the skill effect is silenced, but the
+     *    player still occupies their turn so the enemy still acts)
+     *  - kind: 'corrosionStrikeOnAttack' (death knight — "corrosion
+     *    strike": on each regular-attack turn, `chance` to swap the
+     *    standard hit for a corrosion blow that deals `damage` (true
+     *    damage that bypasses defense) AND applies armorBreak for the
+     *    rest of the fight. Picks one or the other per turn — never
+     *    stacks on top of the regular attack)
+     *  - kind: 'selfHealOnLowHp'     (lost-adventurer — "healing
+     *    potions": when the enemy's hp/maxHp ratio drops below
+     *    `threshold`, the enemy heals `healFraction` of maxHp at the
+     *    start of its turn. Limited to `maxUses` heals per encounter,
+     *    tracked on `ActiveEnemy.selfHealsUsed`)
      */
     passive?: EnemyPassive;
     /** Mid-combat windup ability the enemy resolves after N turns. */
@@ -77,7 +148,31 @@ export interface EnemyDef {
 export type EnemyPassive =
     | { kind: 'extraDamageOnHit'; chance: number; bonus: number }
     | { kind: 'thornsOnTakeHit'; chance: number; damage: number }
-    | { kind: 'damageReduction'; chance: number; reduction: number };
+    | { kind: 'damageReduction'; chance: number; reduction: number }
+    | { kind: 'evadeAndStingOnHit'; chance: number; damage: number }
+    | { kind: 'lifestealOnAttack'; ratio: number }
+    | { kind: 'attackScalesWithHp' }
+    | { kind: 'painExultation'; bonusPerStep: number }
+    | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number }
+    | { kind: 'acidVomitOnFirstHit'; chance: number; amount: number; turns: number }
+    | { kind: 'spawnOnDeath'; spawnName: string }
+    | { kind: 'hellfireOnDeath'; damagePerRelic: number }
+    | { kind: 'regenPerTurn'; amount: number }
+    | { kind: 'doubleAttackChance'; chance: number }
+    | { kind: 'curseDarknessOnce'; chance: number; weakenAmount: number; weakenTurns: number }
+    | { kind: 'blocksSkillsAndPotions'; chance: number }
+    | {
+          kind: 'corrosionStrikeOnAttack';
+          chance: number;
+          damage: number;
+          armorBreak: { amount: number; turns: number };
+      }
+    | {
+          kind: 'selfHealOnLowHp';
+          threshold: number;
+          healFraction: number;
+          maxUses: number;
+      };
 
 export const PLAYER_CONFIG = {
     maxHp: 5,
@@ -86,7 +181,7 @@ export const PLAYER_CONFIG = {
     defense: 0,
     level: 1,
     xp: 0,
-    // [FIX-3] Start with 2 resolve so the player can use a starter skill on
+    // Start with 2 resolve so the player can use a starter skill on
     // turn 1; max stays at 3 (raised by level-ups via LEVEL_UP_CONFIG).
     maxResolve: 3,
 } as const;
@@ -98,7 +193,7 @@ export const LEVEL_UP_CONFIG = {
     defenseEveryNLevels: 3,
     resolveEveryNLevels: 4,
     healOnLevelUp: true,
-    // [FIX-9] Hard level ceiling. Past this level, gainXp() / level-up are
+    // Hard level ceiling. Past this level, gainXp() / level-up are
     // no-ops and the HUD shows "MAX" instead of an XP bar.
     levelCap: 10,
 } as const;
@@ -200,33 +295,6 @@ export const RUN_CONFIG = {
         targetMiniMax: 6,
         majorOddsInWindow: 0.3,
         majorOddsAtForcedEnd: 0.5,
-    },
-    /**
-     * Seal-economy controls (PR-3). Major bosses and a fraction
-     * of mini bosses tag their rooms as `grantsSeal` — these are
-     * the "seal opportunities" the player has on a run.
-     *
-     *  - `requiredSealsFactor` * runLength is the divisor for the
-     *    requiredSeals budget. Clamped to [`requiredSealsMin`,
-     *    `requiredSealsMax`].
-     *      requiredSeals = clamp(round(runLength / requiredSealsFactor), min, max)
-     *  - `miniSealOdds` is the chance that a mini-boss room ALSO
-     *    gets `grantsSeal`. Major bosses always grant a seal.
-     *  - `pathSealMargin` is how many extra seal opportunities
-     *    over `requiredSeals` we want to see on the *worst* full
-     *    path. Used by the validation report so we can flag a
-     *    run that's technically beatable but unforgivingly tight.
-     *
-     * Player-side seal inventory and the requiredSeals gate at
-     * the final boss are intentionally NOT implemented yet — see
-     * `TODO(seals)` markers in the combat code for follow-ups.
-     */
-    seals: {
-        requiredSealsFactor: 20,
-        requiredSealsMin: 1,
-        requiredSealsMax: 4,
-        miniSealOdds: 0.5,
-        pathSealMargin: 1,
     },
 } as const;
 
@@ -348,6 +416,137 @@ export const ROOM_CONFIG = {
 } as const;
 
 // ---------------------------------------------------------------------------
+// Stage [4] relic drop formula.
+//
+// Per design sheet, the chance that a slain combat enemy drops a relic
+// is computed each kill as
+//
+//     dropChance% = X + Y*depth + Z + K*owned + relicMod*100
+//
+// then clamped to [0..100] and rolled. After the roll passes, the
+// per-relic `RELICS[id].drops[*].chance` field is reinterpreted as a
+// WEIGHT for a weighted-random pick across the dead enemy's unowned
+// drop entries (with `chance >= 1.0` reserved for guaranteed drops,
+// e.g. Crown of Greed on Mammon).
+//
+// Knobs:
+//   - X (`xMin`..`xMax`): per-encounter base chance, picked uniformly
+//     in `[xMin..xMax]` inclusive. Sheet says 20..30%.
+//   - Y (`perDepth`): flat % bonus per current room depth. Sheet says
+//     +2 / room.
+//   - K (`perOwnedRelic`): % penalty per relic the player already has.
+//     Sheet says -5 / relic. Stored as a negative number so the
+//     formula is just an additive sum.
+//   - Z: per-enemy `dropMod` (see {@link EnemyDef.dropMod}). Stored
+//     on the enemy table, not here.
+//   - relicMod: aggregate.relicDropChanceMod (Clover +0.10, Cursed
+//     set -0.25). Already computed in `Relics.aggregateRelics` —
+//     this PR is what wakes it up.
+//
+// Treasure / shrine / unknown-enemy drop paths are NOT covered by
+// this formula and continue to use {@link ROOM_CONFIG} chances.
+// ---------------------------------------------------------------------------
+export const DROP_FORMULA = {
+    /** Lower bound (inclusive) of the per-encounter base chance X, in %. */
+    xMin: 20,
+    /** Upper bound (inclusive) of the per-encounter base chance X, in %. */
+    xMax: 30,
+    /** Y term: % added per dungeon depth. */
+    perDepth: 2,
+    /** K term: % added per equipped relic. Negative so the formula
+     *  is a plain sum. */
+    perOwnedRelic: -5,
+} as const;
+
+//
+// Tuning is intentionally exposed as plain numbers so the designer can
+// edit ring rotation speeds and difficulty weighting without touching
+// game code. Hot spots:
+//   - `difficulties.{easy,medium,hard}.ringSpeedsDegPerSec` — speed of
+//     each of the 3 spinning rings (in degrees per second). Larger
+//     numbers = harder. Index 0 is the outermost ring (which the stick
+//     pierces first), index 2 is the innermost.
+//   - `difficulties.*.gapWidthPx` — visual arc width of the gap on each
+//     ring, in pixels (chord-length approximation along the ring).
+//     Converted to per-ring degrees at game-construction time using
+//     `ringRadiiPx`, so the gap looks the same width on every ring
+//     even though the inner ring covers more degrees per pixel.
+//     Smaller = harder.
+//   - `ringRadiiPx` — outer → inner ring radii in pixels. Lives in data
+//     so the headless `LockpickGame` can size each ring's gap correctly
+//     without importing UI; the canvas overlay reads the same values
+//     so logic + rendering stay in lockstep.
+//   - `stickWidthPx` — visual thickness of the lockpick stick. The
+//     overlay reads this for rendering; designers reference it when
+//     tuning `gapWidthPx` (e.g. "50 % wider than the stick").
+//   - `difficultyWeights` — per-depth-band probabilities for picking
+//     easy/medium/hard. `depthBands` controls where each band starts.
+//   - `descentPxPerSec` — how fast the stick crawls down while the
+//     pierce button is held. Pair with `gapWidthPx` and
+//     `ringSpeedsDegPerSec` to tune how forgiving the timing window
+//     feels on each difficulty.
+//   - `lockedChance` — probability that any given treasure chest is
+//     locked at all (player can still walk away for free).
+//   - `failureDamage` — HP loss when the pick breaks.
+// ---------------------------------------------------------------------------
+export const LOCKPICK_CONFIG = {
+    /** Probability that a treasure chest spawns locked. */
+    lockedChance: 0.7,
+    /** HP damage dealt when the lockpick attempt fails. */
+    failureDamage: 2,
+    /** How fast the lockpick stick descends while the pierce button is
+     *  held down, in screen pixels per second. The mini-game uses a
+     *  press-and-hold mechanic: the player keeps the button pressed to
+     *  push the stick deeper and releases it to stop, so this value
+     *  has to be slow enough that they can react to the ring gaps
+     *  rotating past. */
+    descentPxPerSec: 60,
+    /** Pixel buffer between the success-resolved stick tip and the
+     *  keyhole centre. Pure cosmetics — controls how deep the tip
+     *  sinks into the keyhole on success. */
+    successOvershootPx: 4,
+    /** Outer → inner ring radii in pixels. Shared with the UI so each
+     *  ring's gap arc-width matches the rendered visual gap. */
+    ringRadiiPx: [168, 122, 77],
+    /** Visual thickness of the lockpick stick in pixels. */
+    stickWidthPx: 12,
+    /** Difficulty selection bands, keyed by minimum dungeon depth. */
+    depthBands: {
+        /** Depths >= `mid` use the medium-band weights. */
+        mid: 10,
+        /** Depths >= `deep` use the deep-band weights. */
+        deep: 20,
+    },
+    /** Per-band weights for picking the difficulty. Normalised at use. */
+    difficultyWeights: {
+        shallow: { easy: 70, medium: 25, hard: 5 },
+        mid: { easy: 30, medium: 50, hard: 20 },
+        deep: { easy: 10, medium: 40, hard: 50 },
+    },
+    /** Per-difficulty ring tuning. Speeds and gap widths are tuned to
+     *  pair with the hold-to-move stick: the stick crawls at
+     *  `descentPxPerSec` pixels per second while the button is held,
+     *  so rings have to rotate slowly enough and gaps have to be small
+     *  enough that timing the release is meaningful. */
+    difficulties: {
+        easy: {
+            /** Outer → inner ring speeds in degrees per second. */
+            ringSpeedsDegPerSec: [60, 70, 80],
+            /** Visual width of the gap arc on every ring, in pixels. */
+            gapWidthPx: 72,
+        },
+        medium: {
+            ringSpeedsDegPerSec: [90, 100, 110],
+            gapWidthPx: 60,
+        },
+        hard: {
+            ringSpeedsDegPerSec: [120, 130, 140],
+            gapWidthPx: 48,
+        },
+    },
+} as const;
+
+// ---------------------------------------------------------------------------
 // Altar (shrine room) effects. The four canonical actions per design table:
 //   blessing → +1 attack (run)
 //   prayer   → +5 max HP (run, also heals 5)
@@ -366,6 +565,17 @@ export const ALTAR_EFFECTS = {
 // Enemy roster (per-spec). Stats and special mechanics taken directly
 // from the design table; passives and prepare blocks are interpreted
 // by CombatManager.
+// Stats per the design table:
+//   1–5   → minDepth 0   (Rat, Slime, Bat, Bee-Butterfly, Giant Toad)
+//   6–10  → minDepth 6   (Rat Matron, Skeleton, Ghoul, Gelatinous Cube,
+//                          Earth Elemental)
+//   11–15 → minDepth 11  (Steel Lynx, Vampire, Demon, Goblin Horde,
+//                          Underground Ent)
+//   16–20 → minDepth 16  (Skeleton Swordsman, Lich, Succubus,
+//                          Lost Adventurer, Death Knight)
+//   21–25 → minDepth 21  (Prophet, Mammon, Nimrod, Mime, Gilgamesh)
+// New roster entries from the design sheet ship without passive /
+// prepare blocks — those land in follow-up PRs, one ability per PR.
 export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
     {
         minDepth: 0,
@@ -374,48 +584,39 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 name: 'Rat',
                 description: 'test_desc_rat',
                 icon: 'R',
-                hp: 5,
+                hp: 2,
                 attack: 1,
                 xp: 3,
                 gold: 3,
                 color: 0x5a5040,
                 profile: 'stalker',
+                dropMod: 5,
                 passive: { kind: 'extraDamageOnHit', chance: 0.2, bonus: 1 },
             },
             {
                 name: 'Slime',
                 description: 'test_desc_slime',
                 icon: 'S',
-                hp: 3,
-                attack: 2,
+                hp: 2,
+                attack: 1,
                 xp: 3,
                 gold: 3,
                 color: 0x3e6636,
                 profile: 'brute',
+                dropMod: -5,
                 passive: { kind: 'thornsOnTakeHit', chance: 0.3, damage: 1 },
-            },
-            {
-                name: 'Skeleton',
-                description: 'test_desc_skeleton',
-                icon: 'K',
-                hp: 6,
-                attack: 2,
-                xp: 4,
-                gold: 4,
-                color: 0x888070,
-                profile: 'brute',
-                passive: { kind: 'damageReduction', chance: 0.1, reduction: 1 },
             },
             {
                 name: 'Bat',
                 description: 'test_desc_bat',
                 icon: 'B',
-                hp: 5,
+                hp: 2,
                 attack: 1,
                 xp: 3,
                 gold: 4,
                 color: 0x36463f,
                 profile: 'stalker',
+                dropMod: 0,
                 prepare: {
                     nameEn: 'Bite',
                     nameRu: 'Укус',
@@ -426,15 +627,96 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 },
             },
             {
+                name: 'Bee-Butterfly',
+                description: 'test_desc_bee_butterfly',
+                icon: 'Y',
+                hp: 3,
+                attack: 2,
+                xp: 3,
+                gold: 3,
+                color: 0xc4a01e,
+                profile: 'stalker',
+                dropMod: 10,
+                // Flutter and sting: 20% chance to dodge the player's
+                // attack outright; on dodge the bee-butterfly counters
+                // for 1 true damage.
+                passive: { kind: 'evadeAndStingOnHit', chance: 0.2, damage: 1 },
+            },
+            {
+                name: 'Giant Toad',
+                description: 'test_desc_giant_toad',
+                icon: 'T',
+                hp: 3,
+                attack: 2,
+                xp: 3,
+                gold: 3,
+                color: 0x4a6b2a,
+                profile: 'brute',
+                dropMod: 5,
+                // Tongue Lash: 1-turn windup, on resolve the toad licks
+                // for 1 damage and binds the player for 1 turn (skip
+                // next action). Defending cancels the stun (and the
+                // poison rider in similar windups), the player still
+                // takes the lick damage on the resolve turn.
+                prepare: {
+                    nameEn: 'Tongue Lash',
+                    nameRu: 'Языковая хватка',
+                    turns: 1,
+                    damage: 1,
+                    stun: { turns: 1 },
+                    defenseRule: 'cancelRiders',
+                },
+            },
+        ],
+    },
+    {
+        minDepth: 6,
+        pool: [
+            {
+                name: 'Rat Matron',
+                description: 'test_desc_rat_matron',
+                icon: 'M',
+                hp: 8,
+                attack: 2,
+                xp: 5,
+                gold: 5,
+                color: 0x6b4530,
+                profile: 'brute',
+                dropMod: 15,
+                // Litter: when the matron is killed, the encounter
+                // doesn't end — it continues with a fresh Rat. The
+                // spawned Rat carries its own (lighter) reward yield,
+                // so killing both creatures gives you both bounties.
+                passive: { kind: 'spawnOnDeath', spawnName: 'Rat' },
+            },
+            {
+                name: 'Skeleton',
+                description: 'test_desc_skeleton',
+                icon: 'K',
+                hp: 6,
+                attack: 3,
+                xp: 4,
+                gold: 4,
+                color: 0x888070,
+                profile: 'brute',
+                dropMod: 5,
+                // Set the Bone: regenerates 1 HP at the start of every
+                // enemy turn while alive. Per the design sheet replaces
+                // the legacy 10% damage-reduction passive — the
+                // skeleton is a sustain threat, not a soak threat.
+                passive: { kind: 'regenPerTurn', amount: 1 },
+            },
+            {
                 name: 'Ghoul',
                 description: 'test_desc_ghoul',
                 icon: 'G',
-                hp: 10,
-                attack: 1,
+                hp: 7,
+                attack: 2,
                 xp: 5,
                 gold: 5,
                 color: 0x455544,
                 profile: 'bleeder',
+                dropMod: 0,
                 prepare: {
                     nameEn: 'Decay',
                     nameRu: 'Разложение',
@@ -447,46 +729,324 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                     defenseLeakDamage: 1,
                 },
             },
+            {
+                name: 'Gelatinous Cube',
+                description: 'test_desc_gelatinous_cube',
+                icon: 'C',
+                hp: 9,
+                attack: 2,
+                xp: 5,
+                gold: 5,
+                color: 0x82c4d4,
+                profile: 'brute',
+                dropMod: 10,
+                // Acid Vomit: on every regular attack that lands, 40%
+                // to apply armorBreak −1 to the player for the rest of
+                // the fight (turns=99 picks a value larger than any
+                // realistic combat length without making it literally
+                // infinite). Locks after the first successful trigger
+                // — `turns=0` on the player gates re-rolls so each cube
+                // gets at most one acid burst per encounter.
+                passive: {
+                    kind: 'acidVomitOnFirstHit',
+                    chance: 0.4,
+                    amount: 1,
+                    turns: 99,
+                },
+            },
+            {
+                name: 'Earth Elemental',
+                description: 'test_desc_earth_elemental',
+                icon: 'E',
+                hp: 9,
+                attack: 2,
+                xp: 5,
+                gold: 5,
+                color: 0x6e553b,
+                profile: 'brute',
+                dropMod: -10,
+                // Stone Skin: 30% chance to shrug off 2 points of an
+                // incoming player hit. Same damageReduction passive as
+                // Skeleton, just thicker.
+                passive: { kind: 'damageReduction', chance: 0.3, reduction: 2 },
+            },
         ],
     },
     {
-        minDepth: 5,
+        minDepth: 11,
         pool: [
             {
                 name: 'Steel Lynx',
                 description: 'test_desc_steel_lynx',
                 icon: 'L',
-                hp: 10,
-                attack: 6,
+                hp: 12,
+                attack: 3,
                 xp: 10,
                 gold: 10,
                 color: 0x6a6a7a,
                 profile: 'bleeder',
-                prepare: {
-                    nameEn: 'Claws',
-                    nameRu: 'Когти',
-                    turns: 1,
-                    damage: 3,
-                    bleed: { stacks: 3, turns: 3 },
-                    defenseRule: 'cancelRiders',
-                },
+                dropMod: 10,
+                // Predator's Instinct: 40% chance to swing twice on a
+                // regular-attack turn. Replaces the legacy "Claws"
+                // 1-turn windup with bleed rider — per the design
+                // sheet the lynx is a burst-pressure mob, not a
+                // bleed setup.
+                passive: { kind: 'doubleAttackChance', chance: 0.4 },
             },
+            {
+                name: 'Vampire',
+                description: 'test_desc_vampire',
+                icon: 'V',
+                hp: 9,
+                attack: 4,
+                xp: 8,
+                gold: 8,
+                color: 0x4a1a1a,
+                profile: 'stalker',
+                dropMod: 15,
+                // Vampirism: heal 65% of any damage the regular attack
+                // dealt to the player (clamped to maxHp, min 1 when the
+                // hit landed). Sheet specifies ceil rounding so a 1-dmg
+                // hit still heals 1; a 2-dmg hit heals 2 (ceil 1.3); a
+                // 3-dmg hit heals 2 (ceil 1.95); a 5-dmg hit heals 4.
+                passive: { kind: 'lifestealOnAttack', ratio: 0.65 },
+            },
+            {
+                name: 'Demon',
+                description: 'test_desc_demon',
+                icon: 'D',
+                hp: 13,
+                attack: 5,
+                xp: 10,
+                gold: 10,
+                color: 0x8a1a1a,
+                profile: 'brute',
+                dropMod: -15,
+                // Hellfire: when killed, the demon detonates and the
+                // player takes 1 true damage per relic they carry into
+                // the encounter. Bypasses defense (terminal explosion
+                // resolves in finishCombat). With MAX_RELICS=5 the
+                // worst case is 5 damage — non-trivial but never
+                // outright lethal at the depth tier where the demon
+                // appears.
+                passive: { kind: 'hellfireOnDeath', damagePerRelic: 1 },
+            },
+            {
+                name: 'Goblin Horde',
+                description: 'test_desc_goblin_horde',
+                icon: 'O',
+                hp: 13,
+                attack: 9,
+                xp: 10,
+                gold: 10,
+                color: 0x4d6a2a,
+                profile: 'brute',
+                dropMod: 20,
+                // Thinning Horde: attack scales linearly with hp/maxHp.
+                // The 9-damage swing is the *full-strength* horde; as
+                // goblins fall the surviving few hit weaker.
+                passive: { kind: 'attackScalesWithHp' },
+            },
+            {
+                name: 'Underground Ent',
+                description: 'test_desc_underground_ent',
+                icon: 'N',
+                hp: 14,
+                attack: 4,
+                xp: 10,
+                gold: 10,
+                color: 0x3a5532,
+                profile: 'brute',
+                dropMod: 10,
+                // Strangling Roots: each enemy turn, refresh a weaken-1
+                // for 2 turns on the player so the player's next swing
+                // is chipped by 1 while the ent is alive. Decays
+                // naturally after the ent dies.
+                passive: { kind: 'weakenPlayerEachTurn', amount: 1, turns: 2 },
+            },
+        ],
+    },
+    {
+        minDepth: 16,
+        pool: [
             {
                 name: 'Skeleton Swordsman',
                 description: 'test_desc_skeleton_swordsman',
                 icon: 'W',
-                hp: 15,
-                attack: 3,
-                xp: 8,
-                gold: 8,
+                hp: 18,
+                attack: 7,
+                xp: 14,
+                gold: 14,
                 color: 0x888070,
                 profile: 'brute',
+                dropMod: 15,
+                // Skilled Fencer: 40% chance to parry the next skill or
+                // potion the player tries to use. The resolve / potion
+                // cost is still spent (the gating cost is paid before
+                // the parry roll), the effect is silenced, and the
+                // player's turn still passes so the enemy still acts.
+                passive: { kind: 'blocksSkillsAndPotions', chance: 0.4 },
+            },
+            {
+                name: 'Lich',
+                description: 'test_desc_lich',
+                icon: 'I',
+                hp: 17,
+                attack: 4,
+                xp: 14,
+                gold: 14,
+                color: 0x453d5a,
+                profile: 'stalker',
+                dropMod: 20,
+                // Curse of Darkness: each enemy turn (until first
+                // success) the lich rolls a 60% chance to apply
+                // weaken -2 to the player. Long `weakenTurns` (99)
+                // approximates the spec's "until end of fight"
+                // semantics — natural decay still ticks once per
+                // turn, so the curse follows the player for the
+                // whole encounter. Triggers exactly once per fight.
+                passive: {
+                    kind: 'curseDarknessOnce',
+                    chance: 0.6,
+                    weakenAmount: 2,
+                    weakenTurns: 99,
+                },
+            },
+            {
+                name: 'Succubus',
+                description: 'test_desc_succubus',
+                icon: 'U',
+                hp: 22,
+                attack: 1,
+                xp: 18,
+                gold: 18,
+                color: 0x6a2a44,
+                profile: 'stalker',
+                dropMod: -15,
+                // Exultation in Pain: +1 damage per 10% missing HP.
+                // Base attack of 1 is *almost* pillow-soft at full HP;
+                // the threat scales as the player chips her down.
+                passive: { kind: 'painExultation', bonusPerStep: 0.1 },
+            },
+            {
+                name: 'Lost Adventurer',
+                description: 'test_desc_lost_adventurer',
+                icon: 'A',
+                hp: 20,
+                attack: 4,
+                xp: 16,
+                gold: 16,
+                color: 0x9a8a6a,
+                profile: 'brute',
+                dropMod: 25,
+                // Healing Potions: when hp falls below 50% of maxHp,
+                // the adventurer chugs a potion at the start of his
+                // turn and recovers 50% of maxHp. Limited to two
+                // potions per encounter (per the design sheet).
+                passive: {
+                    kind: 'selfHealOnLowHp',
+                    threshold: 0.5,
+                    healFraction: 0.5,
+                    maxUses: 2,
+                },
+            },
+            {
+                name: 'Death Knight',
+                description: 'test_desc_death_knight',
+                icon: '\u2620',
+                hp: 24,
+                attack: 5,
+                xp: 18,
+                gold: 18,
+                color: 0x2a0814,
+                profile: 'brute',
+                dropMod: 15,
+                // Corrosion Strike: 40% chance per regular-attack turn
+                // to swap the standard hit for a corrosion blow — 3
+                // true damage (bypasses defense) AND apply armorBreak
+                // -1 for the rest of the fight (turns=99 for the same
+                // "until end of fight" semantics as Acid Vomit). Only
+                // one or the other per turn; never stacks on top of
+                // the regular attack.
+                passive: {
+                    kind: 'corrosionStrikeOnAttack',
+                    chance: 0.4,
+                    damage: 3,
+                    armorBreak: { amount: 1, turns: 99 },
+                },
+            },
+        ],
+    },
+    {
+        minDepth: 21,
+        pool: [
+            {
+                name: 'Prophet',
+                description: 'test_desc_prophet',
+                icon: 'P',
+                hp: 45,
+                attack: 7,
+                xp: 35,
+                gold: 35,
+                color: 0xe6d680,
+                profile: 'brute',
+                dropMod: -20,
+            },
+            {
+                name: 'Mammon',
+                description: 'test_desc_mammon',
+                icon: '$',
+                hp: 37,
+                attack: 8,
+                xp: 30,
+                gold: 30,
+                color: 0xa67c00,
+                profile: 'brute',
+                dropMod: 30,
+            },
+            {
+                name: 'Nimrod',
+                description: 'test_desc_nimrod',
+                icon: 'X',
+                hp: 41,
+                attack: 0,
+                xp: 32,
+                gold: 32,
+                color: 0x483050,
+                profile: 'stalker',
+                dropMod: 25,
+            },
+            {
+                name: 'Mime',
+                description: 'test_desc_mime',
+                icon: '?',
+                hp: 34,
+                attack: 6,
+                xp: 28,
+                gold: 28,
+                color: 0xb0b0b0,
+                profile: 'stalker',
+                // Sheet says "-20%..+20%" — 0 picked as the mean per
+                // the user's "sensible defaults" confirmation.
+                dropMod: 0,
+            },
+            {
+                name: 'Gilgamesh',
+                description: 'test_desc_gilgamesh',
+                icon: 'H',
+                hp: 43,
+                attack: 7,
+                xp: 34,
+                gold: 34,
+                color: 0xb87333,
+                profile: 'brute',
+                dropMod: 20,
             },
         ],
     },
 ];
 
-// [FIX-1, FIX-4] Legacy boss mapping keyed by depth bucket. Pre-PR-1
+// Legacy boss mapping keyed by depth bucket. Pre-PR-1
 // the map generator placed forced bosses every 5 depths, so this table
 // resolved each bucket to a unique encounter. PR-1 removed those
 // hardcoded boss depths — only the final-layer encounter (depth ===
@@ -496,20 +1056,89 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
 // BOSS rooms at those depths until PR-2 wires up bossPressure-based
 // placement (MINI_BOSS / major BOSS).
 //
+// Depth 25 now resolves to one of five candidate bosses chosen
+// deterministically from the combat RNG. Stats mirror the design
+// table directly; ability blocks land in follow-up PRs (one boss /
+// ability per PR). Boss reward multipliers still apply on top in
+// CombatManager.setupEnemy.
+//
 // See src/data/Enemies.ts (lookup + fallback) and src/data/Bosses.ts.
 export const BOSSES: { depth: number; def: EnemyDef }[] = [
     {
         depth: 25,
         def: {
-            name: 'Death Knight',
-            description: 'test_desc_death_knight',
-            icon: '\u2620',
+            name: 'Prophet',
+            description: 'test_desc_prophet',
+            icon: 'P',
             hp: 45,
+            attack: 7,
+            xp: 50,
+            gold: 40,
+            color: 0xe6d680,
+            profile: 'boss',
+            dropMod: -20,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Mammon',
+            description: 'test_desc_mammon',
+            icon: '$',
+            hp: 37,
             attack: 8,
             xp: 50,
             gold: 40,
-            color: 0x2a0814,
+            color: 0xa67c00,
             profile: 'boss',
+            dropMod: 30,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Nimrod',
+            description: 'test_desc_nimrod',
+            icon: 'X',
+            hp: 41,
+            attack: 0,
+            xp: 50,
+            gold: 40,
+            color: 0x483050,
+            profile: 'boss',
+            dropMod: 25,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Mime',
+            description: 'test_desc_mime',
+            icon: '?',
+            hp: 34,
+            attack: 6,
+            xp: 50,
+            gold: 40,
+            color: 0xb0b0b0,
+            profile: 'boss',
+            // Sheet says "-20%..+20%" — 0 picked as the mean per
+            // the user's "sensible defaults" confirmation.
+            dropMod: 0,
+        },
+    },
+    {
+        depth: 25,
+        def: {
+            name: 'Gilgamesh',
+            description: 'test_desc_gilgamesh',
+            icon: 'H',
+            hp: 43,
+            attack: 7,
+            xp: 50,
+            gold: 40,
+            color: 0xb87333,
+            profile: 'boss',
+            dropMod: 20,
         },
     },
 ];

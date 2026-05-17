@@ -1,4 +1,4 @@
-import { getBossForDepth, getEnemyForDepth } from '../data/Enemies';
+import { getBossForDepth, getEnemyByName, getEnemyForDepth } from './EnemyPicker';
 import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';
 import {
@@ -22,9 +22,15 @@ import { PlayerManager } from './PlayerManager';
 import { SKILLS } from './Skills';
 import type { SkillId } from './Skills';
 import {
+    applyArmorBreak,
     applyBleed,
+    applyMark,
+    applyPoison,
+    applyStun,
+    applyWeaken,
     consumeGuardBlock,
     consumeMark,
+    consumeStunForTurn,
     emptyStatusState,
     statusSummary,
     tickTurn,
@@ -47,7 +53,7 @@ export type CombatAction =
 type EncounterKind = 'normal' | 'elite' | 'boss';
 
 /**
- * [FIX-10] Per-combat boss phase tracking. Built from a BossBlueprint
+ * Per-combat boss phase tracking. Built from a BossBlueprint
  * when the enemy's name matches an entry in BOSS_BLUEPRINT_BY_NAME.
  * Lives on the ActiveEnemy so it is GC'd when combat ends.
  */
@@ -75,6 +81,26 @@ export interface BossPhaseState {
         actionDef: BossActionDef;
         turnsRemaining: number;
     };
+    /**
+     * Mime's anti-repeat tracker for the random-status rider on
+     * `mime_chaos` actions. Records the last status picked so the
+     * next roll is forced to choose a different one. Reset by
+     * encounter setup.
+     */
+    lastRandomStatus?: 'bleed' | 'poison' | 'stun' | 'weaken' | 'armorBreak' | 'mark';
+    /**
+     * Mammon's "Greed Lord" snapshot of the relic he stole from the
+     * player. Set when `onEnterStealRelic` resolves on phase entry;
+     * read in `finishCombat` so the relic is restored to the player
+     * on Mammon's death.
+     */
+    stolenRelicId?: import('./Relics').RelicId;
+    /**
+     * Prophet's resurrection guard. Set to `true` once
+     * `resurrectOnDeath` has fired so subsequent kills go through
+     * the normal finishCombat pipeline.
+     */
+    resurrected?: boolean;
 }
 
 export interface ActiveEnemy {
@@ -96,6 +122,20 @@ export interface ActiveEnemy {
     status: StatusState;
     firstHitEvaded?: boolean;
     firstStunResisted?: boolean;
+    /**
+     * Lich's "Curse of Darkness" tracks whether its single per-fight
+     * curse has already landed. Set to `true` once the weaken applies
+     * so the lich never tries to re-curse later turns. Reset by
+     * encounter setup since `setupEnemy` builds an `ActiveEnemy` from
+     * scratch.
+     */
+    curseDarknessFired?: boolean;
+    /**
+     * Lost Adventurer's "Healing Potions" counter. Increments each
+     * time the `selfHealOnLowHp` passive fires; the passive stops
+     * triggering once it reaches the configured `maxUses`.
+     */
+    selfHealsUsed?: number;
     /** Per-spec passive trigger copied from EnemyDef at combat start. */
     passive?: EnemyPassive;
     /**
@@ -105,14 +145,14 @@ export interface ActiveEnemy {
      * player has one turn to react with Defend).
      */
     pendingPrepare?: { def: EnemyPrepareDef; turnsRemaining: number };
-    /** [FIX-10] Phase blueprint runtime state, only set on bosses. */
+    /** Phase blueprint runtime state, only set on bosses. */
     bossPhase?: BossPhaseState;
     /**
-     * [FIX-10] Localised one-line intent shown BEFORE the boss's next
+     * Localised one-line intent shown BEFORE the boss's next
      * turn so the player can respond. `null` for non-boss enemies.
      */
     currentIntent?: string | null;
-    /** [FIX-1] Hard cap on stack count for bleed (final boss). */
+    /** Hard cap on stack count for bleed (final boss). */
     bleedCap?: number;
 }
 
@@ -130,7 +170,7 @@ export interface CombatEndPayload {
     kind: EncounterKind;
     rewards: CombatRewards;
     killedByBleed: boolean;
-    /** [FIX-1] Set when the slain enemy was the final boss. */
+    /** Set when the slain enemy was the final boss. */
     finalBossDefeated: boolean;
 }
 
@@ -186,12 +226,12 @@ export class CombatManager {
     public readonly playerHit = new Emitter<{ damage: number }>();
     public readonly combatEnd = new Emitter<CombatEndPayload>();
 
-    /** [FIX-5] Per-combat skill cooldowns keyed by SkillId. */
+    /** Per-combat skill cooldowns keyed by SkillId. */
     public skillCooldowns: Partial<Record<SkillId, number>> = {};
     /** Preparation buff: next attack +1 damage, next defend +1 defense. */
     public preparationActive = false;
     /**
-     * [FIX-13] Per-turn relic guards. Reset at the top of every player
+     * Per-turn relic guards. Reset at the top of every player
      * turn so Vampiric Sigil / Gambler's Knuckle resolve gain can fire
      * at most once per turn regardless of how many crits / kills line
      * up in that turn.
@@ -215,12 +255,21 @@ export class CombatManager {
         return this.loc.pick(SKILLS[id].name);
     }
 
-    startCombat(depth: number, kind: EncounterKind) {
+    /**
+     * Begin a new combat at the given depth. When `kind === 'boss'`
+     * and the depth maps to multiple boss candidates, the seeded RNG
+     * picks one deterministically. Tests can short-circuit the pool /
+     * boss lookup entirely by passing an explicit `override` def.
+     */
+    startCombat(depth: number, kind: EncounterKind, override?: EnemyDef) {
         // Reset per-combat state.
         this.skillCooldowns = {};
         this.preparationActive = false;
         const definition =
-            kind === 'boss' ? getBossForDepth(depth) : getEnemyForDepth(depth, this.rng);
+            override ??
+            (kind === 'boss'
+                ? getBossForDepth(depth, this.rng)
+                : getEnemyForDepth(depth, this.rng));
         this.setupEnemy(depth, kind, definition);
     }
 
@@ -247,7 +296,7 @@ export class CombatManager {
                 ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
                 : definition.attack;
 
-        // [FIX-10] Look up a boss blueprint by canonical English name so
+        // Look up a boss blueprint by canonical English name so
         // localisation never breaks the lookup. Non-boss kinds skip this.
         const blueprint = kind === 'boss' ? BOSS_BLUEPRINT_BY_NAME[definition.name] : undefined;
 
@@ -320,14 +369,14 @@ export class CombatManager {
     }
 
     /**
-     * [FIX-5] Look up the remaining cooldown for a skill (0 = ready).
+     * Look up the remaining cooldown for a skill (0 = ready).
      * Used by both UI and the headless simulator.
      */
     getSkillCooldown(id: SkillId): number {
         return this.skillCooldowns[id] ?? 0;
     }
 
-    /** [FIX-5] True when the skill is on cooldown and unusable. */
+    /** True when the skill is on cooldown and unusable. */
     isSkillOnCooldown(id: SkillId): boolean {
         return this.getSkillCooldown(id) > 0;
     }
@@ -343,15 +392,15 @@ export class CombatManager {
             enemyEvaded: false,
         };
         this.enemy.turnsAlive += 1;
-        // [FIX-10] Reset per-turn boss-phase state before the player acts.
+        // Reset per-turn boss-phase state before the player acts.
         if (this.enemy.bossPhase) {
             this.enemy.bossPhase.damagedThisTurn = false;
         }
-        // [FIX-13] Reset per-turn relic guards.
+        // Reset per-turn relic guards.
         this.vampiricHealedThisTurn = false;
         this.gamblersResolveThisTurn = 0;
 
-        // [FIX-5] Tick down cooldowns at the start of each player turn.
+        // Tick down cooldowns at the start of each player turn.
         for (const id of Object.keys(this.skillCooldowns) as SkillId[]) {
             const remaining = this.skillCooldowns[id] ?? 0;
             if (remaining > 0) {
@@ -364,7 +413,15 @@ export class CombatManager {
 
         const actionName = typeof action === 'string' ? action : action.kind;
 
-        if (actionName === 'attack') {
+        // Giant-Toad-style player stun: if the player is bound, their
+        // chosen action is forfeit. The enemy's turn still resolves.
+        // Stun ticks here (consumeStunForTurn decrements turns) so the
+        // very next player turn after a stun=1 application is the one
+        // skipped, and the one after that is free again.
+        const playerStunned = consumeStunForTurn(this.player.status);
+        if (playerStunned) {
+            this.log.addMessage(this.loc.t('combatPlayerStunned'), '#7aaaff');
+        } else if (actionName === 'attack') {
             this.handlePlayerAttack();
         } else if (actionName === 'defend') {
             this.handlePlayerDefend();
@@ -404,8 +461,81 @@ export class CombatManager {
 
         if (this.enemy && this.enemy.hp <= 0) {
             const killedByBleed = actionName === 'defend' || actionName === 'potion';
-            this.finishCombat(killedByBleed);
-            return;
+            // Prophet "Furious Resurrection": once per encounter,
+            // restore HP and buff attack instead of dying. Resolves
+            // BEFORE all other death-trigger paths (hellfire, spawn,
+            // finishCombat) so the boss simply continues the fight
+            // with the new stats. The blueprint flag prevents repeat
+            // resurrections.
+            if (
+                this.enemy.bossPhase &&
+                this.enemy.bossPhase.blueprint.resurrectOnDeath &&
+                !this.enemy.bossPhase.resurrected
+            ) {
+                const cfg = this.enemy.bossPhase.blueprint.resurrectOnDeath;
+                this.enemy.bossPhase.resurrected = true;
+                this.enemy.hp = Math.max(1, Math.floor(this.enemy.maxHp * cfg.hpFraction));
+                const newAttack = Math.max(1, Math.round(this.enemy.attack * cfg.attackMultiplier));
+                this.enemy.attack = newAttack;
+                this.log.addMessage(
+                    this.loc.t('combatBossResurrect', {
+                        name: this.enemy.name,
+                        hp: this.enemy.hp,
+                        attack: newAttack,
+                    }),
+                    '#ffe08a'
+                );
+                this.enemyUpdate.emit({
+                    hp: this.enemy.hp,
+                    maxHp: this.enemy.maxHp,
+                    color: this.enemy.color,
+                    name: this.enemy.name,
+                    icon: this.enemy.icon,
+                });
+                // Fall through past the death-trigger block; the rest
+                // of processTurn (resolveEnemyTurn etc.) runs as if
+                // the boss never died.
+            } else {
+                // Death-trigger passive: Demon-style 'hellfireOnDeath'
+                // detonates the dying enemy for true damage scaled by
+                // the player's relic count. Resolves BEFORE finishCombat
+                // so the explosion can still kill the player and route
+                // them through the death screen — finishCombat itself
+                // then plays out as normal (rewards still pay if the
+                // player survived). The spawnOnDeath check below short-
+                // circuits combat continuation, so put hellfire first
+                // and let the spawn case handle the matron / replacement
+                // flow it already owns.
+                if (this.enemy.passive?.kind === 'hellfireOnDeath') {
+                    const relicCount = this.player.relics.length;
+                    const damage = relicCount * this.enemy.passive.damagePerRelic;
+                    if (damage > 0) {
+                        const taken = this.player.takeDamage(damage, 0, 'true');
+                        this.log.addMessage(
+                            this.loc.t('combatEnemyHellfireOnDeath', {
+                                name: this.enemy.name,
+                                damage: taken,
+                            }),
+                            '#ff8a3a'
+                        );
+                        if (taken > 0) this.playerHit.emit({ damage: taken });
+                        if (this.player.stats.hp <= 0) {
+                            this.logDeath();
+                            this.finishCombat(killedByBleed);
+                            return;
+                        }
+                    }
+                }
+                // Death-trigger passive: Rat Matron-style 'spawnOnDeath'
+                // respawns the encounter as a different enemy instead
+                // of ending combat.
+                if (this.enemy.passive?.kind === 'spawnOnDeath') {
+                    this.spawnReplacement(this.enemy.passive.spawnName, killedByBleed);
+                    return;
+                }
+                this.finishCombat(killedByBleed);
+                return;
+            }
         }
 
         this.resolveEnemyTurn(actionName as Exclude<CombatAction, { kind: 'skill'; id: SkillId }>);
@@ -447,20 +577,22 @@ export class CombatManager {
     private handlePlayerAttack() {
         if (!this.enemy) return;
         this.player.gainResolve(COMBAT_CONFIG.resolveFromAttack);
-        // Cursed Amulet (and similar): the curse may make the strike
-        // miss outright. The Resolve gain above is preserved so the
-        // economy is not punished, but no damage / on-hit procs run.
-        const agg = this.player.aggregate;
-        if (agg.missChance > 0 && this.rng.next() < agg.missChance) {
-            this.log.addMessage(this.loc.t('combatRelicCursedMiss'), '#a08070');
-            return;
-        }
         const result = this.rollPlayerAttack();
         let damage = result.damage;
         if (this.preparationActive) {
             damage += 1;
             this.preparationActive = false;
             this.log.addMessage(this.loc.t('combatPreparationAttack'), '#9bc8ff');
+        }
+        // Knight's Sword: +5 damage on a regular attack at the relic's
+        // chance. Resolved on the basic-attack path ONLY (skills, bleed
+        // ticks, Cursed-Ring scrubbed strikes do NOT receive it). Logged
+        // before the strike line so the order reads "extra → strike".
+        const agg = this.player.aggregate;
+        if (agg.damageBonusOnAttackChance > 0 && this.rng.next() < agg.damageBonusOnAttackChance) {
+            const bonus = agg.damageBonusOnAttackAmount;
+            damage += bonus;
+            this.log.addMessage(this.loc.t('combatRelicKnightSwordBonus', { bonus }), '#e6d27a');
         }
         this.applyPlayerDamage(damage, result.critical);
         this.log.addMessage(
@@ -473,6 +605,7 @@ export class CombatManager {
             this.log.addMessage(narrate('crit_landed', this.loc.language), '#c4a35a');
         }
         this.applyOnAttackRelics();
+        this.applyResolveOnAttack();
     }
 
     private handlePlayerDefend() {
@@ -508,21 +641,22 @@ export class CombatManager {
             return false;
         }
 
-        // Cursed Ring (and similar): the curse may scrub the skill and
-        // resolve it as a basic strike instead. Resolve already paid is
-        // NOT refunded — the curse keeps the cost as a tax.
-        const agg = this.player.aggregate;
-        if (agg.skillToBasicChance > 0 && this.rng.next() < agg.skillToBasicChance) {
-            this.log.addMessage(this.loc.t('combatRelicCursedSkillBasic'), '#a08070');
-            const result = this.rollPlayerAttack();
-            this.applyPlayerDamage(result.damage, result.critical);
+        // Skeleton Swordsman "Skilled Fencer": parry the skill before
+        // its effect resolves. The resolve cost is already spent above
+        // (and is NOT refunded — the parry just wastes the player's
+        // turn) and the player's turn still passes so the enemy still
+        // acts on top.
+        if (
+            this.enemy.passive?.kind === 'blocksSkillsAndPotions' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
             this.log.addMessage(
-                result.critical
-                    ? this.loc.t('strikeCrit', { damage: result.damage })
-                    : this.loc.t('strike', { damage: result.damage }),
-                result.critical ? '#ffe08a' : '#dddddd'
+                this.loc.t('combatEnemyParrySkill', {
+                    name: this.enemy.name,
+                    value: this.skillName(skillId),
+                }),
+                '#a89070'
             );
-            this.applyOnAttackRelics();
             return true;
         }
 
@@ -534,6 +668,7 @@ export class CombatManager {
                 this.applyPlayerDamage(dmg, false);
                 this.log.addMessage(this.loc.t('combatSkillCleave', { dmg }), '#b893ff');
                 this.applyOnAttackRelics();
+                this.applyResolveOnAttack();
                 breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
                 break;
             }
@@ -544,6 +679,7 @@ export class CombatManager {
                 applyBleed(this.enemy.status, bleedPerTick, 3, this.enemy.bleedCap);
                 this.log.addMessage(this.loc.t('combatSkillBleedStrike', { dmg }), '#d06060');
                 this.applyOnAttackRelics();
+                this.applyResolveOnAttack();
                 breakBossBlockOnSkillDamage(this.enemy, this.log, this.loc);
                 break;
             }
@@ -561,6 +697,22 @@ export class CombatManager {
             this.log.addMessage(this.loc.t('noPotions'), '#8899aa');
             return false;
         }
+        // Skeleton Swordsman "Skilled Fencer": parry the potion as it
+        // is being drunk. The potion is already consumed (cost is the
+        // gating mechanic) but the heal is silenced. Player's turn
+        // still passes.
+        if (
+            this.enemy?.passive?.kind === 'blocksSkillsAndPotions' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            this.log.addMessage(
+                this.loc.t('combatEnemyParryPotion', {
+                    name: this.enemy.name,
+                }),
+                '#a89070'
+            );
+            return true;
+        }
         const healed = this.player.heal(COMBAT_CONFIG.potionHeal);
         this.log.addMessage(this.loc.t('drinkPotion', { healed }), '#78e496');
         return true;
@@ -568,28 +720,33 @@ export class CombatManager {
 
     private applyPlayerDamage(baseDamage: number, criticalIn: boolean) {
         if (!this.enemy) return;
+
+        // Bee-Butterfly "Flutter and sting": chance to dodge the
+        // player's incoming swing entirely and counter for a fixed
+        // amount of true damage. Resolved before any player-side
+        // procs (Minor Cursed, mark consumption, expose bonuses,
+        // Bone-Shield, damage reduction) so those are not wasted on
+        // a missed swing.
+        if (
+            this.enemy.passive?.kind === 'evadeAndStingOnHit' &&
+            this.rng.next() < this.enemy.passive.chance
+        ) {
+            this.lastActionResult.enemyEvaded = true;
+            const sting = this.enemy.passive.damage;
+            const taken = sting > 0 ? this.player.takeDamage(sting, 0, 'true') : 0;
+            this.log.addMessage(
+                this.loc.t('combatEnemyEvadeAndSting', {
+                    name: this.enemy.name,
+                    damage: taken,
+                }),
+                '#d9bf3a'
+            );
+            if (taken > 0) this.playerHit.emit({ damage: taken });
+            return;
+        }
+
         let critical = criticalIn;
         let damage = baseDamage;
-
-        // Minor Cursed set: each player damaging action coin-flips
-        // between doubling the strike OR backfiring 2 untyped damage
-        // onto the player. Resolved BEFORE crit/expose/passives so the
-        // doubled damage can ride the rest of the pipeline.
-        if (this.player.aggregate.sets.minor_cursed) {
-            if (this.rng.next() < 0.5) {
-                damage *= 2;
-                this.log.addMessage(this.loc.t('combatRelicCursedDouble', { damage }), '#c98aff');
-            } else {
-                const taken = this.player.takeDamage(2, 0, 'true');
-                if (taken > 0) {
-                    this.log.addMessage(
-                        this.loc.t('combatRelicCursedSelfHit', { damage: taken }),
-                        '#c98aff'
-                    );
-                    this.playerHit.emit({ damage: taken });
-                }
-            }
-        }
 
         // Consume mark for guaranteed crit.
         if (!critical && consumeMark(this.enemy.status)) {
@@ -597,7 +754,7 @@ export class CombatManager {
             damage = Math.max(1, Math.round(damage * COMBAT_CONFIG.criticalMultiplier));
         }
 
-        // [FIX-10] Boss "Exposed" actions queue +N damage on the next
+        // Boss "Exposed" actions queue +N damage on the next
         // player hit. Consume the queue here so subsequent hits (e.g.
         // bleed tick) do NOT eat the bonus.
         if (this.enemy.bossPhase && this.enemy.bossPhase.pendingExposeBonus > 0) {
@@ -605,7 +762,7 @@ export class CombatManager {
             this.enemy.bossPhase.pendingExposeBonus = 0;
         }
 
-        // [FIX-10] Bone-Shield style block on the boss soaks the next
+        // Bone-Shield style block on the boss soaks the next
         // player hit before HP loss.
         if (this.enemy.bossPhase && this.enemy.bossPhase.pendingBlock > 0) {
             const blocked = Math.min(this.enemy.bossPhase.pendingBlock, damage);
@@ -630,6 +787,25 @@ export class CombatManager {
                         amount: before - damage,
                     }),
                     '#9aa6b3'
+                );
+            }
+        }
+
+        // Longinus Shard: ×N damage when the enemy is the Prophet
+        // boss. Applied AFTER all other damage modifiers but BEFORE
+        // the HP write so the multiplied damage feeds the death
+        // check and the boss-block / spawn paths.
+        if (damage > 0 && this.enemy.canonicalName === 'Prophet') {
+            const mult = this.player.aggregate.prophetDamageMult;
+            if (mult > 1) {
+                const before = damage;
+                damage = Math.max(1, Math.round(damage * mult));
+                this.log.addMessage(
+                    this.loc.t('combatRelicLonginusShard', {
+                        before,
+                        damage,
+                    }),
+                    '#ffd9d9'
                 );
             }
         }
@@ -699,9 +875,11 @@ export class CombatManager {
     }
 
     /**
-     * Cracked Amulet (and similar): a small chance to recover HP after
-     * any attack action. Uses the player's `aggregate.healOnAttackChance`
+     * Vampire Amulet (and similar): a chance to recover HP after any
+     * attack action. Uses the player's `aggregate.healOnAttackChance`
      * so multiple sources stack via max() in {@link aggregateRelics}.
+     * The flesh-set proc-bump (10% → 30%) is folded into the chance
+     * by `applyUnconditionalSetBonuses`.
      */
     private tryHealOnAttack() {
         if (!this.enemy) return;
@@ -711,6 +889,21 @@ export class CombatManager {
         const healed = this.player.heal(agg.healOnAttackAmount);
         if (healed > 0) {
             this.log.addMessage(this.loc.t('combatRelicHealOnAttack', { healed }), '#8be0a7');
+        }
+    }
+
+    /**
+     * Lost Staff: +N current resolve every time the player takes an
+     * attack action (basic strike OR Will-skill). Capped at maxResolve
+     * by `gainResolve`. Logged only when something was actually
+     * gained, so a full bar stays quiet.
+     */
+    private applyResolveOnAttack() {
+        const agg = this.player.aggregate;
+        if (agg.resolveOnAttackAmount <= 0) return;
+        const gained = this.player.gainResolve(agg.resolveOnAttackAmount);
+        if (gained > 0) {
+            this.log.addMessage(this.loc.t('combatRelicLostStaff', { resolve: gained }), '#9bc8ff');
         }
     }
 
@@ -751,28 +944,152 @@ export class CombatManager {
             amount = Math.max(1, Math.round(amount * 1.5));
         }
 
-        // Holey Chestplate (and similar): a chance to soak a fixed
-        // amount of damage before defense / HP loss is computed.
+        // Dark Chestplate (and similar): a chance to halve the
+        // incoming damage (50% block, rounded with Math.floor on the
+        // BLOCKED side so 5 → blocks 2 → player takes 3, and a 1-dmg
+        // hit blocks 0 so the player still takes the full 1). Stacks
+        // before defense / flatBlock so the surviving amount still
+        // gets reduced by guard + defense afterwards.
         const agg = this.player.aggregate;
         let extraBlock = 0;
-        if (agg.blockOnHitChance > 0 && this.rng.next() < agg.blockOnHitChance) {
-            extraBlock = agg.blockOnHitAmount;
-            this.log.addMessage(
-                this.loc.t('combatRelicBlockOnHit', { amount: extraBlock }),
-                '#9fc4f0'
-            );
+        if (
+            agg.damageReductionChance > 0 &&
+            agg.damageReductionPercent > 0 &&
+            this.rng.next() < agg.damageReductionChance
+        ) {
+            extraBlock = Math.floor(amount * agg.damageReductionPercent);
+            if (extraBlock > 0) {
+                this.log.addMessage(
+                    this.loc.t('combatRelicDarkChestplate', { amount: extraBlock }),
+                    '#9fc4f0'
+                );
+            }
         }
 
         const taken = this.player.takeDamage(amount, flatBlock + extraBlock, 'combat');
         if (taken > 0) {
             if (crit) this.log.addMessage(narrate('crit_received', this.loc.language), '#c4a35a');
             this.playerHit.emit({ damage: taken });
+
+            // Knight's Helmet: chance to restore N resolve when the
+            // player takes a hit. Resolved AFTER damage is applied so
+            // the chance fires once per landed enemy hit; misses /
+            // fully-blocked hits do NOT trigger.
+            if (
+                agg.resolveOnHitChance > 0 &&
+                agg.resolveOnHitAmount > 0 &&
+                this.rng.next() < agg.resolveOnHitChance
+            ) {
+                const gained = this.player.gainResolve(agg.resolveOnHitAmount);
+                if (gained > 0) {
+                    this.log.addMessage(
+                        this.loc.t('combatRelicKnightHelmet', { resolve: gained }),
+                        '#9fc4f0'
+                    );
+                }
+            }
         }
         return taken;
     }
 
+    /**
+     * Replace the current dying enemy with a fresh blueprint pulled
+     * from the roster by canonical name (Rat Matron's "litter" spawns
+     * a Rat). The matron's xp/gold are paid out inline via the player
+     * manager — we do NOT emit combatEnd here, because that signal
+     * advances the room and closes the fight. Player status carries
+     * through (bleeds, armor break, etc. don't reset mid-encounter).
+     */
+    private spawnReplacement(spawnName: string, _killedByBleed: boolean) {
+        if (!this.enemy) return;
+        const fallenName = this.enemy.name;
+        const fallenXp = this.enemy.xp;
+        const fallenGold = this.enemy.gold;
+        const spawnDef = getEnemyByName(spawnName);
+        if (!spawnDef) {
+            // Roster typo — fail open by ending combat normally so a
+            // bad data entry doesn't soft-lock a run.
+            this.finishCombat(_killedByBleed);
+            return;
+        }
+        // Pay out the matron's xp/gold FIRST, then keep combat going
+        // with the spawned creature. No relic roll on the matron —
+        // the spawned rat carries the encounter's drop instead, so
+        // 'one fight = one relic chance' invariant holds.
+        this.log.addMessage(this.loc.t('enemyFalls', { name: fallenName }), '#66ff88');
+        if (fallenXp > 0) {
+            const gained = this.player.gainXp(fallenXp);
+            if (gained > 0) this.log.addMessage(this.loc.t('plusXp', { value: gained }), '#a8e0a8');
+        }
+        if (fallenGold > 0) {
+            const gained = this.player.gainGold(fallenGold);
+            if (gained > 0)
+                this.log.addMessage(this.loc.t('plusGold', { value: gained }), '#e0c468');
+        }
+
+        // Build the replacement in-place. No depth scaling — we just
+        // copy the def numbers since the spawned creature is meant to
+        // be a "child" not a power-scaled enemy.
+        this.enemy = {
+            kind: 'normal',
+            name: this.loc.enemyName(spawnDef.name),
+            canonicalName: spawnDef.name,
+            description: this.loc.enemyDescription(spawnDef.name, spawnDef.description),
+            icon: spawnDef.icon,
+            hp: spawnDef.hp,
+            maxHp: spawnDef.hp,
+            attack: spawnDef.attack,
+            color: spawnDef.color,
+            xp: spawnDef.xp,
+            gold: spawnDef.gold,
+            profile: spawnDef.profile,
+            turnsAlive: 0,
+            status: emptyStatusState(),
+            passive: spawnDef.passive,
+            pendingPrepare: spawnDef.prepare
+                ? { def: spawnDef.prepare, turnsRemaining: spawnDef.prepare.turns }
+                : undefined,
+            currentIntent: null,
+        };
+        if (this.enemy.pendingPrepare) {
+            this.enemy.currentIntent = intentLabelForPrepare(this.enemy.pendingPrepare, this.loc);
+        }
+        this.log.addMessage(
+            this.loc.t('combatEnemySpawnsReplacement', {
+                name: fallenName,
+                spawn: this.enemy.name,
+            }),
+            '#c4a35a'
+        );
+        this.enemyUpdate.emit({
+            hp: this.enemy.hp,
+            maxHp: this.enemy.maxHp,
+            color: this.enemy.color,
+            name: this.enemy.name,
+            icon: this.enemy.icon,
+        });
+        this.playerStatusChange.emit();
+        this.enemyStatusChange.emit();
+    }
+
     private finishCombat(killedByBleed: boolean) {
         if (!this.enemy) return;
+        // Mammon "Greed Lord": return the stolen relic to the player
+        // when Mammon dies. addRelic returns 'duplicate' / 'full' /
+        // 'added' — we only narrate the success path; if the player
+        // somehow re-acquired the same relic in the meantime ('duplicate')
+        // or filled the inventory ('full') we drop the return silently
+        // rather than spawn a swap-modal mid-finish.
+        if (this.enemy.bossPhase?.stolenRelicId) {
+            const id = this.enemy.bossPhase.stolenRelicId;
+            const result = this.player.addRelic(id);
+            if (result === 'added') {
+                this.log.addMessage(
+                    this.loc.t('combatBossRelicReturned', { name: this.enemy.name }),
+                    '#a8e0a8'
+                );
+            }
+        }
         const payload = this.buildRewards(this.enemy, killedByBleed);
         this.log.addMessage(this.loc.t('enemyFalls', { name: this.enemy.name }), '#66ff88');
         if (killedByBleed)
@@ -782,8 +1099,102 @@ export class CombatManager {
         this.combatEnd.emit(payload);
     }
 
+    /**
+     * Mammon's "Greed Lord" relic theft. Picks one of the player's
+     * relics deterministically through `this.rng.next()` and stashes
+     * the id on `BossPhaseState.stolenRelicId` so finishCombat can
+     * return it on the boss's death. No-op when the player has no
+     * relics.
+     */
+    private stealRandomRelic(state: BossPhaseState): void {
+        if (!this.enemy) return;
+        const relics = this.player.relics;
+        if (relics.length === 0) {
+            // Player carries nothing — narrate the fizzle so the cue
+            // is still visible.
+            this.log.addMessage(
+                this.loc.t('combatBossRelicTheftEmpty', { name: this.enemy.name }),
+                '#a89070'
+            );
+            return;
+        }
+        const idx = Math.floor(this.rng.next() * relics.length) % relics.length;
+        const stolen = relics[idx];
+        this.player.removeRelic(stolen);
+        state.stolenRelicId = stolen;
+        this.log.addMessage(
+            this.loc.t('combatBossRelicStolen', { name: this.enemy.name }),
+            '#d09a4f'
+        );
+    }
+
     private logDeath() {
         this.log.addMessage(narrate('death', this.loc.language), '#ff3333');
+    }
+
+    /**
+     * Mime "Chaos Lord's Laughter" — pick one status from the action's
+     * pool that is NOT the same as the last status applied. The
+     * anti-repeat tracker lives on `BossPhaseState.lastRandomStatus`
+     * so it survives turn boundaries but resets per-encounter (a
+     * fresh `setupEnemy` builds a new BossPhaseState).
+     */
+    private applyRandomMimeStatus(
+        state: BossPhaseState,
+        cfg: {
+            pool: Array<'bleed' | 'poison' | 'stun' | 'weaken' | 'armorBreak' | 'mark'>;
+            amount: number;
+            turns: number;
+        }
+    ): void {
+        if (!this.enemy) return;
+        const candidates = cfg.pool.filter((s) => s !== state.lastRandomStatus);
+        // If anti-repeat would empty the pool (single-element pool),
+        // fall back to the full pool so we still apply something.
+        const choices = candidates.length > 0 ? candidates : cfg.pool;
+        if (choices.length === 0) return;
+        const idx = Math.floor(this.rng.next() * choices.length) % choices.length;
+        const pick = choices[idx];
+        state.lastRandomStatus = pick;
+        // Map status id → its localised display label. The keys are
+        // referenced as string literals here so the orphan-key test
+        // (`tests/Locale.consistency.test.ts`) can statically detect
+        // each call site.
+        let statusLabel: string;
+        switch (pick) {
+            case 'bleed':
+                applyBleed(this.player.status, cfg.amount, cfg.turns);
+                statusLabel = this.loc.t('combatBossMimeStatus_bleed');
+                break;
+            case 'poison':
+                applyPoison(this.player.status, cfg.amount, cfg.turns);
+                statusLabel = this.loc.t('combatBossMimeStatus_poison');
+                break;
+            case 'stun':
+                applyStun(this.player.status, cfg.turns);
+                statusLabel = this.loc.t('combatBossMimeStatus_stun');
+                break;
+            case 'weaken':
+                applyWeaken(this.player.status, cfg.amount, cfg.turns);
+                statusLabel = this.loc.t('combatBossMimeStatus_weaken');
+                break;
+            case 'armorBreak':
+                applyArmorBreak(this.player.status, cfg.amount, cfg.turns);
+                statusLabel = this.loc.t('combatBossMimeStatus_armorBreak');
+                break;
+            case 'mark':
+                applyMark(this.player.status, cfg.turns);
+                statusLabel = this.loc.t('combatBossMimeStatus_mark');
+                break;
+        }
+        this.log.addMessage(
+            this.loc.t('combatBossMimeChaos', {
+                name: this.enemy.name,
+                status: statusLabel,
+            }),
+            '#c0a0d0'
+        );
+        this.playerStatusChange.emit();
     }
 
     private rollPlayerAttack() {
@@ -803,7 +1214,7 @@ export class CombatManager {
     }
 
     private buildRewards(enemy: ActiveEnemy, killedByBleed: boolean): CombatEndPayload {
-        // Death Knight is the only boss in the spec, so a boss kill
+        // Every BOSSES entry lives on the final depth, so a boss kill
         // here is always the final-boss kill. The victoryWishArtifact
         // log line fires on that single event.
         const finalBoss = enemy.kind === 'boss';
@@ -823,7 +1234,7 @@ export class CombatManager {
     }
 
     // -----------------------------------------------------------------
-    // [FIX-10] Boss phase / intent runner. Pure helpers
+    // Boss phase / intent runner. Pure helpers
     // (intentLabelForPhase / intentLabelForPrepare / prepareName /
     // maybeAdvancePhase / tickBossBlockAtTurnEnd /
     // breakBossBlockOnSkillDamage) live in ./BossRuntime.ts.
@@ -836,7 +1247,19 @@ export class CombatManager {
         // Phase advancement is HP-driven and happens BEFORE picking an
         // action so the very next attack reflects the new phase's
         // pattern.
-        maybeAdvancePhase(this.enemy, this.log, this.loc);
+        const advanced = maybeAdvancePhase(this.enemy, this.log, this.loc);
+
+        // Mammon "Greed Lord" — phase 2 onEnter steals one random
+        // relic from the player. The id is preserved on `stolenRelicId`
+        // so finishCombat can return it on the boss's death. Skipped
+        // when the player has no relics; never re-fires across phase
+        // re-entries because phase indices are monotonic.
+        if (advanced) {
+            const enteredPhase = state.blueprint.phases[state.phaseIndex];
+            if (enteredPhase.onEnterStealRelic && !state.stolenRelicId) {
+                this.stealRandomRelic(state);
+            }
+        }
 
         const phaseDef = state.blueprint.phases[state.phaseIndex];
 
@@ -922,9 +1345,55 @@ export class CombatManager {
         if (action.damageBonus) attackPower += action.damageBonus;
         if (attackPower < 1) attackPower = 1;
 
+        // Gilgamesh "Hero's Cry": rider on the regular attack — on a
+        // 10% roll, drain weaken / armorBreak / resolve from the
+        // player on top of the swing. Resolved BEFORE the attack so
+        // the resolve drain registers immediately and the player can
+        // see the cumulative effect on the next turn's intent.
+        if (
+            action.id === 'hero_call' &&
+            action.heroCryChance &&
+            action.heroCryDrain &&
+            this.rng.next() < action.heroCryChance
+        ) {
+            const drain = action.heroCryDrain;
+            applyWeaken(this.player.status, drain.attackWeaken, drain.turns);
+            applyArmorBreak(this.player.status, drain.defenseArmorBreak, drain.turns);
+            const drained = Math.min(this.player.resources.resolve, drain.resolveDrain);
+            if (drained > 0) this.player.spendResolve(drained);
+            this.log.addMessage(
+                this.loc.t('combatBossHeroCry', {
+                    name: this.enemy.name,
+                    weaken: drain.attackWeaken,
+                    armor: drain.defenseArmorBreak,
+                    resolve: drained,
+                }),
+                '#d09a4f'
+            );
+            this.playerStatusChange.emit();
+        }
+
+        // Mime "Chaos Lord's Laughter": every turn pick one random
+        // status from the action's pool and apply it to the player.
+        // The same status cannot fire twice in a row — anti-repeat
+        // tracked on `BossPhaseState.lastRandomStatus`.
+        if (action.id === 'mime_chaos' && action.randomStatus) {
+            this.applyRandomMimeStatus(state, action.randomStatus);
+        }
+
         // Damage-dealing actions hit the player.
         if (!action.noAttack) {
-            const taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
+            // Mime's swings ignore armor (true damage). All other
+            // boss attacks go through `applyEnemyHitToPlayer` which
+            // applies guard/defense/crit normally. The lifesteal
+            // rider only applies when the hit landed for >0 damage.
+            let taken: number;
+            if (action.ignoreArmor) {
+                taken = this.player.takeDamage(Math.max(1, attackPower), 0, 'true');
+                if (taken > 0) this.playerHit.emit({ damage: taken });
+            } else {
+                taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
+            }
             if (taken > 0) {
                 this.log.addMessage(
                     this.loc.t('combatEnemyHit', {
@@ -936,6 +1405,33 @@ export class CombatManager {
                 );
             } else {
                 this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
+            }
+            // Mime lifesteal: heal a flat amount on a successful hit.
+            if (
+                taken > 0 &&
+                action.lifestealFlat &&
+                action.lifestealFlat > 0 &&
+                this.enemy.hp < this.enemy.maxHp
+            ) {
+                const before = this.enemy.hp;
+                this.enemy.hp = Math.min(this.enemy.maxHp, this.enemy.hp + action.lifestealFlat);
+                const healed = this.enemy.hp - before;
+                if (healed > 0) {
+                    this.log.addMessage(
+                        this.loc.t('combatEnemyLifesteal', {
+                            name: this.enemy.name,
+                            healed,
+                        }),
+                        '#c45a5a'
+                    );
+                    this.enemyUpdate.emit({
+                        hp: this.enemy.hp,
+                        maxHp: this.enemy.maxHp,
+                        color: this.enemy.color,
+                        name: this.enemy.name,
+                        icon: this.enemy.icon,
+                    });
+                }
             }
         }
 
@@ -1028,6 +1524,25 @@ export class CombatManager {
                 );
                 this.playerHit.emit({ damage: lethal });
             }
+            return;
+        }
+
+        // Nimrod's "God-Killer": unconditional OHKO when the 5-turn
+        // windup resolves. No Defend smoothing — the only counterplay
+        // is burning Nimrod down before resolution. Reuses the same
+        // `oneShot: true` flag as Death Touch but skips the
+        // oneShotDefendDamage branch.
+        if (action.id === 'nimrod_godkiller' && action.oneShot) {
+            const lethal = Math.max(this.player.stats.hp, 1);
+            this.player.takeDamage(lethal, 0, 'true');
+            this.log.addMessage(
+                this.loc.t('combatBossNimrodGodkiller', {
+                    name: this.enemy.name,
+                    action: actionLabel,
+                }),
+                '#ff6666'
+            );
+            this.playerHit.emit({ damage: lethal });
             return;
         }
 

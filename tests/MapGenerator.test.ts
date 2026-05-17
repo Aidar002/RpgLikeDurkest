@@ -1,12 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import { FEATURES, MAP_CONFIG, RUN_CONFIG } from '../src/data/GameConfig';
-import {
-    MapGenerator,
-    RoomType,
-    formatMapDebug,
-    getRequiredSeals,
-    validateMap,
-} from '../src/systems/MapGenerator';
+import { MAP_CONFIG, RUN_CONFIG } from '../src/data/GameConfig';
+import { MapGenerator, RoomType, formatMapDebug, validateMap } from '../src/systems/MapGenerator';
 import { Mulberry32 } from '../src/systems/Rng';
 
 function countByType(nodes: { type: string }[]): Record<string, number> {
@@ -461,40 +455,19 @@ describe('MapGenerator', () => {
                 expect(seedsWithMidRunBoss).toBeGreaterThanOrEqual(20);
             });
 
-            it(`respects the major-boss budget and exceeds the mini budget only as needed for seal coverage at runLength=${runLength}`, () => {
+            it(`respects the runLength-derived boss budgets at runLength=${runLength}`, () => {
                 // targetMajor = clamp(round(runLength / 18), 1, 4)
                 // targetMini  = clamp(round(runLength / 12), 1, 6)
-                // The seal-coverage pass (PR-3) may add extra mini
-                // bosses when no existing mini sits on a deficit
-                // path — `requiredSeals` is a hard invariant, the
-                // mini target is a soft pacing hint. Major budget
-                // remains a hard cap (the pass never promotes to
-                // major).
+                // Both are hard caps for the bossPressure pass:
+                // counters are checked before each placement, so
+                // the generator never exceeds them.
                 const targetMajor = Math.max(1, Math.min(4, Math.round(runLength / 18)));
                 const targetMini = Math.max(1, Math.min(6, Math.round(runLength / 12)));
-                // Cap on extra minis the seal pass may add — at
-                // most one per `requiredSeals` "cut" through the
-                // map plus a slack. The slack scales with the
-                // typical layer width: the grid-cell generator
-                // hands the player a 4-way hub at the START room
-                // and then up to {@link MAX_LAYER_WIDTH} cells per
-                // mid-run layer, so each additional parallel path
-                // through a seal "cut" can require its own dedicated
-                // seal-bearing mini. Empirically the 75-depth runs
-                // peak at ~25 minis with the new layout (the
-                // 4-wide START hub plus up to MAX_LAYER_WIDTH=4
-                // mid-run cells means each requiredSeals "cut" can
-                // need up to 4 dedicated seal-bearers, and the
-                // greedy seal pass may add a couple more), so the
-                // slack must absorb that.
-                const sealCoverageSlack = 20;
                 for (let seed = 0; seed < 20; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
                     const report = validateMap(nodes, runLength);
                     expect(report.majorBossCount).toBeLessThanOrEqual(targetMajor);
-                    expect(report.miniBossCount).toBeLessThanOrEqual(
-                        targetMini + sealCoverageSlack
-                    );
+                    expect(report.miniBossCount).toBeLessThanOrEqual(targetMini);
                 }
             });
 
@@ -546,7 +519,7 @@ describe('MapGenerator', () => {
         }
 
         it('exposes mid-run boss counts in validateMap output', () => {
-            // Sanity check that the new debug counters in
+            // Sanity check that the debug counters in
             // MapValidationReport are populated and consistent
             // across a full run.
             const { nodes } = generateFullRun(50, 42);
@@ -559,87 +532,16 @@ describe('MapGenerator', () => {
             expect(report.finalBossCount).toBe(final);
             expect(report.finalNodeCount).toBe(final);
         });
-    });
 
-    // The seal feature is currently hidden behind FEATURES.seals;
-    // when off, getRequiredSeals returns 0 and the seal-coverage
-    // generator pass is skipped. The describe block below only runs
-    // when the feature is re-enabled so the legacy invariants stay
-    // protected without polluting the disabled-flag CI matrix.
-    const sealsDescribe = FEATURES.seals ? describe : describe.skip;
-
-    sealsDescribe('seals + path validation (PR-3)', () => {
-        it('scales requiredSeals according to runLength formula', () => {
-            // requiredSeals = clamp(round(runLength / 20), 1, 4)
-            const cfg = RUN_CONFIG.seals;
-            for (const rl of [20, 25, 35, 50, 75, 80]) {
-                const expected = Math.max(
-                    cfg.requiredSealsMin,
-                    Math.min(cfg.requiredSealsMax, Math.round(rl / cfg.requiredSealsFactor))
-                );
-                expect(getRequiredSeals(rl)).toBe(expected);
-            }
-        });
-
-        it('every major boss grants a major seal; every mini boss has bossKind="mini"', () => {
-            // Sanity-check the seal metadata wiring across a wide
-            // range of runLengths and seeds.
+        it('reports per-path boss min ≤ avg ≤ max across run lengths', () => {
             for (const runLength of [25, 35, 50, 75]) {
                 for (let seed = 0; seed < 10; seed++) {
                     const { nodes } = generateFullRun(runLength, seed);
-                    for (const n of nodes) {
-                        if (n.bossKind === 'major') {
-                            expect(n.grantsSeal).toBe(true);
-                            expect(n.sealType).toBe('major');
-                        }
-                        if (n.bossKind === 'mini' && n.grantsSeal) {
-                            expect(n.sealType).toBe('mini');
-                        }
-                        if (n.bossKind === null || n.bossKind === 'final') {
-                            expect(n.grantsSeal).toBe(false);
-                            expect(n.sealType).toBe(null);
-                        }
-                    }
-                }
-            }
-        });
-
-        for (const runLength of [25, 35, 50, 75]) {
-            it(`every full path has at least requiredSeals seal opportunities for runLength=${runLength}`, () => {
-                const required = getRequiredSeals(runLength);
-                for (let seed = 0; seed < 30; seed++) {
-                    const { nodes } = generateFullRun(runLength, seed);
                     const r = validateMap(nodes, runLength);
-                    expect(r.requiredSeals).toBe(required);
-                    expect(r.sealsPerPath).not.toBeNull();
-                    expect(r.sealsPerPath!.min).toBeGreaterThanOrEqual(required);
-                    expect(r.pathMeetsRequiredSeals).toBe(true);
-                }
-            });
-
-            it(`reports per-path seal/boss min ≤ avg ≤ max for runLength=${runLength}`, () => {
-                for (let seed = 0; seed < 10; seed++) {
-                    const { nodes } = generateFullRun(runLength, seed);
-                    const r = validateMap(nodes, runLength);
-                    expect(r.sealsPerPath).not.toBeNull();
                     expect(r.bossesPerPath).not.toBeNull();
-                    const seals = r.sealsPerPath!;
                     const bosses = r.bossesPerPath!;
-                    expect(seals.min).toBeLessThanOrEqual(seals.avg);
-                    expect(seals.avg).toBeLessThanOrEqual(seals.max);
                     expect(bosses.min).toBeLessThanOrEqual(bosses.avg);
                     expect(bosses.avg).toBeLessThanOrEqual(bosses.max);
-                }
-            });
-        }
-
-        it('sealOpportunityCount equals the number of grantsSeal=true nodes', () => {
-            for (const runLength of [25, 50, 75]) {
-                for (let seed = 0; seed < 5; seed++) {
-                    const { nodes } = generateFullRun(runLength, seed);
-                    const r = validateMap(nodes, runLength);
-                    const granters = nodes.filter((n) => n.grantsSeal).length;
-                    expect(r.sealOpportunityCount).toBe(granters);
                 }
             }
         });
@@ -662,11 +564,7 @@ describe('MapGenerator', () => {
                 'major=',
                 'mini=',
                 'final=',
-                'required=',
-                'opportunities=',
-                'sealsPerPath',
                 'bossesPerPath',
-                'pathMeetsRequiredSeals',
                 'allFinalAreBossKindFinal',
                 'everyFullPathEndsInFinalBoss',
                 'allNodesReachAFinalBoss',
@@ -674,20 +572,6 @@ describe('MapGenerator', () => {
                 'pressureStrategy=max',
             ]) {
                 expect(text).toContain(field);
-            }
-        });
-
-        it('seal-coverage pass keeps no-boss-adjacency and post-major-recovery invariants', () => {
-            // The seal-coverage pass promotes regular rooms to mini
-            // bosses when needed; verify it never violates the
-            // adjacency or recovery invariants.
-            for (const runLength of [25, 35, 50, 75]) {
-                for (let seed = 0; seed < 20; seed++) {
-                    const { nodes } = generateFullRun(runLength, seed);
-                    const r = validateMap(nodes, runLength);
-                    expect(r.bossAdjacencyViolations).toBe(0);
-                    expect(r.postMajorRecoveryViolations).toBe(0);
-                }
             }
         });
     });

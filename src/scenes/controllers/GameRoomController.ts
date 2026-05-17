@@ -10,7 +10,8 @@ import { BODY_FONT } from '../../ui/HudTheme';
 import { PixelSprite } from '../../ui/PixelSprite';
 import { fitEnemySprite } from '../../ui/RoomVisuals';
 import { compactText } from '../../ui/TextHelpers';
-import { createRoomButtons, type RoomButtonAction } from '../../ui/RoomButtons';
+import { createRoomButtons } from '../../ui/RoomButtons';
+import { LockpickOverlay, type LockpickShowOptions } from '../../ui/LockpickOverlay';
 import type { GameScene } from '../GameScene';
 
 /**
@@ -32,7 +33,7 @@ function stripChoicePrefix(label: string): string {
  * Owns the room-info panel: the right-hand portrait/name/HP/intel/flavor
  * widgets, the action-button row beneath it, plus the helpers that
  * `RoomFlow` / `CombatHud` lean on (`showRoomCard`, `showReturnButton`,
- * `setRoomButtons`, `applyTrapDamage`, `triggerActionButton`).
+ * `applyTrapDamage`, `triggerActionButton`).
  *
  * The widget fields are still declared on `GameScene` — both
  * controllers (`RoomFlow` / `CombatHud`) reach into them directly to
@@ -43,6 +44,9 @@ function stripChoicePrefix(label: string): string {
  */
 export class GameRoomController {
     private readonly scene: GameScene;
+    /** Built lazily in `build()` after the scene's `loc`/`sfx` are
+     *  set. Used by the treasure room's locked-chest path. */
+    private lockpickOverlay!: LockpickOverlay;
 
     constructor(scene: GameScene) {
         this.scene = scene;
@@ -264,15 +268,13 @@ export class GameRoomController {
         // returned handle exposes setActions / trigger / wideEnabled /
         // disableAll for keyboard shortcuts and combat to call.
         scene.roomButtons = createRoomButtons(scene, scene.roomContainer, scene.sfx);
-    }
 
-    /**
-     * @deprecated Use `scene.roomButtons.setActions(...)` directly.
-     * Kept as a thin shim so RoomFlow / CombatHud call sites compile
-     * unchanged after the RoomButtons extraction.
-     */
-    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
-        this.scene.roomButtons.setActions(actions, useWideOnly);
+        // Lockpick mini-game modal — fully hidden until the treasure
+        // room's locked-chest path calls `showLockpickModal`.
+        this.lockpickOverlay = new LockpickOverlay(scene, {
+            loc: scene.loc,
+            sfx: scene.sfx,
+        });
     }
 
     /** Move + resize the portrait/name/sprite block. NPC mode places
@@ -515,12 +517,12 @@ export class GameRoomController {
 
     public showReturnButton(): void {
         const scene = this.scene;
-        this.setRoomButtons(
+        scene.roomButtons.setActions(
             [
                 {
                     label: scene.loc.t('returnToMap'),
                     callback: () => scene.returnToMap(),
-                    fill: 0x202020,
+                    variant: 'dark',
                 },
             ],
             true
@@ -533,6 +535,15 @@ export class GameRoomController {
      */
     public applyTrapDamage(rawDamage: number): number {
         return this.scene.player.takeDamage(rawDamage, 0, 'trap');
+    }
+
+    /**
+     * Open the lockpick mini-game modal. The result is delivered
+     * through `options.onResolve` exactly once. See
+     * {@link LockpickOverlay} for the visual/input model.
+     */
+    public showLockpickModal(options: LockpickShowOptions): void {
+        this.lockpickOverlay.show(options);
     }
 
     /**

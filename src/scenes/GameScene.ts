@@ -32,7 +32,8 @@ import {
     TOP_BAR_H,
 } from '../ui/Layout';
 import { setupSceneChrome } from '../ui/SceneChrome';
-import type { RoomButtonAction, RoomButtonsHandle } from '../ui/RoomButtons';
+import type { RoomButtonsHandle } from '../ui/RoomButtons';
+import type { LockpickShowOptions } from '../ui/LockpickOverlay';
 import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
@@ -179,7 +180,21 @@ export class GameScene extends Phaser.Scene {
     }
 
     create() {
+        // Fade the dungeon in from black so the hand-off from BootScene
+        // (which fades the camera out to black just before transitioning)
+        // reads as one continuous dissolve instead of a hard pop. 1400 ms
+        // mirrors `CAMERA_FADE_MS` in BootScene so the in/out beats are
+        // symmetric. The map / HUD / player setup below runs while the
+        // screen is still black, so the player only sees the dungeon
+        // once the fade-in completes.
+        this.cameras.main.fadeIn(1400, 0, 0, 0);
+
         this.meta = new MetaProgressionManager();
+        // Wipe per-NPC memory on every run start so each NPC greets
+        // the player with their `first` dialog beat. Upgrades, unlocks
+        // and banked skill points keep their meta-persistence — only
+        // the dialog memory map is reset.
+        this.meta.resetNpcMemoryForNewRun();
         this.npcs = this.meta.getNpcManager();
         const metaBonuses = this.meta.getBonuses();
 
@@ -342,6 +357,11 @@ export class GameScene extends Phaser.Scene {
      * here only so external callers (`CombatHud`, `RoomFlow`) can keep
      * using the familiar `scene.maybeDropRelic(...)` shape. Returns
      * `true` if the player picked up a new relic.
+     *
+     * Plumbs `dungeon.currentDepth` and `player.aggregate.relicDropChanceMod`
+     * into the dispatcher so the Stage [4] `X + Y*depth + Z + K + relicMod`
+     * formula in `Relics.rollRelicForEnemy` has its full input vector
+     * even though the call sites still spell `scene.maybeDropRelic(kind, name)`.
      */
     public maybeDropRelic(kind: RelicDropKind, enemyName?: string): boolean {
         return maybeDropRelicImpl(
@@ -352,19 +372,12 @@ export class GameScene extends Phaser.Scene {
                 sfx: this.sfx,
                 log: this.log,
                 loc: this.loc,
+                depth: this.dungeon.currentDepth,
+                relicMod: this.player.aggregate.relicDropChanceMod,
             },
             kind,
             enemyName
         );
-    }
-
-    /**
-     * @deprecated Use `this.roomButtons.setActions(...)` directly.
-     * Kept as a thin shim so RoomFlow / CombatHud call sites compile
-     * unchanged after the RoomButtons extraction.
-     */
-    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
-        this.room.setRoomButtons(actions, useWideOnly);
     }
 
     /** Forward to {@link GameMapController.applyRoomTint}. */
@@ -384,6 +397,11 @@ export class GameScene extends Phaser.Scene {
     /** Forward to {@link GameRoomController.applyTrapDamage}. */
     public applyTrapDamage(rawDamage: number): number {
         return this.room.applyTrapDamage(rawDamage);
+    }
+
+    /** Forward to {@link GameRoomController.showLockpickModal}. */
+    public showLockpickModal(options: LockpickShowOptions): void {
+        this.room.showLockpickModal(options);
     }
 
     /** Forward to {@link GameRoomController.showRoomCard}. */
