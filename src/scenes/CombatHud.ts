@@ -209,10 +209,18 @@ export class CombatHudController {
                     ? scene.loc.t('elite')
                     : scene.loc.t('hostile')
         );
-        scene.enemyPortrait.setFillStyle(color);
+        // Keep the gray frame stripped during combat too — the
+        // hand-authored 250×250 portrait IS the panel art, any backdrop
+        // tint just shows as a stray border around the sprite.
+        scene.enemyPortrait.setFillStyle(color, 0);
         scene.enemyIconText.setText(icon);
         scene.enemyNameText.setText(compactText(name, 36));
+        // The description is rendered once in the pre-combat room
+        // card; during combat the same Y-slot is owned by the HP bar
+        // + intent line, so we hide the flavour text to avoid having
+        // it bleed through the action-button row.
         scene.roomFlavorText.setText(compactText(description, 96));
+        scene.roomFlavorText.setVisible(false);
         scene.roomPanelGroup.setVisible(true);
 
         // Prefer the hand-authored per-mob portrait

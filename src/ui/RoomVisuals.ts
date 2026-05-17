@@ -163,10 +163,13 @@ export function resolveEnemyTextureKey(
 /** Target box for room sprites on the map — slightly inset from the node rect. */
 const ROOM_SPRITE_MAX_DIM = 64;
 
-/** Target box for enemy portraits in the combat/room panel. The
- *  portrait rectangle is 140×140; this cap matches so the sprite
- *  fills the frame without overflowing into the name/HP bar below. */
-const ENEMY_SPRITE_MAX_DIM = 140;
+/** Target box for enemy + room-card portraits in the right-hand
+ *  panel. The portrait is rendered at exactly this size so the
+ *  hand-authored 256×256 art reads as the panel's focal element
+ *  (was 140 — bumped per design feedback). The HP bar / name text
+ *  Y positions in {@link GameRoomController} are anchored off this
+ *  value. */
+export const ENEMY_SPRITE_MAX_DIM = 250;
 
 /**
  * Scale down high-resolution hand-authored room textures to fit the map node.
@@ -183,14 +186,18 @@ export function fitRoomSprite(
 }
 
 /**
- * Scale down high-resolution hand-authored enemy portraits to fit the panel.
- * Procedural sprites (48px) are left at native size.
+ * Force the enemy / room-card portrait into the standard
+ * {@link ENEMY_SPRITE_MAX_DIM}×{@link ENEMY_SPRITE_MAX_DIM} box.
+ *
+ * Unlike {@link fitRoomSprite} this snaps every sprite to the cap
+ * (instead of only shrinking oversized ones). The combat panel
+ * picks the portrait as its visual anchor — having every mob, room
+ * and procedural fallback render at exactly the same size keeps
+ * the layout stable across encounters.
  */
 export function fitEnemySprite(
     sprite: Phaser.GameObjects.Image,
     maxDim = ENEMY_SPRITE_MAX_DIM
 ): void {
-    if (sprite.width > maxDim || sprite.height > maxDim) {
-        sprite.setDisplaySize(maxDim, maxDim);
-    }
+    sprite.setDisplaySize(maxDim, maxDim);
 }

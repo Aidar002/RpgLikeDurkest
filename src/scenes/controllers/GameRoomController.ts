@@ -100,13 +100,16 @@ export class GameRoomController {
             color: '#8b8b8b',
         });
 
-        // Bigger portrait so the enemy reads as the focal point of
-        // the right panel (was 120×120; bumped to 140×140 along with
-        // matching ENEMY_SPRITE_MAX_DIM in RoomVisuals). 140 is the
-        // sweet spot — bigger than before while still leaving room
-        // beneath for the name + HP + intent + flavour stack above
-        // the taller action buttons.
-        const portraitCY = panelY + 82;
+        // Hand-authored mob and room art is the focal point of the
+        // right panel, so the portrait is rendered at 250×250 (was
+        // 140×140) per the design ask. The previous gray backdrop
+        // rectangle has been stripped to fillAlpha=0 + no stroke —
+        // the artwork already fills the entire portrait box, so any
+        // visible frame around it just reads as a stray border.
+        // The rectangle is still constructed (and sized in
+        // {@link applyPortraitLayout}) so VFX.shake / VFX.flash in
+        // CombatHud can still target it as a hit-target.
+        const portraitCY = panelY + 132;
         // For NPC rooms the portrait slides over to the right side of
         // the panel so the dialog window can claim the left half.
         const rightCx = panelX + panelW - 160;
@@ -114,12 +117,12 @@ export class GameRoomController {
         this.rightLayoutCx = rightCx;
         this.portraitCY = portraitCY;
         scene.enemyPortrait = scene.add
-            .rectangle(cx, portraitCY, 140, 140, 0x333333)
-            .setStrokeStyle(2, 0x555555);
+            .rectangle(cx, portraitCY, 250, 250, 0x000000, 0)
+            .setStrokeStyle(0, 0, 0);
         scene.enemyIconText = scene.add
             .text(cx, portraitCY + 14, '', {
                 fontFamily: BODY_FONT,
-                fontSize: '52px',
+                fontSize: '96px',
                 color: '#ffffff',
             })
             .setOrigin(0.5);
@@ -129,7 +132,7 @@ export class GameRoomController {
             .setOrigin(0.5);
 
         scene.enemyNameText = scene.add
-            .text(cx, portraitCY + 84, '', {
+            .text(cx, portraitCY + 128, '', {
                 fontFamily: BODY_FONT,
                 fontSize: '20px',
                 color: '#f4f0e0',
@@ -141,8 +144,11 @@ export class GameRoomController {
             .setOrigin(0.5, 0);
 
         // HP bar gets wider + taller so it reads as the primary
-        // damage indicator (was 280×14; bumped to 360×18).
-        const hpBarY = portraitCY + 116;
+        // damage indicator (was 280×14; bumped to 360×18). With the
+        // 250×250 portrait it shifts to portraitCY + 162 so the bar
+        // sits just below the name without crowding the action
+        // buttons at the bottom of the panel.
+        const hpBarY = portraitCY + 162;
         scene.enemyHpBarBg = scene.add
             .rectangle(cx - 180, hpBarY, 360, 18, 0x331111)
             .setStrokeStyle(1, 0x5a1a1a)
@@ -162,9 +168,12 @@ export class GameRoomController {
 
         // Intent gets a dedicated highlighted line so the player can
         // tell at a glance what the enemy is winding up to do
-        // (was 11px subtle; bumped to 14px and brighter blue).
+        // (was 11px subtle; bumped to 14px and brighter blue). The
+        // 250 portrait squeezes the panel vertically, so the gap to
+        // the HP bar tightened from +22 to +12 — the action buttons
+        // start at y≈432, leaving just enough room for one 14 px line.
         scene.enemyIntelText = scene.add
-            .text(cx, hpBarY + 22, '', {
+            .text(cx, hpBarY + 12, '', {
                 fontFamily: BODY_FONT,
                 fontSize: '14px',
                 color: '#9ec3ff',
@@ -175,12 +184,14 @@ export class GameRoomController {
             })
             .setOrigin(0.5, 0);
 
-        // Contextual flavour / dialogue block sits below the intent
-        // and above the action buttons. Wider word wrap and a hair
-        // larger font than before so room descriptions and merchant
-        // dialogue lines read naturally inside the wider panel.
+        // Contextual flavour / dialogue block. Sits BELOW the name
+        // (not below HP/intent like before) so non-combat room cards
+        // — which hide the HP bar + intent — get a clean two-row
+        // "name + description" layout right under the 250 portrait.
+        // During combat the description is hidden in favour of the
+        // HP bar + intent stack (see CombatHudController.updateEnemyUI).
         scene.roomFlavorText = scene.add
-            .text(cx, hpBarY + 58, '', {
+            .text(cx, portraitCY + 152, '', {
                 fontFamily: BODY_FONT,
                 fontSize: '13px',
                 color: '#b0b0b0',
@@ -286,7 +297,9 @@ export class GameRoomController {
         if (npcMode) {
             const cx = this.rightLayoutCx;
             // Vertically centre the bigger portrait inside the dialog
-            // window's y-range (top ≈ 134, bottom ≈ 420).
+            // window's y-range (top ≈ 134, bottom ≈ 420). NPC mode
+            // stays at 200×200 because a 250 box would intrude on the
+            // left-aligned dialog window.
             const cy = 248;
             scene.enemyPortrait.setPosition(cx, cy).setSize(200, 200);
             scene.enemyIconText.setPosition(cx, cy + 18).setFontSize('75px');
@@ -295,10 +308,16 @@ export class GameRoomController {
         } else {
             const cx = this.centerLayoutCx;
             const cy = this.portraitCY;
-            scene.enemyPortrait.setPosition(cx, cy).setSize(140, 140);
-            scene.enemyIconText.setPosition(cx, cy + 14).setFontSize('52px');
+            // Mob + room cards render the full 250×250 portrait so
+            // the hand-authored art is the dominant element of the
+            // right panel. Icon glyph + name positions track the new
+            // size; the offsets below mirror the values set in
+            // build() so the layout stays consistent when this method
+            // is re-entered (e.g. after returning from an NPC scene).
+            scene.enemyPortrait.setPosition(cx, cy).setSize(250, 250);
+            scene.enemyIconText.setPosition(cx, cy + 14).setFontSize('96px');
             scene.enemySpriteImage.setPosition(cx, cy);
-            scene.enemyNameText.setPosition(cx, cy + 84);
+            scene.enemyNameText.setPosition(cx, cy + 128);
         }
     }
 
@@ -313,7 +332,12 @@ export class GameRoomController {
         const scene = this.scene;
         this.applyPortraitLayout(false);
         scene.roomHeaderText.setText(header);
-        scene.enemyPortrait.setFillStyle(color);
+        // Backdrop stays fully transparent — the hand-authored 250×250
+        // art (or procedural fallback glyph) reads better without a
+        // coloured square framing it. `color` is kept as the fill
+        // colour for VFX.flash, which momentarily tints the rectangle
+        // on hits, but the resting alpha is 0.
+        scene.enemyPortrait.setFillStyle(color, 0);
         scene.enemyIconText.setText(icon);
         scene.enemyNameText.setText(compactText(title, 36));
         scene.roomFlavorText.setText(compactText(description, 160));
@@ -357,7 +381,10 @@ export class GameRoomController {
         const scene = this.scene;
         this.applyPortraitLayout(true);
         scene.roomHeaderText.setText(header);
-        scene.enemyPortrait.setFillStyle(color);
+        // Match the frameless look used for mob/room cards. The
+        // 200×200 NPC portrait stays solid art on a transparent
+        // backdrop — no grey square behind it.
+        scene.enemyPortrait.setFillStyle(color, 0);
         scene.enemyIconText.setText(icon);
         scene.enemyNameText.setText(compactText(title, 36));
         scene.roomFlavorText.setText('');
