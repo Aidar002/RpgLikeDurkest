@@ -374,7 +374,7 @@ export class GameMapController {
                 scene.roomContainer.setVisible(false);
                 scene.mapContainer.setVisible(true);
                 scene.roomPanelGroup.setVisible(false);
-                scene.setRoomButtons([]);
+                scene.roomButtons.setActions([]);
                 this.clearRoomTint();
                 this.mapView.refresh();
                 scene.refreshUI();
@@ -418,7 +418,7 @@ export class GameMapController {
         scene.roomContainer.setVisible(false);
         scene.roomPanelGroup.setVisible(false);
         scene.mapContainer.setVisible(true);
-        scene.setRoomButtons([]);
+        scene.roomButtons.setActions([]);
         this.clearRoomTint();
         scene.refreshUI();
         scene.dungeon.moveTo(node.id);

@@ -181,7 +181,7 @@ export const PLAYER_CONFIG = {
     defense: 0,
     level: 1,
     xp: 0,
-    // [FIX-3] Start with 2 resolve so the player can use a starter skill on
+    // Start with 2 resolve so the player can use a starter skill on
     // turn 1; max stays at 3 (raised by level-ups via LEVEL_UP_CONFIG).
     maxResolve: 3,
 } as const;
@@ -193,7 +193,7 @@ export const LEVEL_UP_CONFIG = {
     defenseEveryNLevels: 3,
     resolveEveryNLevels: 4,
     healOnLevelUp: true,
-    // [FIX-9] Hard level ceiling. Past this level, gainXp() / level-up are
+    // Hard level ceiling. Past this level, gainXp() / level-up are
     // no-ops and the HUD shows "MAX" instead of an XP bar.
     levelCap: 10,
 } as const;
@@ -1046,7 +1046,7 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
     },
 ];
 
-// [FIX-1, FIX-4] Legacy boss mapping keyed by depth bucket. Pre-PR-1
+// Legacy boss mapping keyed by depth bucket. Pre-PR-1
 // the map generator placed forced bosses every 5 depths, so this table
 // resolved each bucket to a unique encounter. PR-1 removed those
 // hardcoded boss depths — only the final-layer encounter (depth ===

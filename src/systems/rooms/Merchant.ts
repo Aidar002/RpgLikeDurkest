@@ -28,7 +28,7 @@ function showGenericMerchantOptions(scene: GameScene): void {
                 scene.showReturnButton();
             },
             enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.potionCost,
-            fill: 0x1f5b2f,
+            variant: 'positive',
         },
     ];
 
@@ -51,13 +51,13 @@ function showGenericMerchantOptions(scene: GameScene): void {
             scene.showReturnButton();
         },
         enabled: scene.player.resources.gold >= ROOM_CONFIG.merchant.armorCost,
-        fill: 0x355070,
+        variant: 'silver',
     });
 
     actions.push({
         label: scene.loc.t('actionDynamicLeave', { num: actions.length + 1 }),
         callback: () => scene.showReturnButton(),
-        fill: 0x202020,
+        variant: 'dark',
     });
 
     scene.showRoomCard(
@@ -68,5 +68,5 @@ function showGenericMerchantOptions(scene: GameScene): void {
         'M',
         'MERCHANT'
     );
-    scene.setRoomButtons(actions);
+    scene.roomButtons.setActions(actions);
 }
