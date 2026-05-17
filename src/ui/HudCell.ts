@@ -218,8 +218,8 @@ export function createHudStackedSlot(
     y: number,
     options: HudStackedSlotOptions
 ): HudStackedSlotHandle {
-    const labelColor = options.labelColor ?? HudHex.textSecondary;
-    const labelFontSize = options.labelFontSize ?? '11px';
+    const labelColor = options.labelColor ?? HudHex.textPrimary;
+    const labelFontSize = options.labelFontSize ?? '12px';
     const valueColor = options.valueColor ?? HudHex.textPrimary;
     const valueFontSize = options.valueFontSize ?? '18px';
     const iconSize = options.iconSize ?? 32;
