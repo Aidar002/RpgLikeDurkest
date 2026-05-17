@@ -4,8 +4,7 @@ import { type CombatAction, type CombatEndPayload } from '../systems/CombatManag
 import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH, RoomLayout } from '../ui/Layout';
-import { PixelSprite } from '../ui/PixelSprite';
-import { fitEnemySprite } from '../ui/RoomVisuals';
+import { fitEnemySprite, resolveEnemyTextureKey } from '../ui/RoomVisuals';
 import { VFX } from '../ui/VFX';
 import type { GameScene, RoomButtonAction } from './GameScene';
 import { variantFromFill } from '../ui/RoomButtonVariant';
@@ -216,17 +215,20 @@ export class CombatHudController {
         scene.roomFlavorText.setText(compactText(description, 96));
         scene.roomPanelGroup.setVisible(true);
 
-        const profile = scene.combat.enemy?.profile;
-        if (profile) {
-            const sprKey = PixelSprite.enemyKey(profile);
-            if (scene.textures.exists(sprKey)) {
-                scene.enemySpriteImage.setTexture(sprKey).setVisible(true);
-                fitEnemySprite(scene.enemySpriteImage);
-                scene.enemyIconText.setVisible(false);
-            } else {
-                scene.enemySpriteImage.setVisible(false);
-                scene.enemyIconText.setVisible(true);
-            }
+        // Prefer the hand-authored per-mob portrait
+        // (`enemy_<canonical_name>`). Falls back to the procedural
+        // profile bucket (`enemy_<profile>`) when the per-mob art
+        // isn't shipped — `resolveEnemyTextureKey` returns `null` only
+        // when both are missing, in which case we render the letter
+        // glyph instead.
+        const activeEnemy = scene.combat.enemy;
+        const sprKey = activeEnemy
+            ? resolveEnemyTextureKey(scene, activeEnemy.canonicalName, activeEnemy.profile)
+            : null;
+        if (sprKey) {
+            scene.enemySpriteImage.setTexture(sprKey).setVisible(true);
+            fitEnemySprite(scene.enemySpriteImage);
+            scene.enemyIconText.setVisible(false);
         } else {
             scene.enemySpriteImage.setVisible(false);
             scene.enemyIconText.setVisible(true);
