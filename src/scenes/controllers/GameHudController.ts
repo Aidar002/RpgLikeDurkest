@@ -33,6 +33,7 @@ import { RelicSlots } from '../../ui/RelicSlots';
 import { RelicSwapModal } from '../../ui/RelicSwapModal';
 import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
 import { drawUiButton, type ButtonBackground } from '../../ui/UiButton';
+import { EscapeHintGlow } from '../../ui/EscapeHintGlow';
 import { VFX } from '../../ui/VFX';
 import { statusSummary } from '../../systems/StatusEffects';
 import { MAX_RELICS } from '../../systems/PlayerManager';
@@ -109,6 +110,11 @@ export class GameHudController {
     private escapeButtonLabel!: Phaser.GameObjects.Text;
     private restartButtonBg!: ButtonBackground;
     private restartButtonLabel!: Phaser.GameObjects.Text;
+
+    /** Gold pulsing halo around the escape button. Driven from
+     *  `refresh()` — visible when the player's pending + banked
+     *  skill points can afford at least one meta upgrade. */
+    private escapeHintGlow!: EscapeHintGlow;
 
     /** Restart-confirm modal. Built once in `build()` and toggled
      *  via `RestartConfirmModal.show` / `.hide()`. */
@@ -349,6 +355,17 @@ export class GameHudController {
         this.escapeButtonLabel.setVisible(hudButtonsVisible);
         this.restartButtonBg.setVisible(hudButtonsVisible);
         this.restartButtonLabel.setVisible(hudButtonsVisible);
+
+        // Escape-glow predicate: the player has earned at least one
+        // skill point this run AND their pending + banked total
+        // reaches the cheapest unbought meta upgrade. Banking-only
+        // (available >= cost with no pending) does NOT glow — the
+        // hint reads as "you accumulated something worth banking".
+        const pending = scene.runState.pendingSkillPoints;
+        const available = scene.meta.availableSkillPoints;
+        const cheapest = scene.meta.getCheapestUnboughtUpgradeCost();
+        const wantsEscapeHint = pending > 0 && pending + available >= cheapest;
+        this.escapeHintGlow.update(wantsEscapeHint, hudButtonsVisible);
     }
 
     public updatePlayerStatus(): void {
@@ -764,53 +781,70 @@ export class GameHudController {
      * visibility rules in `refresh`.
      */
     private buildHudButtons(topH: number, pad: number) {
-        const ESCAPE_BTN_W = 110;
-        const ESCAPE_BTN_H = 28;
-        const ESCAPE_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W / 2;
-        const ESCAPE_BTN_Y = topH + 18;
-        const escapeUi = drawUiButton(
-            this.scene,
-            ESCAPE_BTN_X,
-            ESCAPE_BTN_Y,
-            ESCAPE_BTN_W,
-            ESCAPE_BTN_H,
-            this.scene.loc.t('escapeButton'),
-            {
-                variant: 'silver',
-                fontSize: '12px',
-                color: HudHex.textSecondary,
-                depth: 220,
-                sfx: this.scene.sfx,
-            }
-        );
-        this.escapeButtonBg = escapeUi.background;
-        this.escapeButtonLabel = escapeUi.label;
-        this.escapeButtonLabel.setY(ESCAPE_BTN_Y - 1);
-        this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
+        // Restart anchors to the far right (destructive action; the
+        // outermost slot keeps it from being misclicked by reflex).
+        // Escape sits to its left so the more common, recoverable
+        // action is closer to the hot edge of the HUD. Variants:
+        //   - 'gold' for Escape — primary CTA, the run-ending bank.
+        //   - 'danger' for Restart — destructive, full wipe.
+        const BTN_H = 28;
+        const BTN_Y = topH + 18;
+        const BTN_GAP = 8;
 
         const RESTART_BTN_W = 130;
-        const RESTART_BTN_H = 28;
-        const RESTART_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
-        const RESTART_BTN_Y = ESCAPE_BTN_Y;
+        const RESTART_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W / 2;
         const restartUi = drawUiButton(
             this.scene,
             RESTART_BTN_X,
-            RESTART_BTN_Y,
+            BTN_Y,
             RESTART_BTN_W,
-            RESTART_BTN_H,
+            BTN_H,
             this.scene.loc.t('restartButton'),
             {
-                variant: 'silver',
+                variant: 'danger',
                 fontSize: '12px',
-                color: HudHex.textSecondary,
+                color: HudHex.textPrimary,
                 depth: 220,
                 sfx: this.scene.sfx,
             }
         );
         this.restartButtonBg = restartUi.background;
         this.restartButtonLabel = restartUi.label;
-        this.restartButtonLabel.setY(RESTART_BTN_Y - 1);
+        this.restartButtonLabel.setY(BTN_Y - 1);
         this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
+
+        const ESCAPE_BTN_W = 110;
+        const ESCAPE_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W - BTN_GAP - ESCAPE_BTN_W / 2;
+        const escapeUi = drawUiButton(
+            this.scene,
+            ESCAPE_BTN_X,
+            BTN_Y,
+            ESCAPE_BTN_W,
+            BTN_H,
+            this.scene.loc.t('escapeButton'),
+            {
+                variant: 'gold',
+                fontSize: '12px',
+                color: HudHex.textPrimary,
+                depth: 220,
+                sfx: this.scene.sfx,
+            }
+        );
+        this.escapeButtonBg = escapeUi.background;
+        this.escapeButtonLabel = escapeUi.label;
+        this.escapeButtonLabel.setY(BTN_Y - 1);
+        this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
+
+        this.escapeHintGlow = new EscapeHintGlow(
+            this.scene,
+            {
+                x: ESCAPE_BTN_X,
+                y: BTN_Y,
+                width: ESCAPE_BTN_W,
+                height: BTN_H,
+            },
+            this.scene.uiContainer
+        );
     }
 
     /**
