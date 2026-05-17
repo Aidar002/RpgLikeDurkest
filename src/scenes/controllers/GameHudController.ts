@@ -693,10 +693,27 @@ export class GameHudController {
         const totalW = MAX_RELICS * SLOT_SIZE + (MAX_RELICS - 1) * SLOT_GAP;
         const centerX = ROW_LEFT + Math.round(totalW / 2);
         const centerY = cellTop + Math.round(cellH / 2);
-        this.relicSlots = new RelicSlots(this.scene, this.scene.player, this.scene.loc, {
+        const scene = this.scene;
+        this.relicSlots = new RelicSlots(scene, scene.player, scene.loc, {
             centerX,
             centerY,
             capacity: MAX_RELICS,
+            sfx: scene.sfx,
+            // Click a filled relic slot → it arms with a red ✕ glyph,
+            // second click within ~3s commits the drop. We mirror the
+            // pickup log shape so the run-log reads as a paired
+            // "obtained / discarded" stream, with the dimmer
+            // `accentBloodLow` tint to signal a loss.
+            onDiscard: (id: RelicId) => {
+                const relic = RELICS[id];
+                scene.player.removeRelic(id);
+                scene.log.addMessage(
+                    scene.loc.t('relicDiscarded', {
+                        value: scene.loc.pick(relic.name),
+                    }),
+                    HudHex.accentBloodLow
+                );
+            },
         });
     }
 
