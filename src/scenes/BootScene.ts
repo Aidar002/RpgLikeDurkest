@@ -81,8 +81,19 @@ export class BootScene extends Phaser.Scene {
         }
 
         // ── Enemy portraits (combat panel) ──────────────────────
-        // Texture key format: enemy_<profile>
-        // Recommended size: 128×128 WebP
+        // Two flavours share the `public/sprites/enemies/` folder:
+        //
+        //   1. Profile fallbacks — `enemy_<profile>` keys for the four
+        //      `EnemyProfile` buckets. Any mob whose canonical-name
+        //      texture isn't shipped (yet) falls back to its profile
+        //      portrait.
+        //   2. Per-mob portraits — `enemy_<canonical_name>` keys for
+        //      every entry in the design roster. Canonical names are
+        //      lowercased and `[ -]` is replaced with `_`, e.g.
+        //      "Bee-Butterfly" → `enemy_bee_butterfly`. The lookup
+        //      lives in `enemyTextureKeyFor` (src/ui/RoomVisuals.ts),
+        //      which CombatHud calls before the profile fallback.
+        // Recommended size: 128×128 WebP.
         const enemies: [key: string, file: string][] = [
             ['enemy_brute', 'brute.webp'],
             ['enemy_stalker', 'stalker.webp'],
@@ -90,6 +101,36 @@ export class BootScene extends Phaser.Scene {
             ['enemy_boss', 'boss.webp'],
             ['enemy_bleeder', 'bleeder.webp'],
             ['enemy_disruptor', 'disruptor.webp'],
+            // Tier 1 (depth 0)
+            ['enemy_rat', 'rat.webp'],
+            ['enemy_slime', 'slime.webp'],
+            ['enemy_bat', 'bat.webp'],
+            ['enemy_bee_butterfly', 'bee_butterfly.webp'],
+            ['enemy_giant_toad', 'giant_toad.webp'],
+            // Tier 2 (depth 6)
+            ['enemy_rat_matron', 'rat_matron.webp'],
+            ['enemy_skeleton', 'skeleton.webp'],
+            ['enemy_ghoul', 'ghoul.webp'],
+            ['enemy_gelatinous_cube', 'gelatinous_cube.webp'],
+            ['enemy_earth_elemental', 'earth_elemental.webp'],
+            // Tier 3 (depth 11)
+            ['enemy_steel_lynx', 'steel_lynx.webp'],
+            ['enemy_vampire', 'vampire.webp'],
+            ['enemy_demon', 'demon.webp'],
+            ['enemy_goblin_horde', 'goblin_horde.webp'],
+            ['enemy_underground_ent', 'underground_ent.webp'],
+            // Tier 4 (depth 16)
+            ['enemy_skeleton_swordsman', 'skeleton_swordsman.webp'],
+            ['enemy_lich', 'lich.webp'],
+            ['enemy_succubus', 'succubus.webp'],
+            ['enemy_lost_adventurer', 'lost_adventurer.webp'],
+            ['enemy_death_knight', 'death_knight.webp'],
+            // Tier 5 / bosses (depth 21+)
+            ['enemy_prophet', 'prophet.webp'],
+            ['enemy_mammon', 'mammon.webp'],
+            ['enemy_nimrod', 'nimrod.webp'],
+            ['enemy_mime', 'mime.webp'],
+            ['enemy_gilgamesh', 'gilgamesh.webp'],
         ];
         for (const [key, file] of enemies) {
             this.load.image(key, `${base}sprites/enemies/${file}`);

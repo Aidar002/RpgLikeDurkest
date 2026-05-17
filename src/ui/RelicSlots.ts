@@ -481,7 +481,16 @@ export class RelicSlots {
         // without art rendering cleanly.
         const iconKey = `relic_${id}`;
         if (this.scene.textures.exists(iconKey)) {
-            slot.icon.setTexture(iconKey).setVisible(true);
+            // `setTexture` resets `displayWidth`/`displayHeight` to the
+            // source-image dimensions, so the inset we baked into
+            // {@link createSlot} is lost the moment we swap art in.
+            // Re-apply it here so hand-authored icons (typically
+            // 128×128) always render inside the slot's rarity border
+            // instead of overflowing past it.
+            slot.icon
+                .setTexture(iconKey)
+                .setDisplaySize(SLOT_SIZE - 8, SLOT_SIZE - 8)
+                .setVisible(true);
             slot.label.setText('');
         } else {
             slot.label.setText(letterFor(this.loc, id));

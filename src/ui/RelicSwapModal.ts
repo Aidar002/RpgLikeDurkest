@@ -275,7 +275,12 @@ export class RelicSwapModal {
         // tests and any future relic without art keep rendering.
         const iconKey = `relic_${id}`;
         if (this.scene.textures.exists(iconKey)) {
-            card.iconImage.setTexture(iconKey).setVisible(true);
+            // `setTexture` clobbers `displayWidth`/`displayHeight`, so
+            // the 54×54 inset chosen in {@link createCard} would be
+            // discarded once the hand-authored 128×128 art lands here.
+            // Re-applying `setDisplaySize` keeps the icon inside the
+            // 56×56 dark frame around it.
+            card.iconImage.setTexture(iconKey).setDisplaySize(54, 54).setVisible(true);
             card.iconLabel.setText('');
         } else {
             card.iconImage.setVisible(false);

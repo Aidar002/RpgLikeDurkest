@@ -1,6 +1,7 @@
 import type * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
 import { RoomType, type RoomType as RoomTypeValue } from '../data/MapTypes';
+import type { EnemyProfile } from '../data/EnemyTypes';
 
 // Pure visual lookups for map-node rendering. Extracted from GameScene so
 // they're trivially testable and reusable by other UI helpers.
@@ -124,6 +125,39 @@ export function roomSpriteKey(type: RoomTypeValue): string {
 
 export function roomTypeName(type: RoomTypeValue, loc: Localization): string {
     return loc.t(ROOM_NAME_KEY[type]);
+}
+
+/**
+ * Texture key for a per-mob enemy portrait. Canonical names are
+ * lowercased and any space / hyphen is collapsed to an underscore
+ * so the design roster's `name` field (e.g. "Bee-Butterfly",
+ * "Death Knight") maps cleanly onto BootScene's preload list
+ * (`enemy_bee_butterfly`, `enemy_death_knight`).
+ *
+ * Use {@link resolveEnemyTextureKey} to pick the per-mob texture
+ * first and fall back to the profile portrait when the per-mob
+ * art isn't shipped yet.
+ */
+export function enemyTextureKeyForName(canonicalName: string): string {
+    return `enemy_${canonicalName.toLowerCase().replace(/[ -]+/g, '_')}`;
+}
+
+/**
+ * Pick the best registered texture key for an enemy: prefer the
+ * hand-authored per-mob portrait, fall back to the profile bucket.
+ * Returns `null` when neither is registered so the caller can
+ * render the procedural icon glyph instead.
+ */
+export function resolveEnemyTextureKey(
+    scene: Phaser.Scene,
+    canonicalName: string,
+    profile: EnemyProfile
+): string | null {
+    const mobKey = enemyTextureKeyForName(canonicalName);
+    if (scene.textures.exists(mobKey)) return mobKey;
+    const profileKey = `enemy_${profile}`;
+    if (scene.textures.exists(profileKey)) return profileKey;
+    return null;
 }
 
 /** Target box for room sprites on the map — slightly inset from the node rect. */
