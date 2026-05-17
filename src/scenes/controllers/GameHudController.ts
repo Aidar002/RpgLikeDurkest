@@ -804,16 +804,17 @@ export class GameHudController {
         // action is closer to the hot edge of the HUD. Variants:
         //   - 'gold' for Escape — primary CTA, the run-ending bank.
         //   - 'danger' for Restart — destructive, full wipe.
-        // Sizes doubled vs the original (28 × 110 / 130) so the
-        // two run-management buttons feel like top-tier HUD chrome
-        // instead of incidental text labels. BTN_Y is offset further
-        // from `topH` to leave a clean gap between the top bar and
-        // the now 56px-tall buttons.
-        const BTN_H = 56;
-        const BTN_Y = topH + 32;
-        const BTN_GAP = 12;
+        // Sizes are 1.5× the original (28 × 110 / 130) — bumped to
+        // 38 × 147 / 173 so the two run-management buttons read as
+        // primary HUD chrome without dominating the right half of
+        // the top bar. BTN_Y is offset further from `topH` than the
+        // original 18 so the taller buttons keep a clean gap below
+        // the top bar (`TOP_BAR_H = 96`).
+        const BTN_H = 38;
+        const BTN_Y = topH + 23;
+        const BTN_GAP = 8;
 
-        const RESTART_BTN_W = 260;
+        const RESTART_BTN_W = 173;
         const RESTART_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W / 2;
         const restartUi = drawUiButton(
             this.scene,
@@ -824,7 +825,7 @@ export class GameHudController {
             this.scene.loc.t('restartButton'),
             {
                 variant: 'danger',
-                fontSize: '20px',
+                fontSize: '14px',
                 color: HudHex.textPrimary,
                 depth: 220,
                 sfx: this.scene.sfx,
@@ -835,7 +836,7 @@ export class GameHudController {
         this.restartButtonLabel.setY(BTN_Y - 1);
         this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
 
-        const ESCAPE_BTN_W = 220;
+        const ESCAPE_BTN_W = 147;
         const ESCAPE_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W - BTN_GAP - ESCAPE_BTN_W / 2;
         const escapeUi = drawUiButton(
             this.scene,
@@ -846,7 +847,7 @@ export class GameHudController {
             this.scene.loc.t('escapeButton'),
             {
                 variant: 'gold',
-                fontSize: '20px',
+                fontSize: '14px',
                 color: HudHex.textPrimary,
                 depth: 220,
                 sfx: this.scene.sfx,
