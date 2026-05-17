@@ -167,6 +167,7 @@ export class GameHudController {
         this.buildTopCombatStats(TOP_H);
         this.buildTopResources();
         this.buildTopProgress();
+        const topDivider = this.buildTopDivider();
 
         // ── BOTTOM BAR ──────────────────────────────────────────
         const bottom = this.buildBottomBar(BOT_Y, BOT_H);
@@ -197,6 +198,7 @@ export class GameHudController {
             this.goldStat.root,
             this.potionStat.root,
             this.resolveStat.root,
+            topDivider,
             this.depthStat.root,
             this.killsStat.root,
             this.bossStat.root,
@@ -493,7 +495,7 @@ export class GameHudController {
         // labels now carry the column's identity on their own.
         const SHIFT = HudLayout.topHud.shiftX;
         const VITALS_LABEL_X = pad + 8 + SHIFT;
-        const VITALS_BAR_X = pad + 8 + 64 + 12 + SHIFT;
+        const VITALS_BAR_X = pad + 8 + HudLayout.topHud.vitalsBarOffsetX + SHIFT;
         // The "ОЗ" / "УР" labels both anchor the HP/XP block visually,
         // so they use the same weight (bold) and size (13px) and the
         // primary text colour — the bar / value pair to the right
@@ -624,32 +626,30 @@ export class GameHudController {
 
     /**
      * Top-bar resources (Group D): the gold / potion / resolve trio
-     * sits as three large icon-over-value blocks in the centre-right
-     * of the top bar. Each block centres a 36 px icon over its value
-     * text so the resources read as the visual centrepiece of the
-     * bar, per player feedback ("сделай большими 3 значками а под
-     * ними уже значение"). The labels (ЗОЛОТО / ЭЛИК. / ВОЛЯ) are
-     * dropped — the spritesheet icons (coin / potion / quill)
-     * already carry the identity, and the larger value typography
-     * needs the room.
-     *
-     * The progress trio on the right (`buildTopProgress`) mirrors
-     * the same style so the two trios balance visually.
+     * sits as three large icon-over-label-over-value blocks in the
+     * centre-right of the top bar. Each block centres a 32 px icon
+     * over its localised label (МОНЕТЫ / ЗЕЛЬЕ / ВОЛЯ) and the bold
+     * value below, so the trio reads as the visual centrepiece of
+     * the bar. A carved pillar (`buildTopDivider`) separates this
+     * trio from the run-progress trio on the right.
      */
     private buildTopResources() {
         const { topHud } = HudLayout;
         const iconTopY = topHud.resourceIconTopY;
         const iconSize = topHud.resourceIconSize;
         const step = topHud.resourcesStepX;
+        const loc = this.scene.loc;
         this.goldStat = createHudStackedSlot(this.scene, topHud.resourcesX, iconTopY, {
             icon: 'coin',
             iconSize,
+            label: loc.t('goldShort').toUpperCase(),
             valueColor: HudHex.accentGold,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
         this.potionStat = createHudStackedSlot(this.scene, topHud.resourcesX + step, iconTopY, {
             icon: 'potion',
             iconSize,
+            label: loc.t('potionShort').toUpperCase(),
             valueColor: HudHex.accentPotion,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
@@ -660,6 +660,7 @@ export class GameHudController {
             {
                 icon: 'quill',
                 iconSize,
+                label: loc.t('resolveShort').toUpperCase(),
                 valueColor: HudHex.accentResolve,
                 valueFontSize: RESOURCE_VALUE_FONT_SIZE,
             }
@@ -688,12 +689,11 @@ export class GameHudController {
 
     /**
      * Top-bar run-progress trio (Group E): depth / kills / bosses
-     * rendered as three large icon-over-value blocks at the right
-     * edge of the top bar, mirroring the gold/potion/will trio on
-     * their left. Labels (ГЛУБИНА / УБИТО / БОССЫ) are dropped —
-     * the spritesheet icons (depth glyph, dagger, omega) already
-     * carry the identity, and the larger value typography needs
-     * the room. X anchors and the icon size come from
+     * rendered as three large icon-over-label-over-value blocks at
+     * the right edge of the top bar, mirroring the gold/potion/will
+     * trio on their left. A carved pillar between the two trios
+     * (`buildTopDivider`) makes the run-progress block read as a
+     * separate group. X anchors and the icon size come from
      * `HudLayout.topHud.*` so both trios share the same rhythm.
      */
     private buildTopProgress() {
@@ -701,24 +701,58 @@ export class GameHudController {
         const iconTopY = topHud.resourceIconTopY;
         const iconSize = topHud.resourceIconSize;
         const step = topHud.progressStepX;
+        const loc = this.scene.loc;
         this.depthStat = createHudStackedSlot(this.scene, topHud.progressX, iconTopY, {
             icon: 'depth',
             iconSize,
+            label: loc.t('depthShort').toUpperCase(),
             valueColor: HudHex.accentDepth,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
         this.killsStat = createHudStackedSlot(this.scene, topHud.progressX + step, iconTopY, {
             icon: 'kills',
             iconSize,
+            label: loc.t('killShort').toUpperCase(),
             valueColor: HudHex.accentKills,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
         this.bossStat = createHudStackedSlot(this.scene, topHud.progressX + step * 2, iconTopY, {
             icon: 'boss',
             iconSize,
+            label: loc.t('bossShort').toUpperCase(),
             valueColor: HudHex.accentBoss,
             valueFontSize: RESOURCE_VALUE_FONT_SIZE,
         });
+    }
+
+    /**
+     * Carved vertical pillar dividing the resource trio (gold /
+     * potion / will) from the run-progress trio (depth / kills /
+     * bosses). Built procedurally with a dark groove and a faint
+     * gold inner rim to match the chiselled-stone aesthetic of the
+     * top bar's frame, so the eye reads the two trios as separate
+     * groups instead of one long six-icon row.
+     */
+    private buildTopDivider(): Phaser.GameObjects.Graphics {
+        const cx = HudLayout.topHud.dividerX;
+        // Pillar lives within the top bar's interior (y 16..80) so
+        // it never collides with the gold rim.
+        const top = 16;
+        const height = 64;
+        const g = this.scene.add.graphics();
+        // Dark recessed groove (3 px wide).
+        g.fillStyle(HudColors.panelLo, 1);
+        g.fillRect(cx - 1, top, 3, height);
+        // Inner gold rim on the right edge — bright at the top,
+        // fading to a hint at the bottom (mirrors the top bar's
+        // own carved highlights).
+        g.fillStyle(HudColors.cellGoldEdge, 0.45);
+        g.fillRect(cx + 2, top + 4, 1, height - 8);
+        // Dot accents at the rim's vertical midpoint pick up the
+        // carved-stone rune motif from the panel corners.
+        g.fillStyle(HudColors.cellGoldEdge, 0.6);
+        g.fillRect(cx - 2, top + height / 2 - 1, 5, 2);
+        return g;
     }
 
     /**

@@ -176,6 +176,7 @@ export interface HudInlineSlotHandle {
 export interface HudStackedSlotHandle {
     root: Phaser.GameObjects.Container;
     setValue(text: string): void;
+    setLabel(text: string): void;
     setVisible(visible: boolean): void;
 }
 
@@ -190,19 +191,26 @@ interface HudStackedSlotOptions {
     valueColor?: string;
     /** Pixel size for the value text. */
     valueFontSize?: string;
-    /** Vertical gap between the icon bottom edge and the value top. */
-    iconValueGap?: number;
+    /** Optional ALL-CAPS label rendered between the icon and value. */
+    label?: string;
+    /** Hex colour for the label text. */
+    labelColor?: string;
+    /** Pixel size for the label text. */
+    labelFontSize?: string;
+    /** Vertical gap between adjacent rows (icon→label, label→value,
+     *  or icon→value when no label). */
+    rowGap?: number;
     /** Optional tint applied to the icon image. */
     iconColor?: number;
 }
 
 /**
- * Build a centred two-row slot at `(x, y)` (origin 0.5/0) showing a
- * large icon on top with the value text centred directly below.
- * Used for the prominent gold/potion/resolve and depth/kills/bosses
- * blocks in the top bar — three blocks side-by-side read as a single
- * column of stat readouts where the icon carries the identity and
- * the value is the headline number.
+ * Build a centred icon-anchored slot at `(x, y)` (origin 0.5/0). The
+ * icon sits at the top with an optional ALL-CAPS label below it and
+ * a value below that (the typical readout layout for the gold /
+ * potion / will and depth / kills / bosses trios in the top bar).
+ * When `label` is omitted the slot collapses to a two-row icon +
+ * value stack.
  */
 export function createHudStackedSlot(
     scene: Phaser.Scene,
@@ -210,13 +218,19 @@ export function createHudStackedSlot(
     y: number,
     options: HudStackedSlotOptions
 ): HudStackedSlotHandle {
+    const labelColor = options.labelColor ?? HudHex.textSecondary;
+    const labelFontSize = options.labelFontSize ?? '11px';
     const valueColor = options.valueColor ?? HudHex.textPrimary;
     const valueFontSize = options.valueFontSize ?? '18px';
     const iconSize = options.iconSize ?? 32;
-    const gap = options.iconValueGap ?? 4;
+    const gap = options.rowGap ?? 2;
 
     const iconCenterY = y + Math.ceil(iconSize / 2);
-    const valueTopY = y + iconSize + gap;
+    const labelTopY = y + iconSize + gap;
+    const labelHeight = options.label
+        ? parseInt(labelFontSize, 10) + 2 // approx text height for fontSize
+        : 0;
+    const valueTopY = options.label ? labelTopY + labelHeight + gap : y + iconSize + gap;
 
     const widgets: Phaser.GameObjects.GameObject[] = [];
 
@@ -225,6 +239,20 @@ export function createHudStackedSlot(
         tint: options.iconColor,
     });
     widgets.push(icon);
+
+    let labelText: Phaser.GameObjects.Text | null = null;
+    if (options.label) {
+        labelText = scene.add
+            .text(x, labelTopY, options.label, {
+                fontFamily: HUD_FONT,
+                fontSize: labelFontSize,
+                color: labelColor,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(0.5, 0);
+        widgets.push(labelText);
+    }
 
     const valueText = scene.add
         .text(x, valueTopY, options.value ?? '', {
@@ -244,6 +272,9 @@ export function createHudStackedSlot(
         root,
         setValue(text: string) {
             valueText.setText(text);
+        },
+        setLabel(text: string) {
+            if (labelText) labelText.setText(text);
         },
         setVisible(visible: boolean) {
             root.setVisible(visible);
