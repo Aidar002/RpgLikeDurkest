@@ -34,7 +34,7 @@ export type RelicId =
 
 export type RelicRarity = 'common' | 'rare' | 'unique';
 
-type RelicSetId = 'wanderer' | 'flesh' | 'knight' | 'cursed' | 'sin';
+export type RelicSetId = 'wanderer' | 'flesh' | 'knight' | 'cursed' | 'sin';
 
 /** Drop table entry: which enemy can drop this item. */
 interface RelicDropEntry {

@@ -27,10 +27,11 @@ import * as Phaser from 'phaser';
 
 import type { Localization } from '../systems/Localization';
 import type { PlayerManager } from '../systems/PlayerManager';
-import { RELICS, type RelicId, type RelicRarity } from '../systems/Relics';
+import { RELICS, type RelicId, type RelicRarity, type RelicSetId } from '../systems/Relics';
 import type { SoundManager } from '../systems/SoundManager';
-import { Depths } from './Layout';
-import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
+import { playEffect } from './EffectsLibrary';
+import { CENTER_X, Depths } from './Layout';
+import { HUD_FONT, HUD_STROKE, HudColors, HudHex, RelicSetColors, RelicSetHex } from './HudTheme';
 import { drawPanel, type PanelBackground } from './UiPanel';
 
 const SLOT_SIZE = 60;
@@ -38,6 +39,37 @@ const SLOT_GAP = 18;
 const TOOLTIP_PAD = 12;
 const TOOLTIP_W = 240;
 const TOOLTIP_LINE_GAP = 4;
+
+/** Side length of the corner rune that signals set membership. */
+const RUNE_SIZE = 12;
+/** Inset of the rune from the slot's bottom-right edge. */
+const RUNE_INSET = 4;
+/** Inset of the partial-set counter from the slot's top-right edge. */
+const COUNTER_INSET = 4;
+
+/** Total roster size for each set — used to render the `owned/total`
+ *  counter when the set isn't yet complete. */
+const SET_TOTAL: Record<RelicSetId, number> = {
+    wanderer: 3,
+    flesh: 2,
+    knight: 3,
+    cursed: 2,
+    sin: 2,
+};
+
+/** Locale key used for the centred toast that fires on set completion.
+ *  Resolved lazily so the file stays free of explicit `loc.t(...)` calls
+ *  at module load time. */
+const SET_NAME_KEY: Record<
+    RelicSetId,
+    'setWanderer' | 'setFlesh' | 'setKnight' | 'setCursed' | 'setSin'
+> = {
+    wanderer: 'setWanderer',
+    flesh: 'setFlesh',
+    knight: 'setKnight',
+    cursed: 'setCursed',
+    sin: 'setSin',
+};
 
 /** Click on a filled slot arms a discard confirm; a second click on
  *  the same slot within this window commits the drop. Matches the
@@ -97,9 +129,26 @@ interface SlotHandle {
     bgTextured: boolean;
     border: Phaser.GameObjects.Rectangle;
     label: Phaser.GameObjects.Text;
+    /** Bottom-right corner marker tinted by the relic's set. Hidden for
+     *  setless relics. Stays visible whether the set is partial or
+     *  complete — completion is signalled instead by the border. */
+    setRune: Phaser.GameObjects.Rectangle;
+    /** Inner pip on the rune so it reads as a glyph rather than a flat
+     *  square. Painted with a slightly brighter shade of the set
+     *  colour for visual depth. */
+    setRunePip: Phaser.GameObjects.Rectangle;
+    /** Tiny `n/total` overlay on the top-right corner of the slot.
+     *  Visible only while the slot's set is collected but incomplete. */
+    setCounter: Phaser.GameObjects.Text;
     container: Phaser.GameObjects.Container;
     /** Currently displayed relic, or null when the slot is empty. */
     relicId: RelicId | null;
+    /** Cached set of the displayed relic for fast brother lookup on
+     *  hover. `null` for slot-less relics. */
+    setId: RelicSetId | null;
+    /** Active pulse tween on `border` while the slot's set is complete;
+     *  stopped + cleared on every {@link applySlot} call. */
+    pulseTween: Phaser.Tweens.Tween | null;
 }
 
 export class RelicSlots {
@@ -114,6 +163,23 @@ export class RelicSlots {
      *  another slot click, or an external `relicsChange` refresh. */
     private armedSlot: SlotHandle | null = null;
     private armedTimer: Phaser.Time.TimerEvent | null = null;
+    /** Sets known to be complete after the most recent {@link refresh}.
+     *  Used to detect false→true transitions so we only fire the
+     *  set-complete celebration once per build of a set. */
+    private completedSets: Set<RelicSetId> = new Set();
+    /** Set ids whose owned count is currently > 0 — used by
+     *  {@link refresh} to drive the partial-set counter on slot
+     *  members. Recomputed every refresh from `player.relics`. */
+    private setOwnedCount: Map<RelicSetId, number> = new Map();
+    /** Slot the pointer is currently hovering over; cleared on
+     *  `pointerout`. Drives brother-highlight glow on other slots
+     *  of the same set. */
+    private hoveredSlot: SlotHandle | null = null;
+    /** True the very first time {@link refresh} runs — used to suppress
+     *  the set-complete celebration on initial paint (e.g. a saved run
+     *  loads with a set already built; we don't want to replay the
+     *  fanfare). */
+    private firstRefresh = true;
 
     constructor(
         scene: Phaser.Scene,
@@ -167,9 +233,42 @@ export class RelicSlots {
         if (this.dead) return;
         this.clearArm(/* repaint */ false);
         this.hideTooltip();
+        this.hoveredSlot = null;
+        // Recompute owned counts per set up front so each
+        // {@link applySlot} call can render its counter / completed
+        // state in O(1) without re-walking the inventory.
         const ids = this.player.relics;
+        const counts = new Map<RelicSetId, number>();
+        for (const id of ids) {
+            if (!id) continue;
+            const set = setOf(id);
+            if (!set) continue;
+            counts.set(set, (counts.get(set) ?? 0) + 1);
+        }
+        this.setOwnedCount = counts;
+
+        const nowComplete = new Set<RelicSetId>();
+        (Object.keys(SET_TOTAL) as RelicSetId[]).forEach((s) => {
+            if ((counts.get(s) ?? 0) >= SET_TOTAL[s]) nowComplete.add(s);
+        });
+        const justCompleted: RelicSetId[] = [];
+        if (!this.firstRefresh) {
+            for (const s of nowComplete) {
+                if (!this.completedSets.has(s)) justCompleted.push(s);
+            }
+        }
+        this.completedSets = nowComplete;
+        this.firstRefresh = false;
+
         for (let i = 0; i < this.slots.length; i++) {
             this.applySlot(this.slots[i], ids[i] ?? null);
+        }
+
+        // Fire the set-complete celebration *after* every slot has
+        // been repainted, so the brighter dust burst lands on the
+        // recoloured set-borders rather than the prior rarity hue.
+        for (const s of justCompleted) {
+            this.celebrateSetComplete(s);
         }
     }
 
@@ -210,7 +309,14 @@ export class RelicSlots {
             this.armedTimer = null;
         }
         this.armedSlot = null;
-        this.slots.forEach((s) => s.container.destroy());
+        this.hoveredSlot = null;
+        this.slots.forEach((s) => {
+            if (s.pulseTween) {
+                s.pulseTween.stop();
+                s.pulseTween = null;
+            }
+            s.container.destroy();
+        });
         this.tooltip.bg.destroy();
         this.tooltip.title.destroy();
         this.tooltip.body.destroy();
@@ -259,19 +365,65 @@ export class RelicSlots {
                 strokeThickness: 2,
             })
             .setOrigin(0.5);
-        container.add([bg, border, label]);
+        // Set-membership corner rune (bottom-right). Built hidden;
+        // {@link applySlot} positions and tints it per relic. The pip
+        // is a tiny rectangle inside the rune that lifts it off the
+        // border so it doesn't read as a flat coloured chip.
+        const runeX = SLOT_SIZE / 2 - RUNE_INSET - RUNE_SIZE / 2;
+        const runeY = SLOT_SIZE / 2 - RUNE_INSET - RUNE_SIZE / 2;
+        const setRune = this.scene.add
+            .rectangle(runeX, runeY, RUNE_SIZE, RUNE_SIZE, 0xffffff, 1)
+            .setOrigin(0.5)
+            .setStrokeStyle(1, 0x111111, 0.85)
+            .setVisible(false);
+        const setRunePip = this.scene.add
+            .rectangle(runeX, runeY, RUNE_SIZE - 6, RUNE_SIZE - 6, 0xffffff, 1)
+            .setOrigin(0.5)
+            .setVisible(false);
+        // Partial-set counter (top-right). Right-aligned so multi-
+        // digit totals would still hug the slot edge cleanly.
+        const counterX = SLOT_SIZE / 2 - COUNTER_INSET;
+        const counterY = -SLOT_SIZE / 2 + COUNTER_INSET;
+        const setCounter = this.scene.add
+            .text(counterX, counterY, '', {
+                fontFamily: HUD_FONT,
+                fontSize: '10px',
+                color: HudHex.textMuted,
+                stroke: HUD_STROKE,
+                strokeThickness: 2,
+            })
+            .setOrigin(1, 0)
+            .setVisible(false);
+        container.add([bg, border, label, setRune, setRunePip, setCounter]);
         return {
             container,
             bg,
             bgTextured: panel.textured,
             border,
             label,
+            setRune,
+            setRunePip,
+            setCounter,
             relicId: null,
+            setId: null,
+            pulseTween: null,
         };
     }
 
     private applySlot(slot: SlotHandle, id: RelicId | null): void {
+        // Tear down any prior set-complete pulse before we repaint —
+        // the new relic (or empty slot) may not want it, and a stale
+        // tween would keep mutating the freshly re-coloured border.
+        if (slot.pulseTween) {
+            slot.pulseTween.stop();
+            slot.pulseTween = null;
+        }
         slot.relicId = id;
+        slot.setId = null;
+        slot.setRune.setVisible(false);
+        slot.setRunePip.setVisible(false);
+        slot.setCounter.setVisible(false);
+        slot.border.setAlpha(1);
         if (!id) {
             paintSlotBg(slot, 0.45);
             slot.border.setStrokeStyle(1, HudColors.divider, 0.6);
@@ -281,19 +433,67 @@ export class RelicSlots {
             return;
         }
         const relic = RELICS[id];
+        const setId = setOf(id);
+        slot.setId = setId;
+        const setComplete = setId !== null && this.completedSets.has(setId);
         const rarityColor = RARITY_BORDER[relic.rarity as RelicRarity];
         paintSlotBg(slot, 1);
-        slot.border.setStrokeStyle(2, rarityColor, 1);
+        if (setComplete && setId !== null) {
+            const setColor = RelicSetColors[setId];
+            slot.border.setStrokeStyle(3, setColor, 1);
+            // Gentle 0.3 Hz alpha pulse so completed sets read as
+            // "alive" without distracting from gameplay. Stored on the
+            // handle so {@link applySlot} can stop it on the next
+            // repaint.
+            slot.pulseTween = this.scene.tweens.add({
+                targets: slot.border,
+                alpha: 0.55,
+                duration: 1600,
+                yoyo: true,
+                repeat: -1,
+                ease: 'Sine.inOut',
+            });
+        } else {
+            slot.border.setStrokeStyle(2, rarityColor, 1);
+        }
         slot.label.setText(letterFor(this.loc, id));
         slot.label.setColor(RARITY_TEXT[relic.rarity as RelicRarity]);
+
+        // Set-membership rune (permanent for any relic with a set).
+        if (setId !== null) {
+            const color = RelicSetColors[setId];
+            slot.setRune.setFillStyle(color, 1);
+            slot.setRune.setVisible(true);
+            // Pip is a slightly desaturated overlay; on completed sets
+            // it brightens to make the rune pop.
+            slot.setRunePip.setFillStyle(
+                setComplete ? 0xfff2c4 : 0x111111,
+                setComplete ? 0.9 : 0.55
+            );
+            slot.setRunePip.setVisible(true);
+            // Counter shown only while the set isn't yet complete.
+            const owned = this.setOwnedCount.get(setId) ?? 0;
+            const total = SET_TOTAL[setId];
+            if (!setComplete && owned > 0 && total > 1) {
+                slot.setCounter.setText(`${owned}/${total}`);
+                slot.setCounter.setColor(RelicSetHex[setId]);
+                slot.setCounter.setVisible(true);
+            }
+        }
 
         slot.container.removeAllListeners();
         slot.container.setInteractive(
             new Phaser.Geom.Rectangle(-SLOT_SIZE / 2, -SLOT_SIZE / 2, SLOT_SIZE, SLOT_SIZE),
             Phaser.Geom.Rectangle.Contains
         );
-        slot.container.on('pointerover', () => this.showTooltip(slot, id));
-        slot.container.on('pointerout', () => this.hideTooltip());
+        slot.container.on('pointerover', () => {
+            this.showTooltip(slot, id);
+            this.setHovered(slot);
+        });
+        slot.container.on('pointerout', () => {
+            this.hideTooltip();
+            this.setHovered(null);
+        });
         // Discard flow is opt-in via `onDiscard`. Without a callback
         // wired we leave the slot hover-only — no click reactions — so
         // pre-existing call sites that just want a read-only relic row
@@ -428,6 +628,132 @@ export class RelicSlots {
         this.tooltip.rarity.setVisible(visible);
         this.tooltip.body.setVisible(visible);
     }
+
+    /**
+     * Track the slot currently under the pointer and brighten its set
+     * brothers. Passing `null` clears any active highlight, which is
+     * what we want on `pointerout` and on every {@link refresh} (where
+     * we tear down state before repainting).
+     *
+     * Brothers are highlighted by widening the border stroke and
+     * temporarily painting it in the set colour. Completed sets are
+     * left alone — they already pulse in the set colour and the extra
+     * stroke would just steal contrast from the celebration.
+     */
+    private setHovered(slot: SlotHandle | null): void {
+        const prev = this.hoveredSlot;
+        if (prev === slot) return;
+        // Restore any previously highlighted brothers.
+        if (prev && prev.setId) {
+            this.highlightBrothers(prev.setId, /* on */ false);
+        }
+        this.hoveredSlot = slot;
+        if (slot && slot.setId && !this.completedSets.has(slot.setId)) {
+            // Skip painting brothers while the set is complete — the
+            // completion pulse already telegraphs membership and adding
+            // a heavier stroke on top muddles the colour.
+            this.highlightBrothers(slot.setId, /* on */ true);
+        }
+    }
+
+    /**
+     * Toggle the brother-highlight on every slot in `setId` whose
+     * border isn't currently driven by a completion pulse. The
+     * `setStrokeStyle` call is idempotent — passing the same values
+     * twice is a no-op — so leaving stray prior calls in flight is
+     * harmless if the slot was rearmed for discard mid-hover (the
+     * armed paint state takes priority on the next pointerdown).
+     */
+    private highlightBrothers(setId: RelicSetId, on: boolean): void {
+        const setColor = RelicSetColors[setId];
+        for (const s of this.slots) {
+            if (s.setId !== setId) continue;
+            if (this.completedSets.has(setId)) continue;
+            if (on) {
+                s.border.setStrokeStyle(3, setColor, 1);
+            } else {
+                // Repaint from the relic's rarity. If the slot was
+                // armed for discard the next click handler will paint
+                // it red again anyway, so we keep this simple.
+                if (s.relicId) {
+                    const rarity = RELICS[s.relicId].rarity as RelicRarity;
+                    s.border.setStrokeStyle(2, RARITY_BORDER[rarity], 1);
+                }
+            }
+        }
+    }
+
+    /**
+     * Fire the set-complete celebration: a brighter `dustImplosion`
+     * burst on every slot in the set plus a centred toast naming the
+     * set. The border recolour + pulsation are owned by
+     * {@link applySlot}; this method just sprinkles the VFX on top so
+     * the visual change has a clear "moment".
+     */
+    private celebrateSetComplete(setId: RelicSetId): void {
+        const color = RelicSetColors[setId];
+        for (const slot of this.slots) {
+            if (slot.setId !== setId) continue;
+            const x = slot.container.x;
+            const y = slot.container.y;
+            playEffect(this.scene, 'dustImplosion', x, y, {
+                color,
+                scale: 1.25,
+                countScale: 2,
+                depth: Depths.NotificationBanner,
+            });
+        }
+        // Reuse the level-up cue as a positive milestone sound — the
+        // SFX catalogue doesn't currently have a dedicated "set built"
+        // chord and a brand-new procedural recipe is overkill for this
+        // pass. Mirrors how `treasure`/`shrine` cues already double up
+        // for thematically adjacent events.
+        this.options.sfx?.play('levelUp');
+        this.showSetToast(setId);
+    }
+
+    /**
+     * Centred "Set complete: {name}" notification. Drawn directly on
+     * the scene so it floats above every HUD layer and tears itself
+     * down 1.6 s after appearing. Toast position is anchored to
+     * canvas centre so it reads regardless of which slot fired.
+     */
+    private showSetToast(setId: RelicSetId): void {
+        const name = this.loc.t(SET_NAME_KEY[setId]);
+        const text = this.loc.t('relicSetComplete', { name });
+        const setColor = RelicSetHex[setId];
+        const cy = this.scene.scale.height / 2 - 40;
+        const toast = this.scene.add
+            .text(CENTER_X, cy, text, {
+                fontFamily: HUD_FONT,
+                fontSize: '22px',
+                color: setColor,
+                stroke: HUD_STROKE,
+                strokeThickness: 3,
+                align: 'center',
+            })
+            .setOrigin(0.5)
+            .setDepth(Depths.NotificationBanner + 1)
+            .setAlpha(0);
+        this.scene.tweens.add({
+            targets: toast,
+            alpha: 1,
+            y: cy - 12,
+            duration: 220,
+            ease: 'Sine.out',
+            onComplete: () => {
+                this.scene.tweens.add({
+                    targets: toast,
+                    alpha: 0,
+                    y: cy - 28,
+                    delay: 1100,
+                    duration: 320,
+                    ease: 'Sine.in',
+                    onComplete: () => toast.destroy(),
+                });
+            },
+        });
+    }
 }
 
 interface TooltipHandle {
@@ -504,4 +830,34 @@ function letterFor(loc: Localization, id: RelicId): string {
 
 function rarityKey(rarity: RelicRarity): 'rarityCommon' | 'rarityRare' | 'rarityUnique' {
     return rarity === 'common' ? 'rarityCommon' : rarity === 'rare' ? 'rarityRare' : 'rarityUnique';
+}
+
+/**
+ * Map every set-bearing relic id to its set, or `null` for the
+ * standalone curiosities (currently `dread_lantern` and
+ * `cracked_focus`). Centralised here so RelicSlots can decide whether
+ * to render a corner rune / counter without re-walking `RELICS[id]`.
+ */
+function setOf(id: RelicId): RelicSetId | null {
+    switch (id) {
+        case 'worn_ring':
+        case 'cracked_shield':
+        case 'tattered_cloak':
+            return 'wanderer';
+        case 'vampire_amulet':
+        case 'dark_chestplate':
+            return 'flesh';
+        case 'knight_sword':
+        case 'knight_armor':
+        case 'knight_helmet':
+            return 'knight';
+        case 'cursed_amulet':
+        case 'cursed_ring':
+            return 'cursed';
+        case 'greed_crown':
+        case 'longinus_shard':
+            return 'sin';
+        default:
+            return null;
+    }
 }

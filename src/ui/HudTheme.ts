@@ -29,6 +29,29 @@ export const HudColors = {
     cellGoldEdge: 0xe2b04a,
 } as const;
 
+/**
+ * Per-set accent colours for relic slot markers (corner rune, brother
+ * hover highlight, completed-set border). Chosen so they read clearly
+ * against the dark slot panel and don't collide with the rarity border
+ * palette (gold / amethyst / muted bronze).
+ */
+export const RelicSetColors = {
+    wanderer: 0x6f8b5a,
+    flesh: 0x7a2a2a,
+    knight: 0x5f7a99,
+    cursed: 0x6b3d8a,
+    sin: 0xc89b3f,
+} as const;
+
+/** Hex-string variant of {@link RelicSetColors} for Text colours. */
+export const RelicSetHex = {
+    wanderer: '#9ec07c',
+    flesh: '#d96d6d',
+    knight: '#9ab6d4',
+    cursed: '#c79afa',
+    sin: '#f0c878',
+} as const;
+
 /** String colours for Phaser Text styles. */
 export const HudHex = {
     textPrimary: '#e8dfc9',

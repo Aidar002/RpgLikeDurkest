@@ -130,6 +130,15 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     relicCapDrop: 'Сбросить',
     relicCapSkip: 'Пропустить — оставить текущие',
     relicDiscarded: 'Реликвия выброшена: {value}.',
+    // Центральный тост, появляющийся в момент, когда впервые
+    // собран полный сет реликвий. `{name}` — одно из имён сетов
+    // ниже.
+    relicSetComplete: 'Сет собран: {name}',
+    setWanderer: 'Скиталец',
+    setFlesh: 'Плоть',
+    setKnight: 'Рыцарь',
+    setCursed: 'Проклятый',
+    setSin: 'Грех',
     rarityCommon: 'Обычная',
     rarityRare: 'Редкая',
     rarityUnique: 'Уникальная',
