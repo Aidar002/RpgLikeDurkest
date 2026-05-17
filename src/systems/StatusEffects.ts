@@ -3,18 +3,30 @@
 //   bleed:      stacks * dmg at end of each turn for N turns
 //   poison:     damage at end of each turn for N turns (ghoul rider)
 //   stun:       skips next enemy/player turn(s)
+//   attackBan:  player's attack action is forfeit for N turns; defense,
+//               skills and potions still resolve normally (giant toad)
 //   weaken:     attack -X for N turns
 //   armorBreak: defense -X for N turns (gelatinous cube acid)
 //   mark:       next incoming attack on this target is guaranteed crit
 //   guard:      flat damage block for the next N incoming hits
 //   regen:      heals per turn for N turns (player)
 
-type StatusId = 'bleed' | 'poison' | 'stun' | 'weaken' | 'armorBreak' | 'mark' | 'guard' | 'regen';
+type StatusId =
+    | 'bleed'
+    | 'poison'
+    | 'stun'
+    | 'attackBan'
+    | 'weaken'
+    | 'armorBreak'
+    | 'mark'
+    | 'guard'
+    | 'regen';
 
 export interface StatusState {
     bleed: { stacks: number; turns: number };
     poison: { damage: number; turns: number };
     stun: { turns: number };
+    attackBan: { turns: number };
     weaken: { turns: number; amount: number };
     armorBreak: { turns: number; amount: number };
     mark: { turns: number };
@@ -29,6 +41,7 @@ export function emptyStatusState(): StatusState {
         bleed: { stacks: 0, turns: 0 },
         poison: { damage: 0, turns: 0 },
         stun: { turns: 0 },
+        attackBan: { turns: 0 },
         weaken: { turns: 0, amount: 0 },
         armorBreak: { turns: 0, amount: 0 },
         mark: { turns: 0 },
@@ -61,6 +74,43 @@ export function applyPoison(s: StatusState, damage: number, turns: number) {
 
 export function applyStun(s: StatusState, turns: number) {
     s.stun.turns = Math.max(s.stun.turns, turns);
+}
+
+/**
+ * Apply or refresh an attack-only ban. While `s.attackBan.turns > 0`
+ * the holder's attack action is forfeit but defense, skills and potions
+ * still work. Highest pending turn count wins so a short reapply cannot
+ * shrink a longer existing ban.
+ */
+export function applyAttackBan(s: StatusState, turns: number) {
+    s.attackBan.turns = Math.max(s.attackBan.turns, turns);
+}
+
+/**
+ * Consume one turn of attack-ban when the holder tries to attack.
+ * Returns `true` (and decrements) if the ban was active and the attack
+ * is forfeit; returns `false` if the holder is free to swing.
+ */
+export function consumeAttackBanForAttack(s: StatusState): boolean {
+    if (s.attackBan.turns > 0) {
+        s.attackBan.turns -= 1;
+        return true;
+    }
+    return false;
+}
+
+/**
+ * Tick the attack-ban timer at the end of a non-attack turn so the ban
+ * still naturally decays when the player chooses to defend / use a
+ * skill / drink a potion instead of swinging. Keeps the duration
+ * semantics the same as `stun` (counts down once per player turn).
+ */
+export function tickAttackBan(s: StatusState): boolean {
+    if (s.attackBan.turns > 0) {
+        s.attackBan.turns -= 1;
+        return s.attackBan.turns <= 0;
+    }
+    return false;
 }
 
 export function applyWeaken(s: StatusState, amount: number, turns: number) {
@@ -188,6 +238,7 @@ interface StatusLabels {
     bleed: (stacks: number, turns: number) => string;
     poison: (damage: number, turns: number) => string;
     stun: (turns: number) => string;
+    attackBan: (turns: number) => string;
     weaken: (amount: number, turns: number) => string;
     armorBreak: (amount: number, turns: number) => string;
     mark: () => string;
@@ -200,6 +251,7 @@ const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
         bleed: (stacks, turns) => `Кровотечение x${stacks}/${turns}х`,
         poison: (damage, turns) => `Яд ${damage}/${turns}х`,
         stun: (turns) => `Оглуш. ${turns}х`,
+        attackBan: (turns) => `Без атаки ${turns}х`,
         weaken: (amount, turns) => `Слаб. -${amount}/${turns}х`,
         armorBreak: (amount, turns) => `Броня -${amount}/${turns}х`,
         mark: () => 'Метка',
@@ -210,6 +262,7 @@ const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
         bleed: (stacks, turns) => `Bleed x${stacks}/${turns}t`,
         poison: (damage, turns) => `Poison ${damage}/${turns}t`,
         stun: (turns) => `Stun ${turns}t`,
+        attackBan: (turns) => `No-attack ${turns}t`,
         weaken: (amount, turns) => `Weaken -${amount}/${turns}t`,
         armorBreak: (amount, turns) => `Armor -${amount}/${turns}t`,
         mark: () => 'Marked',
@@ -224,6 +277,7 @@ export function statusSummary(s: StatusState, language: StatusLanguage = 'en'): 
     if (s.bleed.turns > 0) parts.push(labels.bleed(s.bleed.stacks, s.bleed.turns));
     if (s.poison.turns > 0) parts.push(labels.poison(s.poison.damage, s.poison.turns));
     if (s.stun.turns > 0) parts.push(labels.stun(s.stun.turns));
+    if (s.attackBan.turns > 0) parts.push(labels.attackBan(s.attackBan.turns));
     if (s.weaken.turns > 0) parts.push(labels.weaken(s.weaken.amount, s.weaken.turns));
     if (s.armorBreak.turns > 0)
         parts.push(labels.armorBreak(s.armorBreak.amount, s.armorBreak.turns));

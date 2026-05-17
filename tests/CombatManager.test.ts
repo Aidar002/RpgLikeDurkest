@@ -559,8 +559,8 @@ function injectGiantToadPrepare(
                 nameEn: 'Tongue Lash',
                 nameRu: 'Языковая хватка',
                 turns: 1,
-                damage: 1,
-                stun: { turns: 1 },
+                damage: 0,
+                attackBan: { turns: 1 },
                 defenseRule: 'cancelRiders',
             },
             turnsRemaining: overrides.turnsRemaining ?? 0,
@@ -568,13 +568,14 @@ function injectGiantToadPrepare(
     });
 }
 
-function injectGelatinousCube(
+function injectGelatinousCubePrepare(
     combat: CombatManager,
     overrides: Partial<{
         hp: number;
         maxHp: number;
         attack: number;
         chance: number;
+        turnsRemaining: number;
     }> = {}
 ): void {
     combat.enemy = makeActiveEnemy({
@@ -582,38 +583,103 @@ function injectGelatinousCube(
         icon: 'C',
         hp: overrides.hp ?? 9,
         maxHp: overrides.maxHp ?? 9,
-        attack: overrides.attack ?? 3,
+        attack: overrides.attack ?? 2,
         color: 0x82c4d4,
         profile: 'brute',
-        // Default chance=1 so existing tests stay deterministic; the
-        // 40% production value lives in GameConfig.ENEMY_TIERS.
-        passive: {
-            kind: 'acidVomitOnFirstHit',
-            chance: overrides.chance ?? 1,
-            amount: 1,
-            turns: 99,
+        pendingPrepare: {
+            def: {
+                nameEn: 'Acid Vomit',
+                nameRu: 'Кислотная рвота',
+                turns: 1,
+                damage: 0,
+                // Default chance=1 so existing tests stay deterministic;
+                // the 40% production value lives in GameConfig.ENEMY_TIERS.
+                armorBreak: { chance: overrides.chance ?? 1, amount: 1, turns: 99 },
+                defenseRule: 'cancelRiders',
+            },
+            turnsRemaining: overrides.turnsRemaining ?? 0,
         },
     });
 }
 
-describe('Gelatinous Cube Acid Vomit (acidVomitOnFirstHit)', () => {
-    it('applies armor break to the player on the first landed hit', () => {
+function injectBatPrepare(
+    combat: CombatManager,
+    overrides: Partial<{ hp: number; maxHp: number; turnsRemaining: number }> = {}
+): void {
+    combat.enemy = makeActiveEnemy({
+        name: 'Bat',
+        icon: 'B',
+        hp: overrides.hp ?? 2,
+        maxHp: overrides.maxHp ?? 2,
+        attack: 1,
+        color: 0x36463f,
+        profile: 'stalker',
+        pendingPrepare: {
+            def: {
+                nameEn: 'Bite',
+                nameRu: 'Укус',
+                turns: 1,
+                damage: 2,
+                defenseRule: 'leakOnDefend',
+                defenseLeakDamage: 1,
+            },
+            turnsRemaining: overrides.turnsRemaining ?? 0,
+        },
+    });
+}
+
+describe('Bat Bite (prepare leakOnDefend)', () => {
+    it('lands the full 2 damage when the player does not defend', () => {
+        const { combat, player } = makeManager(151);
+        injectBatPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+        const before = player.stats.hp;
+
+        combat.processTurn('attack');
+
+        // 2 dmg minus the player's base defense of 1 leaves 1 HP lost
+        // (the player def is set by PlayerManager; see helpers).
+        expect(before - player.stats.hp).toBeGreaterThanOrEqual(1);
+    });
+
+    it('seeps 1 true damage through the player\u2019s guard on defend', () => {
+        const { combat, player } = makeManager(152);
+        injectBatPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+        const before = player.stats.hp;
+
+        combat.processTurn('defend');
+
+        // Exactly 1 true damage leaks through Defend.
+        expect(before - player.stats.hp).toBe(1);
+    });
+});
+
+describe('Gelatinous Cube Acid Vomit (prepare armorBreak)', () => {
+    it('applies armor break on resolve when the chance roll wins', () => {
         const { combat, player, seenMessages } = makeManager(121);
-        injectGelatinousCube(combat, { hp: 9, maxHp: 9 });
+        injectGelatinousCubePrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
 
         combat.processTurn('attack');
 
         expect(player.status.armorBreak.amount).toBeGreaterThanOrEqual(1);
         expect(player.status.armorBreak.turns).toBeGreaterThan(0);
-        // EN: "spews acid"; RU: "плюётся кислотой".
-        expect(seenMessages.some((m) => /spews acid|плюётся|плюется/i.test(m))).toBe(true);
+        // EN: "etches your armor"; RU: "броня снижена".
+        expect(seenMessages.some((m) => /etches your armor|броня снижена/i.test(m))).toBe(true);
+    });
+
+    it('does no HP damage on resolve (windup is curse-only)', () => {
+        const { combat, player } = makeManager(125);
+        injectGelatinousCubePrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+        const before = player.stats.hp;
+
+        combat.processTurn('attack');
+
+        // Acid Vomit applies armorBreak but no direct damage on resolve.
+        expect(player.stats.hp).toBe(before);
     });
 
     it('reduces effective defense while armor break is active', () => {
         const { combat, player } = makeManager(122);
-        // High cube attack so the hit lands through the bumped player
-        // defense (acid only triggers when takenDamage > 0).
-        injectGelatinousCube(combat, { hp: 9, maxHp: 9, attack: 6 });
+        injectGelatinousCubePrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
 
         // Bump player defense so we can measure the chip from armor
         // break instead of clamping at the 0-floor.
@@ -625,37 +691,30 @@ describe('Gelatinous Cube Acid Vomit (acidVomitOnFirstHit)', () => {
         expect(afterDef).toBe(beforeDef - 1);
     });
 
-    it('does not stack armor break on subsequent hits in the same fight', () => {
-        const { combat, player } = makeManager(123);
-        injectGelatinousCube(combat, { hp: 20, maxHp: 20 });
-
-        combat.processTurn('attack');
-        const firstAmount = player.status.armorBreak.amount;
-        const firstTurns = player.status.armorBreak.turns;
-        combat.processTurn('attack');
-
-        // Amount must not grow on the re-hit. Turns may have ticked
-        // down by 1 from end-of-turn status tick — we only assert it
-        // didn't get re-set back to the full 99.
-        expect(player.status.armorBreak.amount).toBe(firstAmount);
-        expect(player.status.armorBreak.turns).toBeLessThanOrEqual(firstTurns);
-    });
-
-    it('does not apply armor break when the chance roll fails', () => {
-        // chance=0 short-circuits the apply path even on a landed
-        // hit. Mirrors what the live 40% does on a missed roll: the
-        // hit goes through but armor stays intact.
+    it('skips armor break entirely when the chance roll fails', () => {
+        // chance=0 short-circuits the apply path on resolve. Mirrors
+        // what the live 40% does on a missed roll: the windup resolves
+        // but armor stays intact.
         const { combat, player } = makeManager(124);
-        injectGelatinousCube(combat, { hp: 9, maxHp: 9, chance: 0 });
+        injectGelatinousCubePrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0, chance: 0 });
 
         combat.processTurn('attack');
 
         expect(player.status.armorBreak.turns).toBe(0);
     });
+
+    it('Defend on the resolve turn cancels the armor break roll', () => {
+        const { combat, player } = makeManager(126);
+        injectGelatinousCubePrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        combat.processTurn('defend');
+
+        expect(player.status.armorBreak.turns).toBe(0);
+    });
 });
 
-describe('Giant Toad Tongue Lash (prepare stun rider)', () => {
-    it('applies a 1-turn stun to the player when not defending', () => {
+describe('Giant Toad Tongue Lash (prepare attackBan rider)', () => {
+    it('applies a 1-turn attack ban to the player when not defending', () => {
         const { combat, player, seenMessages } = makeManager(111);
         // Bump HP up so the toad survives the player's swing and gets
         // to resolve its windup. With a 3-HP toad the player can crit
@@ -664,36 +723,60 @@ describe('Giant Toad Tongue Lash (prepare stun rider)', () => {
 
         combat.processTurn('attack');
 
-        expect(player.status.stun.turns).toBeGreaterThan(0);
-        expect(seenMessages.some((m) => /binds you|применяет/i.test(m))).toBe(true);
+        expect(player.status.attackBan.turns).toBeGreaterThan(0);
+        expect(seenMessages.some((m) => /tangles your weapon|не можете атаковать/i.test(m))).toBe(
+            true
+        );
     });
 
-    it('cancels the stun rider when the player defends on resolve', () => {
+    it('does no direct damage on resolve (Tongue Lash is bind-only)', () => {
+        const { combat, player } = makeManager(114);
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+        const before = player.stats.hp;
+
+        combat.processTurn('attack');
+
+        expect(player.stats.hp).toBe(before);
+    });
+
+    it('cancels the attack-ban rider when the player defends on resolve', () => {
         const { combat, player } = makeManager(112);
         injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
 
         combat.processTurn('defend');
 
-        expect(player.status.stun.turns).toBe(0);
+        expect(player.status.attackBan.turns).toBe(0);
     });
 
-    it('skips the player action and logs the bound line on the stunned turn', () => {
+    it('forfeits the attack but lets defense/skills resolve while banned', () => {
         const { combat, player, seenMessages } = makeManager(113);
         injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
 
-        // Turn A: stun is applied (player still acted: attack).
+        // Turn A: attack ban is applied (player still acted: attack).
         combat.processTurn('attack');
         const hpAfterA = combat.enemy?.hp ?? 0;
-        // Turn B: player is stunned; their attack is swallowed.
+        // Turn B: player tries to attack but is banned; swing is swallowed.
         combat.processTurn('attack');
         const hpAfterB = combat.enemy?.hp ?? 0;
 
-        // Bound log must appear on turn B.
-        expect(seenMessages.some((m) => /bound|скованы/i.test(m))).toBe(true);
-        // No enemy HP lost from the stunned player swing.
+        // Forfeit log must appear on turn B.
+        expect(seenMessages.some((m) => /weapon arm is bound|рука с оружием/i.test(m))).toBe(true);
+        // No enemy HP lost from the banned player swing.
         expect(hpAfterB).toBe(hpAfterA);
-        // Stun is consumed after the skipped turn.
-        expect(player.status.stun.turns).toBe(0);
+        // Ban is consumed after the forfeited attack.
+        expect(player.status.attackBan.turns).toBe(0);
+    });
+
+    it('allows defense to resolve normally while attackBan is active', () => {
+        const { combat, player } = makeManager(115);
+        injectGiantToadPrepare(combat, { hp: 20, maxHp: 20, turnsRemaining: 0 });
+
+        // Land the attack ban first.
+        combat.processTurn('attack');
+        expect(player.status.attackBan.turns).toBeGreaterThan(0);
+        // Defending still works — ban ticks down naturally.
+        combat.processTurn('defend');
+        expect(player.status.attackBan.turns).toBe(0);
     });
 });
 
@@ -766,24 +849,24 @@ describe('Rat Matron Litter (spawnOnDeath)', () => {
 });
 
 describe('Ghoul Decay (leakOnDefend)', () => {
-    it('leaks 1 damage to the player on defend; ghoul stays untouched', () => {
+    it('leaks the full 2 damage to the player on defend; ghoul stays untouched', () => {
         const { combat, player } = makeManager(11);
         injectGhoulPrepare(combat, {
             nameEn: 'Decay',
             nameRu: 'Разложение',
-            turns: 2,
+            turns: 1,
             damage: 2,
             poison: { damage: 1, turns: 3 },
             defenseRule: 'leakOnDefend',
-            defenseLeakDamage: 1,
+            defenseLeakDamage: 2,
         });
         const enemyHpBefore = combat.enemy!.hp;
         const playerHpBefore = player.stats.hp;
 
         combat.processTurn('defend');
 
-        // Player took the 1 leak; ghoul is untouched.
-        expect(player.stats.hp).toBe(playerHpBefore - 1);
+        // Full 2 damage seeps through; ghoul is untouched.
+        expect(player.stats.hp).toBe(playerHpBefore - 2);
         expect(combat.enemy!.hp).toBe(enemyHpBefore);
     });
 
@@ -792,11 +875,11 @@ describe('Ghoul Decay (leakOnDefend)', () => {
         injectGhoulPrepare(combat, {
             nameEn: 'Decay',
             nameRu: 'Разложение',
-            turns: 2,
+            turns: 1,
             damage: 2,
             poison: { damage: 1, turns: 3 },
             defenseRule: 'leakOnDefend',
-            defenseLeakDamage: 1,
+            defenseLeakDamage: 2,
         });
 
         combat.processTurn('defend');

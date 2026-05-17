@@ -24,13 +24,17 @@ export type EnemyProfile = 'brute' | 'stalker' | 'bleeder' | 'boss';
  * the guard, or just lets the raw damage through with no rider
  * effect, depending on `defenseRule`.
  *
- * Spec mapping:
- *  - bat:   1-turn windup -> 3 dmg, Defense -> bat takes 1 dmg back
- *  - ghoul: 2-turn windup -> 2 dmg + poison, Defense -> 1 dmg seeps
- *           through the guard (poison is still cancelled). Decay
- *           cannot be fully blocked.
- *  - lynx:  1-turn windup -> 3 dmg + bleed, Defense -> the damage
- *           still lands but the bleed is cancelled
+ * Spec mapping (per `Справочник врагов` sheet):
+ *  - bat:    1-turn windup -> 2 dmg, Defense -> 1 dmg leaks through
+ *  - ghoul:  1-turn windup -> 2 dmg + poison, Defense -> full 2 dmg
+ *            still lands but the poison is cancelled
+ *  - lynx:   1-turn windup -> 3 dmg + bleed, Defense -> the damage
+ *            still lands but the bleed is cancelled
+ *  - cube:   1-turn windup, 40% on resolve to apply -1 armorBreak
+ *            for the rest of the fight (no HP damage)
+ *  - toad:   1-turn windup -> no damage, ties up the player's weapon
+ *            arm for 1 turn (attack action only is gated; defense
+ *            and skills/potions still work)
  */
 export interface EnemyPrepareDef {
     /** Localisation key used to look up the windup intent line. */
@@ -45,10 +49,26 @@ export interface EnemyPrepareDef {
     /** Poison rider added when not defended. */
     poison?: { damage: number; turns: number };
     /**
-     * Stun rider added when not defended. The player skips their next
-     * `turns` turns. Used by the giant toad's Tongue Lash.
+     * Full-stun rider added when not defended. The player skips their
+     * next `turns` turns. (Currently unused in the production roster
+     * after the giant toad switched to the narrower `attackBan` rider,
+     * but kept on the type so future windup designs can still apply a
+     * full skip.)
      */
     stun?: { turns: number };
+    /**
+     * Attack-only ban rider added when not defended. For the duration
+     * the player can still defend / use skills / drink potions but the
+     * attack action is forfeit. Used by the giant toad's Tongue Lash.
+     */
+    attackBan?: { turns: number };
+    /**
+     * Armor-break rider applied on resolve with optional chance gate.
+     * If `chance` is set and the roll fails the rider does nothing —
+     * the cube's Acid Vomit uses this for its 40% spec. Cancelled by
+     * Defense regardless of `defenseRule`.
+     */
+    armorBreak?: { chance?: number; amount: number; turns: number };
     /** What the player's Defend action does to this prepared hit. */
     defenseRule: 'damageBack' | 'cancelRiders' | 'leakOnDefend';
     /** Damage the enemy takes when defenseRule === 'damageBack'. */
@@ -106,12 +126,6 @@ export interface EnemyDef {
      *    roots": applies/refreshes weaken `amount` for `turns` turns to
      *    the player at the start of every enemy turn while the enemy
      *    is alive)
-     *  - kind: 'acidVomitOnFirstHit' (gelatinous-cube — "acid vomit":
-     *    on every regular attack that lands, `chance` to apply
-     *    armorBreak `amount` for `turns` turns to the player (defense
-     *    −amount). Re-rolls per landed hit until it triggers ONCE per
-     *    encounter, then locks; tracked by checking the player's
-     *    existing armorBreak.turns)
      *  - kind: 'spawnOnDeath'        (rat-matron — "litter": on the
      *    turn the enemy's hp drops to 0, instead of ending combat the
      *    encounter respawns as the enemy named `spawnName` (canonical
@@ -167,7 +181,6 @@ export type EnemyPassive =
     | { kind: 'attackScalesWithHp' }
     | { kind: 'painExultation'; bonusPerStep: number }
     | { kind: 'weakenPlayerEachTurn'; amount: number; turns: number }
-    | { kind: 'acidVomitOnFirstHit'; chance: number; amount: number; turns: number }
     | { kind: 'spawnOnDeath'; spawnName: string }
     | { kind: 'hellfireOnDeath'; damagePerRelic: number }
     | { kind: 'regenPerTurn'; amount: number }

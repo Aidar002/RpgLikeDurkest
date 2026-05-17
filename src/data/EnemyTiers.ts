@@ -65,13 +65,17 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 color: 0x36463f,
                 profile: 'stalker',
                 dropMod: 0,
+                // Bite: 1-turn windup, on resolve the bat snaps for 2
+                // damage. Defending leaks 1 damage through the guard
+                // (true damage, bypasses block) — matches the design
+                // sheet's "если защита то 1 урон" wording.
                 prepare: {
                     nameEn: 'Bite',
                     nameRu: 'Укус',
                     turns: 1,
-                    damage: 3,
-                    defenseRule: 'damageBack',
-                    defenseBackDamage: 1,
+                    damage: 2,
+                    defenseRule: 'leakOnDefend',
+                    defenseLeakDamage: 1,
                 },
             },
             {
@@ -101,17 +105,19 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 color: 0x4a6b2a,
                 profile: 'brute',
                 dropMod: 5,
-                // Tongue Lash: 1-turn windup, on resolve the toad licks
-                // for 1 damage and binds the player for 1 turn (skip
-                // next action). Defending cancels the stun (and the
-                // poison rider in similar windups), the player still
-                // takes the lick damage on the resolve turn.
+                // Tongue Lash: 1-turn windup, on resolve the toad ties
+                // up the player's weapon arm for 1 turn — the player
+                // forfeits their attack action but can still defend,
+                // use skills, and drink potions (design sheet: "герой
+                // не может атаковать, но может использовать способности
+                // и защиту"). No direct damage. Defending on the resolve
+                // turn cancels the ban outright.
                 prepare: {
                     nameEn: 'Tongue Lash',
                     nameRu: 'Языковая хватка',
                     turns: 1,
-                    damage: 1,
-                    stun: { turns: 1 },
+                    damage: 0,
+                    attackBan: { turns: 1 },
                     defenseRule: 'cancelRiders',
                 },
             },
@@ -165,16 +171,18 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 color: 0x455544,
                 profile: 'bleeder',
                 dropMod: 0,
+                // Decay cannot be fully blocked. Defense cancels the
+                // poison rider, but the full 2 damage still seeps
+                // through the guard (design sheet: "если защита, то
+                // урон проходит без отравления").
                 prepare: {
                     nameEn: 'Decay',
                     nameRu: 'Разложение',
-                    turns: 2,
+                    turns: 1,
                     damage: 2,
                     poison: { damage: 1, turns: 3 },
-                    // Decay cannot be fully blocked. Defense cancels the
-                    // poison, but 1 damage still seeps through the guard.
                     defenseRule: 'leakOnDefend',
-                    defenseLeakDamage: 1,
+                    defenseLeakDamage: 2,
                 },
             },
             {
@@ -188,18 +196,21 @@ export const ENEMY_TIERS: { minDepth: number; pool: EnemyDef[] }[] = [
                 color: 0x82c4d4,
                 profile: 'brute',
                 dropMod: 10,
-                // Acid Vomit: on every regular attack that lands, 40%
-                // to apply armorBreak −1 to the player for the rest of
-                // the fight (turns=99 picks a value larger than any
-                // realistic combat length without making it literally
-                // infinite). Locks after the first successful trigger
-                // — `turns=0` on the player gates re-rolls so each cube
-                // gets at most one acid burst per encounter.
-                passive: {
-                    kind: 'acidVomitOnFirstHit',
-                    chance: 0.4,
-                    amount: 1,
-                    turns: 99,
+                // Acid Vomit: 1-turn windup, on resolve roll 40% to
+                // etch the player's armor — defense -1 for the rest of
+                // the fight (turns=99 approximates "до конца боя либо
+                // 2 комнаты" — the armorBreak timer ticks once per
+                // combat turn so the curse follows the player out of
+                // this fight and decays naturally afterwards). No HP
+                // damage on the resolve. Defending on the resolve turn
+                // cancels the armorBreak roll entirely.
+                prepare: {
+                    nameEn: 'Acid Vomit',
+                    nameRu: 'Кислотная рвота',
+                    turns: 1,
+                    damage: 0,
+                    armorBreak: { chance: 0.4, amount: 1, turns: 99 },
+                    defenseRule: 'cancelRiders',
                 },
             },
             {
