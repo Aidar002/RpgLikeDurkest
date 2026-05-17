@@ -501,6 +501,25 @@ export class MetaProgressionManager {
         return true;
     }
 
+    /**
+     * Cheapest next-tier cost across every meta upgrade that still
+     * has room to grow. Returns `Infinity` when every upgrade is
+     * already maxed (no further spend possible). Used by the HUD to
+     * decide whether the escape button should glow — if a player's
+     * banked + pending skill points reach this floor, escaping now
+     * unlocks at least one upgrade purchase.
+     */
+    getCheapestUnboughtUpgradeCost(): number {
+        let cheapest = Infinity;
+        for (const definition of UPGRADE_DEFINITIONS) {
+            const level = this.getUpgradeLevel(definition.id);
+            if (level >= definition.maxLevel) continue;
+            const cost = definition.costs[level];
+            if (cost < cheapest) cheapest = cost;
+        }
+        return cheapest;
+    }
+
     getUpgradeCards(language: 'ru' | 'en' = 'ru'): UpgradeCardInfo[] {
         return UPGRADE_DEFINITIONS.map((definition) => {
             const level = this.getUpgradeLevel(definition.id);
