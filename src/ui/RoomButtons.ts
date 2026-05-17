@@ -22,10 +22,18 @@
 import * as Phaser from 'phaser';
 
 import type { SoundManager } from '../systems/SoundManager';
+import { playEffect } from './EffectsLibrary';
 import { compactText } from './TextHelpers';
 import { BODY_FONT } from './HudTheme';
 import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, RoomLayout } from './Layout';
 import type { RoomButtonVariant } from './RoomButtonVariant';
+
+/** Subset of {@link EffectKind} that {@link RoomButtonAction.vfx}
+ *  is allowed to request. Restricted to heal-related effects today
+ *  (the only call sites are the three HP-recovering buttons:
+ *  altar prayer, camp recover, combat heal potion). Widen the
+ *  union here when more effects need to fire from a button click. */
+export type RoomButtonVfx = 'healPulse';
 
 /**
  * Visual variants for room-choice buttons. The variant catalog and
@@ -63,6 +71,7 @@ interface ActionButton {
     callback: (() => void) | null;
     enabled: boolean;
     variant: RoomButtonVariant;
+    vfx?: RoomButtonVfx;
     defaultX: number;
     defaultY: number;
     defaultWidth: number;
@@ -74,6 +83,12 @@ export interface RoomButtonAction {
     callback: () => void;
     enabled?: boolean;
     variant?: RoomButtonVariant;
+    /** Optional fire-and-forget VFX played from the button's world
+     *  centre right after the click SFX, sized to span the button's
+     *  full frame. Used by the three HP-recovering buttons (altar
+     *  prayer, camp recover, combat heal potion) to paint the
+     *  `healPulse` particle across the button area. */
+    vfx?: RoomButtonVfx;
 }
 
 /**
@@ -211,6 +226,21 @@ export function createRoomButtons(
         background.on('pointerdown', () => {
             if (button.enabled && button.callback) {
                 sfx.play('buttonClick');
+                // Optional VFX (currently only `healPulse`) painted
+                // across the button frame BEFORE the callback fires.
+                // The callback often swaps the room / disables the
+                // button row, so playing the effect first guarantees
+                // it actually mounts. Position is read from the
+                // button's world matrix so it works regardless of
+                // any parent container translation/scale.
+                if (button.vfx) {
+                    const matrix = background.getWorldTransformMatrix();
+                    playEffect(scene, button.vfx, matrix.tx, matrix.ty, {
+                        spreadX: Math.max(8, button.defaultWidth / 2 - 8),
+                        spreadY: Math.max(6, BTN_H / 2 - 6),
+                        countScale: 4,
+                    });
+                }
                 // Press feedback: yoyo a quick shrink so the button
                 // reads as "depressed" before the callback either
                 // swaps the room or rebuilds the panel.
@@ -237,6 +267,7 @@ export function createRoomButtons(
         button.callback = action.callback;
         button.enabled = enabled;
         button.variant = variant;
+        button.vfx = action.vfx;
         button.background.setVisible(true);
         button.label.setVisible(true);
         button.background.setInteractive({ useHandCursor: true });
@@ -280,6 +311,7 @@ export function createRoomButtons(
                 button.label.setAlpha(1);
                 button.callback = null;
                 button.enabled = false;
+                button.vfx = undefined;
             });
 
             if (useWideOnly && actions.length === 1) {

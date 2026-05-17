@@ -27,6 +27,7 @@ export function handleRestRoom(scene: GameScene): void {
                 scene.showReturnButton();
             },
             variant: 'positive',
+            vfx: 'healPulse',
         },
         {
             label: scene.loc.t('actionFocus'),

@@ -39,6 +39,7 @@ export function handleShrineRoom(scene: GameScene): void {
                 scene.showReturnButton();
             },
             variant: 'positive',
+            vfx: 'healPulse',
         },
         {
             label: ru
