@@ -444,15 +444,21 @@ export class LockpickOverlay {
             g.strokePath();
 
             if (!ring.locked) {
-                // Erase the gap with a brush thick enough to clear both
-                // the main fill and its edge contour, so no faint sliver
-                // of the contour shows up across the opening.
+                // Erase every equidistant gap on this ring with a
+                // brush thick enough to clear both the main fill and
+                // its edge contour, so no faint sliver of the contour
+                // shows up across any opening. Gap centres sit at
+                // `gapAngleDeg + k * spacing` for k ∈ [0, gapCount).
                 const halfRad = (ring.gapHalfWidthDeg * Math.PI) / 180;
-                const centreRad = toPhaserRad(ring.gapAngleDeg);
+                const spacingRad = (Math.PI * 2) / ring.gapCount;
+                const firstCentreRad = toPhaserRad(ring.gapAngleDeg);
                 g.lineStyle(RING_THICKNESS + RING_EDGE_EXTRA + 4, HudColors.panelBg, 1);
-                g.beginPath();
-                g.arc(RING_CX, RING_CY, radius, centreRad - halfRad, centreRad + halfRad);
-                g.strokePath();
+                for (let k = 0; k < ring.gapCount; k++) {
+                    const centreRad = firstCentreRad + k * spacingRad;
+                    g.beginPath();
+                    g.arc(RING_CX, RING_CY, radius, centreRad - halfRad, centreRad + halfRad);
+                    g.strokePath();
+                }
             }
         }
     }

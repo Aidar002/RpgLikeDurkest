@@ -1,10 +1,12 @@
 /**
  * Headless logic for the lockpick mini-game played on locked treasure
  * chests. Three concentric rings spin at configurable speeds; each
- * ring has one arc-shaped gap. The player taps a single button to
- * push a stick through the current ring — if the gap is aligned with
- * the stick at that moment, the ring locks and the stick advances to
- * the next ring. Misaligned tap = pick breaks, mini-game over.
+ * ring carries a fixed number of equidistant arc-shaped gaps
+ * (`LOCKPICK_CONFIG.ringHoleCounts`, outer → inner). The player taps a
+ * single button to push a stick through the current ring — if any
+ * gap is aligned with the stick at that moment, the ring locks and
+ * the stick advances to the next ring. Misaligned tap = pick breaks,
+ * mini-game over.
  *
  * Tuning lives in {@link LOCKPICK_CONFIG} (`src/data/GameConfig.ts`).
  * The UI side ({@link import('../ui/LockpickOverlay').LockpickOverlay})
@@ -13,9 +15,11 @@
  *
  * All angles are degrees in [0, 360). The "stick" is conceptually
  * fixed at {@link STICK_ANGLE_DEG}; rings rotate around them. The
- * world angle of each ring's gap centre is `ring.gapAngleDeg`, so an
- * attempt succeeds when the angular distance between that and the
- * stick angle is within `gapHalfWidthDeg`.
+ * world angle of each ring's first gap centre is `ring.gapAngleDeg`;
+ * the remaining `gapCount − 1` gap centres sit at evenly spaced
+ * `360 / gapCount` offsets from it. An attempt succeeds when the
+ * angular distance from the stick angle to the nearest gap centre is
+ * within `gapHalfWidthDeg`.
  */
 
 import { LOCKPICK_CONFIG } from '../data/GameConfig';
@@ -30,7 +34,12 @@ export const STICK_ANGLE_DEG = 0;
 export interface LockpickRing {
     /** Half of the gap's arc width, in degrees. */
     readonly gapHalfWidthDeg: number;
-    /** Current angle of the gap centre in world space, [0, 360). */
+    /** Number of equidistant gap holes on this ring. Holes sit at
+     *  `gapAngleDeg + k * (360 / gapCount)` for `k ∈ [0, gapCount)`. */
+    readonly gapCount: number;
+    /** Current world-space angle of the first gap centre, [0, 360).
+     *  All other gap centres on the ring are derived from this and
+     *  `gapCount`. */
     gapAngleDeg: number;
     /** Signed angular velocity in degrees per second (+ cw, − ccw). */
     speedDegPerSec: number;
@@ -54,6 +63,7 @@ export class LockpickGame {
         this.difficulty = difficulty;
         const cfg = LOCKPICK_CONFIG.difficulties[difficulty];
         const radii = LOCKPICK_CONFIG.ringRadiiPx;
+        const holeCounts = LOCKPICK_CONFIG.ringHoleCounts;
         // Convert the designer-friendly pixel gap width into per-ring
         // angular gap. Larger rings cover more pixels per degree, so a
         // fixed pixel width produces a smaller arc-angle on the outer
@@ -61,6 +71,7 @@ export class LockpickGame {
         // the rendered gap should look the same width on every ring.
         this.rings = cfg.ringSpeedsDegPerSec.map((speed, i) => ({
             gapHalfWidthDeg: pixelArcToDegrees(cfg.gapWidthPx, radii[i]) / 2,
+            gapCount: holeCounts[i],
             // Randomise initial angle so rings don't all start aligned.
             gapAngleDeg: rng.next() * 360,
             // Randomise rotation direction per ring (50/50 cw/ccw).
@@ -99,7 +110,7 @@ export class LockpickGame {
             return this._status === 'success' ? { kind: 'success' } : { kind: 'failure' };
         }
         const ring = this.rings[this._currentRingIndex];
-        const delta = angularDistance(ring.gapAngleDeg, STICK_ANGLE_DEG);
+        const delta = nearestGapDistance(ring, STICK_ANGLE_DEG);
         if (delta <= ring.gapHalfWidthDeg) {
             ring.locked = true;
             this._currentRingIndex += 1;
@@ -152,11 +163,16 @@ export function pixelArcToDegrees(arcLengthPx: number, radiusPx: number): number
 }
 
 /**
- * Shortest angular distance between two angles in degrees, always in
- * [0, 180]. Used to decide whether the gap is currently aligned with
- * the stick within `gapHalfWidthDeg`.
+ * Shortest angular distance from `stickAngleDeg` to the nearest of the
+ * ring's equidistant gap centres, in degrees, always in [0, 180]. Used
+ * to decide whether any gap on a ring is currently aligned with the
+ * stick within `gapHalfWidthDeg`. Folding `(stick − firstGap)` into
+ * [0, spacing) and taking the shorter of `(offset, spacing − offset)`
+ * is equivalent to scanning every gap centre but avoids a per-attempt
+ * loop.
  */
-function angularDistance(a: number, b: number): number {
-    const d = Math.abs(wrap360(a) - wrap360(b));
-    return d > 180 ? 360 - d : d;
+function nearestGapDistance(ring: LockpickRing, stickAngleDeg: number): number {
+    const spacing = 360 / ring.gapCount;
+    const raw = (((stickAngleDeg - ring.gapAngleDeg) % spacing) + spacing) % spacing;
+    return Math.min(raw, spacing - raw);
 }

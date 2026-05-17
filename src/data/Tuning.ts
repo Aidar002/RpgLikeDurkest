@@ -337,6 +337,14 @@ export const LOCKPICK_CONFIG = {
     /** Outer → inner ring radii in pixels. Shared with the UI so each
      *  ring's gap arc-width matches the rendered visual gap. */
     ringRadiiPx: [168, 122, 77],
+    /** Number of equidistant gap holes on each ring, outer → inner.
+     *  Each ring exposes `gapCount` holes spaced exactly `360 /
+     *  gapCount` degrees apart, so the player just has to time the
+     *  stick descent so any one of them is aligned with the stick
+     *  angle. Bigger rings carry more holes than smaller ones — the
+     *  outer ring has the longest circumference and so the most room
+     *  for openings, while the inner ring stays the tightest. */
+    ringHoleCounts: [5, 4, 3],
     /** Visual thickness of the lockpick stick in pixels. */
     stickWidthPx: 12,
     /** Difficulty selection bands, keyed by minimum dungeon depth. */
