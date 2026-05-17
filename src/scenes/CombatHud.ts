@@ -8,6 +8,7 @@ import { PixelSprite } from '../ui/PixelSprite';
 import { fitEnemySprite } from '../ui/RoomVisuals';
 import { VFX } from '../ui/VFX';
 import type { GameScene, RoomButtonAction } from './GameScene';
+import { variantFromFill } from '../ui/RoomButtonVariant';
 
 export class CombatHudController {
     private readonly scene: GameScene;
@@ -77,7 +78,7 @@ export class CombatHudController {
     refreshButtons(): void {
         const scene = this.scene;
         if (!scene.combat.enemy) {
-            scene.setRoomButtons([]);
+            scene.roomButtons.setActions([]);
             return;
         }
 
@@ -85,12 +86,12 @@ export class CombatHudController {
             {
                 label: scene.loc.t('actionAttack'),
                 callback: () => this.performAction('attack'),
-                fill: 0x5a1d1d,
+                variant: 'default',
             },
             {
                 label: scene.loc.t('actionDefend'),
                 callback: () => this.performAction('defend'),
-                fill: 0x1b335b,
+                variant: 'silver',
             },
         ];
 
@@ -101,7 +102,7 @@ export class CombatHudController {
                 label: `[${actions.length + 1}] ${scene.skillShort(id)} ${cost} ${scene.loc.t('resolveShort').toLowerCase()}`,
                 callback: () => this.performAction({ kind: 'skill', id }),
                 enabled: scene.player.resources.resolve >= cost,
-                fill: def.color,
+                variant: variantFromFill(def.color),
             });
         });
 
@@ -109,10 +110,10 @@ export class CombatHudController {
             label: scene.loc.t('actionPotion', { num: actions.length + 1 }),
             callback: () => this.performAction('potion'),
             enabled: scene.player.resources.potions > 0,
-            fill: 0x1f5b2f,
+            variant: 'positive',
         });
 
-        scene.setRoomButtons(actions);
+        scene.roomButtons.setActions(actions);
         scene.enemyIntelText.setText(this.buildIntel());
         scene.enemyIntelText.setVisible(true);
     }
@@ -171,7 +172,7 @@ export class CombatHudController {
 
         const enemy = scene.combat.enemy;
         const hints: string[] = [];
-        // [FIX-10][FIX-15] Show the boss intent + phase first so the player
+        // Show the boss intent + phase first so the player
         // can read what the boss is about to do before deciding their turn.
         if (enemy.currentIntent) {
             hints.push(scene.loc.t('hudIntentLabel', { intent: enemy.currentIntent }));
@@ -271,7 +272,7 @@ export class CombatHudController {
             const bossMilestones = scene.meta.registerBossKill();
             scene.handleMilestoneUnlocks(bossMilestones);
         }
-        // [FIX-1] Final-boss specific log line. The actual win is gated
+        // Final-boss specific log line. The actual win is gated
         // below by depth and finalBossDefeated to avoid surprising the
         // player on non-final boss kills.
         if (payload.finalBossDefeated) {

@@ -1,7 +1,7 @@
 import { BOSSES } from './GameConfig';
 
 /**
- * [FIX-1] Boss lookup is now an exact-depth match. The lookup itself
+ * Boss lookup is now an exact-depth match. The lookup itself
  * lives in {@link systems/EnemyPicker.getBossForDepth} (it needs an
  * `Rng` to pick between equal-depth candidates, and `data/` cannot
  * value-import from `systems/`). This module owns the canonical-name

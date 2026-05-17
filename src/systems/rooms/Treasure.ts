@@ -30,16 +30,16 @@ function presentLockedChest(scene: GameScene): void {
         'TREASURE'
     );
 
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: scene.loc.t('actionLockpickAttempt'),
             callback: () => onAttemptLockpick(scene),
-            fill: 0x3c2a0e,
+            variant: 'gold',
         },
         {
             label: scene.loc.t('actionLockpickLeave'),
             callback: () => onLeaveChest(scene),
-            fill: 0x202020,
+            variant: 'dark',
         },
     ]);
 }

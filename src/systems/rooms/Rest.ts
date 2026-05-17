@@ -12,7 +12,7 @@ export function handleRestRoom(scene: GameScene): void {
         'REST'
     );
 
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: scene.loc.t('actionRecover'),
             callback: () => {
@@ -26,7 +26,7 @@ export function handleRestRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('restAfterHint'));
                 scene.showReturnButton();
             },
-            fill: 0x1f5b2f,
+            variant: 'positive',
         },
         {
             label: scene.loc.t('actionFocus'),
@@ -36,7 +36,7 @@ export function handleRestRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('restAfterSteady'));
                 scene.showReturnButton();
             },
-            fill: 0x1b335b,
+            variant: 'silver',
         },
     ]);
 }

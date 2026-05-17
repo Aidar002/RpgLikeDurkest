@@ -10,7 +10,7 @@ import { BODY_FONT } from '../../ui/HudTheme';
 import { PixelSprite } from '../../ui/PixelSprite';
 import { fitEnemySprite } from '../../ui/RoomVisuals';
 import { compactText } from '../../ui/TextHelpers';
-import { createRoomButtons, type RoomButtonAction } from '../../ui/RoomButtons';
+import { createRoomButtons } from '../../ui/RoomButtons';
 import { LockpickOverlay, type LockpickShowOptions } from '../../ui/LockpickOverlay';
 import type { GameScene } from '../GameScene';
 
@@ -33,7 +33,7 @@ function stripChoicePrefix(label: string): string {
  * Owns the room-info panel: the right-hand portrait/name/HP/intel/flavor
  * widgets, the action-button row beneath it, plus the helpers that
  * `RoomFlow` / `CombatHud` lean on (`showRoomCard`, `showReturnButton`,
- * `setRoomButtons`, `applyTrapDamage`, `triggerActionButton`).
+ * `applyTrapDamage`, `triggerActionButton`).
  *
  * The widget fields are still declared on `GameScene` — both
  * controllers (`RoomFlow` / `CombatHud`) reach into them directly to
@@ -277,15 +277,6 @@ export class GameRoomController {
         });
     }
 
-    /**
-     * @deprecated Use `scene.roomButtons.setActions(...)` directly.
-     * Kept as a thin shim so RoomFlow / CombatHud call sites compile
-     * unchanged after the RoomButtons extraction.
-     */
-    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
-        this.scene.roomButtons.setActions(actions, useWideOnly);
-    }
-
     /** Move + resize the portrait/name/sprite block. NPC mode places
      *  a larger portrait in the right column, vertically aligned with
      *  the dialog window on the left. Center mode restores the
@@ -526,12 +517,12 @@ export class GameRoomController {
 
     public showReturnButton(): void {
         const scene = this.scene;
-        this.setRoomButtons(
+        scene.roomButtons.setActions(
             [
                 {
                     label: scene.loc.t('returnToMap'),
                     callback: () => scene.returnToMap(),
-                    fill: 0x202020,
+                    variant: 'dark',
                 },
             ],
             true

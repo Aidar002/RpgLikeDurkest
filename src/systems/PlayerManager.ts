@@ -180,7 +180,7 @@ export class PlayerManager {
     }
 
     gainXp(amount: number): number {
-        // [FIX-9] Hard level cap. Past the cap, no further XP is awarded
+        // Hard level cap. Past the cap, no further XP is awarded
         // and no level-up loop can fire.
         if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
             this.stats.xp = 0;
@@ -257,7 +257,7 @@ export class PlayerManager {
 
     spendResolve(amount: number): boolean {
         if (amount > this.resources.resolve) return false;
-        // [FIX-3] Defensive clamp — guarantees `resolve >= 0` even if a
+        // Defensive clamp — guarantees `resolve >= 0` even if a
         // bug elsewhere requested a negative-spend.
         this.resources.resolve = Math.max(
             0,
@@ -372,7 +372,7 @@ export class PlayerManager {
     }
 
     private applyLevelUp() {
-        // [FIX-9] Belt-and-braces guard: gainXp() is the only caller and
+        // Belt-and-braces guard: gainXp() is the only caller and
         // already blocks past the cap, but applyLevelUp() is safe even
         // if a future call site forgets that.
         if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
