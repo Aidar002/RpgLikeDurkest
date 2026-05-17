@@ -84,7 +84,12 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // measured dynamically so a long stat run never overlaps the
     // skill-points banner below.
     const PANEL_W = 940;
-    const PANEL_H = 700;
+    // PANEL_H bumped 700 → 720 to absorb the larger upgrade cards
+    // (+34 px) and bigger discovery progress rows. The cards drove
+    // most of the change; the extra 20 px keep the bottom action
+    // row from kissing the discovery section when RU labels wrap to
+    // two lines (e.g. "Навык: Подготовка и уникальные реликвии").
+    const PANEL_H = 720;
     const panelLeft = CENTER_X - PANEL_W / 2;
     const panelTop = CENTER_Y - PANEL_H / 2;
     const panelBottom = panelTop + PANEL_H;
@@ -133,11 +138,15 @@ export function showDeathScreen(ctx: EndScreenContext) {
               depth: runState.runBestDepth,
               bosses: runState.runBossKills,
           });
+    // Subtitle font bumped from 14 → 20 (≈ +43 %) so the run summary
+    // reads at a glance against the carved-bronze backdrop. The colour
+    // was nudged from `#c9a880` to a brighter parchment so the line
+    // no longer reads as mid-grey on a dark panel.
     const subtitle = scene.add
-        .text(CENTER_X, panelTop + 78, subtitleText, {
+        .text(CENTER_X, panelTop + 80, subtitleText, {
             fontFamily: BODY_FONT,
-            fontSize: '14px',
-            color: '#c9a880',
+            fontSize: '20px',
+            color: '#f0d9a0',
             align: 'center',
             wordWrap: { width: PANEL_W - 96 },
         })
@@ -145,7 +154,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenContent);
 
     const divider1 = scene.add
-        .rectangle(CENTER_X, panelTop + 100, PANEL_W - 96, 1, 0x6a4f38, 0.6)
+        .rectangle(CENTER_X, panelTop + 108, PANEL_W - 96, 1, 0x6a4f38, 0.6)
         .setDepth(Depths.EndScreenContent);
 
     // ── Skill-point banner + upgrade grid (escape only) ─────
@@ -157,9 +166,13 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // death run the meta profile has already been wiped, so we hide
     // the banner + grid entirely and the body section anchors to
     // `divider1` directly.
-    const BANNER_H = 34;
-    const bannerY = panelTop + 100 + 18 + BANNER_H / 2;
-    const skillPointsBannerHandle = drawPanel(scene, CENTER_X, bannerY, 380, BANNER_H, {
+    // Banner enlarged (34 → 44 high, font 15 → 22) per the same
+    // "make it bigger and brighter" feedback that drove the card
+    // tweaks below — the banked-points readout is now legible at a
+    // glance instead of squinting at a 15-px parchment line.
+    const BANNER_H = 44;
+    const bannerY = panelTop + 108 + 16 + BANNER_H / 2;
+    const skillPointsBannerHandle = drawPanel(scene, CENTER_X, bannerY, 420, BANNER_H, {
         depth: Depths.EndScreenContent,
     });
     const skillPointsBanner = skillPointsBannerHandle.background;
@@ -167,27 +180,26 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const pointsText = scene.add
         .text(CENTER_X, bannerY, '', {
             fontFamily: BODY_FONT,
-            fontSize: '15px',
-            color: '#ffd36e',
+            fontSize: '22px',
+            color: '#ffd86a',
         })
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenForeground)
         .setVisible(escaped);
 
-    // Bigger, more prominent upgrade cards (was 380×70). The extra
-    // height makes room for a 48px icon on the left and a more
-    // readable 2-line description block in the middle. The vertical
-    // gap below the banner was tightened from 28 → 8 (per-feedback
-    // "move the buttons up by ~20 px") so the cards sit closer to
-    // the skill-points pilule and the logs below shift up in
-    // lockstep via `cardsBottomY`.
+    // Upgrade cards now sit at 420×130 (was 420×96) to make room for
+    // text that is roughly +40 % bigger across the board (title 22 →
+    // 30, body 16 → 22, level/cost 16 → 22). The 2-line description
+    // block still fits comfortably above the cost row, and the icon
+    // column is unchanged so the visual identity of each card carries
+    // forward unchanged.
     const CARD_W = 420;
-    const CARD_H = 96;
+    const CARD_H = 130;
     const CARD_GAP_X = 24;
-    const CARD_GAP_Y = 16;
-    const ICON_SIZE = 48;
-    const ICON_OFFSET_X = 38;
-    const TEXT_OFFSET_X = ICON_OFFSET_X + ICON_SIZE / 2 + 12;
+    const CARD_GAP_Y = 18;
+    const ICON_SIZE = 56;
+    const ICON_OFFSET_X = 42;
+    const TEXT_OFFSET_X = ICON_OFFSET_X + ICON_SIZE / 2 + 14;
     const cardsStartY = bannerY + BANNER_H / 2 + 8 + CARD_H / 2;
     const cards: UpgradeCardVisual[] = [];
     const cardPositions = [
@@ -205,27 +217,36 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const cardsBottomY = cardsStartY + (CARD_H + CARD_GAP_Y) + CARD_H / 2;
 
     /**
-     * Card-specific wrapper around {@link applyPanelState}. Behaves
-     * identically for the procedural fallback, but on the textured
-     * path applies a warm brightening tint to the idle/hover states
-     * so the carved-bronze fill reads as a lit-up affordance instead
-     * of the same charcoal the rest of the panel uses. Disabled
-     * cards keep the stock 0x707070 dim tint from `applyPanelState`.
+     * Card-specific wrapper around {@link applyPanelState}. The
+     * textured path overrides every state with a saturated gold tint
+     * so the carved-bronze panel reads as a glowing plaque rather
+     * than a charcoal placeholder — purchasable cards glow brightest,
+     * unaffordable cards sit at a slightly dimmer (but still gold)
+     * tone, and hover lifts the idle gold up to a near-white
+     * highlight. Falls back to the rect-stroke states for the
+     * procedural path so headless / first-frame renders still look
+     * sensible.
      */
     const applyCardState = (
         background: PanelBackground,
         state: 'idle' | 'hover' | 'disabled',
         textured: boolean
     ) => {
-        applyPanelState(background, state, textured);
-        if (textured && state !== 'disabled') {
-            const ns = background as Phaser.GameObjects.NineSlice;
-            // 'hover' already set 0xfff2c0 inside applyPanelState; we
-            // only re-tint the idle path so an unhovered purchasable
-            // card glows warmly instead of sitting in shadow.
-            if (state === 'idle') {
-                ns.setTint(0xe8d8b0);
-            }
+        if (!textured) {
+            applyPanelState(background, state, textured);
+            return;
+        }
+        const ns = background as Phaser.GameObjects.NineSlice;
+        switch (state) {
+            case 'idle':
+                ns.setTint(0xffd866);
+                break;
+            case 'hover':
+                ns.setTint(0xfff2b0);
+                break;
+            case 'disabled':
+                ns.setTint(0xc8a050);
+                break;
         }
     };
 
@@ -249,42 +270,42 @@ export function showDeathScreen(ctx: EndScreenContext) {
             cardIcon.setDepth(Depths.EndScreenForeground);
 
             const textLeftX = position.x - CARD_W / 2 + TEXT_OFFSET_X;
-            // Bigger, brighter copy (was 18/14/13/14 with greys
-            // around #9a9a9a). The body line read as charcoal on
-            // charcoal at 13 px / #9a — bumped to 16 px with a warm
-            // parchment shade so the description actually reads
-            // against the carved-bronze fill.
+            // Title / body / level / cost all bumped roughly +40 %
+            // (22 → 30, 16 → 22) per feedback that the previous sizes
+            // looked grey-on-grey-black and were hard to read. All
+            // colours are fully opaque parchment / gold tones so the
+            // text doesn't bleed into the (now golden) card fill.
             const cardTitle = scene.add
-                .text(textLeftX, position.y - CARD_H / 2 + 12, card.title, {
+                .text(textLeftX, position.y - CARD_H / 2 + 16, card.title, {
                     fontFamily: BODY_FONT,
-                    fontSize: '22px',
+                    fontSize: '30px',
                     color: '#ffffff',
                 })
                 .setDepth(Depths.EndScreenForeground);
 
             const cardLevel = scene.add
-                .text(position.x + CARD_W / 2 - 14, position.y - CARD_H / 2 + 14, '', {
+                .text(position.x + CARD_W / 2 - 16, position.y - CARD_H / 2 + 20, '', {
                     fontFamily: BODY_FONT,
-                    fontSize: '16px',
-                    color: '#e8dcbc',
+                    fontSize: '22px',
+                    color: '#fff0c0',
                 })
                 .setOrigin(1, 0)
                 .setDepth(Depths.EndScreenForeground);
 
             const cardBody = scene.add
-                .text(textLeftX, position.y - CARD_H / 2 + 44, '', {
+                .text(textLeftX, position.y - CARD_H / 2 + 56, '', {
                     fontFamily: BODY_FONT,
-                    fontSize: '16px',
-                    color: '#e0d4b4',
-                    wordWrap: { width: CARD_W - TEXT_OFFSET_X - 24 },
+                    fontSize: '22px',
+                    color: '#fff4cc',
+                    wordWrap: { width: CARD_W - TEXT_OFFSET_X - 28 },
                 })
                 .setDepth(Depths.EndScreenForeground);
 
             const cardCost = scene.add
-                .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 24, '', {
+                .text(position.x + CARD_W / 2 - 16, position.y + CARD_H / 2 - 32, '', {
                     fontFamily: BODY_FONT,
-                    fontSize: '16px',
-                    color: '#ffd36e',
+                    fontSize: '22px',
+                    color: '#ffd86a',
                 })
                 .setOrigin(1, 0)
                 .setDepth(Depths.EndScreenForeground);
@@ -350,82 +371,22 @@ export function showDeathScreen(ctx: EndScreenContext) {
         });
     }
 
-    // ── Two-column body (stats | acquaintances) ─────────────
-    // Anchored below the upgrade cards on escape, or directly under
-    // `divider1` on death (no cards rendered in that branch). The
-    // body section is the "logs" — run progress + who the player met
-    // — and was moved here from above the cards so the call-to-action
-    // (cards) reads first.
+    // ── Divider between cards and discovery progress (escape only) ─
+    // The previous version of this screen rendered a "RUN PROGRESS"
+    // / "ACQUAINTANCES" two-column block here, between the cards and
+    // the discovery rows. That info now lives behind the bottom-row
+    // "Log" button (a popup modal — see further below), which freed
+    // up ~140 px of vertical real estate and let the discovery bars
+    // both (a) move up and (b) grow significantly larger without
+    // colliding with the action buttons at the bottom of the panel.
+    // On death the cards aren't rendered so we hide this divider
+    // too; the discovery progress block is suppressed entirely on
+    // that branch.
     const isRu = loc.language === 'ru';
-    const bodySectionTop = escaped ? cardsBottomY + 24 : panelTop + 116;
     const divider2 = scene.add
-        .rectangle(
-            CENTER_X,
-            escaped ? cardsBottomY + 12 : panelTop + 100,
-            PANEL_W - 96,
-            1,
-            0x6a4f38,
-            0.6
-        )
+        .rectangle(CENTER_X, cardsBottomY + 16, PANEL_W - 96, 1, 0x6a4f38, 0.6)
         .setDepth(Depths.EndScreenContent)
         .setVisible(escaped);
-    const COL_HEADER_Y = bodySectionTop;
-    const COL_BODY_Y = COL_HEADER_Y + 24;
-    const COL_LEFT_X = panelLeft + 56;
-    const COL_RIGHT_X = panelLeft + PANEL_W / 2 + 16;
-    const COL_W = PANEL_W / 2 - 80;
-
-    const leftHeader = scene.add
-        .text(COL_LEFT_X, COL_HEADER_Y, isRu ? 'ПРОГРЕСС ЗАБЕГА' : 'RUN PROGRESS', {
-            fontFamily: BODY_FONT,
-            fontSize: '12px',
-            color: '#9a8a6a',
-        })
-        .setDepth(Depths.EndScreenContent);
-
-    const rightHeader = scene.add
-        .text(COL_RIGHT_X, COL_HEADER_Y, loc.t('shopAcquaintances').toUpperCase(), {
-            fontFamily: BODY_FONT,
-            fontSize: '12px',
-            color: '#9a8a6a',
-        })
-        .setDepth(Depths.EndScreenContent);
-
-    const statLines = tracker.getSummaryLines(loc.language);
-    const npcLines = npcs.getMemorySummary(loc.language);
-
-    const leftBody = scene.add
-        .text(COL_LEFT_X, COL_BODY_Y, statLines.join('\n'), {
-            fontFamily: BODY_FONT,
-            fontSize: '12px',
-            color: '#a8a09a',
-            align: 'left',
-            lineSpacing: 4,
-            wordWrap: { width: COL_W },
-        })
-        .setDepth(Depths.EndScreenContent);
-
-    const rightBodyText =
-        npcLines.length > 0
-            ? npcLines.join('\n')
-            : isRu
-              ? '— забег закончился до встреч —'
-              : '— no one was met —';
-    const rightBody = scene.add
-        .text(COL_RIGHT_X, COL_BODY_Y, rightBodyText, {
-            fontFamily: BODY_FONT,
-            fontSize: '12px',
-            color: '#a8a09a',
-            align: 'left',
-            lineSpacing: 4,
-            wordWrap: { width: COL_W },
-        })
-        .setDepth(Depths.EndScreenContent);
-
-    // The two columns can be different heights (lots of stats, no
-    // NPCs / no NPCs, lots of stats) — use the taller one as the
-    // anchor for everything below.
-    const bodyEndY = Math.max(leftBody.y + leftBody.height, rightBody.y + rightBody.height);
 
     // ── Discovery progress block (escape only) ──────────────
     // One row per content-unlock milestone; each row has a label, a
@@ -436,31 +397,30 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // sees their progress animate in. `resetProgress` zeroes the
     // source counters, so a post-wipe escape screen will start every
     // bar at 0 again.
-    const PROGRESS_HEADER_GAP = 22;
-    // Minimum row height for single-line labels. When the localised
-    // milestone label wraps to 2+ lines (e.g. RU "Навык: Подготовка и
-    // уникальные реликвии") the row grows to fit the rendered text
-    // height so adjacent rows don't visually overlap.
-    const PROGRESS_MIN_ROW_HEIGHT = 16;
-    const PROGRESS_ROW_PADDING = 4;
-    const PROGRESS_LABEL_FONT = '12px';
-    const PROGRESS_BAR_W = 260;
-    const PROGRESS_BAR_H = 6;
+    //
+    // Sized considerably larger than the previous iteration (bar
+    // 260×6 → 340×12, label/status font 12 → 17, min row 16 → 26)
+    // so this section reads at the same scale as the upgrade cards
+    // above it. Anchored directly to `cardsBottomY` since the
+    // two-column run-summary block that used to sit between cards
+    // and bars now lives behind the "Log" popup.
+    const PROGRESS_HEADER_GAP = 30;
+    const PROGRESS_MIN_ROW_HEIGHT = 26;
+    const PROGRESS_ROW_PADDING = 8;
+    const PROGRESS_LABEL_FONT = '17px';
+    const PROGRESS_BAR_W = 340;
+    const PROGRESS_BAR_H = 12;
     const PROGRESS_LABEL_X = panelLeft + 60;
-    const PROGRESS_BAR_X = CENTER_X + 70;
+    const PROGRESS_BAR_X = CENTER_X + 50;
     const PROGRESS_STATUS_X = panelLeft + PANEL_W - 60;
-    // Anchor the discovery progress block to the bottom of the body
-    // section (which now lives between the cards and the progress
-    // rows) so the section spacing stays consistent regardless of
-    // how tall the run-summary / NPC columns end up.
-    const progressHeaderY = bodyEndY + PROGRESS_HEADER_GAP;
-    const progressFirstRowY = progressHeaderY + 18;
+    const progressHeaderY = cardsBottomY + PROGRESS_HEADER_GAP;
+    const progressFirstRowY = progressHeaderY + 28;
 
     const progressHeader = scene.add
         .text(CENTER_X, progressHeaderY, loc.t('shopDiscoveryProgressHeader').toUpperCase(), {
             fontFamily: BODY_FONT,
-            fontSize: '12px',
-            color: '#9a8a6a',
+            fontSize: '17px',
+            color: '#e8d8a8',
         })
         .setOrigin(0.5, 0)
         .setDepth(Depths.EndScreenContent)
@@ -474,8 +434,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
             .text(PROGRESS_LABEL_X, progressCursorY, entry.label, {
                 fontFamily: BODY_FONT,
                 fontSize: PROGRESS_LABEL_FONT,
-                color: entry.unlocked ? '#d8c89a' : '#a8a09a',
-                wordWrap: { width: PROGRESS_BAR_X - PROGRESS_LABEL_X - 220 },
+                color: entry.unlocked ? '#fff4cc' : '#f0e0b0',
+                wordWrap: { width: PROGRESS_BAR_X - PROGRESS_LABEL_X - 24 },
             })
             .setOrigin(0, 0)
             .setDepth(Depths.EndScreenContent);
@@ -485,7 +445,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
         const barBg = scene.add
             .rectangle(PROGRESS_BAR_X, centerY, PROGRESS_BAR_W, PROGRESS_BAR_H, 0x2a201a)
-            .setStrokeStyle(1, 0x4a3a28)
+            .setStrokeStyle(1, 0x6a4f38)
             .setOrigin(0, 0.5)
             .setDepth(Depths.EndScreenContent);
 
@@ -496,7 +456,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 centerY,
                 PROGRESS_BAR_W,
                 PROGRESS_BAR_H,
-                entry.unlocked ? 0xc9a050 : 0x6f8fb8
+                entry.unlocked ? 0xffd86a : 0x8aaedc
             )
             .setOrigin(0, 0.5)
             .setDepth(Depths.EndScreenForeground);
@@ -515,8 +475,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
         const status = scene.add
             .text(PROGRESS_STATUS_X, centerY, statusText, {
                 fontFamily: BODY_FONT,
-                fontSize: '12px',
-                color: entry.unlocked ? '#ffd36e' : '#a8a09a',
+                fontSize: '17px',
+                color: entry.unlocked ? '#ffe092' : '#f0e0b0',
             })
             .setOrigin(1, 0.5)
             .setDepth(Depths.EndScreenContent);
@@ -530,13 +490,22 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // is fired by GameScene before this screen mounts, so the entire
     // profile (skill-points bank + every upgrade) is already wiped.
     // A second "Wipe memory" button would be a no-op confuser.
+    //
+    // The bottom row now hosts a third "Log" button that opens a
+    // popup with the run-progress summary + acquaintances that used
+    // to sit inline above the discovery bars. On escape the row is
+    // [Wipe memory] [Log] [Begin new run]; on death it collapses to
+    // [Log] [Begin new run].
     const buttonsY = panelBottom - 40;
+    const BTN_W = 220;
+    const BTN_H = 42;
+    const BTN_STRIDE = BTN_W + 24; // centre-to-centre distance
     const restartUi = drawUiButton(
         scene,
-        escaped ? CENTER_X + 130 : CENTER_X,
+        escaped ? CENTER_X + BTN_STRIDE : CENTER_X + BTN_STRIDE / 2,
         buttonsY,
-        240,
-        42,
+        BTN_W,
+        BTN_H,
         loc.t('shopBeginRun'),
         {
             variant: 'positive',
@@ -549,19 +518,169 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const restartButton = restartUi.background;
     const restartText = restartUi.label;
 
+    const logUi = drawUiButton(
+        scene,
+        escaped ? CENTER_X : CENTER_X - BTN_STRIDE / 2,
+        buttonsY,
+        BTN_W,
+        BTN_H,
+        loc.t('endScreenLogButton'),
+        {
+            variant: 'default',
+            fontSize: '17px',
+            color: '#f0f0f0',
+            depth: Depths.EndScreenContent,
+            sfx,
+        }
+    );
+    const logButton = logUi.background;
+    const logButtonText = logUi.label;
+
     const resetUi = escaped
-        ? drawUiButton(scene, CENTER_X - 130, buttonsY, 240, 36, loc.t('shopResetSouls'), {
-              variant: 'danger',
-              fontSize: '14px',
-              color: '#ffd0d0',
-              depth: Depths.EndScreenContent,
-              sfx,
-          })
+        ? drawUiButton(
+              scene,
+              CENTER_X - BTN_STRIDE,
+              buttonsY,
+              BTN_W,
+              BTN_H,
+              loc.t('shopResetSouls'),
+              {
+                  variant: 'danger',
+                  fontSize: '15px',
+                  color: '#ffd0d0',
+                  depth: Depths.EndScreenContent,
+                  sfx,
+              }
+          )
         : null;
     const resetButton = resetUi?.background ?? null;
     const resetText = resetUi?.label ?? null;
 
     restartButton.on('pointerdown', () => ctx.safeRestart());
+
+    // ── Run-log popup ────────────────────────────────────────
+    // Built once at mount and toggled by the Log button. Mirrors
+    // the confirm-reset modal further below (overlay + carved
+    // panel + close button), but renders the same two-column
+    // "RUN PROGRESS" / "ACQUAINTANCES" block that used to live
+    // inline on the main panel. Colours/sizes follow the bumped
+    // scale the rest of this screen now uses (17 px body, opaque
+    // parchment tones).
+    const LOG_PANEL_W = 720;
+    const LOG_PANEL_H = 520;
+    const logOverlay = scene.add
+        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
+        .setDepth(Depths.ConfirmOverlay)
+        .setInteractive();
+    const logPanelHandle = drawPanel(scene, CENTER_X, CENTER_Y, LOG_PANEL_W, LOG_PANEL_H, {
+        depth: Depths.ConfirmPanel,
+    });
+    const logPanel = logPanelHandle.background;
+    const logTitle = scene.add
+        .text(CENTER_X, CENTER_Y - LOG_PANEL_H / 2 + 32, loc.t('endScreenLogTitle'), {
+            fontFamily: BODY_FONT,
+            fontSize: '26px',
+            color: '#ffd86a',
+        })
+        .setOrigin(0.5)
+        .setDepth(Depths.ConfirmContent);
+
+    const LOG_COL_HEADER_Y = CENTER_Y - LOG_PANEL_H / 2 + 78;
+    const LOG_COL_BODY_Y = LOG_COL_HEADER_Y + 32;
+    const LOG_COL_LEFT_X = CENTER_X - LOG_PANEL_W / 2 + 36;
+    const LOG_COL_RIGHT_X = CENTER_X + 20;
+    const LOG_COL_W = LOG_PANEL_W / 2 - 56;
+
+    const logLeftHeader = scene.add
+        .text(LOG_COL_LEFT_X, LOG_COL_HEADER_Y, isRu ? 'ПРОГРЕСС ЗАБЕГА' : 'RUN PROGRESS', {
+            fontFamily: BODY_FONT,
+            fontSize: '17px',
+            color: '#e8d8a8',
+        })
+        .setDepth(Depths.ConfirmContent);
+
+    const logRightHeader = scene.add
+        .text(LOG_COL_RIGHT_X, LOG_COL_HEADER_Y, loc.t('shopAcquaintances').toUpperCase(), {
+            fontFamily: BODY_FONT,
+            fontSize: '17px',
+            color: '#e8d8a8',
+        })
+        .setDepth(Depths.ConfirmContent);
+
+    const statLines = tracker.getSummaryLines(loc.language);
+    const npcLines = npcs.getMemorySummary(loc.language);
+
+    const logLeftBody = scene.add
+        .text(LOG_COL_LEFT_X, LOG_COL_BODY_Y, statLines.join('\n'), {
+            fontFamily: BODY_FONT,
+            fontSize: '17px',
+            color: '#f0e0b0',
+            align: 'left',
+            lineSpacing: 6,
+            wordWrap: { width: LOG_COL_W },
+        })
+        .setDepth(Depths.ConfirmContent);
+
+    const logRightBodyText =
+        npcLines.length > 0
+            ? npcLines.join('\n')
+            : isRu
+              ? '— забег закончился до встреч —'
+              : '— no one was met —';
+    const logRightBody = scene.add
+        .text(LOG_COL_RIGHT_X, LOG_COL_BODY_Y, logRightBodyText, {
+            fontFamily: BODY_FONT,
+            fontSize: '17px',
+            color: '#f0e0b0',
+            align: 'left',
+            lineSpacing: 6,
+            wordWrap: { width: LOG_COL_W },
+        })
+        .setDepth(Depths.ConfirmContent);
+
+    const logCloseUi = drawUiButton(
+        scene,
+        CENTER_X,
+        CENTER_Y + LOG_PANEL_H / 2 - 36,
+        200,
+        40,
+        loc.t('endScreenLogClose'),
+        {
+            variant: 'dark',
+            fontSize: '17px',
+            color: '#f0f0f0',
+            depth: Depths.ConfirmContent,
+            sfx,
+        }
+    );
+    const logCloseButton = logCloseUi.background;
+    const logCloseText = logCloseUi.label;
+    logCloseText.setDepth(Depths.ConfirmForeground);
+
+    // Every widget in this list implements `setVisible`; the union
+    // type matches what `confirmWidgets` uses below for the reset
+    // confirmation modal so the toggle helper stays a single line.
+    type Toggleable = {
+        setVisible(v: boolean): unknown;
+    };
+    const logWidgets: Toggleable[] = [
+        logOverlay,
+        logPanel,
+        logTitle,
+        logLeftHeader,
+        logRightHeader,
+        logLeftBody,
+        logRightBody,
+        logCloseButton,
+        logCloseText,
+    ];
+    logWidgets.forEach((widget) => widget.setVisible(false));
+    const setLogVisible = (visible: boolean) => {
+        logWidgets.forEach((widget) => widget.setVisible(visible));
+    };
+    logButton.on('pointerdown', () => setLogVisible(true));
+    logCloseButton.on('pointerdown', () => setLogVisible(false));
+    logOverlay.on('pointerdown', () => setLogVisible(false));
 
     const refreshShop = () => {
         if (!escaped) {
@@ -586,16 +705,17 @@ export function showDeathScreen(ctx: EndScreenContext) {
             applyCardState(card.background, info.canPurchase ? 'idle' : 'disabled', card.textured);
             card.canPurchase = info.canPurchase;
             card.cost.setColor(
-                info.cost === null ? '#7ee197' : info.canPurchase ? '#ffd36e' : '#9a8a6a'
+                info.cost === null ? '#9bf0ad' : info.canPurchase ? '#ffd86a' : '#e8c878'
             );
-            // Brighter copy for both states — the previous greys
-            // (#a7a7a7 disabled, #9a9a9a body) read as nearly the
-            // same charcoal as the panel fill. Purchasable cards now
-            // get pure white titles + parchment body; disabled cards
-            // keep readable mid-tones rather than charcoal.
-            card.title.setColor(info.canPurchase ? '#ffffff' : '#c8c0a8');
-            card.body.setColor(info.canPurchase ? '#e0d4b4' : '#a89c80');
-            card.level.setColor(info.canPurchase ? '#e8dcbc' : '#a89c80');
+            // Solid, fully-opaque text colours for both states. The
+            // previous mid-grey tones (#c8c0a8 disabled title,
+            // #a89c80 disabled body/level) read like translucent text
+            // on the dark panel fill; both states now use bright
+            // parchment shades so a maxed-out / unaffordable card is
+            // still easy to read.
+            card.title.setColor('#ffffff');
+            card.body.setColor(info.canPurchase ? '#fff4cc' : '#f0e0b0');
+            card.level.setColor(info.canPurchase ? '#fff0c0' : '#e8d8a8');
             // Run the perimeter comet only when the player can
             // actually buy this upgrade — same cue the HUD uses to
             // tell them "the escape button matters right now".
@@ -698,6 +818,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     refreshShop();
 
+    // The Log popup widgets aren't part of the entry fade — they're
+    // toggled on demand by `setLogVisible` instead, so they live
+    // outside this list. `logButton`/`logButtonText` always fade in
+    // alongside `restartButton`.
     const fadeTargets: Phaser.GameObjects.GameObject[] = [
         stoneBackdrop,
         overlay,
@@ -705,12 +829,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
         title,
         subtitle,
         divider1,
-        leftHeader,
-        rightHeader,
-        leftBody,
-        rightBody,
         restartButton,
         restartText,
+        logButton,
+        logButtonText,
     ];
     if (resetButton && resetText) {
         fadeTargets.push(resetButton, resetText);

@@ -175,6 +175,13 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     shopCostLabel: 'Цена',
     shopResetConfirm: 'Да, удалить всё',
     shopResetCancel: 'Отмена',
+    // Лог-окно на финальном экране. Кнопка «Лог» в нижнем ряду
+    // экрана меты открывает модалку с итогами забега и списком
+    // встреченных; `endScreenLogTitle` — заголовок этой модалки,
+    // `endScreenLogClose` — подпись кнопки закрытия.
+    endScreenLogButton: 'Лог',
+    endScreenLogTitle: 'Лог забега',
+    endScreenLogClose: 'Закрыть',
     soundOptionsTitle: 'Звук',
     musicVolumeLabel: 'Музыка',
     sfxVolumeLabel: 'Эффекты',

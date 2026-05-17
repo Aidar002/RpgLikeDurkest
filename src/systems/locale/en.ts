@@ -179,6 +179,14 @@ export const EN_STRINGS = {
     shopCostLabel: 'Cost',
     shopResetConfirm: 'Yes, delete everything',
     shopResetCancel: 'Cancel',
+    // End-screen log popup. The "Log" button shown on the bottom row
+    // of the meta-progression screen opens a modal listing the run
+    // summary + people met during the run; `endScreenLogTitle` is the
+    // header for that modal, `endScreenLogClose` labels its close
+    // button.
+    endScreenLogButton: 'Log',
+    endScreenLogTitle: 'Run Log',
+    endScreenLogClose: 'Close',
     soundOptionsTitle: 'Sound',
     musicVolumeLabel: 'Music',
     sfxVolumeLabel: 'Effects',
