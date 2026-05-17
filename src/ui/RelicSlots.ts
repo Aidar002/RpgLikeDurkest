@@ -128,6 +128,11 @@ interface SlotHandle {
      *  modulate state (tint+alpha vs fillStyle). */
     bgTextured: boolean;
     border: Phaser.GameObjects.Rectangle;
+    /** Hand-authored relic icon (preloaded as `relic_<RelicId>` in
+     *  BootScene). Hidden until a relic with a registered texture is
+     *  assigned to the slot; when shown, the procedural letter
+     *  `label` is hidden so the two icon variants never overlap. */
+    icon: Phaser.GameObjects.Image;
     label: Phaser.GameObjects.Text;
     /** Bottom-right corner marker tinted by the relic's set. Hidden for
      *  setless relics. Stays visible whether the set is partial or
@@ -356,6 +361,17 @@ export class RelicSlots {
             .rectangle(0, 0, SLOT_SIZE, SLOT_SIZE)
             .setOrigin(0.5)
             .setStrokeStyle(2, HudColors.panelOuter, 1);
+        // Pre-create the icon image with a placeholder visibility.
+        // The texture is swapped in {@link applySlot} when a relic
+        // with a registered `relic_<id>` key lands in this slot;
+        // otherwise it stays hidden and the procedural letter shows.
+        // Display size is the slot's inner area with a small inset
+        // so the rarity border still reads clearly.
+        const icon = this.scene.add
+            .image(0, 0, '__MISSING')
+            .setOrigin(0.5)
+            .setDisplaySize(SLOT_SIZE - 8, SLOT_SIZE - 8)
+            .setVisible(false);
         const label = this.scene.add
             .text(0, 1, '', {
                 fontFamily: HUD_FONT,
@@ -394,12 +410,13 @@ export class RelicSlots {
             })
             .setOrigin(1, 0)
             .setVisible(false);
-        container.add([bg, border, label, setRune, setRunePip, setCounter]);
+        container.add([bg, border, icon, label, setRune, setRunePip, setCounter]);
         return {
             container,
             bg,
             bgTextured: panel.textured,
             border,
+            icon,
             label,
             setRune,
             setRunePip,
@@ -424,6 +441,7 @@ export class RelicSlots {
         slot.setRunePip.setVisible(false);
         slot.setCounter.setVisible(false);
         slot.border.setAlpha(1);
+        slot.icon.setVisible(false);
         if (!id) {
             paintSlotBg(slot, 0.45);
             slot.border.setStrokeStyle(1, HudColors.divider, 0.6);
@@ -456,8 +474,19 @@ export class RelicSlots {
         } else {
             slot.border.setStrokeStyle(2, rarityColor, 1);
         }
-        slot.label.setText(letterFor(this.loc, id));
-        slot.label.setColor(RARITY_TEXT[relic.rarity as RelicRarity]);
+        // Prefer the hand-authored icon when its texture is registered
+        // (BootScene preloads `relic_<id>.webp` for every shipped
+        // relic). Falls back to the 1–2 letter procedural glyph if
+        // the texture is missing — keeps tests and any future relic
+        // without art rendering cleanly.
+        const iconKey = `relic_${id}`;
+        if (this.scene.textures.exists(iconKey)) {
+            slot.icon.setTexture(iconKey).setVisible(true);
+            slot.label.setText('');
+        } else {
+            slot.label.setText(letterFor(this.loc, id));
+            slot.label.setColor(RARITY_TEXT[relic.rarity as RelicRarity]);
+        }
 
         // Set-membership rune (permanent for any relic with a set).
         if (setId !== null) {

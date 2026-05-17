@@ -95,6 +95,34 @@ export class BootScene extends Phaser.Scene {
             this.load.image(key, `${base}sprites/enemies/${file}`);
         }
 
+        // ── Relic icons (HUD slots + swap modal) ────────────────
+        // Texture key format: relic_<RelicId>. Each file is 128×128
+        // WebP cut from the hand-authored relic atlas. Keys must
+        // match the `RelicId` strings in `src/systems/Relics.ts`;
+        // `RelicSlots` / `RelicSwapModal` fall back to the 1–2 letter
+        // procedural icon when a key isn't registered (e.g. unit
+        // tests, or before a future relic ships art).
+        const relics: string[] = [
+            'worn_ring',
+            'cracked_shield',
+            'tattered_cloak',
+            'vampire_amulet',
+            'dark_chestplate',
+            'knight_sword',
+            'knight_armor',
+            'knight_helmet',
+            'four_leaf_clover',
+            'cursed_amulet',
+            'cursed_ring',
+            'lost_staff',
+            'greed_crown',
+            'book_of_lies',
+            'longinus_shard',
+        ];
+        for (const id of relics) {
+            this.load.image(`relic_${id}`, `${base}sprites/relics/${id}.webp`);
+        }
+
         // ── HUD frames + textures (Darkest Dungeon-style overlay) ──
         // Each is optional; the HUD layer renders procedural fallbacks
         // when a file is missing. See public/assets/ui/README.md for
