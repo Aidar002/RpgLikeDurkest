@@ -309,11 +309,15 @@ export class BootScene extends Phaser.Scene {
         const sfx = this.bootSfx ?? new SoundManager();
         const music = this.bootMusic ?? new MusicManager();
 
-        // Bake a radial alpha fade into every enemy + NPC portrait so
-        // the painted edges feather into the carved panel behind
-        // them. The source webps are solid RGB with the subject
+        // Bake a radial alpha fade into every enemy, NPC, and room-
+        // icon texture so the painted edges feather into the carved
+        // panel / map node frame behind them instead of clipping
+        // hard. The source webps are solid RGB with the subject
         // pushed all the way to each canvas edge, which read as
         // "cropped" once #288 stopped stretching them into a square.
+        // Room icons (`room_*`) got added here in this pass — the
+        // user pointed out map-node thumbnails had the same hard-
+        // edge problem the mob portraits did before #290.
         // Done in `create()` so the work runs once per BootScene
         // mount, *after* preload has populated the texture manager
         // but before any GameScene renders use the keys. The helper
@@ -321,8 +325,13 @@ export class BootScene extends Phaser.Scene {
         // would just re-multiply the already-faded alpha, so we
         // skip keys whose source image isn't an HTMLImageElement
         // (the only state we touch is the just-preloaded image).
+        // Fade band is now proportional to `min(w,h)` inside
+        // `applyRadialPortraitFade` so 128 px room icons / 256 px
+        // mobs / 512 px NPCs all get a visually consistent feather.
         for (const key of this.textures.getTextureKeys()) {
-            if (!key.startsWith('enemy_') && !key.startsWith('npc_')) continue;
+            if (!key.startsWith('enemy_') && !key.startsWith('npc_') && !key.startsWith('room_')) {
+                continue;
+            }
             const src = this.textures.get(key).getSourceImage();
             if (src instanceof HTMLImageElement) {
                 applyRadialPortraitFade(this, key);

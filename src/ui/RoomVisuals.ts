@@ -211,26 +211,43 @@ export function fitEnemySprite(
 }
 
 /**
+ * Default fade-band thickness as a fraction of the source image's
+ * shorter edge. Used by {@link applyRadialPortraitFade} when no
+ * explicit `fadeBand` is passed so enemy (256 px), NPC (512 px),
+ * and room-icon (128 px) textures all receive a visually
+ * consistent feather instead of the fixed 28 px band we shipped in
+ * #290 — which read as a hard edge on the 512 px NPCs and looked
+ * disproportionately thick relative to a 128 px room icon if the
+ * helper got reused there.
+ */
+const PORTRAIT_FADE_FRACTION = 0.18;
+
+/**
  * Bake a radial alpha vignette into a loaded portrait texture so
- * the painted edges blend smoothly into the carved-stone panel
- * behind it instead of clipping abruptly against the portrait
- * frame. The hand-authored 256 / 512 px enemy + NPC sources are
- * solid RGB with the subject pushed all the way to the canvas
- * edge (no transparent margin around ears / tails / paws), which
- * made them read as "cropped" once we stopped stretching them in
- * #288. A radial `destination-in` mask with a soft band gives
- * every portrait the same `alpha = 1` interior and a gentle alpha
- * falloff in the outer `fadeBand` pixels, matching the reference
- * art the user supplied.
+ * the painted edges blend smoothly into the carved-stone panel /
+ * map node frame behind it instead of clipping abruptly against
+ * the boundary. The hand-authored 128 / 256 / 512 px room, enemy,
+ * and NPC sources are solid RGB with the subject pushed all the
+ * way to each canvas edge (no transparent margin around ears /
+ * tails / paws / icon glyphs), which made them read as "cropped"
+ * once we stopped stretching them. A radial `destination-in` mask
+ * with a soft band gives every portrait the same `alpha = 1`
+ * interior and a gentle alpha falloff in the outer fade band.
  *
  * The work is destructive — we draw the original image into an
  * offscreen canvas, multiply alpha via a radial gradient, then
  * replace the texture entry in Phaser's manager so every cached
  * GameObject that already references this key sees the faded
- * version on next render. `fadeBand` is in source pixels (the
- * 256 px webp's coordinate space), not display pixels.
+ * version on next render. When `fadeBand` is omitted it defaults
+ * to `min(w,h) * {@link PORTRAIT_FADE_FRACTION}` so the feather
+ * looks visually consistent across asset sizes; pass an explicit
+ * pixel value to override.
  */
-export function applyRadialPortraitFade(scene: Phaser.Scene, key: string, fadeBand = 28): boolean {
+export function applyRadialPortraitFade(
+    scene: Phaser.Scene,
+    key: string,
+    fadeBand?: number
+): boolean {
     if (!scene.textures.exists(key)) return false;
     const tex = scene.textures.get(key);
     const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
@@ -250,7 +267,8 @@ export function applyRadialPortraitFade(scene: Phaser.Scene, key: string, fadeBa
     const cx = w / 2;
     const cy = h / 2;
     const outerRadius = Math.min(w, h) / 2;
-    const innerRadius = Math.max(0, outerRadius - fadeBand);
+    const band = fadeBand ?? Math.min(w, h) * PORTRAIT_FADE_FRACTION;
+    const innerRadius = Math.max(0, outerRadius - band);
     const grad = ctx.createRadialGradient(cx, cy, innerRadius, cx, cy, outerRadius);
     grad.addColorStop(0, 'rgba(255,255,255,1)');
     grad.addColorStop(1, 'rgba(255,255,255,0)');
