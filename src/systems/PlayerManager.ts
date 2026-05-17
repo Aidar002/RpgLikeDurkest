@@ -375,25 +375,15 @@ export class PlayerManager {
         // Belt-and-braces guard: gainXp() is the only caller and
         // already blocks past the cap, but applyLevelUp() is safe even
         // if a future call site forgets that.
+        //
+        // Level-ups grant the level event (the HUD turns that into a
+        // pending skill point + VFX) but do NOT touch maxHp, attack,
+        // defense or resolve. Those grow only through relics and meta
+        // upgrades.
         if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
             return;
         }
         this.stats.level++;
-        this.stats.maxHp += LEVEL_UP_CONFIG.hpGainPerLevel;
-        this.stats.attack += LEVEL_UP_CONFIG.attackGainPerLevel;
-
-        if (this.stats.level % LEVEL_UP_CONFIG.defenseEveryNLevels === 0) {
-            this.stats.defense++;
-        }
-
-        if (this.stats.level % LEVEL_UP_CONFIG.resolveEveryNLevels === 0) {
-            this.resources.maxResolve += 1;
-            this.resources.resolve = this.resources.maxResolve;
-        }
-
-        if (LEVEL_UP_CONFIG.healOnLevelUp) {
-            this.stats.hp = this.stats.maxHp;
-        }
 
         this.emitAllChanges();
         this.levelUp.emit({ level: this.stats.level });

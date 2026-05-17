@@ -15,17 +15,13 @@ export const PLAYER_CONFIG = {
     level: 1,
     xp: 0,
     // Start with 2 resolve so the player can use a starter skill on
-    // turn 1; max stays at 3 (raised by level-ups via LEVEL_UP_CONFIG).
+    // turn 1; max stays at 3. Resolve max is raised only by relics /
+    // meta upgrades — level-ups no longer touch it.
     maxResolve: 3,
 } as const;
 
 export const LEVEL_UP_CONFIG = {
     xpPerLevel: 10,
-    hpGainPerLevel: 4,
-    attackGainPerLevel: 1,
-    defenseEveryNLevels: 3,
-    resolveEveryNLevels: 4,
-    healOnLevelUp: true,
     // Hard level ceiling. Past this level, gainXp() / level-up are
     // no-ops and the HUD shows "MAX" instead of an XP bar.
     levelCap: 10,

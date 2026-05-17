@@ -171,10 +171,12 @@ describe('PlayerManager — heal and resources', () => {
 });
 
 describe('PlayerManager — xp and level up', () => {
-    it('gainXp accumulates and applies a level-up at xpPerLevel', () => {
+    it('gainXp accumulates and applies a level-up at xpPerLevel without bumping base stats', () => {
         const player = new PlayerManager();
         const startingMaxHp = player.stats.maxHp;
         const startingAttack = player.stats.attack;
+        const startingDefense = player.stats.defense;
+        const startingMaxResolve = player.resources.maxResolve;
 
         let levelUps = 0;
         player.levelUp.on(() => levelUps++);
@@ -183,20 +185,23 @@ describe('PlayerManager — xp and level up', () => {
 
         expect(player.stats.level).toBe(2);
         expect(levelUps).toBe(1);
-        expect(player.stats.maxHp).toBe(startingMaxHp + LEVEL_UP_CONFIG.hpGainPerLevel);
-        expect(player.stats.attack).toBe(startingAttack + LEVEL_UP_CONFIG.attackGainPerLevel);
+        // Level-ups no longer touch base stats — those come from
+        // relics / meta upgrades only.
+        expect(player.stats.maxHp).toBe(startingMaxHp);
+        expect(player.stats.attack).toBe(startingAttack);
+        expect(player.stats.defense).toBe(startingDefense);
+        expect(player.resources.maxResolve).toBe(startingMaxResolve);
     });
 
-    it('healOnLevelUp restores hp to max', () => {
+    it('level-up does not heal the player', () => {
         const player = new PlayerManager();
         player.takeDamage(5);
-        expect(player.stats.hp).toBeLessThan(player.stats.maxHp);
+        const hpBeforeLevel = player.stats.hp;
+        expect(hpBeforeLevel).toBeLessThan(player.stats.maxHp);
 
         player.gainXp(LEVEL_UP_CONFIG.xpPerLevel);
 
-        if (LEVEL_UP_CONFIG.healOnLevelUp) {
-            expect(player.stats.hp).toBe(player.stats.maxHp);
-        }
+        expect(player.stats.hp).toBe(hpBeforeLevel);
     });
 
     it('goldGainMult scales every gainGold call after rounding', () => {
