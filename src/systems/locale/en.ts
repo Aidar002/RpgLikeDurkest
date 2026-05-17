@@ -215,8 +215,6 @@ export const EN_STRINGS = {
     combatEnemyPainExultation: '{name} drinks in the pain — +{bonus} damage.',
     combatEnemyStranglingRoots:
         '{name} curls roots around you — your swings are weakened by {amount}.',
-    combatEnemyAcidVomit:
-        '{name} spews acid over your armor — defense reduced by {amount} for the rest of the fight.',
     combatEnemySpawnsReplacement: '{name} collapses — a {spawn} crawls from the carcass!',
     combatEnemyHellfireOnDeath:
         '{name} erupts in hellfire on death — {damage} true damage strips through your guard.',
@@ -230,7 +228,13 @@ export const EN_STRINGS = {
         '{name} lands a corrosion strike for {damage} true damage — armor reduced by {amount}.',
     combatEnemySelfHeal: '{name} drinks a healing potion and recovers {healed} HP.',
     combatEnemyPrepareStun: "{name}'s {action} binds you — stunned for {turns}t.",
+    combatEnemyPrepareAttackBan:
+        "{name}'s {action} tangles your weapon arm — no attack for {turns}t.",
+    combatEnemyPrepareArmorBreak:
+        "{name}'s {action} etches your armor — defense reduced by {amount} for the rest of the fight.",
+    combatEnemyPrepareArmorBreakMiss: "{name}'s {action} sputters out without etching your armor.",
     combatPlayerStunned: 'You are bound — no action this turn.',
+    combatPlayerAttackBanned: 'Your weapon arm is bound — attack forfeit this turn.',
     // Item triggers — unified format "X effect triggered — Y".
     combatRelicHealOnAttack: 'Vampire Amulet effect triggered — recovered {healed} HP.',
     combatRelicDarkChestplate: 'Dark Chestplate effect triggered — absorbed {amount} damage.',

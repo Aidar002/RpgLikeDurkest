@@ -24,7 +24,9 @@ import {
     applyWeaken,
     consumeGuardBlock,
     consumeStunForTurn,
+    consumeAttackBanForAttack,
     emptyStatusState,
+    tickAttackBan,
     statusSummary,
     tickTurn,
 } from './StatusEffects';
@@ -433,8 +435,19 @@ export class CombatManager {
         // very next player turn after a stun=1 application is the one
         // skipped, and the one after that is free again.
         const playerStunned = consumeStunForTurn(this.player.status);
+        // Giant-Toad "Tongue Lash" follow-up: a narrower ban that only
+        // forfeits the *attack* action. Defense, skills and potions
+        // still resolve normally. The timer ticks once per player turn
+        // regardless of choice so a turns=1 ban naturally expires the
+        // turn after it lands.
+        const attackBanned =
+            !playerStunned &&
+            actionName === 'attack' &&
+            consumeAttackBanForAttack(this.player.status);
         if (playerStunned) {
             this.log.addMessage(this.loc.t('combatPlayerStunned'), '#7aaaff');
+        } else if (attackBanned) {
+            this.log.addMessage(this.loc.t('combatPlayerAttackBanned'), '#7aaaff');
         } else if (actionName === 'attack') {
             this.handlePlayerAttack();
         } else if (actionName === 'defend') {
@@ -448,6 +461,12 @@ export class CombatManager {
             if (!this.handlePlayerPotion()) {
                 return;
             }
+        }
+        // Non-attack actions don't consume the ban, but it should still
+        // decay naturally so the player isn't permanently locked out of
+        // attacking by chaining defenses.
+        if (!playerStunned && !attackBanned && actionName !== 'attack') {
+            tickAttackBan(this.player.status);
         }
 
         // End-of-player-turn: tick enemy statuses (bleed damage etc.).

@@ -7,6 +7,7 @@ import type { Localization } from './Localization';
 import type { PlayerManager } from './PlayerManager';
 import {
     applyArmorBreak,
+    applyAttackBan,
     applyBleed,
     applyPoison,
     applyStun,
@@ -292,31 +293,6 @@ export function resolveEnemyTurn(
         log.addMessage(loc.t('absorb'), '#8fc6ff');
     }
 
-    // Gelatinous Cube "Acid Vomit": on each regular hit that actually
-    // lands, the cube has a chance to etch the player's armor — defense
-    // -amount for the rest of the fight (and a couple of rooms past
-    // it, since armorBreak.turns ticks once per combat turn). Locks
-    // after the first successful trigger; the guard checks the
-    // player's existing armorBreak.turns so re-rolls keep happening
-    // until it lands once, then stop (design: ONE acid burst per
-    // cube, not a continuous spray).
-    if (
-        takenDamage > 0 &&
-        enemy.passive?.kind === 'acidVomitOnFirstHit' &&
-        player.status.armorBreak.turns === 0 &&
-        rng.next() < enemy.passive.chance
-    ) {
-        applyArmorBreak(player.status, enemy.passive.amount, enemy.passive.turns);
-        log.addMessage(
-            loc.t('combatEnemyAcidVomit', {
-                name: enemy.name,
-                amount: enemy.passive.amount,
-            }),
-            '#5fcf5a'
-        );
-        deps.emitPlayerStatus();
-    }
-
     // Vampire-style lifesteal: heal a ratio of the damage that actually
     // landed on the player (Math.ceil + min 1). Ceil rounding per the
     // design sheet — a 1-dmg hit heals 1, a 2-dmg hit at 65% heals 2
@@ -447,20 +423,30 @@ function resolvePrepare(
         return;
     }
 
-    // Either no Defend, or 'cancelRiders' rule.
+    // Either no Defend, or 'cancelRiders' rule. Skip the hit pipeline
+    // entirely when the windup has no direct damage (damage=0 windups
+    // like Tongue Lash / Acid Vomit are bind/curse-only) — otherwise
+    // `applyEnemyHitToPlayer` floors the raw amount to 1 and the curse
+    // would secretly chip the player.
     const flatBlock = defended ? COMBAT_CONFIG.defendBlock : 0;
-    const taken = deps.applyEnemyHitToPlayer(def.damage, flatBlock);
-    if (taken > 0) {
-        log.addMessage(
-            loc.t('combatEnemyPrepareResolve', {
-                name: enemy.name,
-                action,
-                takenDamage: taken,
-            }),
-            '#ff6666'
-        );
-    } else {
-        log.addMessage(loc.t('absorb'), '#8fc6ff');
+    if (def.damage > 0) {
+        const taken = deps.applyEnemyHitToPlayer(def.damage, flatBlock);
+        if (taken > 0) {
+            log.addMessage(
+                loc.t('combatEnemyPrepareResolve', {
+                    name: enemy.name,
+                    action,
+                    takenDamage: taken,
+                }),
+                '#ff6666'
+            );
+        } else {
+            log.addMessage(loc.t('absorb'), '#8fc6ff');
+        }
+    } else if (defended) {
+        // Damageless prepare + Defend: still surface the defend line so
+        // the player sees that their guard ate the rider rolls.
+        log.addMessage(loc.t('combatEnemyPrepareDefend', { name: enemy.name, action }), '#9bc8ff');
     }
 
     if (defended) {
@@ -509,5 +495,40 @@ function resolvePrepare(
             '#7aaaff'
         );
         deps.emitPlayerStatus();
+    }
+    if (def.attackBan) {
+        applyAttackBan(player.status, def.attackBan.turns);
+        log.addMessage(
+            loc.t('combatEnemyPrepareAttackBan', {
+                name: enemy.name,
+                action,
+                turns: def.attackBan.turns,
+            }),
+            '#7aaaff'
+        );
+        deps.emitPlayerStatus();
+    }
+    if (def.armorBreak) {
+        const chance = def.armorBreak.chance ?? 1;
+        if (deps.rng.next() < chance) {
+            applyArmorBreak(player.status, def.armorBreak.amount, def.armorBreak.turns);
+            log.addMessage(
+                loc.t('combatEnemyPrepareArmorBreak', {
+                    name: enemy.name,
+                    action,
+                    amount: def.armorBreak.amount,
+                }),
+                '#5fcf5a'
+            );
+            deps.emitPlayerStatus();
+        } else {
+            log.addMessage(
+                loc.t('combatEnemyPrepareArmorBreakMiss', {
+                    name: enemy.name,
+                    action,
+                }),
+                '#9bc8ff'
+            );
+        }
     }
 }

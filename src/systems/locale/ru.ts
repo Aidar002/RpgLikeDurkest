@@ -203,7 +203,6 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     combatEnemyHordeThins: '{name} редеет — наскребает лишь {attack} урона.',
     combatEnemyPainExultation: '{name} упивается болью — +{bonus} к урону.',
     combatEnemyStranglingRoots: '{name} обвивает вас корнями — ваши удары ослаблены на {amount}.',
-    combatEnemyAcidVomit: '{name} плюётся кислотой — броня снижена на {amount} до конца боя.',
     combatEnemySpawnsReplacement: '{name} падает — из туши выползает {spawn}!',
     combatEnemyHellfireOnDeath:
         '{name} взрывается адским пламенем — {damage} истинного урона прорывает твою защиту.',
@@ -217,7 +216,12 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
         '{name} наносит удар коррозии: {damage} истинного урона — броня снижена на {amount}.',
     combatEnemySelfHeal: '{name} выпивает зелье лечения и восстанавливает {healed} ОЗ.',
     combatEnemyPrepareStun: '{name} применяет {action} — вы оглушены на {turns}х.',
+    combatEnemyPrepareAttackBan: '{name} применяет {action} — вы не можете атаковать {turns}х.',
+    combatEnemyPrepareArmorBreak:
+        '{name} применяет {action} — броня снижена на {amount} до конца боя.',
+    combatEnemyPrepareArmorBreakMiss: '{name} срывает {action} — броня цела.',
     combatPlayerStunned: 'Вы скованы — этот ход пропущен.',
+    combatPlayerAttackBanned: 'Рука с оружием скована — атака этого хода упущена.',
     // Срабатывания предметов — единый формат "Сработал эффект предмета X — Y".
     combatRelicHealOnAttack:
         'Сработал эффект предмета «Амулет вампира» — восстановлено {healed} ОЗ.',
