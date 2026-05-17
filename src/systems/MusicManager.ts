@@ -148,8 +148,7 @@ export class MusicManager {
         audio.volume = 0;
         this.wireToMaster(audio);
         audio.addEventListener('error', () => {
-            const err = audio.error;
-            console.warn('[music] audio element error:', err?.code, err?.message, audio.src);
+            logAudioError('audio element error', audio);
         });
         audio.addEventListener('ended', () => this.handleEnded(audio));
         audio.addEventListener('timeupdate', () => this.handleTimeUpdate(audio));
@@ -204,8 +203,7 @@ export class MusicManager {
         this.wireToMaster(replacement);
         replacement.volume = this.targetElementVolume();
         replacement.addEventListener('error', () => {
-            const err = replacement.error;
-            console.warn('[music] audio element error:', err?.code, err?.message, replacement.src);
+            logAudioError('audio element error', replacement);
         });
         replacement.addEventListener('ended', () => this.handleEnded(replacement));
         replacement.addEventListener('timeupdate', () => this.handleTimeUpdate(replacement));
@@ -228,8 +226,7 @@ export class MusicManager {
         upcoming.volume = 0;
         this.wireToMaster(upcoming);
         upcoming.addEventListener('error', () => {
-            const err = upcoming.error;
-            console.warn('[music] crossfade audio error:', err?.code, err?.message, upcoming.src);
+            logAudioError('crossfade audio error', upcoming);
         });
         this.next = upcoming;
         const playPromise = upcoming.play();
@@ -530,6 +527,24 @@ function readMuted(): boolean {
 
 function nowSeconds(): number {
     return (typeof performance !== 'undefined' ? performance.now() : Date.now()) / 1000;
+}
+
+/**
+ * Common `error`-listener body for the music elements. Swallows the
+ * `MEDIA_ELEMENT_ERROR: Empty src attribute` case because we trigger
+ * it ourselves on cleanup (`audio.src = ''` in `beginCrossfade`,
+ * `fadeOut`, `destroy`) and the resulting console noise was
+ * obscuring real failures in bug reports.
+ */
+function logAudioError(label: string, audio: HTMLAudioElement): void {
+    if (!audio.src || audio.src === window.location.href) {
+        // Self-inflicted: we cleared `audio.src` to release the
+        // element. Browsers either report an empty string or
+        // resolve the empty attribute back to the document URL.
+        return;
+    }
+    const err = audio.error;
+    console.warn(`[music] ${label}:`, err?.code, err?.message, audio.src);
 }
 
 function scheduleFrame(cb: () => void): number {

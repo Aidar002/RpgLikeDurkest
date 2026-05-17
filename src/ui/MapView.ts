@@ -62,10 +62,13 @@ interface NodeVisual {
 
 /**
  * Things {@link MapView} cannot decide on its own and must defer to
- * the host scene for. `canMove` returns whether a click on the given
- * node should advance the player there (depends on global animation
- * state, current room visibility, dead state — none of which live in
- * `MapView`).
+ * the host scene for. `canMove` describes whether a click on the
+ * given node should advance the player there (depends on global
+ * animation state, current room visibility, dead state — none of
+ * which live in `MapView`). Returns `null` when movement is allowed,
+ * or a short tag string describing the first blocking condition. The
+ * tag is surfaced in the diagnostic warning emitted on rejected
+ * clicks so a future freeze can be diagnosed from the console alone.
  */
 interface MapViewDeps {
     scene: Phaser.Scene;
@@ -75,8 +78,11 @@ interface MapViewDeps {
     meta: MetaProgressionManager;
     loc: Localization;
     tooltipText: Phaser.GameObjects.Text;
-    /** Whether a click on `node` should currently produce movement. */
-    canMove(node: MapNode): boolean;
+    /**
+     * `null` if a click on `node` should currently produce movement,
+     * otherwise a short reason tag (e.g. `'animating'`, `'dead'`).
+     */
+    canMove(node: MapNode): string | null;
     /** Called when a clickable node was successfully clicked. */
     onNodeClick(node: MapNode): void;
 }
@@ -89,7 +95,7 @@ export class MapView {
     private meta: MetaProgressionManager;
     private loc: Localization;
     private tooltipText: Phaser.GameObjects.Text;
-    private canMoveDelegate: (node: MapNode) => boolean;
+    private canMoveDelegate: (node: MapNode) => string | null;
     private onNodeClickDelegate: (node: MapNode) => void;
 
     public readonly visuals: Map<string, NodeVisual> = new Map();
@@ -185,7 +191,24 @@ export class MapView {
      * intrinsic "is the node a valid forward move" check.
      */
     canUseNode(node: MapNode): boolean {
-        return this.canMoveDelegate(node) && !node.cleared && this.dungeon.canMoveTo(node.id);
+        return this.describeBlockedClick(node) === null;
+    }
+
+    /**
+     * Diagnostic counterpart to {@link canUseNode}: returns `null`
+     * when a click would be accepted, otherwise a short reason tag
+     * describing the first failing condition. Used by the click
+     * handler to emit a single `console.warn('[map-click rejected]'`
+     * line so the freeze-on-click bug (irreproducible by us, see
+     * GameMapController watchdog) can be diagnosed from the console
+     * the moment a player hits it.
+     */
+    describeBlockedClick(node: MapNode): string | null {
+        const moveReason = this.canMoveDelegate(node);
+        if (moveReason !== null) return moveReason;
+        if (node.cleared) return 'cleared';
+        if (!this.dungeon.canMoveTo(node.id)) return 'not-forward';
+        return null;
     }
 
     /**
@@ -306,8 +329,16 @@ export class MapView {
     private makeClickable(rect: Phaser.GameObjects.Rectangle, node: MapNode): void {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', () => {
-            if (this.canUseNode(node)) {
+            const reason = this.describeBlockedClick(node);
+            if (reason === null) {
                 this.onNodeClickDelegate(node);
+            } else {
+                // Players have reported the map occasionally going
+                // unresponsive to clicks while hover still highlights
+                // the cursor. Without this log we have no way to tell
+                // which gate is blocking the click — see
+                // `describeBlockedClick` for the reason vocabulary.
+                console.warn('[map-click rejected]', { nodeId: node.id, reason });
             }
         });
         rect.on('pointerover', () => {
