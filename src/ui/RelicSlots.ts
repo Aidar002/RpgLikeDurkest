@@ -471,6 +471,14 @@ export class RelicSlots {
                 repeat: -1,
                 ease: 'Sine.inOut',
             });
+        } else if (relic.rarity === 'common') {
+            // Common relics rely on the carved panel_small frame as
+            // their entire visual boundary — the muted-tan rarity
+            // stroke was reading as a stray grey outline against the
+            // bronze frame, so it's suppressed here. Rare / unique /
+            // set-complete states still paint a coloured stroke so
+            // their highlight remains legible.
+            slot.border.setStrokeStyle();
         } else {
             slot.border.setStrokeStyle(2, rarityColor, 1);
         }

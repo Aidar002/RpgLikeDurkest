@@ -186,18 +186,26 @@ export function fitRoomSprite(
 }
 
 /**
- * Force the enemy / room-card portrait into the standard
- * {@link ENEMY_SPRITE_MAX_DIM}×{@link ENEMY_SPRITE_MAX_DIM} box.
- *
- * Unlike {@link fitRoomSprite} this snaps every sprite to the cap
- * (instead of only shrinking oversized ones). The combat panel
- * picks the portrait as its visual anchor — having every mob, room
- * and procedural fallback render at exactly the same size keeps
- * the layout stable across encounters.
+ * Fit the enemy / room-card portrait inside the standard
+ * {@link ENEMY_SPRITE_MAX_DIM}×{@link ENEMY_SPRITE_MAX_DIM} box while
+ * preserving the source aspect ratio. Hand-authored portraits are
+ * authored at slightly different aspect ratios (e.g. the rat.webp
+ * source is ~512×440), so forcing every sprite to a square
+ * `setDisplaySize(max, max)` visibly stretched non-square art.
+ * Uniform scaling via `Math.min` lets each sprite letterbox itself
+ * inside the 230 px panel while the portrait rectangle keeps the
+ * layout's vertical rhythm stable across encounters.
  */
 export function fitEnemySprite(
     sprite: Phaser.GameObjects.Image,
     maxDim = ENEMY_SPRITE_MAX_DIM
 ): void {
-    sprite.setDisplaySize(maxDim, maxDim);
+    const w = sprite.width;
+    const h = sprite.height;
+    if (w <= 0 || h <= 0) {
+        sprite.setDisplaySize(maxDim, maxDim);
+        return;
+    }
+    const scale = Math.min(maxDim / w, maxDim / h);
+    sprite.setDisplaySize(w * scale, h * scale);
 }

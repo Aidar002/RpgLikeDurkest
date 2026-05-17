@@ -18,7 +18,6 @@ import * as Phaser from 'phaser';
 
 import type { UpgradeId } from '../../systems/MetaProgressionManager';
 import { EscapeHintGlow } from '../EscapeHintGlow';
-import { playEffect } from '../EffectsLibrary';
 import { drawCarvedPanel } from '../HudFrame';
 import { BODY_FONT } from '../HudTheme';
 import { createHudIcon, type IconKey } from '../HudIcons';
@@ -386,15 +385,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
                 }
 
                 if (meta.purchaseUpgrade(visual.id)) {
-                    // Meta-upgrade purchase VFX. A short shower of
-                    // gold pieces drops over the card the player just
-                    // bought; depth is pinned above the end-screen
-                    // foreground so the shapes paint on top of the
-                    // card chrome but underneath modal overlays
-                    // (which use higher Depths.* tiers).
-                    playEffect(scene, 'goldShower', position.x, position.y, {
-                        depth: Depths.EndScreenForeground + 2,
-                    });
+                    // No purchase particle burst: the previous gold
+                    // shower over the card read as visual noise and is
+                    // intentionally suppressed pending a redesigned
+                    // confirmation. The card-state repaint + SFX still
+                    // signal the buy without the particle spray.
                     refreshShop();
                 }
             });
