@@ -268,15 +268,11 @@ export class GameHudController {
                 duration: 500,
                 onComplete: () => flash.destroy(),
             });
-            // Level-up VFX recipe: a fountain of gold stars at the
-            // player's progression column (where the LEVEL/XP labels
-            // live in the top bar). Anchored to the live `levelText`
-            // so we don't drift if the HUD layout shifts. The recipe
-            // self-destroys its game objects after ~1 s.
-            const levelCenter = this.levelText.getCenter();
-            playEffect(scene, 'starFountain', levelCenter.x, levelCenter.y, {
-                depth: Depths.ScreenFlash + 1,
-            });
+            // No level-up particle burst: the previous gold-star
+            // fountain at the LEVEL column read as visual noise and is
+            // intentionally suppressed pending a redesigned celebration.
+            // The screen flash + floating "Уровень N" text + SFX still
+            // mark the moment without the particle spray.
             this.refresh();
         });
 
