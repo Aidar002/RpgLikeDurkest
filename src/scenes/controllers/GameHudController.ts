@@ -928,7 +928,7 @@ export class GameHudController {
             ) {
                 this.escapeConfirmAt = -1;
                 this.escapeButtonLabel.setText(scene.loc.t('escapeButton'));
-                this.escapeButtonLabel.setColor(HudHex.textSecondary);
+                this.escapeButtonLabel.setColor(HudHex.textPrimary);
             }
         });
     }
