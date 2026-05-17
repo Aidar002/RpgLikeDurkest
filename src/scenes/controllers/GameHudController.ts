@@ -568,8 +568,8 @@ export class GameHudController {
         this.xpValueText = this.scene.add
             .text(hpBarX + this.hpBarWidth + 10, 64, '', {
                 fontFamily: HUD_FONT,
-                fontSize: '12px',
-                color: HudHex.textSecondary,
+                fontSize: '14px',
+                color: HudHex.textPrimary,
                 stroke: HUD_STROKE,
                 strokeThickness: 2,
             })
