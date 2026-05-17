@@ -53,11 +53,12 @@ const TAIL_INTERVAL_MS = 28;
  *  visible against the carved-stone HUD frame. */
 const TAIL_LIFETIME_MS = 650;
 const TAIL_RADIUS = 2;
-/** Depth just above the button (220) so the comet is never clipped
- *  by the button background even where the path crosses the rect
- *  edge due to anti-aliasing. Dots are tiny (2–3px) and ride the
- *  outset path so they don't visually obscure the button label. */
-const HINT_DEPTH = 221;
+/** Depth just above the HUD escape button (220) so the comet is never
+ *  clipped by the button background even where the path crosses the
+ *  rect edge due to anti-aliasing. End-screen call-sites pass a
+ *  different depth via {@link EscapeHintGlowOptions.depth} so the
+ *  comet sits above the upgrade cards but below modal overlays. */
+const DEFAULT_HINT_DEPTH = 221;
 
 interface Anchor {
     x: number;
@@ -66,10 +67,23 @@ interface Anchor {
     height: number;
 }
 
+/** Optional knobs for hosting the glow outside the live HUD. */
+export interface EscapeHintGlowOptions {
+    /** Container the host is reparented into. Omit when the call-site
+     *  doesn't own a container (e.g. the end-screen overlay) — the
+     *  host then stays in the scene's display list at {@link depth}. */
+    parent?: Phaser.GameObjects.Container;
+    /** Render depth for the host. Defaults to the HUD-tier depth used
+     *  by the escape button (221). End-screen callers should pass a
+     *  value that beats the card content but loses to confirm modals. */
+    depth?: number;
+}
+
 export class EscapeHintGlow {
     private readonly scene: Phaser.Scene;
     private readonly anchor: Anchor;
-    private readonly parent: Phaser.GameObjects.Container;
+    private readonly parent: Phaser.GameObjects.Container | null;
+    private readonly depth: number;
 
     private active = false;
     private hostContainer: Phaser.GameObjects.Container | null = null;
@@ -79,10 +93,23 @@ export class EscapeHintGlow {
     private lapTween: Phaser.Tweens.Tween | null = null;
     private trailTimer: Phaser.Time.TimerEvent | null = null;
 
-    constructor(scene: Phaser.Scene, anchor: Anchor, parent: Phaser.GameObjects.Container) {
+    constructor(
+        scene: Phaser.Scene,
+        anchor: Anchor,
+        parentOrOptions?: Phaser.GameObjects.Container | EscapeHintGlowOptions
+    ) {
         this.scene = scene;
         this.anchor = anchor;
-        this.parent = parent;
+        // Backwards-compatible signature: the live HUD passes a bare
+        // Container as the third arg; the end-screen call-site passes
+        // an options bag with `depth` and (optionally) no parent.
+        if (parentOrOptions instanceof Phaser.GameObjects.Container) {
+            this.parent = parentOrOptions;
+            this.depth = DEFAULT_HINT_DEPTH;
+        } else {
+            this.parent = parentOrOptions?.parent ?? null;
+            this.depth = parentOrOptions?.depth ?? DEFAULT_HINT_DEPTH;
+        }
     }
 
     /**
@@ -106,8 +133,14 @@ export class EscapeHintGlow {
 
     private start(): void {
         this.active = true;
-        const host = this.scene.add.container(0, 0).setDepth(HINT_DEPTH);
-        this.parent.add(host);
+        const host = this.scene.add.container(0, 0).setDepth(this.depth);
+        // Reparent into the HUD container when one was provided so
+        // the glow rides along with HUD visibility toggles. End-screen
+        // callers omit the parent and rely on `this.depth` to slot
+        // the host into the overlay's z-order instead.
+        if (this.parent) {
+            this.parent.add(host);
+        }
         this.hostContainer = host;
 
         // Build heads. They get repositioned every onUpdate tick from

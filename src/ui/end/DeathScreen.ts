@@ -17,8 +17,10 @@
 import * as Phaser from 'phaser';
 
 import type { UpgradeId } from '../../systems/MetaProgressionManager';
+import { EscapeHintGlow } from '../EscapeHintGlow';
 import { drawCarvedPanel } from '../HudFrame';
 import { BODY_FONT } from '../HudTheme';
+import { createHudIcon, type IconKey } from '../HudIcons';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../Layout';
 import { createStoneBackdrop } from '../StoneBackdrop';
 import { drawUiButton } from '../UiButton';
@@ -27,14 +29,30 @@ import { applyPanelState, drawPanel } from '../UiPanel';
 import { bankSkillPointsOnce, hideLiveContainers } from './shared';
 import type { EndScreenContext } from './types';
 
+/** Per-upgrade icon for the carved card. Mirrors the in-HUD stat
+ *  glyphs so a damage upgrade reads as "sword", an HP upgrade as
+ *  "heart", etc. Kept in this module so a future upgrade id only
+ *  needs one map entry to inherit the same look. */
+const UPGRADE_ICON: Record<UpgradeId, IconKey> = {
+    damage: 'sword',
+    hp: 'heart',
+    defense: 'shield',
+    goldGain: 'coin',
+};
+
 interface UpgradeCardVisual {
     id: UpgradeId;
     background: PanelBackground;
     textured: boolean;
+    icon: Phaser.GameObjects.GameObject;
     title: Phaser.GameObjects.Text;
     level: Phaser.GameObjects.Text;
     body: Phaser.GameObjects.Text;
     cost: Phaser.GameObjects.Text;
+    /** Perimeter comet that lights up when the player has enough
+     *  banked points to buy this upgrade. Same widget used by the
+     *  HUD escape button so the visual cue carries between screens. */
+    glow: EscapeHintGlow;
     canPurchase: boolean;
 }
 
@@ -129,9 +147,185 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .rectangle(CENTER_X, panelTop + 100, PANEL_W - 96, 1, 0x6a4f38, 0.6)
         .setDepth(Depths.EndScreenContent);
 
+    // ── Skill-point banner + upgrade grid (escape only) ─────
+    // The banner + 4 carved cards sit at the TOP of the panel so the
+    // first thing the player sees after the headline is what they
+    // earned and what they can spend it on. The run summary (left
+    // column) and acquaintances (right column) moved BELOW the cards
+    // because they're reference info, not the call to action. On a
+    // death run the meta profile has already been wiped, so we hide
+    // the banner + grid entirely and the body section anchors to
+    // `divider1` directly.
+    const BANNER_H = 34;
+    const bannerY = panelTop + 100 + 18 + BANNER_H / 2;
+    const skillPointsBannerHandle = drawPanel(scene, CENTER_X, bannerY, 380, BANNER_H, {
+        depth: Depths.EndScreenContent,
+    });
+    const skillPointsBanner = skillPointsBannerHandle.background;
+    skillPointsBanner.setVisible(escaped);
+    const pointsText = scene.add
+        .text(CENTER_X, bannerY, '', {
+            fontFamily: BODY_FONT,
+            fontSize: '15px',
+            color: '#ffd36e',
+        })
+        .setOrigin(0.5)
+        .setDepth(Depths.EndScreenForeground)
+        .setVisible(escaped);
+
+    // Bigger, more prominent upgrade cards (was 380×70). The extra
+    // height makes room for a 48px icon on the left and a more
+    // readable 2-line description block in the middle.
+    const CARD_W = 420;
+    const CARD_H = 96;
+    const CARD_GAP_X = 24;
+    const CARD_GAP_Y = 16;
+    const ICON_SIZE = 48;
+    const ICON_OFFSET_X = 38;
+    const TEXT_OFFSET_X = ICON_OFFSET_X + ICON_SIZE / 2 + 12;
+    const cardsStartY = bannerY + BANNER_H / 2 + 28 + CARD_H / 2;
+    const cards: UpgradeCardVisual[] = [];
+    const cardPositions = [
+        { x: CENTER_X - CARD_W / 2 - CARD_GAP_X / 2, y: cardsStartY },
+        { x: CENTER_X + CARD_W / 2 + CARD_GAP_X / 2, y: cardsStartY },
+        {
+            x: CENTER_X - CARD_W / 2 - CARD_GAP_X / 2,
+            y: cardsStartY + (CARD_H + CARD_GAP_Y),
+        },
+        {
+            x: CENTER_X + CARD_W / 2 + CARD_GAP_X / 2,
+            y: cardsStartY + (CARD_H + CARD_GAP_Y),
+        },
+    ];
+    const cardsBottomY = cardsStartY + (CARD_H + CARD_GAP_Y) + CARD_H / 2;
+
+    if (escaped) {
+        meta.getUpgradeCards(loc.language).forEach((card, index) => {
+            const position = cardPositions[index];
+            if (!position) {
+                return;
+            }
+
+            const panel = drawPanel(scene, position.x, position.y, CARD_W, CARD_H, {
+                depth: Depths.EndScreenContent,
+                interactive: true,
+            });
+            const background = panel.background;
+
+            const iconX = position.x - CARD_W / 2 + ICON_OFFSET_X;
+            const cardIcon = createHudIcon(scene, iconX, position.y, UPGRADE_ICON[card.id], {
+                pixelSize: ICON_SIZE,
+            }) as Phaser.GameObjects.GameObject & { setDepth(d: number): unknown };
+            cardIcon.setDepth(Depths.EndScreenForeground);
+
+            const textLeftX = position.x - CARD_W / 2 + TEXT_OFFSET_X;
+            const cardTitle = scene.add
+                .text(textLeftX, position.y - CARD_H / 2 + 14, card.title, {
+                    fontFamily: BODY_FONT,
+                    fontSize: '18px',
+                    color: '#f0f0f0',
+                })
+                .setDepth(Depths.EndScreenForeground);
+
+            const cardLevel = scene.add
+                .text(position.x + CARD_W / 2 - 14, position.y - CARD_H / 2 + 14, '', {
+                    fontFamily: BODY_FONT,
+                    fontSize: '14px',
+                    color: '#a8a8a8',
+                })
+                .setOrigin(1, 0)
+                .setDepth(Depths.EndScreenForeground);
+
+            const cardBody = scene.add
+                .text(textLeftX, position.y - CARD_H / 2 + 40, '', {
+                    fontFamily: BODY_FONT,
+                    fontSize: '13px',
+                    color: '#9a9a9a',
+                    wordWrap: { width: CARD_W - TEXT_OFFSET_X - 24 },
+                })
+                .setDepth(Depths.EndScreenForeground);
+
+            const cardCost = scene.add
+                .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 22, '', {
+                    fontFamily: BODY_FONT,
+                    fontSize: '14px',
+                    color: '#ffd36e',
+                })
+                .setOrigin(1, 0)
+                .setDepth(Depths.EndScreenForeground);
+
+            // Perimeter comet glow — same widget as the HUD escape
+            // button, parented to no container (the end-screen draws
+            // straight onto the scene) and pinned just above the card
+            // foreground so it never reads under the title/cost text.
+            const glow = new EscapeHintGlow(
+                scene,
+                { x: position.x, y: position.y, width: CARD_W, height: CARD_H },
+                { depth: Depths.EndScreenForeground + 1 }
+            );
+
+            const visual: UpgradeCardVisual = {
+                id: card.id,
+                background,
+                textured: panel.textured,
+                icon: cardIcon,
+                title: cardTitle,
+                level: cardLevel,
+                body: cardBody,
+                cost: cardCost,
+                glow,
+                canPurchase: false,
+            };
+
+            background.on('pointerover', () => {
+                if (visual.canPurchase) {
+                    applyPanelState(background, 'hover', visual.textured);
+                }
+            });
+            background.on('pointerout', () => {
+                applyPanelState(
+                    background,
+                    visual.canPurchase ? 'idle' : 'disabled',
+                    visual.textured
+                );
+            });
+            background.on('pointerdown', () => {
+                const info = meta
+                    .getUpgradeCards(loc.language)
+                    .find((upgrade) => upgrade.id === visual.id);
+                if (!info?.canPurchase) {
+                    return;
+                }
+
+                if (meta.purchaseUpgrade(visual.id)) {
+                    refreshShop();
+                }
+            });
+
+            cards.push(visual);
+        });
+    }
+
     // ── Two-column body (stats | acquaintances) ─────────────
+    // Anchored below the upgrade cards on escape, or directly under
+    // `divider1` on death (no cards rendered in that branch). The
+    // body section is the "logs" — run progress + who the player met
+    // — and was moved here from above the cards so the call-to-action
+    // (cards) reads first.
     const isRu = loc.language === 'ru';
-    const COL_HEADER_Y = panelTop + 116;
+    const bodySectionTop = escaped ? cardsBottomY + 24 : panelTop + 116;
+    const divider2 = scene.add
+        .rectangle(
+            CENTER_X,
+            escaped ? cardsBottomY + 12 : panelTop + 100,
+            PANEL_W - 96,
+            1,
+            0x6a4f38,
+            0.6
+        )
+        .setDepth(Depths.EndScreenContent)
+        .setVisible(escaped);
+    const COL_HEADER_Y = bodySectionTop;
     const COL_BODY_Y = COL_HEADER_Y + 24;
     const COL_LEFT_X = panelLeft + 56;
     const COL_RIGHT_X = panelLeft + PANEL_W / 2 + 16;
@@ -186,146 +380,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
 
     // The two columns can be different heights (lots of stats, no
     // NPCs / no NPCs, lots of stats) — use the taller one as the
-    // anchor for everything below. The previous build wrapped the
-    // body section in a nested `drawTopBarPanel` sub-frame; we now
-    // render the text directly on the outer carved panel so the
-    // composition reads as one block instead of a card inside a card.
+    // anchor for everything below.
     const bodyEndY = Math.max(leftBody.y + leftBody.height, rightBody.y + rightBody.height);
-
-    // ── Skill-point banner + upgrade grid (escape only) ─────
-    // On a death run the meta profile has already been wiped, so we
-    // hide the entire shop section and let the player just hit
-    // “start over”. On an escape run we render the bank header, the 4
-    // upgrade cards (damage / hp / defense / goldGain) and the
-    // discovery-progress block.
-    const divider2Y = bodyEndY + 20;
-    const divider2 = scene.add
-        .rectangle(CENTER_X, divider2Y, PANEL_W - 96, 1, 0x6a4f38, 0.6)
-        .setDepth(Depths.EndScreenContent)
-        .setVisible(escaped);
-    const bannerY = divider2Y + 24;
-    const skillPointsBannerHandle = drawPanel(scene, CENTER_X, bannerY, 380, 34, {
-        depth: Depths.EndScreenContent,
-    });
-    const skillPointsBanner = skillPointsBannerHandle.background;
-    skillPointsBanner.setVisible(escaped);
-    const pointsText = scene.add
-        .text(CENTER_X, bannerY, '', {
-            fontFamily: BODY_FONT,
-            fontSize: '15px',
-            color: '#ffd36e',
-        })
-        .setOrigin(0.5)
-        .setDepth(Depths.EndScreenForeground)
-        .setVisible(escaped);
-
-    // ── Upgrade card grid (2 rows × 2 cols, 4 cards) ───────
-    const cardsStartY = bannerY + 64;
-    const CARD_W = 380;
-    const CARD_H = 70;
-    const CARD_GAP_Y = 12;
-    const cardsBottomY = cardsStartY + (CARD_H + CARD_GAP_Y) + CARD_H / 2;
-    const cards: UpgradeCardVisual[] = [];
-    const cardPositions = [
-        { x: CENTER_X - CARD_W / 2 - 12, y: cardsStartY },
-        { x: CENTER_X + CARD_W / 2 + 12, y: cardsStartY },
-        { x: CENTER_X - CARD_W / 2 - 12, y: cardsStartY + (CARD_H + CARD_GAP_Y) },
-        { x: CENTER_X + CARD_W / 2 + 12, y: cardsStartY + (CARD_H + CARD_GAP_Y) },
-    ];
-
-    if (escaped) {
-        meta.getUpgradeCards(loc.language).forEach((card, index) => {
-            const position = cardPositions[index];
-            if (!position) {
-                return;
-            }
-
-            const panel = drawPanel(scene, position.x, position.y, CARD_W, CARD_H, {
-                depth: Depths.EndScreenContent,
-                interactive: true,
-            });
-            const background = panel.background;
-
-            const cardTitle = scene.add
-                .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 10, card.title, {
-                    fontFamily: BODY_FONT,
-                    fontSize: '15px',
-                    color: '#f0f0f0',
-                })
-                .setDepth(Depths.EndScreenForeground);
-
-            const cardLevel = scene.add
-                .text(position.x + CARD_W / 2 - 14, position.y - CARD_H / 2 + 10, '', {
-                    fontFamily: BODY_FONT,
-                    fontSize: '14px',
-                    color: '#a8a8a8',
-                })
-                .setOrigin(1, 0)
-                .setDepth(Depths.EndScreenForeground);
-
-            const cardBody = scene.add
-                .text(position.x - CARD_W / 2 + 14, position.y - CARD_H / 2 + 30, '', {
-                    fontFamily: BODY_FONT,
-                    fontSize: '12px',
-                    color: '#9a9a9a',
-                    wordWrap: { width: CARD_W - 110 },
-                })
-                .setDepth(Depths.EndScreenForeground);
-
-            const cardCost = scene.add
-                .text(position.x + CARD_W / 2 - 14, position.y + CARD_H / 2 - 22, '', {
-                    fontFamily: BODY_FONT,
-                    fontSize: '13px',
-                    color: '#ffd36e',
-                })
-                .setOrigin(1, 0)
-                .setDepth(Depths.EndScreenForeground);
-
-            const visual: UpgradeCardVisual = {
-                id: card.id,
-                background,
-                textured: panel.textured,
-                title: cardTitle,
-                level: cardLevel,
-                body: cardBody,
-                cost: cardCost,
-                canPurchase: false,
-            };
-
-            background.on('pointerover', () => {
-                if (visual.canPurchase) {
-                    applyPanelState(background, 'hover', visual.textured);
-                }
-            });
-            background.on('pointerout', () => {
-                applyPanelState(
-                    background,
-                    visual.canPurchase ? 'idle' : 'disabled',
-                    visual.textured
-                );
-            });
-            background.on('pointerdown', () => {
-                const info = meta
-                    .getUpgradeCards(loc.language)
-                    .find((upgrade) => upgrade.id === visual.id);
-                if (!info?.canPurchase) {
-                    return;
-                }
-
-                if (meta.purchaseUpgrade(visual.id)) {
-                    refreshShop();
-                }
-            });
-
-            cards.push(visual);
-        });
-    }
-
-    // The skill-point banner + 4 upgrade cards used to live inside a
-    // second `drawTopBarPanel` sub-frame. They now sit directly on
-    // the outer carved panel so the screen reads as one continuous
-    // block; only the dividers + the banner's own gold-rimmed
-    // rectangle group the section visually.
 
     // ── Discovery progress block (escape only) ──────────────
     // One row per content-unlock milestone; each row has a label, a
@@ -349,7 +405,11 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const PROGRESS_LABEL_X = panelLeft + 60;
     const PROGRESS_BAR_X = CENTER_X + 70;
     const PROGRESS_STATUS_X = panelLeft + PANEL_W - 60;
-    const progressHeaderY = cardsBottomY + PROGRESS_HEADER_GAP;
+    // Anchor the discovery progress block to the bottom of the body
+    // section (which now lives between the cards and the progress
+    // rows) so the section spacing stays consistent regardless of
+    // how tall the run-summary / NPC columns end up.
+    const progressHeaderY = bodyEndY + PROGRESS_HEADER_GAP;
     const progressFirstRowY = progressHeaderY + 18;
 
     const progressHeader = scene.add
@@ -486,6 +546,10 @@ export function showDeathScreen(ctx: EndScreenContext) {
             );
             card.title.setColor(info.canPurchase ? '#f0f0f0' : '#a7a7a7');
             card.body.setColor(info.canPurchase ? '#9a9a9a' : '#727272');
+            // Run the perimeter comet only when the player can
+            // actually buy this upgrade — same cue the HUD uses to
+            // tell them "the escape button matters right now".
+            card.glow.update(info.canPurchase, true);
         });
     };
 
