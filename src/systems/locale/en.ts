@@ -134,6 +134,14 @@ export const EN_STRINGS = {
     relicCapDrop: 'Drop',
     relicCapSkip: 'Skip — keep current relics',
     relicDiscarded: 'Relic discarded: {value}.',
+    // Centred toast that fires the first time every piece of a relic
+    // set is equipped. `{name}` is one of the `set*` strings below.
+    relicSetComplete: 'Set complete: {name}',
+    setWanderer: 'Wanderer',
+    setFlesh: 'Flesh',
+    setKnight: 'Knight',
+    setCursed: 'Cursed',
+    setSin: 'Sin',
     rarityCommon: 'Common',
     rarityRare: 'Rare',
     rarityUnique: 'Unique',

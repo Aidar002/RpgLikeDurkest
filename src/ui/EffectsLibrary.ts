@@ -415,12 +415,19 @@ function dustImplosion(scene: Phaser.Scene, x: number, y: number, opts: EffectOp
     const depth = pickDepth(opts);
     const color = pickColor(opts, 0xc7b58a);
     const reach = 70 * pickScale(opts);
-    const COUNT = 18;
+    // `countScale` doubles as a brightness control here: it raises the
+    // ring density AND fattens each particle proportionally, so callers
+    // can pass `countScale: 2` to get a punchier "set complete" burst
+    // out of the same recipe the gallery uses for the muted preview.
+    const density = Math.max(0.5, opts.countScale ?? 1);
+    const COUNT = Math.max(6, Math.round(18 * density));
+    const dotRadius = 2 * Math.max(1, Math.sqrt(density));
+    const dotAlpha = Math.min(1, 0.85 + 0.15 * (density - 1));
     for (let i = 0; i < COUNT; i++) {
         const a = (i / COUNT) * Math.PI * 2;
         const startX = x + Math.cos(a) * reach;
         const startY = y + Math.sin(a) * reach;
-        const dot = scene.add.circle(startX, startY, 2, color, 0.85).setDepth(depth);
+        const dot = scene.add.circle(startX, startY, dotRadius, color, dotAlpha).setDepth(depth);
         scene.tweens.add({
             targets: dot,
             x,
