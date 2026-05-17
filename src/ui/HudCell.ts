@@ -173,6 +173,84 @@ export interface HudInlineSlotHandle {
     setVisible(visible: boolean): void;
 }
 
+export interface HudStackedSlotHandle {
+    root: Phaser.GameObjects.Container;
+    setValue(text: string): void;
+    setVisible(visible: boolean): void;
+}
+
+interface HudStackedSlotOptions {
+    /** Icon shown on top. */
+    icon: IconKey;
+    /** Square pixel size for the icon (origin 0.5/0.5). */
+    iconSize?: number;
+    /** Optional initial value (defaults to empty). */
+    value?: string;
+    /** Hex colour for the value text. */
+    valueColor?: string;
+    /** Pixel size for the value text. */
+    valueFontSize?: string;
+    /** Vertical gap between the icon bottom edge and the value top. */
+    iconValueGap?: number;
+    /** Optional tint applied to the icon image. */
+    iconColor?: number;
+}
+
+/**
+ * Build a centred two-row slot at `(x, y)` (origin 0.5/0) showing a
+ * large icon on top with the value text centred directly below.
+ * Used for the prominent gold/potion/resolve and depth/kills/bosses
+ * blocks in the top bar — three blocks side-by-side read as a single
+ * column of stat readouts where the icon carries the identity and
+ * the value is the headline number.
+ */
+export function createHudStackedSlot(
+    scene: Phaser.Scene,
+    x: number,
+    y: number,
+    options: HudStackedSlotOptions
+): HudStackedSlotHandle {
+    const valueColor = options.valueColor ?? HudHex.textPrimary;
+    const valueFontSize = options.valueFontSize ?? '18px';
+    const iconSize = options.iconSize ?? 32;
+    const gap = options.iconValueGap ?? 4;
+
+    const iconCenterY = y + Math.ceil(iconSize / 2);
+    const valueTopY = y + iconSize + gap;
+
+    const widgets: Phaser.GameObjects.GameObject[] = [];
+
+    const icon = createHudIcon(scene, x, iconCenterY, options.icon, {
+        pixelSize: iconSize,
+        tint: options.iconColor,
+    });
+    widgets.push(icon);
+
+    const valueText = scene.add
+        .text(x, valueTopY, options.value ?? '', {
+            fontFamily: HUD_FONT,
+            fontSize: valueFontSize,
+            fontStyle: 'bold',
+            color: valueColor,
+            stroke: HUD_STROKE,
+            strokeThickness: 2,
+        })
+        .setOrigin(0.5, 0);
+    widgets.push(valueText);
+
+    const root = scene.add.container(0, 0, widgets);
+
+    return {
+        root,
+        setValue(text: string) {
+            valueText.setText(text);
+        },
+        setVisible(visible: boolean) {
+            root.setVisible(visible);
+        },
+    };
+}
+
 interface HudInlineSlotOptions {
     icon?: IconKey;
     iconSize?: number;

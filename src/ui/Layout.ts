@@ -47,39 +47,46 @@ export const HudLayout = {
         torchIconY: 56,
         /** X offset (from `statsX`) of the second column. */
         secondColumnDx: 130,
-        /** X anchor for the ЗОЛОТО / ЭЛИК. / ВОЛЯ resource column.
-         *  ATK/DEF value column ends ~530 (statsX + 88 + value
-         *  width); 565 leaves a ~35 px gap to the larger resource
-         *  icon (24 px instead of 18 px — see `buildTopResources`). */
-        resourcesX: 565,
-        /** Y of the topmost resource row (ЗОЛОТО). Shifted up from
-         *  14 to 8 to make room for the larger 24 px resource /
-         *  progress icons; the icon top edge now sits at row Y so
-         *  the icon clears the carved top rim without overflowing
-         *  the bar. */
-        resourceRow1Y: 8,
-        /** Y of the middle resource row (ЭЛИК.). */
-        resourceRow2Y: 32,
-        /** Y of the bottom resource row (ВОЛЯ). */
-        resourceRow3Y: 56,
-        /** Horizontal offset between a resource slot's icon and
-         *  value. Tightened from 124 to 110 so the value column
-         *  sits closer to the (bigger) label, mirroring the
-         *  tighter ATK value offset. */
-        resourceValueOffset: 110,
-        /** X anchor for the ГЛУБИНА / УБИТО / БОССЫ run-progress
-         *  column. Pushed from 770 to 800 so the column hugs the
-         *  right edge of the canvas (per design feedback — the
-         *  right-pointing red arrow in the player's reference mock).
-         *  Reuses the same three row Ys as the resources column so
-         *  the two columns align vertically. */
-        progressX: 800,
-        /** Horizontal offset between a progress slot's icon and
-         *  value. Slightly wider than `resourceValueOffset` (118
-         *  vs 110) because "ГЛУБИНА" at 14 px is a few pixels
-         *  wider than "ЗОЛОТО"; the extra gap keeps the value
-         *  column clear of the label. */
-        progressValueOffset: 118,
+        /** X anchor (icon centre of the leftmost slot — coin) for
+         *  the big ЗОЛОТО / ЭЛИК. / ВОЛЯ resource trio. The three
+         *  icons sit horizontally with their value text centred
+         *  directly below, replacing the previous stacked
+         *  `icon|label|value` rows so the resources read as the
+         *  visual centrepiece of the top bar.
+         *
+         *  ATK/DEF value column ends ~530 (statsX + statsValueOffset
+         *  + value width). 596 leaves a ~50 px gap before the first
+         *  big icon. */
+        resourcesX: 596,
+        /** X step between adjacent stacked slots in the resource
+         *  trio. 64 px between centres comfortably clears a 36 px
+         *  icon plus the "0/3" Will value beneath it. */
+        resourcesStepX: 64,
+        /** Y of the icon top edge for the big resource and progress
+         *  stacked slots. The top bar is 96 px tall with a carved
+         *  rim of ~16 px, so y=14 lets a 36 px icon centre at
+         *  y=32 — comfortably below the rim — and the value text
+         *  below it lands around y=58, leaving ~10 px of breathing
+         *  room before the bar's bottom edge. */
+        resourceIconTopY: 14,
+        /** Icon side length for the big resource / progress stacked
+         *  slots. */
+        resourceIconSize: 36,
+        /** X anchor (icon centre of the leftmost slot — depth) for
+         *  the big ГЛУБИНА / УБИТО / БОССЫ run-progress trio. Mirrors
+         *  the resource trio's `icon + value below` style on the
+         *  right of the top bar, shifted right per the design mock's
+         *  right-pointing arrow on the progress block. With
+         *  resourcesX=596 + 2*64=724 for the rightmost resource
+         *  icon, progressX=820 leaves a ~96 px breathing gap (the
+         *  empty box in the mock) before the depth icon, then the
+         *  three progress icons end at 820+2*64=948 — comfortably
+         *  inside the 1024 px canvas. */
+        progressX: 820,
+        /** X step between adjacent stacked slots in the progress
+         *  trio. Matches `resourcesStepX` so the two trios share
+         *  the same rhythm. */
+        progressStepX: 64,
     },
     chrome: {
         /** Y of the music/settings/language icon row. Sits in the

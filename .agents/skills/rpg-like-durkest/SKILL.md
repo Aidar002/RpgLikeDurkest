@@ -540,15 +540,23 @@ read like English (`combatBossEncounter`, `roomTreasureName`).
 1. **Layout constants** — `src/ui/Layout.ts`
    - Add an x/y/width entry under `HudLayout.topHud.*` or pick a slot
      in the bottom bar. Never inline literals.
-2. **Cell creation** — `src/scenes/GameScene.setupGlobalUI()`
-   - Use `createHudCell(...)` (bottom bar) or
-     `createHudInlineSlot(...)` (top bar) and store the handle on a
-     scene field.
-3. **Refresh** — `src/scenes/GameScene.refreshUI()`
-   - Set the cell's `value` text on every refresh. The cell handle
-     exposes `setValue` / `setLabel` / `setIcon`.
+2. **Cell creation** — `src/scenes/controllers/GameHudController.build()`
+   - Pick the right helper from `src/ui/HudCell.ts` and store the
+     handle on a controller field:
+     - `createHudCell(...)` — boxed icon-over-label-over-value tile
+       (legacy bottom-bar style).
+     - `createHudInlineSlot(...)` — single-row `icon | label | value`
+       (used by the ATK/DEF column in the top bar).
+     - `createHudStackedSlot(...)` — big icon centred over a value
+       text, no label (used by the gold/potion/will and
+       depth/kills/bosses trios in the top bar — three slots side
+       by side, each `iconSize` 36 px, `valueFontSize` 18 px).
+3. **Refresh** — `GameHudController.refresh()`
+   - Set the cell's `value` text on every refresh. The handle
+     exposes `setValue` (and, for inline / boxed cells,
+     `setLabel`). Stacked slots are icon+value only.
 4. **Visibility (optional)** — gate the cell on a meta unlock by
-   reading `this.meta.getUiUnlockState()` in `refreshUI()`.
+   reading `this.scene.meta.getUiUnlockState()` in `refresh()`.
 
 ### 9. Add a new Emitter channel
 
