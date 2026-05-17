@@ -1398,7 +1398,13 @@ function xpAbsorb(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions
 }
 
 /** Cyan dome forming with a soft ripple. Reads as a shield / guard
- *  buff applied. */
+ *  buff applied.
+ *
+ *  All tween durations / delays trimmed by ~30 % vs. the original
+ *  pass (dome fade was the slowest path at 300 ms delay + 700 ms
+ *  duration = 1000 ms total, now ~700 ms) so the combat Defend
+ *  button feedback feels snappier and clears before the player's
+ *  next turn input. */
 function shieldBubble(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
     const depth = pickDepth(opts);
     const color = pickColor(opts, 0x9adfff);
@@ -1409,29 +1415,29 @@ function shieldBubble(scene: Phaser.Scene, x: number, y: number, opts: EffectOpt
     scene.tweens.add({
         targets: dome,
         radius: reach,
-        duration: 320,
+        duration: 220,
         ease: 'Back.out',
         onUpdate: () => dome.setStrokeStyle(3, color, 1),
     });
     scene.tweens.add({
         targets: dome,
         alpha: 0,
-        duration: 700,
-        delay: 300,
+        duration: 490,
+        delay: 210,
         ease: 'Quad.in',
         onUpdate: () => dome.setStrokeStyle(3, color, dome.alpha),
         onComplete: () => dome.destroy(),
     });
     // Two thin ripples expanding past the dome's edge.
     for (let i = 0; i < 2; i++) {
-        scene.time.delayedCall(160 + i * 140, () => {
+        scene.time.delayedCall(110 + i * 100, () => {
             const ripple = scene.add.circle(x, y, reach, 0x000000, 0).setDepth(depth - 1);
             ripple.setStrokeStyle(2, color, 0.7);
             scene.tweens.add({
                 targets: ripple,
                 radius: reach * 1.4,
                 alpha: 0,
-                duration: 520,
+                duration: 360,
                 ease: 'Quad.out',
                 onUpdate: () => ripple.setStrokeStyle(2, color, ripple.alpha),
                 onComplete: () => ripple.destroy(),
@@ -1448,8 +1454,8 @@ function shieldBubble(scene: Phaser.Scene, x: number, y: number, opts: EffectOpt
             targets: speck,
             alpha: 0,
             scale: 0.4,
-            duration: 600,
-            delay: 200,
+            duration: 420,
+            delay: 140,
             ease: 'Quad.in',
             onComplete: () => speck.destroy(),
         });

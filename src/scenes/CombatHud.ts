@@ -152,7 +152,14 @@ export class CombatHudController {
         }
         if (actionKind === 'defend') {
             scene.tracker.record('defendsUsed');
-            VFX.shieldFlash(scene, 160, 82);
+            // The blue dome `shieldBubble` particle painted across
+            // the Defend button (registered in `refreshButtons` via
+            // `vfx: 'shieldBubble'`) is the canonical visual for
+            // guarding now — the old top-left `VFX.shieldFlash` rect
+            // (60×60 blue square anchored at 160, 82) just left a
+            // stray translucent box floating over the player HP bar
+            // every time the player tapped Defend, so it's been
+            // removed.
             scene.sfx.play('defend');
         }
         if (actionKind === 'potion') {
