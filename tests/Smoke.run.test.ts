@@ -41,6 +41,7 @@ import { roomTypeName } from '../src/ui/RoomVisuals';
 import type { EventLog } from '../src/ui/EventLog';
 import type { CombatEndPayload } from '../src/systems/CombatManager';
 import type { GameScene, RoomButtonAction } from '../src/scenes/GameScene';
+import { makeEventLogStub } from './helpers/combat';
 
 // `Localization.getSavedLanguage()` reads `window.localStorage`.
 // The vitest default environment is jsdom, but other tests that
@@ -86,11 +87,7 @@ function makeLog(messages: string[]): EventLog {
     // CombatManager only calls `addMessage(text, color?)`. Mirroring
     // the shape used in `tests/CombatManager.test.ts` keeps the
     // smoke test free of the real EventLog (which pulls Phaser).
-    return {
-        addMessage: (text: string, _color?: string) => {
-            messages.push(text);
-        },
-    } as unknown as EventLog;
+    return makeEventLogStub(messages).log;
 }
 
 const COMBAT_ROOMS: ReadonlySet<RoomType> = new Set([
@@ -351,11 +348,7 @@ function makeFakeScene(
         () => undefined
     );
 
-    const log: EventLog = {
-        addMessage: (text: string, _color?: string) => {
-            record.logs.push(text);
-        },
-    } as unknown as EventLog;
+    const log: EventLog = makeEventLogStub(record.logs).log;
 
     // The handlers also reach into `scene.npcs`, `scene.meta`, `scene.sfx`
     // and a couple of text widgets. We stub each as just enough to keep
