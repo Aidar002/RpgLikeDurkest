@@ -314,4 +314,22 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     effectRunicCircle: 'Рунический круг',
     effectCritFlashRing: 'Критическая вспышка',
     effectPulseBurst: 'Пульсирующий залп',
+    // Превью для боевых ударов.
+    effectBloodSplatter: 'Кровавые брызги',
+    effectSlashArc: 'Дуга удара',
+    effectIceShatter: 'Ледяные осколки',
+    effectFireballImpact: 'Взрыв огня',
+    effectPoisonCloud: 'Облако яда',
+    // Превью для способностей и заклинаний.
+    effectArcaneOrbit: 'Магическая орбита',
+    effectShadowVortex: 'Воронка тьмы',
+    effectThunderclap: 'Громовой удар',
+    effectSoulDrain: 'Высасывание души',
+    effectWindSlash: 'Воздушный разрез',
+    // Превью для апгрейдов и прогрессии.
+    effectLevelUpHalo: 'Сияние уровня',
+    effectXpAbsorb: 'Поглощение опыта',
+    effectShieldBubble: 'Сфера щита',
+    effectSwordSharpen: 'Заточка меча',
+    effectPhoenixRise: 'Восстание феникса',
 };

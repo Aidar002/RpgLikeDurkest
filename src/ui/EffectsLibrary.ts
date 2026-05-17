@@ -48,7 +48,25 @@ export type EffectKind =
     | 'healPulse'
     | 'runicCircle'
     | 'critFlashRing'
-    | 'pulseBurst';
+    | 'pulseBurst'
+    // ── Combat hits ──────────────────────────────────────────────
+    | 'bloodSplatter'
+    | 'slashArc'
+    | 'iceShatter'
+    | 'fireballImpact'
+    | 'poisonCloud'
+    // ── Spells / abilities ───────────────────────────────────────
+    | 'arcaneOrbit'
+    | 'shadowVortex'
+    | 'thunderclap'
+    | 'soulDrain'
+    | 'windSlash'
+    // ── Upgrades / progression ───────────────────────────────────
+    | 'levelUpHalo'
+    | 'xpAbsorb'
+    | 'shieldBubble'
+    | 'swordSharpen'
+    | 'phoenixRise';
 
 /** Per-call overrides. Recipes pick sensible defaults so callers
  *  pass only what they need; the gallery and the gameplay sites
@@ -100,6 +118,24 @@ export const EFFECT_RECIPES: readonly EffectRecipe[] = [
     { kind: 'runicCircle', labelKey: 'effectRunicCircle' },
     { kind: 'critFlashRing', labelKey: 'effectCritFlashRing' },
     { kind: 'pulseBurst', labelKey: 'effectPulseBurst' },
+    // ── Combat-hit themed recipes ───────────────────────────────
+    { kind: 'bloodSplatter', labelKey: 'effectBloodSplatter' },
+    { kind: 'slashArc', labelKey: 'effectSlashArc' },
+    { kind: 'iceShatter', labelKey: 'effectIceShatter' },
+    { kind: 'fireballImpact', labelKey: 'effectFireballImpact' },
+    { kind: 'poisonCloud', labelKey: 'effectPoisonCloud' },
+    // ── Spell / ability themed recipes ──────────────────────────
+    { kind: 'arcaneOrbit', labelKey: 'effectArcaneOrbit' },
+    { kind: 'shadowVortex', labelKey: 'effectShadowVortex' },
+    { kind: 'thunderclap', labelKey: 'effectThunderclap' },
+    { kind: 'soulDrain', labelKey: 'effectSoulDrain' },
+    { kind: 'windSlash', labelKey: 'effectWindSlash' },
+    // ── Upgrade / progression themed recipes ────────────────────
+    { kind: 'levelUpHalo', labelKey: 'effectLevelUpHalo' },
+    { kind: 'xpAbsorb', labelKey: 'effectXpAbsorb' },
+    { kind: 'shieldBubble', labelKey: 'effectShieldBubble' },
+    { kind: 'swordSharpen', labelKey: 'effectSwordSharpen' },
+    { kind: 'phoenixRise', labelKey: 'effectPhoenixRise' },
 ] as const;
 
 const DEFAULT_DEPTH = 200;
@@ -161,6 +197,51 @@ export function playEffect(
             return;
         case 'pulseBurst':
             pulseBurst(scene, x, y, opts);
+            return;
+        case 'bloodSplatter':
+            bloodSplatter(scene, x, y, opts);
+            return;
+        case 'slashArc':
+            slashArc(scene, x, y, opts);
+            return;
+        case 'iceShatter':
+            iceShatter(scene, x, y, opts);
+            return;
+        case 'fireballImpact':
+            fireballImpact(scene, x, y, opts);
+            return;
+        case 'poisonCloud':
+            poisonCloud(scene, x, y, opts);
+            return;
+        case 'arcaneOrbit':
+            arcaneOrbit(scene, x, y, opts);
+            return;
+        case 'shadowVortex':
+            shadowVortex(scene, x, y, opts);
+            return;
+        case 'thunderclap':
+            thunderclap(scene, x, y, opts);
+            return;
+        case 'soulDrain':
+            soulDrain(scene, x, y, opts);
+            return;
+        case 'windSlash':
+            windSlash(scene, x, y, opts);
+            return;
+        case 'levelUpHalo':
+            levelUpHalo(scene, x, y, opts);
+            return;
+        case 'xpAbsorb':
+            xpAbsorb(scene, x, y, opts);
+            return;
+        case 'shieldBubble':
+            shieldBubble(scene, x, y, opts);
+            return;
+        case 'swordSharpen':
+            swordSharpen(scene, x, y, opts);
+            return;
+        case 'phoenixRise':
+            phoenixRise(scene, x, y, opts);
             return;
     }
 }
@@ -717,4 +798,754 @@ function pulseBurst(scene: Phaser.Scene, x: number, y: number, opts: EffectOptio
         ease: 'Quad.out',
         onComplete: () => centre.destroy(),
     });
+}
+
+// ─── Combat hits ──────────────────────────────────────────────────────
+
+/** Crimson droplets exploding outward and falling with gravity. Reads
+ *  as a melee hit / bleed splash — paired well with weapon swings and
+ *  bleed-rider apply moments. */
+function bloodSplatter(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xc02828);
+    const reach = 70 * pickScale(opts);
+    const COUNT = 14;
+    for (let i = 0; i < COUNT; i++) {
+        const a = -Math.PI + Math.random() * Math.PI; // upper hemisphere bias
+        const speed = reach * (0.4 + Math.random() * 0.8);
+        const dx = Math.cos(a) * speed;
+        const dy = Math.sin(a) * speed;
+        const r = 2 + Math.random() * 2;
+        const drop = scene.add.circle(x, y, r, color, 0.95).setDepth(depth);
+        scene.tweens.add({
+            targets: drop,
+            x: x + dx,
+            y: y + dy + 50, // gravity sag
+            scaleX: 0.5,
+            scaleY: 0.8,
+            alpha: 0,
+            duration: 700 + Math.random() * 200,
+            ease: 'Quad.in',
+            onComplete: () => drop.destroy(),
+        });
+    }
+    // Central splat that pops then shrinks.
+    const splat = scene.add.circle(x, y, 6, color, 1).setDepth(depth);
+    scene.tweens.add({
+        targets: splat,
+        scale: 1.6,
+        alpha: 0,
+        duration: 320,
+        ease: 'Quad.out',
+        onComplete: () => splat.destroy(),
+    });
+}
+
+/** A bright crescent slash drawn as a thick arc that sweeps and fades,
+ *  trailed by a few sparks. Reads as a sword cleave / heavy attack. */
+function slashArc(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xffffff);
+    const reach = 70 * pickScale(opts);
+    const g = scene.add.graphics().setDepth(depth).setPosition(x, y);
+    // Slash crescent: a 90° arc tilted 30° off horizontal. We rotate
+    // and fade the Graphics object over the tween's lifetime.
+    const drawArc = (alpha: number, thickness: number) => {
+        g.clear();
+        g.lineStyle(thickness, color, alpha);
+        g.beginPath();
+        g.arc(0, 0, reach, -Math.PI * 0.6, -Math.PI * 0.1);
+        g.strokePath();
+    };
+    drawArc(1, 5);
+    g.setRotation(-Math.PI / 5);
+    scene.tweens.add({
+        targets: g,
+        rotation: Math.PI / 5,
+        duration: 220,
+        ease: 'Quad.out',
+    });
+    scene.tweens.add({
+        targets: g,
+        alpha: 0,
+        duration: 320,
+        delay: 120,
+        ease: 'Quad.in',
+        onUpdate: () => drawArc(g.alpha, 5),
+        onComplete: () => g.destroy(),
+    });
+    // Spark trail along the arc.
+    for (let i = 0; i < 8; i++) {
+        const t = i / 8;
+        const a = -Math.PI * 0.6 + t * Math.PI * 0.5;
+        const sx = x + Math.cos(a) * reach * 0.9;
+        const sy = y + Math.sin(a) * reach * 0.9;
+        const spark = scene.add.circle(sx, sy, 2, color, 1).setDepth(depth + 1);
+        scene.tweens.add({
+            targets: spark,
+            x: sx + Math.cos(a) * 18,
+            y: sy + Math.sin(a) * 18 + 8,
+            alpha: 0,
+            scale: 0.4,
+            duration: 360 + Math.random() * 120,
+            ease: 'Quad.out',
+            delay: i * 18,
+            onComplete: () => spark.destroy(),
+        });
+    }
+}
+
+/** Cyan diamond shards exploding outward with rotation. Reads as a
+ *  frost / ice critical or freeze proc. */
+function iceShatter(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0x9adfff);
+    const reach = 70 * pickScale(opts);
+    const SHARDS = 10;
+    for (let i = 0; i < SHARDS; i++) {
+        const a = (i / SHARDS) * Math.PI * 2 + Math.random() * 0.25;
+        // Diamond = 4-sided polygon shaped via Phaser star (4 points).
+        const shard = scene.add
+            .star(x, y, 4, 2, 7, color, 1)
+            .setDepth(depth)
+            .setAngle(Math.random() * 360);
+        shard.setStrokeStyle(1, 0xffffff, 0.85);
+        scene.tweens.add({
+            targets: shard,
+            x: x + Math.cos(a) * reach,
+            y: y + Math.sin(a) * reach,
+            angle: shard.angle + 240,
+            scale: 0.3,
+            alpha: 0,
+            duration: 700 + Math.random() * 200,
+            ease: 'Quad.out',
+            onComplete: () => shard.destroy(),
+        });
+    }
+    // Frost ring at impact.
+    const ring = scene.add.circle(x, y, 6, 0x000000, 0).setDepth(depth - 1);
+    ring.setStrokeStyle(2, 0xddf3ff, 0.9);
+    scene.tweens.add({
+        targets: ring,
+        radius: reach * 0.9,
+        alpha: 0,
+        duration: 480,
+        ease: 'Quad.out',
+        onUpdate: () => ring.setStrokeStyle(2, 0xddf3ff, ring.alpha),
+        onComplete: () => ring.destroy(),
+    });
+}
+
+/** Orange flame ring + curling tongue particles. Reads as a fire
+ *  spell impact / explosion. */
+function fireballImpact(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xff8c40);
+    const reach = 70 * pickScale(opts);
+    // Bright filled core that flashes and shrinks.
+    const core = scene.add.circle(x, y, 8, 0xfff0c8, 1).setDepth(depth + 1);
+    scene.tweens.add({
+        targets: core,
+        radius: reach * 0.35,
+        alpha: 0,
+        duration: 320,
+        ease: 'Quad.out',
+        onComplete: () => core.destroy(),
+    });
+    // Outer ring sweep.
+    const ring = scene.add.circle(x, y, 10, 0x000000, 0).setDepth(depth);
+    ring.setStrokeStyle(3, color, 1);
+    scene.tweens.add({
+        targets: ring,
+        radius: reach,
+        alpha: 0,
+        duration: 520,
+        ease: 'Quad.out',
+        onUpdate: () => ring.setStrokeStyle(3, color, ring.alpha),
+        onComplete: () => ring.destroy(),
+    });
+    // 12 curling flame tongues using triangles that tumble outward.
+    for (let i = 0; i < 12; i++) {
+        const a = (i / 12) * Math.PI * 2 + Math.random() * 0.2;
+        const tongue = scene.add
+            .triangle(x, y, 0, -8, 5, 6, -5, 6, color, 1)
+            .setDepth(depth)
+            .setRotation(a + Math.PI / 2);
+        scene.tweens.add({
+            targets: tongue,
+            x: x + Math.cos(a) * reach * 0.85,
+            y: y + Math.sin(a) * reach * 0.85 - 10,
+            rotation: tongue.rotation + Math.PI,
+            scale: 0.5,
+            alpha: 0,
+            duration: 600 + Math.random() * 200,
+            ease: 'Quad.out',
+            onComplete: () => tongue.destroy(),
+        });
+    }
+}
+
+/** Green bubbles drifting upward with a horizontal sway. Reads as a
+ *  poison cloud / toxic status applied. */
+function poisonCloud(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0x6dd35a);
+    const reach = 70 * pickScale(opts);
+    const COUNT = 14;
+    for (let i = 0; i < COUNT; i++) {
+        const startX = x + (Math.random() - 0.5) * 30;
+        const startY = y + (Math.random() - 0.5) * 8;
+        const radius = 3 + Math.random() * 4;
+        const bubble = scene.add
+            .circle(startX, startY, radius, color, 0.7 + Math.random() * 0.2)
+            .setDepth(depth);
+        bubble.setStrokeStyle(1, 0xc5ffb0, 0.85);
+        // Horizontal sway via a second tween on x — uses scene.tweens
+        // yoyo so the bubble wobbles as it rises.
+        scene.tweens.add({
+            targets: bubble,
+            x: startX + (Math.random() < 0.5 ? -1 : 1) * (10 + Math.random() * 14),
+            duration: 600 + Math.random() * 200,
+            ease: 'Sine.inOut',
+            yoyo: true,
+            repeat: 0,
+        });
+        scene.tweens.add({
+            targets: bubble,
+            y: startY - reach - Math.random() * 20,
+            scale: 1.3,
+            alpha: 0,
+            duration: 1100 + Math.random() * 300,
+            ease: 'Quad.out',
+            onComplete: () => bubble.destroy(),
+        });
+    }
+}
+
+// ─── Spells / abilities ───────────────────────────────────────────────
+
+/** 6 purple particles orbiting a centre point, then collapsing inward
+ *  in a quick flash. Reads as a mana surge / spell cast. */
+function arcaneOrbit(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xc97ad9);
+    const reach = 50 * pickScale(opts);
+    const COUNT = 6;
+    const orbit: Phaser.GameObjects.Arc[] = [];
+    for (let i = 0; i < COUNT; i++) {
+        const a = (i / COUNT) * Math.PI * 2;
+        const dot = scene.add
+            .circle(x + Math.cos(a) * reach, y + Math.sin(a) * reach, 4, color, 1)
+            .setDepth(depth);
+        dot.setStrokeStyle(1, 0xffffff, 0.9);
+        orbit.push(dot);
+    }
+    // Rotate the orbit around (x, y) for ~600 ms, then collapse.
+    const phase = { angle: 0 };
+    scene.tweens.add({
+        targets: phase,
+        angle: Math.PI * 1.5,
+        duration: 600,
+        ease: 'Quad.out',
+        onUpdate: () => {
+            orbit.forEach((dot, i) => {
+                const a = (i / COUNT) * Math.PI * 2 + phase.angle;
+                dot.setPosition(x + Math.cos(a) * reach, y + Math.sin(a) * reach);
+            });
+        },
+        onComplete: () => {
+            // Collapse to centre + flash.
+            const flash = scene.add.circle(x, y, 4, 0xffffff, 1).setDepth(depth + 1);
+            scene.tweens.add({
+                targets: flash,
+                radius: reach * 0.45,
+                alpha: 0,
+                duration: 300,
+                ease: 'Quad.out',
+                onComplete: () => flash.destroy(),
+            });
+            orbit.forEach((dot) => {
+                scene.tweens.add({
+                    targets: dot,
+                    x,
+                    y,
+                    scale: 0.3,
+                    alpha: 0,
+                    duration: 260,
+                    ease: 'Quad.in',
+                    onComplete: () => dot.destroy(),
+                });
+            });
+        },
+    });
+}
+
+/** Dark wisps spiraling inward into a singularity. Reads as a curse /
+ *  debuff applied — the inverse of {@link arcaneOrbit}. */
+function shadowVortex(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0x5a3a78);
+    const reach = 70 * pickScale(opts);
+    const COUNT = 18;
+    // Vortex base ring that pulses then fades.
+    const ring = scene.add.circle(x, y, 6, 0x000000, 0).setDepth(depth - 1);
+    ring.setStrokeStyle(2, color, 0.9);
+    scene.tweens.add({
+        targets: ring,
+        radius: reach * 0.6,
+        alpha: 0,
+        duration: 700,
+        ease: 'Quad.in',
+        onUpdate: () => ring.setStrokeStyle(2, color, ring.alpha),
+        onComplete: () => ring.destroy(),
+    });
+    for (let i = 0; i < COUNT; i++) {
+        const a0 = (i / COUNT) * Math.PI * 2;
+        const startX = x + Math.cos(a0) * reach;
+        const startY = y + Math.sin(a0) * reach;
+        const wisp = scene.add.circle(startX, startY, 3, color, 1).setDepth(depth);
+        // Spiral inward by interpolating the polar (radius, angle).
+        const phase = { r: reach, a: a0 };
+        scene.tweens.add({
+            targets: phase,
+            r: 0,
+            a: a0 + Math.PI * 1.4,
+            duration: 700 + Math.random() * 200,
+            ease: 'Quad.in',
+            onUpdate: () => {
+                wisp.setPosition(x + Math.cos(phase.a) * phase.r, y + Math.sin(phase.a) * phase.r);
+                wisp.setAlpha(Math.max(0, phase.r / reach));
+            },
+            onComplete: () => wisp.destroy(),
+        });
+    }
+    // Singularity flash at the end.
+    scene.time.delayedCall(700, () => {
+        const sing = scene.add.circle(x, y, 4, 0x2a1a3a, 1).setDepth(depth + 1);
+        sing.setStrokeStyle(2, color, 1);
+        scene.tweens.add({
+            targets: sing,
+            radius: 14,
+            alpha: 0,
+            duration: 300,
+            ease: 'Quad.out',
+            onUpdate: () => sing.setStrokeStyle(2, color, sing.alpha),
+            onComplete: () => sing.destroy(),
+        });
+    });
+}
+
+/** Quick white flash + a double cross-shaped shockwave. Reads as a
+ *  thunderclap / smite. */
+function thunderclap(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xe9ecff);
+    const reach = 80 * pickScale(opts);
+    // Two perpendicular lines that elongate from the centre.
+    for (const angle of [0, Math.PI / 2] as const) {
+        const line = scene.add
+            .rectangle(x, y, 4, 6, color, 1)
+            .setDepth(depth + 1)
+            .setRotation(angle);
+        scene.tweens.add({
+            targets: line,
+            scaleY: (reach * 2) / 6,
+            scaleX: 0.4,
+            alpha: 0,
+            duration: 320,
+            ease: 'Quad.out',
+            onComplete: () => line.destroy(),
+        });
+    }
+    // Centre flash.
+    const flash = scene.add.circle(x, y, 6, 0xffffff, 1).setDepth(depth + 2);
+    scene.tweens.add({
+        targets: flash,
+        radius: reach * 0.4,
+        alpha: 0,
+        duration: 240,
+        ease: 'Quad.out',
+        onComplete: () => flash.destroy(),
+    });
+    // Shockwave ring.
+    const ring = scene.add.circle(x, y, 8, 0x000000, 0).setDepth(depth);
+    ring.setStrokeStyle(3, color, 0.95);
+    scene.tweens.add({
+        targets: ring,
+        radius: reach,
+        alpha: 0,
+        duration: 540,
+        ease: 'Quad.out',
+        onUpdate: () => ring.setStrokeStyle(3, color, ring.alpha),
+        onComplete: () => ring.destroy(),
+    });
+}
+
+/** Red wisps spiraling from edges into the centre + a small heart
+ *  flash. Reads as a life-steal / soul drain. */
+function soulDrain(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xd05050);
+    const reach = 60 * pickScale(opts);
+    const COUNT = 10;
+    for (let i = 0; i < COUNT; i++) {
+        const a = (i / COUNT) * Math.PI * 2;
+        const startX = x + Math.cos(a) * reach;
+        const startY = y + Math.sin(a) * reach;
+        const wisp = scene.add.circle(startX, startY, 3, color, 1).setDepth(depth);
+        wisp.setStrokeStyle(1, 0xffd0d0, 0.85);
+        // Curve toward the centre via an offset midpoint waypoint.
+        const midX = x + Math.cos(a + Math.PI / 3) * reach * 0.4;
+        const midY = y + Math.sin(a + Math.PI / 3) * reach * 0.4;
+        scene.tweens.chain({
+            targets: wisp,
+            tweens: [
+                {
+                    x: midX,
+                    y: midY,
+                    duration: 280 + Math.random() * 100,
+                    ease: 'Quad.in',
+                },
+                {
+                    x,
+                    y,
+                    scale: 0.4,
+                    alpha: 0,
+                    duration: 280,
+                    ease: 'Quad.in',
+                    onComplete: () => wisp.destroy(),
+                },
+            ],
+        });
+    }
+    // Centre heart-shaped flash (small star with 4 points reads as a pulse).
+    scene.time.delayedCall(450, () => {
+        const heart = scene.add.star(x, y, 4, 4, 8, color, 1).setDepth(depth + 1);
+        scene.tweens.add({
+            targets: heart,
+            scale: 1.6,
+            alpha: 0,
+            duration: 360,
+            ease: 'Quad.out',
+            onComplete: () => heart.destroy(),
+        });
+    });
+}
+
+/** Three parallel diagonal wind streaks sweeping across the position.
+ *  Reads as a wind slash / gust attack. */
+function windSlash(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xc6f5ec);
+    const reach = 100 * pickScale(opts);
+    for (let i = 0; i < 3; i++) {
+        const off = (i - 1) * 18;
+        const streak = scene.add
+            .rectangle(x - reach, y + off, reach * 0.6, 3, color, 0.95)
+            .setDepth(depth)
+            .setOrigin(0.5);
+        streak.setRotation(-Math.PI / 12);
+        scene.tweens.add({
+            targets: streak,
+            x: x + reach,
+            scaleX: 1.2,
+            alpha: 0,
+            duration: 420,
+            ease: 'Quad.out',
+            delay: i * 60,
+            onComplete: () => streak.destroy(),
+        });
+    }
+    // Trailing dust dots.
+    for (let i = 0; i < 8; i++) {
+        const startX = x - reach + Math.random() * reach * 2;
+        const startY = y + (Math.random() - 0.5) * 50;
+        const dot = scene.add.circle(startX, startY, 2, color, 0.85).setDepth(depth - 1);
+        scene.tweens.add({
+            targets: dot,
+            x: startX + 30,
+            y: startY - 4,
+            alpha: 0,
+            duration: 500,
+            ease: 'Quad.out',
+            delay: i * 30,
+            onComplete: () => dot.destroy(),
+        });
+    }
+}
+
+// ─── Upgrades / progression ───────────────────────────────────────────
+
+/** Gold expanding halo + vertical beam + rising stars. Reads as the
+ *  meta level-up celebration — heavier sibling of {@link starFountain}. */
+function levelUpHalo(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xfff17a);
+    const reach = 80 * pickScale(opts);
+    // Vertical beam.
+    const beam = scene.add.rectangle(x, y, 14, 4, color, 0.85).setDepth(depth).setOrigin(0.5);
+    beam.setBlendMode(Phaser.BlendModes.ADD);
+    scene.tweens.add({
+        targets: beam,
+        scaleX: 0.6,
+        scaleY: (reach * 2.4) / 4,
+        alpha: 0,
+        duration: 800,
+        ease: 'Quad.out',
+        onComplete: () => beam.destroy(),
+    });
+    // Two staggered halos.
+    for (let i = 0; i < 2; i++) {
+        scene.time.delayedCall(i * 180, () => {
+            const halo = scene.add.circle(x, y, 8, 0x000000, 0).setDepth(depth);
+            halo.setStrokeStyle(3, color, 0.95);
+            scene.tweens.add({
+                targets: halo,
+                radius: reach,
+                alpha: 0,
+                duration: 700,
+                ease: 'Quad.out',
+                onUpdate: () => halo.setStrokeStyle(3, color, halo.alpha),
+                onComplete: () => halo.destroy(),
+            });
+        });
+    }
+    // Rising star confetti.
+    for (let i = 0; i < 8; i++) {
+        const a = -Math.PI / 2 + (Math.random() - 0.5) * 1.4;
+        const speed = reach * (0.4 + Math.random() * 0.5);
+        const star = scene.add
+            .star(x, y, 5, 3, 6, color, 1)
+            .setDepth(depth + 1)
+            .setAngle(Math.random() * 360);
+        scene.tweens.add({
+            targets: star,
+            x: x + Math.cos(a) * speed,
+            y: y + Math.sin(a) * speed,
+            angle: star.angle + 220,
+            scale: 0.4,
+            alpha: 0,
+            duration: 900 + Math.random() * 150,
+            ease: 'Quad.out',
+            onComplete: () => star.destroy(),
+        });
+    }
+}
+
+/** 16 blue dots streaming inward from the periphery into a centre
+ *  flash. Reads as XP absorbed / fragment pickup. */
+function xpAbsorb(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0x6ec1ff);
+    const reach = 80 * pickScale(opts);
+    const COUNT = 16;
+    for (let i = 0; i < COUNT; i++) {
+        const a = (i / COUNT) * Math.PI * 2 + Math.random() * 0.2;
+        const startX = x + Math.cos(a) * reach;
+        const startY = y + Math.sin(a) * reach;
+        const dot = scene.add.circle(startX, startY, 3, color, 1).setDepth(depth);
+        dot.setStrokeStyle(1, 0xffffff, 0.7);
+        scene.tweens.add({
+            targets: dot,
+            x,
+            y,
+            scale: 0.2,
+            alpha: 0,
+            duration: 520 + Math.random() * 200,
+            ease: 'Quad.in',
+            delay: Math.random() * 120,
+            onComplete: () => dot.destroy(),
+        });
+    }
+    scene.time.delayedCall(600, () => {
+        const flash = scene.add.circle(x, y, 6, 0xffffff, 1).setDepth(depth + 1);
+        flash.setStrokeStyle(2, color, 1);
+        scene.tweens.add({
+            targets: flash,
+            radius: 22,
+            alpha: 0,
+            duration: 360,
+            ease: 'Quad.out',
+            onUpdate: () => flash.setStrokeStyle(2, color, flash.alpha),
+            onComplete: () => flash.destroy(),
+        });
+    });
+}
+
+/** Cyan dome forming with a soft ripple. Reads as a shield / guard
+ *  buff applied. */
+function shieldBubble(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0x9adfff);
+    const reach = 50 * pickScale(opts);
+    // Filled dome that grows in then fades.
+    const dome = scene.add.circle(x, y, 4, color, 0.18).setDepth(depth);
+    dome.setStrokeStyle(3, color, 1);
+    scene.tweens.add({
+        targets: dome,
+        radius: reach,
+        duration: 320,
+        ease: 'Back.out',
+        onUpdate: () => dome.setStrokeStyle(3, color, 1),
+    });
+    scene.tweens.add({
+        targets: dome,
+        alpha: 0,
+        duration: 700,
+        delay: 300,
+        ease: 'Quad.in',
+        onUpdate: () => dome.setStrokeStyle(3, color, dome.alpha),
+        onComplete: () => dome.destroy(),
+    });
+    // Two thin ripples expanding past the dome's edge.
+    for (let i = 0; i < 2; i++) {
+        scene.time.delayedCall(160 + i * 140, () => {
+            const ripple = scene.add.circle(x, y, reach, 0x000000, 0).setDepth(depth - 1);
+            ripple.setStrokeStyle(2, color, 0.7);
+            scene.tweens.add({
+                targets: ripple,
+                radius: reach * 1.4,
+                alpha: 0,
+                duration: 520,
+                ease: 'Quad.out',
+                onUpdate: () => ripple.setStrokeStyle(2, color, ripple.alpha),
+                onComplete: () => ripple.destroy(),
+            });
+        });
+    }
+    // 6 sheen specks orbiting briefly on the dome edge.
+    for (let i = 0; i < 6; i++) {
+        const a = (i / 6) * Math.PI * 2;
+        const speck = scene.add
+            .circle(x + Math.cos(a) * reach, y + Math.sin(a) * reach, 2, 0xffffff, 1)
+            .setDepth(depth);
+        scene.tweens.add({
+            targets: speck,
+            alpha: 0,
+            scale: 0.4,
+            duration: 600,
+            delay: 200,
+            ease: 'Quad.in',
+            onComplete: () => speck.destroy(),
+        });
+    }
+}
+
+/** Vertical white sparks sheeting along an imagined blade. Reads as
+ *  a weapon-sharpen / attack-up buff. */
+function swordSharpen(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xffffff);
+    const reach = 70 * pickScale(opts);
+    // Faint metal sheen line behind the sparks (the "blade").
+    const blade = scene.add
+        .rectangle(x, y, 6, reach * 1.6, 0xb8c0c8, 0.35)
+        .setDepth(depth - 1)
+        .setOrigin(0.5);
+    blade.setStrokeStyle(1, 0xe8ecf0, 0.6);
+    scene.tweens.add({
+        targets: blade,
+        alpha: 0,
+        duration: 700,
+        ease: 'Quad.out',
+        onComplete: () => blade.destroy(),
+    });
+    // 14 sparks travelling along the blade from bottom to top.
+    for (let i = 0; i < 14; i++) {
+        const startY = y + reach;
+        const startX = x + (Math.random() - 0.5) * 8;
+        const spark = scene.add.circle(startX, startY, 2, color, 1).setDepth(depth);
+        scene.tweens.add({
+            targets: spark,
+            y: y - reach - Math.random() * 10,
+            x: startX + (Math.random() - 0.5) * 14,
+            alpha: 0,
+            scale: 0.4,
+            duration: 500 + Math.random() * 200,
+            ease: 'Quad.out',
+            delay: i * 28,
+            onComplete: () => spark.destroy(),
+        });
+    }
+    // Cross-flash near the hilt (top) on impact.
+    const hilt = scene.add.circle(x, y - reach, 4, 0xfff17a, 1).setDepth(depth + 1);
+    scene.tweens.add({
+        targets: hilt,
+        scale: 2.2,
+        alpha: 0,
+        duration: 320,
+        delay: 120,
+        ease: 'Quad.out',
+        onComplete: () => hilt.destroy(),
+    });
+}
+
+/** Golden feathers ascending in a fan + a wide gold halo. Reads as
+ *  a phoenix-rise / revive / unlock signature — the heaviest
+ *  celebration in the library. */
+function phoenixRise(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
+    const depth = pickDepth(opts);
+    const color = pickColor(opts, 0xffba5a);
+    const reach = 100 * pickScale(opts);
+    // Wide halo behind the rising fan.
+    const halo = scene.add.circle(x, y + 20, 8, 0x000000, 0).setDepth(depth - 1);
+    halo.setStrokeStyle(4, color, 1);
+    scene.tweens.add({
+        targets: halo,
+        radius: reach * 0.9,
+        alpha: 0,
+        duration: 900,
+        ease: 'Quad.out',
+        onUpdate: () => halo.setStrokeStyle(4, color, halo.alpha),
+        onComplete: () => halo.destroy(),
+    });
+    // 9 feather-shaped triangles fanning upward.
+    for (let i = 0; i < 9; i++) {
+        const t = (i / 8) * 2 - 1; // -1..1
+        const a = -Math.PI / 2 + t * 1.0;
+        const feather = scene.add
+            .triangle(x, y + 10, 0, -10, 4, 8, -4, 8, color, 1)
+            .setDepth(depth)
+            .setRotation(a + Math.PI / 2);
+        feather.setStrokeStyle(1, 0xfff0c8, 1);
+        scene.tweens.add({
+            targets: feather,
+            x: x + Math.cos(a) * reach,
+            y: y + Math.sin(a) * reach + 4,
+            rotation: feather.rotation + 0.6,
+            scale: 0.6,
+            alpha: 0,
+            duration: 950 + Math.random() * 120,
+            ease: 'Quad.out',
+            onComplete: () => feather.destroy(),
+        });
+    }
+    // Bright core flash.
+    const core = scene.add.circle(x, y, 6, 0xfff0c8, 1).setDepth(depth + 1);
+    scene.tweens.add({
+        targets: core,
+        radius: 22,
+        alpha: 0,
+        duration: 540,
+        ease: 'Quad.out',
+        onComplete: () => core.destroy(),
+    });
+    // Trailing embers.
+    for (let i = 0; i < 8; i++) {
+        const startX = x + (Math.random() - 0.5) * 30;
+        const ember = scene.add
+            .circle(startX, y + 10, 2 + Math.random() * 2, color, 0.95)
+            .setDepth(depth);
+        scene.tweens.add({
+            targets: ember,
+            x: startX + (Math.random() - 0.5) * 30,
+            y: y - reach - Math.random() * 30,
+            alpha: 0,
+            scale: 0.4,
+            duration: 1100 + Math.random() * 200,
+            ease: 'Quad.out',
+            delay: i * 30,
+            onComplete: () => ember.destroy(),
+        });
+    }
 }
