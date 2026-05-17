@@ -21,11 +21,23 @@ export const CENTER_Y = GAME_HEIGHT / 2;
  */
 export const HudLayout = {
     topHud: {
-        /** X anchor for the АТАКА/ЗАЩИТА stat column. Anchored just
-         *  left of the canvas midline so the combat stat block reads
-         *  as the centre group of the top bar (left = HP+XP, centre =
-         *  ATK/DEF, right = resource cells). */
-        statsX: 408,
+        /** Horizontal shift applied to the HP/XP block in
+         *  `buildTopVitals` so the leftmost top-bar column doesn't
+         *  hug the canvas edge. The ATK/DEF, resources, and
+         *  run-progress columns use independent absolute X anchors
+         *  below (already tuned to maintain ~35 px gaps between
+         *  columns); the HP/XP block reads `shiftX` and adds it to
+         *  its pad-relative anchors so the whole top bar reads as
+         *  a single visually-centred block on the canvas instead
+         *  of a left-piled stack with a wide blank gutter on the
+         *  right edge. */
+        shiftX: 60,
+        /** X anchor (icon left edge) for the АТАКА/ЗАЩИТА stat
+         *  column. Tuned so the HP/XP block right edge clears it
+         *  by ~35 px for typical values; together with the
+         *  resources and progress anchors below, the four columns
+         *  distribute evenly across the canvas. */
+        statsX: 458,
         /** Horizontal offset between an inline slot's icon and value. */
         statsValueOffset: 96,
         /** Y of the АТАКА row in the carved top bar. */
@@ -37,13 +49,10 @@ export const HudLayout = {
         /** X offset (from `statsX`) of the second column. */
         secondColumnDx: 130,
         /** X anchor for the ЗОЛОТО / ЭЛИК. / ВОЛЯ resource column.
-         *  Sits ~20 px to the right of the ATK/DEF value column so
-         *  the two stat blocks read as one unit. The ATK/DEF value
-         *  text starts at `statsX + statsValueOffset = 504` and
-         *  takes up ~30 px even for a 3-digit value, so 540 keeps a
-         *  visible 20 px gap in the typical 1- or 2-digit case
-         *  without crowding the high-roll edge. */
-        resourcesX: 540,
+         *  ATK/DEF value column ends ~564 (statsX + 96 + value
+         *  width); 598 leaves the same ~35 px gap to the resources
+         *  icon that the other columns share. */
+        resourcesX: 598,
         /** Y of the topmost resource row (ЗОЛОТО). */
         resourceRow1Y: 14,
         /** Y of the middle resource row (ЭЛИК.). */
@@ -53,12 +62,12 @@ export const HudLayout = {
         /** Horizontal offset between a resource slot's icon and value. */
         resourceValueOffset: 124,
         /** X anchor for the ГЛУБИНА / УБИТО / БОССЫ run-progress
-         *  column. Sits ~50 px right of the resources value column
-         *  (resourcesX + resourceValueOffset = 664) so the two
-         *  columns read as a pair without crowding. Reuses the same
-         *  three row Ys as the resources column so the two columns
-         *  align vertically. */
-        progressX: 720,
+         *  column. Resources value column ends ~732 (resourcesX +
+         *  124 + value width); 770 keeps the same ~35 px gap so the
+         *  four columns line up with consistent inter-column
+         *  spacing. Reuses the same three row Ys as the resources
+         *  column so the two columns align vertically. */
+        progressX: 770,
         /** Horizontal offset between a progress slot's icon and value. */
         progressValueOffset: 124,
     },

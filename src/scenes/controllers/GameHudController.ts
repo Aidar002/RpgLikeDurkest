@@ -23,7 +23,6 @@ import {
 import { drawBottomFrame, drawStoneBackdrop, drawTopFrame } from '../../ui/HudFrame';
 import { createTorchlightOverlay } from '../../ui/Torchlight';
 import { createHudInlineSlot, type HudInlineSlotHandle } from '../../ui/HudCell';
-import { createHudIcon } from '../../ui/HudIcons';
 import { RelicSlots } from '../../ui/RelicSlots';
 import { RelicSwapModal } from '../../ui/RelicSwapModal';
 import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
@@ -168,7 +167,6 @@ export class GameHudController {
 
         const topWidgets: Phaser.GameObjects.GameObject[] = [
             topFrame,
-            vitals.hpIcon,
             vitals.hpLabel,
             // bar frame must sit beneath the track so its rim hugs the bar
             vitals.hpBarFrame,
@@ -466,17 +464,23 @@ export class GameHudController {
      * stay on `this` so `refresh` can scale them.
      */
     private buildTopVitals(pad: number): {
-        hpIcon: Phaser.GameObjects.GameObject;
         hpLabel: Phaser.GameObjects.Text;
         hpBarFrame: Phaser.GameObjects.GameObject;
         hpBarBg: Phaser.GameObjects.Rectangle;
         hpSegments: Phaser.GameObjects.GameObject;
     } {
         // The 96px panel has a 52px interior (y=22..74 after the carved
-        // gold rim).
-        const VITALS_LABEL_X = pad + 22;
-        const VITALS_BAR_X = pad + 22 + 64 + 12;
-        const hpIcon = createHudIcon(this.scene, pad + 8, 36, 'heart', { pixelSize: 16 });
+        // gold rim). Every anchor below is shifted right by
+        // `HudLayout.topHud.shiftX` so the HP/XP block sits in
+        // lockstep with the ATK/DEF / resource / progress columns —
+        // together they form a single visually-centred top bar
+        // instead of a left-piled stack with a wide blank gutter on
+        // the right edge. The heart glyph that used to anchor the
+        // block on the left has been removed; the "ОЗ" / "УР"
+        // labels now carry the column's identity on their own.
+        const SHIFT = HudLayout.topHud.shiftX;
+        const VITALS_LABEL_X = pad + 8 + SHIFT;
+        const VITALS_BAR_X = pad + 8 + 64 + 12 + SHIFT;
         const hpLabel = this.scene.add.text(
             VITALS_LABEL_X,
             29,
@@ -563,7 +567,7 @@ export class GameHudController {
             .setOrigin(0, 0.5);
         this.xpBar.setDisplaySize(0, this.xpBarHeight);
 
-        return { hpIcon, hpLabel, hpBarFrame, hpBarBg, hpSegments };
+        return { hpLabel, hpBarFrame, hpBarBg, hpSegments };
     }
 
     /**
@@ -842,56 +846,60 @@ export class GameHudController {
     }
 
     private buildHudButtons(topH: number, pad: number) {
-        // Restart anchors to the far right (destructive action; the
-        // outermost slot keeps it from being misclicked by reflex).
-        // Escape sits to its left so the more common, recoverable
-        // action is closer to the hot edge of the HUD. Variants:
+        // Escape + Restart promoted from the top-right corner into the
+        // carved bottom bar so they read as part of the bottom-panel
+        // chrome row (relic slots ── ESCAPE ── RESTART ── music /
+        // settings / language). Sitting in the bottom bar gives the
+        // two primary run-management actions roomier hit targets —
+        // 60 × 200 vs the old 38 × 147/173 — and pulls them out of
+        // the crowded top bar where they competed with HP/XP and the
+        // stat columns for the player's eye.
+        //
+        // Layout in the bottom panel:
+        //   [ relic row ] ─36px─ [ ESCAPE ] ─26px─ [ RESTART ] ─36px─ [ chrome icons ]
+        //
+        // Vertical centring on `BOT_Y + BOT_H / 2` aligns the buttons
+        // with the relic cells (same `cellH = 110` band) and the
+        // music / settings / language icons (anchored to
+        // `HudLayout.chrome.iconY = 688`), so the whole bottom panel
+        // reads as one row of chrome.
+        //
+        // Variants are unchanged from the old top-right layout:
         //   - 'gold' for Escape — primary CTA, the run-ending bank.
         //   - 'danger' for Restart — destructive, full wipe.
-        // Sizes are 1.5× the original (28 × 110 / 130) — bumped to
-        // 38 × 147 / 173 so the two run-management buttons read as
-        // primary HUD chrome without dominating the right half of
-        // the top bar. BTN_Y is offset further from `topH` than the
-        // original 18 so the taller buttons keep a clean gap below
-        // the top bar (`TOP_BAR_H = 96`).
-        const BTN_H = 38;
-        const BTN_Y = topH + 23;
-        const BTN_GAP = 8;
+        //
+        // Escape sits LEFT (closer to the relic row, easier to hit
+        // when the player just wants to bank skill points); Restart
+        // sits RIGHT (further from the relic hot zone, more
+        // protective against reflex misclicks).
+        const BOT_Y = GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET;
+        const BTN_H = 60;
+        const BTN_W = 200;
+        const BTN_GAP = 26;
+        const BTN_Y = BOT_Y + Math.round(BOTTOM_BAR_H / 2);
 
-        const RESTART_BTN_W = 173;
-        const RESTART_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W / 2;
-        const restartUi = drawUiButton(
-            this.scene,
-            RESTART_BTN_X,
-            BTN_Y,
-            RESTART_BTN_W,
-            BTN_H,
-            this.scene.loc.t('restartButton'),
-            {
-                variant: 'danger',
-                fontSize: '14px',
-                color: HudHex.textPrimary,
-                depth: 220,
-                sfx: this.scene.sfx,
-            }
-        );
-        this.restartButtonBg = restartUi.background;
-        this.restartButtonLabel = restartUi.label;
-        this.restartButtonLabel.setY(BTN_Y - 1);
-        this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
+        // Centre the two-button pair in the space between the relic
+        // row's right edge (~408 px — see `buildRelicSlots`) and the
+        // music/settings/language chrome on the right (leftmost icon
+        // sits at `HudLayout.chrome.iconRightX - 2 * iconStepX ≈ 903`,
+        // ≈ x = 887 with the icon glyph's half-width factored in).
+        const PAIR_W = BTN_W * 2 + BTN_GAP;
+        const RELIC_ROW_RIGHT = 408;
+        const CHROME_LEFT = 887;
+        const PAIR_CENTER_X = Math.round((RELIC_ROW_RIGHT + CHROME_LEFT) / 2);
+        const ESCAPE_BTN_X = PAIR_CENTER_X - PAIR_W / 2 + BTN_W / 2;
+        const RESTART_BTN_X = PAIR_CENTER_X + PAIR_W / 2 - BTN_W / 2;
 
-        const ESCAPE_BTN_W = 147;
-        const ESCAPE_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W - BTN_GAP - ESCAPE_BTN_W / 2;
         const escapeUi = drawUiButton(
             this.scene,
             ESCAPE_BTN_X,
             BTN_Y,
-            ESCAPE_BTN_W,
+            BTN_W,
             BTN_H,
             this.scene.loc.t('escapeButton'),
             {
                 variant: 'gold',
-                fontSize: '14px',
+                fontSize: '18px',
                 color: HudHex.textPrimary,
                 depth: 220,
                 sfx: this.scene.sfx,
@@ -902,27 +910,49 @@ export class GameHudController {
         this.escapeButtonLabel.setY(BTN_Y - 1);
         this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
 
+        const restartUi = drawUiButton(
+            this.scene,
+            RESTART_BTN_X,
+            BTN_Y,
+            BTN_W,
+            BTN_H,
+            this.scene.loc.t('restartButton'),
+            {
+                variant: 'danger',
+                fontSize: '18px',
+                color: HudHex.textPrimary,
+                depth: 220,
+                sfx: this.scene.sfx,
+            }
+        );
+        this.restartButtonBg = restartUi.background;
+        this.restartButtonLabel = restartUi.label;
+        this.restartButtonLabel.setY(BTN_Y - 1);
+        this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
+
         this.escapeHintGlow = new EscapeHintGlow(
             this.scene,
             {
                 x: ESCAPE_BTN_X,
                 y: BTN_Y,
-                width: ESCAPE_BTN_W,
+                width: BTN_W,
                 height: BTN_H,
             },
             this.scene.uiContainer
         );
 
-        // Effects-and-particles button — placed directly below the
-        // restart/escape row so it shares the same hot-edge but reads
-        // as a secondary, exploratory action. Width matches the
-        // combined restart+escape footprint so the three buttons read
-        // as a stacked column. Variant `silver` for understated
-        // chrome (this is a debug-ish utility, not a primary CTA).
-        const EFFECTS_BTN_H = 30;
-        const EFFECTS_BTN_W = RESTART_BTN_W + BTN_GAP + ESCAPE_BTN_W;
+        // Effects-and-particles button — kept in the top-right
+        // corner where the Escape/Restart row used to live, now that
+        // those two have been promoted to the bottom panel. The
+        // button retains its 'silver' variant for understated
+        // chrome (this is a debug-ish utility, not a primary CTA)
+        // and is sized to roughly fill the horizontal slot the
+        // old run-management row used to occupy so the top-right
+        // corner doesn't read as an empty void.
+        const EFFECTS_BTN_H = 32;
+        const EFFECTS_BTN_W = 328;
         const EFFECTS_BTN_X = GAME_WIDTH - pad - EFFECTS_BTN_W / 2;
-        const EFFECTS_BTN_Y = BTN_Y + BTN_H / 2 + EFFECTS_BTN_H / 2 + 8;
+        const EFFECTS_BTN_Y = topH + 23;
         const effectsUi = drawUiButton(
             this.scene,
             EFFECTS_BTN_X,
