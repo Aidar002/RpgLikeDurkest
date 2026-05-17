@@ -209,3 +209,56 @@ export function fitEnemySprite(
     const scale = Math.min(maxDim / w, maxDim / h);
     sprite.setDisplaySize(w * scale, h * scale);
 }
+
+/**
+ * Bake a radial alpha vignette into a loaded portrait texture so
+ * the painted edges blend smoothly into the carved-stone panel
+ * behind it instead of clipping abruptly against the portrait
+ * frame. The hand-authored 256 / 512 px enemy + NPC sources are
+ * solid RGB with the subject pushed all the way to the canvas
+ * edge (no transparent margin around ears / tails / paws), which
+ * made them read as "cropped" once we stopped stretching them in
+ * #288. A radial `destination-in` mask with a soft band gives
+ * every portrait the same `alpha = 1` interior and a gentle alpha
+ * falloff in the outer `fadeBand` pixels, matching the reference
+ * art the user supplied.
+ *
+ * The work is destructive — we draw the original image into an
+ * offscreen canvas, multiply alpha via a radial gradient, then
+ * replace the texture entry in Phaser's manager so every cached
+ * GameObject that already references this key sees the faded
+ * version on next render. `fadeBand` is in source pixels (the
+ * 256 px webp's coordinate space), not display pixels.
+ */
+export function applyRadialPortraitFade(scene: Phaser.Scene, key: string, fadeBand = 28): boolean {
+    if (!scene.textures.exists(key)) return false;
+    const tex = scene.textures.get(key);
+    const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
+    const w = (src as HTMLImageElement).width ?? 0;
+    const h = (src as HTMLImageElement).height ?? 0;
+    if (!w || !h) return false;
+    if (typeof document === 'undefined') return false;
+
+    const canvas = document.createElement('canvas');
+    canvas.width = w;
+    canvas.height = h;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return false;
+
+    ctx.drawImage(src as CanvasImageSource, 0, 0);
+
+    const cx = w / 2;
+    const cy = h / 2;
+    const outerRadius = Math.min(w, h) / 2;
+    const innerRadius = Math.max(0, outerRadius - fadeBand);
+    const grad = ctx.createRadialGradient(cx, cy, innerRadius, cx, cy, outerRadius);
+    grad.addColorStop(0, 'rgba(255,255,255,1)');
+    grad.addColorStop(1, 'rgba(255,255,255,0)');
+    ctx.globalCompositeOperation = 'destination-in';
+    ctx.fillStyle = grad;
+    ctx.fillRect(0, 0, w, h);
+
+    scene.textures.remove(key);
+    scene.textures.addCanvas(key, canvas);
+    return true;
+}

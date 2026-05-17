@@ -8,6 +8,7 @@ import { BOOT_TORCH_FRAME_SIZE, BOOT_TORCH_TEXTURE_KEY, createBootTorch } from '
 import { createStoneBackdrop } from '../ui/StoneBackdrop';
 import { drawUiButton } from '../ui/UiButton';
 import { HUD_FONT } from '../ui/HudTheme';
+import { applyRadialPortraitFade } from '../ui/RoomVisuals';
 
 /** Boot-screen door spritesheet binding. Two frames (closed / open)
  *  laid out horizontally; each frame is a square of this size. The
@@ -307,6 +308,26 @@ export class BootScene extends Phaser.Scene {
         const loc = this.bootLoc ?? new Localization();
         const sfx = this.bootSfx ?? new SoundManager();
         const music = this.bootMusic ?? new MusicManager();
+
+        // Bake a radial alpha fade into every enemy + NPC portrait so
+        // the painted edges feather into the carved panel behind
+        // them. The source webps are solid RGB with the subject
+        // pushed all the way to each canvas edge, which read as
+        // "cropped" once #288 stopped stretching them into a square.
+        // Done in `create()` so the work runs once per BootScene
+        // mount, *after* preload has populated the texture manager
+        // but before any GameScene renders use the keys. The helper
+        // is idempotent — replacing the canvas with another canvas
+        // would just re-multiply the already-faded alpha, so we
+        // skip keys whose source image isn't an HTMLImageElement
+        // (the only state we touch is the just-preloaded image).
+        for (const key of this.textures.getTextureKeys()) {
+            if (!key.startsWith('enemy_') && !key.startsWith('npc_')) continue;
+            const src = this.textures.get(key).getSourceImage();
+            if (src instanceof HTMLImageElement) {
+                applyRadialPortraitFade(this, key);
+            }
+        }
 
         // Dev-only `?seed=...&inv=...&lang=...` cheat string. Picked up
         // *before* the title-screen widgets render so the language
