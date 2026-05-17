@@ -149,10 +149,14 @@ export class RelicSlots {
     /** Repaint every slot from `player.relics`. Clears any pending
      *  discard arm — an external relic change (drop pickup, swap
      *  modal, or our own `onDiscard` callback) invalidates the
-     *  player's prior click intent. */
+     *  player's prior click intent. Also hides any open tooltip:
+     *  `applySlot(slot, null)` removes the slot's listeners, so a
+     *  pointer that was over the slot at discard time will never
+     *  fire `pointerout` and the tooltip would otherwise linger. */
     public refresh(): void {
         if (this.dead) return;
         this.clearArm(/* repaint */ false);
+        this.hideTooltip();
         const ids = this.player.relics;
         for (let i = 0; i < this.slots.length; i++) {
             this.applySlot(this.slots[i], ids[i] ?? null);
