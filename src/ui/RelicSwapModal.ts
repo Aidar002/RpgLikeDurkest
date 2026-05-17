@@ -204,6 +204,15 @@ export class RelicSwapModal {
             .setOrigin(0.5)
             .setStrokeStyle(2, HudColors.panelOuter, 1);
         const icon = scene.add.rectangle(0, -CARD_H / 2 + 36, 56, 56, 0x202028).setOrigin(0.5);
+        // Hand-authored relic icon, hidden until paintCard finds a
+        // registered `relic_<id>` texture. Sized to fit inside the
+        // 56×56 backdrop rectangle so the dark frame still reads
+        // around the artwork.
+        const iconImage = scene.add
+            .image(0, -CARD_H / 2 + 36, '__MISSING')
+            .setOrigin(0.5)
+            .setDisplaySize(54, 54)
+            .setVisible(false);
         const iconLabel = scene.add
             .text(0, -CARD_H / 2 + 36, '', {
                 fontFamily: HUD_FONT,
@@ -237,12 +246,13 @@ export class RelicSwapModal {
             })
             .setOrigin(0.5);
 
-        container.add([bg, border, icon, iconLabel, name, rarity, action]);
+        container.add([bg, border, icon, iconImage, iconLabel, name, rarity, action]);
         return {
             container,
             bg,
             border,
             icon,
+            iconImage,
             iconLabel,
             name,
             rarity,
@@ -260,8 +270,18 @@ export class RelicSwapModal {
         card.bg.setFillStyle(HudColors.panelBg, 0.96);
         card.border.setStrokeStyle(card.role === 'candidate' ? 3 : 2, RARITY_BORDER[rarity], 1);
         card.icon.setFillStyle(0x121017, 1);
-        card.iconLabel.setText(letterFor(loc, id));
-        card.iconLabel.setColor(RARITY_TEXT[rarity]);
+        // Use the hand-authored icon when its texture is preloaded;
+        // fall back to the procedural 1–2 letter glyph otherwise so
+        // tests and any future relic without art keep rendering.
+        const iconKey = `relic_${id}`;
+        if (this.scene.textures.exists(iconKey)) {
+            card.iconImage.setTexture(iconKey).setVisible(true);
+            card.iconLabel.setText('');
+        } else {
+            card.iconImage.setVisible(false);
+            card.iconLabel.setText(letterFor(loc, id));
+            card.iconLabel.setColor(RARITY_TEXT[rarity]);
+        }
         card.name.setText(loc.pick(relic.name));
         card.rarity.setText(loc.t(rarityKey(rarity)));
         card.rarity.setColor(RARITY_TEXT[rarity]);
@@ -299,6 +319,7 @@ export class RelicSwapModal {
         card.bg.setFillStyle(HudColors.panelBg, 0.55);
         card.border.setStrokeStyle(1, HudColors.divider, 0.7);
         card.icon.setFillStyle(HudColors.panelHi, 0.6);
+        card.iconImage.setVisible(false);
         card.iconLabel.setText('');
         card.name.setText('');
         card.rarity.setText('');
@@ -333,6 +354,11 @@ interface CardHandle {
     bg: Phaser.GameObjects.Rectangle;
     border: Phaser.GameObjects.Rectangle;
     icon: Phaser.GameObjects.Rectangle;
+    /** Hand-authored relic icon (preloaded `relic_<RelicId>` in
+     *  BootScene). Hidden until {@link paintCard} confirms a
+     *  texture is registered; otherwise the procedural letter in
+     *  `iconLabel` shows. */
+    iconImage: Phaser.GameObjects.Image;
     iconLabel: Phaser.GameObjects.Text;
     name: Phaser.GameObjects.Text;
     rarity: Phaser.GameObjects.Text;
