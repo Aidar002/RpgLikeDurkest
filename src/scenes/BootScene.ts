@@ -8,7 +8,7 @@ import { BOOT_TORCH_FRAME_SIZE, BOOT_TORCH_TEXTURE_KEY, createBootTorch } from '
 import { createStoneBackdrop } from '../ui/StoneBackdrop';
 import { drawUiButton } from '../ui/UiButton';
 import { HUD_FONT } from '../ui/HudTheme';
-import { applyRadialPortraitFade } from '../ui/RoomVisuals';
+import { applyPortraitFade } from '../ui/RoomVisuals';
 
 /** Boot-screen door spritesheet binding. Two frames (closed / open)
  *  laid out horizontally; each frame is a square of this size. The
@@ -309,15 +309,19 @@ export class BootScene extends Phaser.Scene {
         const sfx = this.bootSfx ?? new SoundManager();
         const music = this.bootMusic ?? new MusicManager();
 
-        // Bake a radial alpha fade into every enemy, NPC, and room-
-        // icon texture so the painted edges feather into the carved
-        // panel / map node frame behind them instead of clipping
-        // hard. The source webps are solid RGB with the subject
-        // pushed all the way to each canvas edge, which read as
-        // "cropped" once #288 stopped stretching them into a square.
-        // Room icons (`room_*`) got added here in this pass — the
-        // user pointed out map-node thumbnails had the same hard-
-        // edge problem the mob portraits did before #290.
+        // Bake a rectangular edge-fade into every enemy, NPC, and
+        // room-icon texture so the painted edges feather into the
+        // carved panel / map node frame behind them instead of
+        // clipping hard. The source webps are solid RGB with the
+        // subject pushed all the way to each canvas edge.
+        //
+        // The fade was originally radial (#290 / #292) but the
+        // inscribed circle ate noticeable bits of corner content on
+        // the wider room icons + non-square mob portraits — the
+        // user asked for a rectangular fade instead so the full
+        // image rectangle survives, only the outer ~18% of each
+        // edge ramps to transparent.
+        //
         // Done in `create()` so the work runs once per BootScene
         // mount, *after* preload has populated the texture manager
         // but before any GameScene renders use the keys. The helper
@@ -325,16 +329,13 @@ export class BootScene extends Phaser.Scene {
         // would just re-multiply the already-faded alpha, so we
         // skip keys whose source image isn't an HTMLImageElement
         // (the only state we touch is the just-preloaded image).
-        // Fade band is now proportional to `min(w,h)` inside
-        // `applyRadialPortraitFade` so 128 px room icons / 256 px
-        // mobs / 512 px NPCs all get a visually consistent feather.
         for (const key of this.textures.getTextureKeys()) {
             if (!key.startsWith('enemy_') && !key.startsWith('npc_') && !key.startsWith('room_')) {
                 continue;
             }
             const src = this.textures.get(key).getSourceImage();
             if (src instanceof HTMLImageElement) {
-                applyRadialPortraitFade(this, key);
+                applyPortraitFade(this, key);
             }
         }
 
