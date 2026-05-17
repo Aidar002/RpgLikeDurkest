@@ -212,42 +212,39 @@ export function fitEnemySprite(
 
 /**
  * Default fade-band thickness as a fraction of the source image's
- * shorter edge. Used by {@link applyRadialPortraitFade} when no
- * explicit `fadeBand` is passed so enemy (256 px), NPC (512 px),
- * and room-icon (128 px) textures all receive a visually
- * consistent feather instead of the fixed 28 px band we shipped in
- * #290 — which read as a hard edge on the 512 px NPCs and looked
- * disproportionately thick relative to a 128 px room icon if the
- * helper got reused there.
+ * shorter edge. Used by {@link applyPortraitFade} when no explicit
+ * `fadeBand` is passed so enemy (256 px), NPC (512 px), and room-
+ * icon (128 px) textures all receive a visually consistent feather.
  */
 const PORTRAIT_FADE_FRACTION = 0.18;
 
 /**
- * Bake a radial alpha vignette into a loaded portrait texture so
+ * Bake a rectangular edge-fade into a loaded portrait texture so
  * the painted edges blend smoothly into the carved-stone panel /
- * map node frame behind it instead of clipping abruptly against
+ * map node frame behind them instead of clipping abruptly against
  * the boundary. The hand-authored 128 / 256 / 512 px room, enemy,
  * and NPC sources are solid RGB with the subject pushed all the
- * way to each canvas edge (no transparent margin around ears /
- * tails / paws / icon glyphs), which made them read as "cropped"
- * once we stopped stretching them. A radial `destination-in` mask
- * with a soft band gives every portrait the same `alpha = 1`
- * interior and a gentle alpha falloff in the outer fade band.
+ * way to each canvas edge, which read as "cropped" once we stopped
+ * stretching them.
+ *
+ * Each output pixel's alpha is multiplied by
+ * `clamp(min(distLeft, distRight, distTop, distBottom) / band, 0, 1)`
+ * — interior pixels keep `alpha = 1`, pixels within `band` of any
+ * edge ramp linearly to `0`. Unlike a radial vignette, this
+ * preserves the full rectangular footprint of the artwork (corners
+ * fade just like centres do) instead of cropping it to an inscribed
+ * circle.
  *
  * The work is destructive — we draw the original image into an
- * offscreen canvas, multiply alpha via a radial gradient, then
- * replace the texture entry in Phaser's manager so every cached
- * GameObject that already references this key sees the faded
- * version on next render. When `fadeBand` is omitted it defaults
- * to `min(w,h) * {@link PORTRAIT_FADE_FRACTION}` so the feather
- * looks visually consistent across asset sizes; pass an explicit
+ * offscreen canvas, walk the ImageData buffer to scale per-pixel
+ * alpha, then replace the texture entry in Phaser's manager so
+ * every cached GameObject that already references this key sees
+ * the faded version on next render. When `fadeBand` is omitted it
+ * defaults to `min(w,h) * {@link PORTRAIT_FADE_FRACTION}` so the
+ * feather looks consistent across asset sizes; pass an explicit
  * pixel value to override.
  */
-export function applyRadialPortraitFade(
-    scene: Phaser.Scene,
-    key: string,
-    fadeBand?: number
-): boolean {
+export function applyPortraitFade(scene: Phaser.Scene, key: string, fadeBand?: number): boolean {
     if (!scene.textures.exists(key)) return false;
     const tex = scene.textures.get(key);
     const src = tex.getSourceImage() as HTMLImageElement | HTMLCanvasElement;
@@ -264,17 +261,22 @@ export function applyRadialPortraitFade(
 
     ctx.drawImage(src as CanvasImageSource, 0, 0);
 
-    const cx = w / 2;
-    const cy = h / 2;
-    const outerRadius = Math.min(w, h) / 2;
-    const band = fadeBand ?? Math.min(w, h) * PORTRAIT_FADE_FRACTION;
-    const innerRadius = Math.max(0, outerRadius - band);
-    const grad = ctx.createRadialGradient(cx, cy, innerRadius, cx, cy, outerRadius);
-    grad.addColorStop(0, 'rgba(255,255,255,1)');
-    grad.addColorStop(1, 'rgba(255,255,255,0)');
-    ctx.globalCompositeOperation = 'destination-in';
-    ctx.fillStyle = grad;
-    ctx.fillRect(0, 0, w, h);
+    const band = Math.max(1, fadeBand ?? Math.min(w, h) * PORTRAIT_FADE_FRACTION);
+    const imageData = ctx.getImageData(0, 0, w, h);
+    const data = imageData.data;
+    for (let y = 0; y < h; y++) {
+        const dy = Math.min(y, h - 1 - y);
+        for (let x = 0; x < w; x++) {
+            const dx = Math.min(x, w - 1 - x);
+            const d = Math.min(dx, dy);
+            if (d < band) {
+                const factor = d / band;
+                const idx = (y * w + x) * 4 + 3;
+                data[idx] = data[idx] * factor;
+            }
+        }
+    }
+    ctx.putImageData(imageData, 0, 0);
 
     scene.textures.remove(key);
     scene.textures.addCanvas(key, canvas);
