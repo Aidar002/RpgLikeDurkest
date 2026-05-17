@@ -278,8 +278,37 @@ export class CombatHudController {
         if (scene.lastEnemyHp > 0 && hp < scene.lastEnemyHp) {
             const damage = scene.lastEnemyHp - hp;
             VFX.floatText(scene, RoomLayout.panelCenterX, 130, `-${damage}`, '#ff7373');
-            VFX.shake(scene, scene.enemyPortrait);
-            VFX.flash(scene, scene.enemyPortrait, 0xff3232, 120);
+            // The portrait backdrop rect is alpha=0 (the hand-authored
+            // art carries the visuals on its own), so shaking +
+            // tinting it does nothing the player can see — the old
+            // VFX.flash(rect) painted a red square that only peeked
+            // out on the rect's right edge once VFX.shake nudged it.
+            // Target the visible element instead: the sprite image
+            // when a per-mob/profile texture is registered, otherwise
+            // the procedural glyph fallback in enemyIconText.
+            const useSprite = scene.enemySpriteImage.visible;
+            const hitTarget: Phaser.GameObjects.Components.Transform &
+                Phaser.GameObjects.GameObject = useSprite
+                ? scene.enemySpriteImage
+                : scene.enemyIconText;
+            VFX.shake(scene, hitTarget);
+            if (useSprite) {
+                // setTintFill replaces every non-transparent pixel
+                // with the tint colour for the duration, so the bat /
+                // skeleton / boss artwork lights up red as a whole
+                // silhouette instead of receiving a multiplicative
+                // hue shift that's hard to read against the dark
+                // dungeon palette.
+                scene.enemySpriteImage.setTintFill(0xff3232);
+                scene.time.delayedCall(120, () => {
+                    scene.enemySpriteImage.clearTint();
+                });
+            } else {
+                scene.enemyIconText.setColor('#ff3232');
+                scene.time.delayedCall(120, () => {
+                    scene.enemyIconText.setColor('#ffffff');
+                });
+            }
         }
 
         scene.lastEnemyHp = hp;
