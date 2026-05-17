@@ -321,6 +321,24 @@ export const EN_STRINGS = {
     effectRunicCircle: 'Runic Circle',
     effectCritFlashRing: 'Crit Flash Ring',
     effectPulseBurst: 'Pulse Burst',
+    // Combat-hit themed previews.
+    effectBloodSplatter: 'Blood Splatter',
+    effectSlashArc: 'Slash Arc',
+    effectIceShatter: 'Ice Shatter',
+    effectFireballImpact: 'Fireball Impact',
+    effectPoisonCloud: 'Poison Cloud',
+    // Spell / ability themed previews.
+    effectArcaneOrbit: 'Arcane Orbit',
+    effectShadowVortex: 'Shadow Vortex',
+    effectThunderclap: 'Thunderclap',
+    effectSoulDrain: 'Soul Drain',
+    effectWindSlash: 'Wind Slash',
+    // Upgrade / progression themed previews.
+    effectLevelUpHalo: 'Level-Up Halo',
+    effectXpAbsorb: 'XP Absorb',
+    effectShieldBubble: 'Shield Bubble',
+    effectSwordSharpen: 'Sword Sharpen',
+    effectPhoenixRise: 'Phoenix Rise',
 } as const;
 
 /** All localisable string keys. Defined by the English table. */
