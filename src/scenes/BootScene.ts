@@ -164,6 +164,19 @@ export class BootScene extends Phaser.Scene {
             this.load.image(`relic_${id}`, `${base}sprites/relics/${id}.webp`);
         }
 
+        // ── NPC portraits (encounter dialog cards) ──────────────
+        // Texture key format: npc_<NpcId>. Used by
+        // GameRoomController.showRoomNpcCard to swap the procedural
+        // coloured glyph for the hand-authored portrait when the
+        // texture is registered. Keys must match `NpcId` strings in
+        // `src/systems/Npcs.ts`. The card silently falls back to the
+        // glyph when a key isn't registered (e.g. early-boot unit
+        // tests / NPCs that don't have art yet).
+        const npcs: string[] = ['gogi', 'sara'];
+        for (const id of npcs) {
+            this.load.image(`npc_${id}`, `${base}sprites/npcs/${id}.webp`);
+        }
+
         // ── HUD frames + textures (Darkest Dungeon-style overlay) ──
         // Each is optional; the HUD layer renders procedural fallbacks
         // when a file is missing. See public/assets/ui/README.md for

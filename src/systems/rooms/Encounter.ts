@@ -70,7 +70,8 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
         `${npcName}, ${scene.loc.pick(picked.npc.title)}`,
         picked.npc.color,
         picked.npc.glyph,
-        npcSpeech
+        npcSpeech,
+        picked.npc.portraitKey
     );
 
     // Event log no longer mirrors every line of the dialog — it only

@@ -29,11 +29,11 @@ import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, RoomLayout } from './Layo
 import type { RoomButtonVariant } from './RoomButtonVariant';
 
 /** Subset of {@link EffectKind} that {@link RoomButtonAction.vfx}
- *  is allowed to request. Restricted to heal-related effects today
- *  (the only call sites are the three HP-recovering buttons:
- *  altar prayer, camp recover, combat heal potion). Widen the
- *  union here when more effects need to fire from a button click. */
-export type RoomButtonVfx = 'healPulse';
+ *  is allowed to request. Today covers heal-related effects
+ *  (altar prayer / camp recover / combat heal potion), the
+ *  rune ring fired from non-prayer altar buttons, and the
+ *  shield sphere painted across the combat defend button. */
+export type RoomButtonVfx = 'healPulse' | 'runicCircle' | 'shieldBubble';
 
 /**
  * Visual variants for room-choice buttons. The variant catalog and

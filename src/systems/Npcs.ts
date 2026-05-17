@@ -30,6 +30,12 @@ export interface NpcProfile {
     role: NpcRole;
     color: number;
     glyph: string;
+    /** Optional preloaded texture key for a hand-authored portrait
+     *  (e.g. `npc_sara`). When set the NPC card renders the sprite
+     *  in place of the glyph + colour fallback. Falls back to the
+     *  glyph when the texture isn't registered (e.g. early-boot
+     *  unit tests). */
+    portraitKey?: string;
     flavor: LocalizedText;
     backstoryHint: LocalizedText;
     beats: NpcDialogBeat[];
@@ -52,6 +58,7 @@ export const NPCS: Record<NpcId, NpcProfile> = {
         role: 'wanderer',
         color: 0x8a6cb6,
         glyph: 'S',
+        portraitKey: 'npc_sara',
         flavor: lt(
             'Молчаливая фигура стоит у стены. Она не выглядит угрожающе.',
             'A quiet figure stands by the wall. She does not look threatening.'
@@ -109,6 +116,7 @@ export const NPCS: Record<NpcId, NpcProfile> = {
         role: 'merchant',
         color: 0xb6a44a,
         glyph: 'G',
+        portraitKey: 'npc_gogi',
         flavor: lt(
             'Ухмыляющийся мужчина сидит у стены и считает монеты.',
             'A grinning man sits by the wall counting coins.'

@@ -89,7 +89,13 @@ export function handlePlayerAttack(
         damage += bonus;
         log.addMessage(loc.t('combatRelicKnightSwordBonus', { bonus }), '#e6d27a');
     }
-    applyPlayerDamage(enemy, damage, result.critical, state, deps);
+    // Log the player's swing BEFORE applyPlayerDamage so any
+    // enemy counter-log (thorns reflect, evade-and-sting) lands
+    // after the strike line in the event log. The damage shown
+    // is the pre-mitigation value the player rolled — internal
+    // modifiers (mark consumption, expose bonus, Longinus mult)
+    // still resolve inside applyPlayerDamage and log their own
+    // lines if they fire.
     log.addMessage(
         result.critical ? loc.t('strikeCrit', { damage }) : loc.t('strike', { damage }),
         result.critical ? '#ffe08a' : '#dddddd'
@@ -97,6 +103,7 @@ export function handlePlayerAttack(
     if (result.critical && rng.next() < 0.35) {
         log.addMessage(narrate('crit_landed', loc.language), '#c4a35a');
     }
+    applyPlayerDamage(enemy, damage, result.critical, state, deps);
     applyOnAttackRelics(enemy, deps);
     applyResolveOnAttack(deps);
 }
@@ -167,8 +174,11 @@ export function handlePlayerSkill(
             const base = player.getAttackPower();
             const bonus = Math.max(1, Math.floor(base * 0.5));
             const dmg = Math.max(1, base + bonus);
-            applyPlayerDamage(enemy, dmg, false, state, deps);
+            // Skill log line lands BEFORE damage application so the
+            // enemy's counter-procs (thorns, evade-sting) are read
+            // as a reply to the player's hit.
             log.addMessage(loc.t('combatSkillCleave', { dmg }), '#b893ff');
+            applyPlayerDamage(enemy, dmg, false, state, deps);
             applyOnAttackRelics(enemy, deps);
             applyResolveOnAttack(deps);
             breakBossBlockOnSkillDamage(enemy, log, loc);
@@ -176,10 +186,12 @@ export function handlePlayerSkill(
         }
         case 'bleed_strike': {
             const dmg = Math.max(1, player.getAttackPower());
+            // Same ordering as basic attack / cleave: log the skill
+            // line first so any enemy counter-proc lands afterwards.
+            log.addMessage(loc.t('combatSkillBleedStrike', { dmg }), '#d06060');
             applyPlayerDamage(enemy, dmg, false, state, deps);
             const bleedPerTick = Math.max(1, Math.floor(player.getAttackPower() * 0.2));
             applyBleed(enemy.status, bleedPerTick, 3, enemy.bleedCap);
-            log.addMessage(loc.t('combatSkillBleedStrike', { dmg }), '#d06060');
             applyOnAttackRelics(enemy, deps);
             applyResolveOnAttack(deps);
             breakBossBlockOnSkillDamage(enemy, log, loc);

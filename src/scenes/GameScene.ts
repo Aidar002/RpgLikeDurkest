@@ -422,9 +422,10 @@ export class GameScene extends Phaser.Scene {
         title: string,
         color: number,
         icon: string,
-        npcSpeech: string
+        npcSpeech: string,
+        portraitKey?: string
     ) {
-        this.room.showRoomNpcCard(header, title, color, icon, npcSpeech);
+        this.room.showRoomNpcCard(header, title, color, icon, npcSpeech, portraitKey);
     }
 
     /** Forward to {@link GameRoomController.updateRoomDialog}. */
