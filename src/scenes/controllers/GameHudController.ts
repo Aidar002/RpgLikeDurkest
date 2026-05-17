@@ -804,11 +804,16 @@ export class GameHudController {
         // action is closer to the hot edge of the HUD. Variants:
         //   - 'gold' for Escape — primary CTA, the run-ending bank.
         //   - 'danger' for Restart — destructive, full wipe.
-        const BTN_H = 28;
-        const BTN_Y = topH + 18;
-        const BTN_GAP = 8;
+        // Sizes doubled vs the original (28 × 110 / 130) so the
+        // two run-management buttons feel like top-tier HUD chrome
+        // instead of incidental text labels. BTN_Y is offset further
+        // from `topH` to leave a clean gap between the top bar and
+        // the now 56px-tall buttons.
+        const BTN_H = 56;
+        const BTN_Y = topH + 32;
+        const BTN_GAP = 12;
 
-        const RESTART_BTN_W = 130;
+        const RESTART_BTN_W = 260;
         const RESTART_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W / 2;
         const restartUi = drawUiButton(
             this.scene,
@@ -819,7 +824,7 @@ export class GameHudController {
             this.scene.loc.t('restartButton'),
             {
                 variant: 'danger',
-                fontSize: '12px',
+                fontSize: '20px',
                 color: HudHex.textPrimary,
                 depth: 220,
                 sfx: this.scene.sfx,
@@ -830,7 +835,7 @@ export class GameHudController {
         this.restartButtonLabel.setY(BTN_Y - 1);
         this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
 
-        const ESCAPE_BTN_W = 110;
+        const ESCAPE_BTN_W = 220;
         const ESCAPE_BTN_X = GAME_WIDTH - pad - RESTART_BTN_W - BTN_GAP - ESCAPE_BTN_W / 2;
         const escapeUi = drawUiButton(
             this.scene,
@@ -841,7 +846,7 @@ export class GameHudController {
             this.scene.loc.t('escapeButton'),
             {
                 variant: 'gold',
-                fontSize: '12px',
+                fontSize: '20px',
                 color: HudHex.textPrimary,
                 depth: 220,
                 sfx: this.scene.sfx,
