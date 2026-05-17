@@ -28,6 +28,7 @@ import * as Phaser from 'phaser';
 import type { Localization } from '../systems/Localization';
 import type { PlayerManager } from '../systems/PlayerManager';
 import { RELICS, type RelicId, type RelicRarity } from '../systems/Relics';
+import type { SoundManager } from '../systems/SoundManager';
 import { Depths } from './Layout';
 import { HUD_FONT, HUD_STROKE, HudColors, HudHex } from './HudTheme';
 import { drawPanel, type PanelBackground } from './UiPanel';
@@ -37,6 +38,18 @@ const SLOT_GAP = 18;
 const TOOLTIP_PAD = 12;
 const TOOLTIP_W = 240;
 const TOOLTIP_LINE_GAP = 4;
+
+/** Click on a filled slot arms a discard confirm; a second click on
+ *  the same slot within this window commits the drop. Matches the
+ *  `ESCAPE_CONFIRM_MS` cadence so both confirm-on-second-click flows
+ *  feel the same. */
+const DISCARD_CONFIRM_MS = 3000;
+
+/** Red border / glyph used to signal an armed-for-discard slot.
+ *  Numeric form for {@link Phaser.GameObjects.Rectangle.setStrokeStyle};
+ *  hex-string form for the label color. */
+const DISCARD_ARMED_TINT = 0xff5a5a;
+const DISCARD_ARMED_TEXT = '#ff5a5a';
 
 /** Numeric border colour by rarity. Common is muted, rare is gold,
  *  unique is amethyst — same palette the pickup-log line uses in
@@ -61,6 +74,17 @@ interface RelicSlotsOptions {
     centerY: number;
     /** Hard cap; matches `MAX_RELICS` from PlayerManager. */
     capacity: number;
+    /** Shared SFX bank; click-to-arm plays `buttonClick`, confirmed
+     *  discard plays `relicDrop`. Optional so tests / boot screens
+     *  can mount the widget without an audio stack. */
+    sfx?: SoundManager;
+    /** Invoked when the player confirms a discard (second click on the
+     *  armed slot within {@link DISCARD_CONFIRM_MS}). The widget only
+     *  signals intent — the caller owns `removeRelic` + any pickup
+     *  log line — so the discard log can be written once with the
+     *  caller's preferred wording. Omit to disable the discard flow
+     *  entirely (slots stay hover-only). */
+    onDiscard?: (id: RelicId) => void;
 }
 
 interface SlotHandle {
@@ -82,9 +106,14 @@ export class RelicSlots {
     private readonly scene: Phaser.Scene;
     private readonly player: PlayerManager;
     private readonly loc: Localization;
+    private readonly options: RelicSlotsOptions;
     private readonly slots: SlotHandle[] = [];
     private readonly tooltip: TooltipHandle;
     private readonly listenerOff: () => void;
+    /** Slot currently armed for discard; cleared on confirm, timeout,
+     *  another slot click, or an external `relicsChange` refresh. */
+    private armedSlot: SlotHandle | null = null;
+    private armedTimer: Phaser.Time.TimerEvent | null = null;
 
     constructor(
         scene: Phaser.Scene,
@@ -95,6 +124,7 @@ export class RelicSlots {
         this.scene = scene;
         this.player = player;
         this.loc = loc;
+        this.options = options;
 
         const totalW = options.capacity * SLOT_SIZE + (options.capacity - 1) * SLOT_GAP;
         const startX = options.centerX - totalW / 2 + SLOT_SIZE / 2;
@@ -116,9 +146,13 @@ export class RelicSlots {
 
     private dead = false;
 
-    /** Repaint every slot from `player.relics`. */
+    /** Repaint every slot from `player.relics`. Clears any pending
+     *  discard arm — an external relic change (drop pickup, swap
+     *  modal, or our own `onDiscard` callback) invalidates the
+     *  player's prior click intent. */
     public refresh(): void {
         if (this.dead) return;
+        this.clearArm(/* repaint */ false);
         const ids = this.player.relics;
         for (let i = 0; i < this.slots.length; i++) {
             this.applySlot(this.slots[i], ids[i] ?? null);
@@ -141,6 +175,11 @@ export class RelicSlots {
     public destroy(): void {
         this.dead = true;
         this.listenerOff();
+        if (this.armedTimer) {
+            this.armedTimer.remove(false);
+            this.armedTimer = null;
+        }
+        this.armedSlot = null;
         this.slots.forEach((s) => s.container.destroy());
         this.tooltip.bg.destroy();
         this.tooltip.title.destroy();
@@ -200,6 +239,83 @@ export class RelicSlots {
         );
         slot.container.on('pointerover', () => this.showTooltip(slot, id));
         slot.container.on('pointerout', () => this.hideTooltip());
+        // Discard flow is opt-in via `onDiscard`. Without a callback
+        // wired we leave the slot hover-only — no click reactions — so
+        // pre-existing call sites that just want a read-only relic row
+        // (e.g. future end-of-run summary panes) keep their old
+        // behaviour.
+        if (this.options.onDiscard) {
+            slot.container.on('pointerdown', () => this.handleSlotClick(slot, id));
+        }
+    }
+
+    /**
+     * Two-step discard handler. First click on a filled slot arms the
+     * slot (red ✕ glyph, red border) and starts a
+     * {@link DISCARD_CONFIRM_MS} timeout. Second click on the *same*
+     * slot within the window commits the drop — we hand the relic id
+     * to the host's `onDiscard` callback and let it own
+     * `removeRelic` + log. Clicking a different slot disarms the
+     * previous one and arms the new one.
+     */
+    private handleSlotClick(slot: SlotHandle, id: RelicId): void {
+        const onDiscard = this.options.onDiscard;
+        if (!onDiscard) return;
+        if (this.armedSlot === slot) {
+            // Confirm: commit the drop. The `relicsChange` listener
+            // will repaint the row (and `refresh` clears our arm
+            // state via `clearArm`), so we don't repaint here.
+            this.options.sfx?.play('relicDrop');
+            this.armedSlot = null;
+            if (this.armedTimer) {
+                this.armedTimer.remove(false);
+                this.armedTimer = null;
+            }
+            onDiscard(id);
+            return;
+        }
+        // Switch arm from any previously armed slot to this one.
+        this.clearArm(/* repaint */ true);
+        this.armedSlot = slot;
+        this.paintArmed(slot);
+        this.options.sfx?.play('buttonClick');
+        this.armedTimer = this.scene.time.delayedCall(DISCARD_CONFIRM_MS, () => {
+            this.armedTimer = null;
+            if (this.armedSlot === slot) {
+                // Timeout: silently revert to the normal painted state.
+                this.armedSlot = null;
+                this.applySlot(slot, slot.relicId);
+            }
+        });
+    }
+
+    /**
+     * Tear down any active arm. When `repaint` is true (called from
+     * a fresh user click or timeout), the previously armed slot is
+     * re-rendered in its normal state. When false (called from
+     * {@link refresh}), the caller will overwrite the slot a moment
+     * later so we skip the redundant paint pass.
+     */
+    private clearArm(repaint: boolean): void {
+        if (this.armedTimer) {
+            this.armedTimer.remove(false);
+            this.armedTimer = null;
+        }
+        const prev = this.armedSlot;
+        this.armedSlot = null;
+        if (repaint && prev) {
+            this.applySlot(prev, prev.relicId);
+        }
+    }
+
+    /** Paint a slot in its armed-for-discard state. Reverted by
+     *  either {@link clearArm} (with `repaint`) or the timeout
+     *  branch in {@link handleSlotClick}, which re-applies the
+     *  normal state via {@link applySlot}. */
+    private paintArmed(slot: SlotHandle): void {
+        slot.label.setText('✕');
+        slot.label.setColor(DISCARD_ARMED_TEXT);
+        slot.border.setStrokeStyle(3, DISCARD_ARMED_TINT, 1);
     }
 
     private showTooltip(slot: SlotHandle, id: RelicId): void {

@@ -133,6 +133,7 @@ export const EN_STRINGS = {
     relicCapNew: 'NEW',
     relicCapDrop: 'Drop',
     relicCapSkip: 'Skip — keep current relics',
+    relicDiscarded: 'Relic discarded: {value}.',
     rarityCommon: 'Common',
     rarityRare: 'Rare',
     rarityUnique: 'Unique',

@@ -129,6 +129,7 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     relicCapNew: 'НОВАЯ',
     relicCapDrop: 'Сбросить',
     relicCapSkip: 'Пропустить — оставить текущие',
+    relicDiscarded: 'Реликвия выброшена: {value}.',
     rarityCommon: 'Обычная',
     rarityRare: 'Редкая',
     rarityUnique: 'Уникальная',
