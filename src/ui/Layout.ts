@@ -29,9 +29,10 @@ export const HudLayout = {
         shiftX: 0,
         /** X anchor (icon left edge) for the АТАКА/ЗАЩИТА stat
          *  column. HP/XP block right edge (XP value "ОП X/Y") sits
-         *  around x=370 for typical values; 420 leaves a ~50 px
-         *  gap before the ATK icon. */
-        statsX: 420,
+         *  around x=300 with the value text rendered at the same
+         *  14 px primary-text style as the HP readout; 310 leaves a
+         *  ~10 px gap before the ATK icon. */
+        statsX: 310,
         /** Horizontal offset between an inline slot's icon and value.
          *  Tightened from 96 to 88 so the "1" / "0" values sit
          *  closer to their АТАКА / ЗАЩИТА labels instead of floating
@@ -78,11 +79,11 @@ export const HudLayout = {
         resourcesStepX: 61,
         /** Y of the icon top edge for the big resource and progress
          *  stacked slots. The top bar is 96 px tall with a carved
-         *  rim of ~14 px, so y=10 lets a 34 px icon centre at
-         *  y=27 — clear of the rim — with the label landing around
-         *  y=46 and the bold value at y=58, leaving ~10 px of
+         *  rim of ~14 px, so y=13 lets a 34 px icon centre at
+         *  y=30 — clear of the rim — with the label landing around
+         *  y=49 and the bold value at y=61, leaving ~7 px of
          *  headroom before the bar's bottom edge. */
-        resourceIconTopY: 10,
+        resourceIconTopY: 13,
         /** Icon side length for the big resource / progress stacked
          *  slots. Shrunk from 40 to 34 (-15 %) per player feedback —
          *  at 40 px the trios were bleeding into the right frame
@@ -92,10 +93,10 @@ export const HudLayout = {
          *  the big ГЛУБИНА / УБИТО / БОССЫ run-progress trio. Mirrors
          *  the resource trio's `icon + label + value` style on the
          *  right of the top bar. The three centres land at
-         *  778, 839, 900 — the rightmost block ends ~922 inside
-         *  the 1024 px canvas (~100 px right margin so the carved
-         *  frame ornament has room to breathe). */
-        progressX: 778,
+         *  798, 859, 920 — the rightmost block ends ~942 inside
+         *  the 1024 px canvas (~80 px right margin so the carved
+         *  frame ornament still has room to breathe). */
+        progressX: 798,
         /** X step between adjacent stacked slots in the progress
          *  trio. Matches `resourcesStepX` so the two trios share
          *  the same rhythm. */
