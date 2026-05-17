@@ -133,7 +133,20 @@ export class CombatHudController {
         const actionKind = typeof action === 'string' ? action : action.kind;
         if (actionKind === 'skill') {
             scene.tracker.record('skillsUsed');
-            scene.sfx.play('skillUse');
+            // Two of the three skills now have hand-authored SFX
+            // (`rubka_sound.ogg` for cleave, `blood_hit_sound.ogg`
+            // for bleed-strike). Route them through dedicated
+            // SoundIds so they replace — not layer on top of — the
+            // generic `skillUse` synth flare. Preparation (and any
+            // future skill without a sample) keeps the generic cue.
+            const skillId = typeof action === 'string' ? undefined : action.id;
+            if (skillId === 'cleave') {
+                scene.sfx.play('cleave');
+            } else if (skillId === 'bleed_strike') {
+                scene.sfx.play('bleedStrike');
+            } else {
+                scene.sfx.play('skillUse');
+            }
             // Bleed-strike paints a thick blood splash across the
             // enemy portrait while the skill is being cast — the
             // generic `hit` SFX/VFX below isn't enough on its own
@@ -141,7 +154,6 @@ export class CombatHudController {
             // covers the full 250×250 portrait box (see
             // ENEMY_SPRITE_MAX_DIM in RoomVisuals) so droplets land
             // edge-to-edge.
-            const skillId = typeof action === 'string' ? undefined : action.id;
             if (skillId === 'bleed_strike') {
                 playEffect(scene, 'bloodSplatter', RoomLayout.panelCenterX, scene.enemyPortrait.y, {
                     spreadX: 120,

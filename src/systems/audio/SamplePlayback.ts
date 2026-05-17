@@ -24,6 +24,16 @@ import type { AudioCore } from './AudioCore';
  *   of the procedural creak/thud by the door-open cue.
  * - `showName` — one-shot title-reveal cue played by `playShowName`
  *   on the boot screen.
+ * - `combatHit` / `mobHit` / `shieldBlock` — hand-authored combat
+ *   sample triple, preferred over the procedural synth cues when
+ *   the buffers are decoded.
+ * - `potionUse` / `levelUp` / `playerDeath` — hand-authored
+ *   progression cue triple (heal gulp, ascending fanfare, descent).
+ * - `chestRing` — chest-puzzle ring snap; preferred over the
+ *   `lockpickClick` synth tick.
+ * - `bleedStrike` / `cleaveSwing` — skill-specific samples played
+ *   from {@link CombatHudController.performAction} in place of the
+ *   generic `skillUse` cue for `bleed_strike` and `cleave`.
  */
 export type SampleKey =
     | 'uiHover'
@@ -31,7 +41,16 @@ export type SampleKey =
     | 'torchIgnite'
     | 'torchLoop'
     | 'doorOpen'
-    | 'showName';
+    | 'showName'
+    | 'combatHit'
+    | 'mobHit'
+    | 'shieldBlock'
+    | 'potionUse'
+    | 'levelUp'
+    | 'playerDeath'
+    | 'chestRing'
+    | 'bleedStrike'
+    | 'cleaveSwing';
 
 export class SamplePlayback {
     /**
@@ -74,6 +93,15 @@ export class SamplePlayback {
             { key: 'torchLoop', url: `${base}audio/torch_loop.mp3` },
             { key: 'doorOpen', url: `${base}audio/door_in_dungeon2.mp3` },
             { key: 'showName', url: `${base}audio/show_name.ogg` },
+            { key: 'combatHit', url: `${base}audio/hit_sound.ogg` },
+            { key: 'mobHit', url: `${base}audio/mob_hit.wav` },
+            { key: 'shieldBlock', url: `${base}audio/shield_sound.wav` },
+            { key: 'potionUse', url: `${base}audio/potion_use_sound.wav` },
+            { key: 'levelUp', url: `${base}audio/level_up_sound.ogg` },
+            { key: 'playerDeath', url: `${base}audio/death_sound.wav` },
+            { key: 'chestRing', url: `${base}audio/good_open_chest_sound.wav` },
+            { key: 'bleedStrike', url: `${base}audio/blood_hit_sound.ogg` },
+            { key: 'cleaveSwing', url: `${base}audio/rubka_sound.ogg` },
         ];
         this.preloadPromise = Promise.all(
             samples.map(async ({ key, url }) => {
