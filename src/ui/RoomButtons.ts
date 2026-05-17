@@ -25,15 +25,14 @@ import type { SoundManager } from '../systems/SoundManager';
 import { compactText } from './TextHelpers';
 import { BODY_FONT } from './HudTheme';
 import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, RoomLayout } from './Layout';
+import type { RoomButtonVariant } from './RoomButtonVariant';
 
 /**
- * Visual variants for room-choice buttons. Each maps to a sliced
- * sprite preloaded in BootScene (btn_default / btn_gold / btn_dark /
- * btn_silver / btn_positive / btn_danger). Callers that don't supply
- * a variant get 'default' unless their legacy `fill` value can be
- * heuristically mapped (see {@link variantFromFill}).
+ * Visual variants for room-choice buttons. The variant catalog and
+ * the legacy-fill heuristic both live in {@link RoomButtonVariant}
+ * so data-side call sites can import them without touching Phaser.
  */
-type RoomButtonVariant = 'default' | 'gold' | 'dark' | 'silver' | 'positive' | 'danger';
+export type { RoomButtonVariant } from './RoomButtonVariant';
 
 const BUTTON_TEXTURES: Record<RoomButtonVariant, string> = {
     default: 'btn_default',
@@ -53,25 +52,10 @@ const BUTTON_SLICE = { left: 16, right: 16, top: 14, bottom: 14 };
 
 /**
  * Map a legacy fill colour to the closest variant the new
- * spritesheet provides. Used as a backward-compat shim so call sites
- * that still pass `fill` get a sensible button skin without every
- * site needing to migrate to explicit `variant` simultaneously.
+ * spritesheet provides. Re-exported here for backward compat;
+ * the implementation now lives in {@link RoomButtonVariant}.
  */
-function variantFromFill(fill: number | undefined): RoomButtonVariant {
-    if (fill === undefined) return 'default';
-    const r = (fill >> 16) & 0xff;
-    const g = (fill >> 8) & 0xff;
-    const b = fill & 0xff;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    if (max - min < 20) return max < 80 ? 'dark' : 'silver';
-    if (g === max && g > r + 16 && g > b + 16) return 'positive';
-    if (b === max && r > g + 8) return 'danger';
-    if (r === max && b > g + 16) return 'danger';
-    if (r === max && g > b + 16) return 'gold';
-    if (b === max) return 'silver';
-    return 'default';
-}
+export { variantFromFill } from './RoomButtonVariant';
 
 interface ActionButton {
     background: Phaser.GameObjects.NineSlice;
@@ -89,8 +73,6 @@ export interface RoomButtonAction {
     label: string;
     callback: () => void;
     enabled?: boolean;
-    /** @deprecated kept for backward compat; prefer `variant`. */
-    fill?: number;
     variant?: RoomButtonVariant;
 }
 
@@ -251,7 +233,7 @@ export function createRoomButtons(
 
     function applyAction(button: ActionButton, action: RoomButtonAction): void {
         const enabled = action.enabled ?? true;
-        const variant = action.variant ?? variantFromFill(action.fill);
+        const variant = action.variant ?? 'default';
         button.callback = action.callback;
         button.enabled = enabled;
         button.variant = variant;

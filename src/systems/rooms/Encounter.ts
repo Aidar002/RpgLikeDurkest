@@ -1,6 +1,7 @@
 import type { NpcEvalContext, PickedDialog } from '../NpcManager';
 import type { NpcId, NpcOfferTemplate } from '../Npcs';
 import type { GameScene, RoomButtonAction } from '../../scenes/GameScene';
+import { variantFromFill } from '../../ui/RoomButtonVariant';
 
 function buildNpcEvalContext(scene: GameScene): NpcEvalContext {
     const hpFrac =
@@ -87,7 +88,7 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
             label,
             callback: () => handleNpcOffer(scene, npcId, offer, label),
             enabled: isNpcOfferEnabled(scene, offer, npcId),
-            fill: picked.npc.color,
+            variant: variantFromFill(picked.npc.color),
         };
     });
 
@@ -99,10 +100,10 @@ export function presentNpcRoom(scene: GameScene, npcId: NpcId, headerLabel: stri
                 picked,
                 scene.loc.t('actionDynamicLeave', { num: actions.length + 1 })
             ),
-        fill: 0x202020,
+        variant: 'dark',
     });
 
-    scene.setRoomButtons(actions);
+    scene.roomButtons.setActions(actions);
 }
 
 function leaveNpcRoom(scene: GameScene, picked: PickedDialog, leaveLabel: string): void {
@@ -206,7 +207,7 @@ function handleNpcOffer(
 
 function presentSaraWhoFollowup(scene: GameScene): void {
     const whoLabel = scene.loc.language === 'ru' ? '[1] Кто ты?' : '[1] Who are you?';
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: whoLabel,
             callback: () => {
@@ -215,7 +216,7 @@ function presentSaraWhoFollowup(scene: GameScene): void {
                 scene.updateRoomDialog({ player: whoLabel, npc: reply });
                 scene.showReturnButton();
             },
-            fill: 0x8a6cb6,
+            variant: 'danger',
         },
     ]);
 }
@@ -223,7 +224,7 @@ function presentSaraWhoFollowup(scene: GameScene): void {
 function presentSaraAdviceChoice(scene: GameScene): void {
     const yesLabel = scene.loc.language === 'ru' ? '[1] Да' : '[1] Yes';
     const noLabel = scene.loc.language === 'ru' ? '[2] Нет' : '[2] No';
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: yesLabel,
             callback: () => {
@@ -238,7 +239,7 @@ function presentSaraAdviceChoice(scene: GameScene): void {
                 scene.updateRoomDialog({ player: yesLabel, npc: grantLine });
                 scene.showReturnButton();
             },
-            fill: 0x8a6cb6,
+            variant: 'danger',
         },
         {
             label: noLabel,
@@ -247,7 +248,7 @@ function presentSaraAdviceChoice(scene: GameScene): void {
                 scene.updateRoomDialog({ player: noLabel, npc: refuseLine });
                 scene.showReturnButton();
             },
-            fill: 0x202020,
+            variant: 'dark',
         },
     ]);
 }
@@ -256,7 +257,7 @@ function presentGogiPayChoice(scene: GameScene): void {
     const canPay = scene.player.resources.gold >= 10;
     const payLabel = scene.loc.language === 'ru' ? '[1] Держи (10 монет)' : '[1] Here (10 gold)';
     const refuseLabel = scene.loc.language === 'ru' ? '[2] Нет' : '[2] No';
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: payLabel,
             callback: () => {
@@ -276,7 +277,7 @@ function presentGogiPayChoice(scene: GameScene): void {
                 scene.showReturnButton();
             },
             enabled: canPay,
-            fill: 0xb6a44a,
+            variant: 'gold',
         },
         {
             label: refuseLabel,
@@ -288,7 +289,7 @@ function presentGogiPayChoice(scene: GameScene): void {
                 scene.updateRoomDialog({ player: refuseLabel, npc: dismissLine });
                 scene.showReturnButton();
             },
-            fill: 0x202020,
+            variant: 'dark',
         },
     ]);
 }

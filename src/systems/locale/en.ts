@@ -182,15 +182,15 @@ export const EN_STRINGS = {
     musicVolumeLabel: 'Music',
     sfxVolumeLabel: 'Effects',
     soundOptionsHint: 'Mute icon silences both channels.',
-    // [FIX-5] Cooldown gating for skills (Rupture).
+    // Cooldown gating for skills (Rupture).
     combatSkillOnCooldown: '{value} is recovering ({turns}t).',
-    // [FIX-6] Adrenaline can only be used once per combat.
-    // [FIX-11] Stun-resistance log line.
-    // [FIX-10] Boss intent / phase combat lines.
+    // Adrenaline can only be used once per combat.
+    // Stun-resistance log line.
+    // Boss intent / phase combat lines.
     combatEnemyHeal: '{name} feeds on your hesitation and recovers {heal} HP.',
-    // [FIX-1] Final-boss victory text.
+    // Final-boss victory text.
     victoryWishArtifact: 'Wish Artifact obtained.',
-    // [FIX-15] HUD intent / phase / band labels.
+    // HUD intent / phase / band labels.
     hudIntentLabel: 'Intent: {intent}',
     hudPhaseLabel: 'Phase {current}/{total}',
     combatSkillPreparation: 'Preparation: next attack +1 dmg, next defend +1 def.',

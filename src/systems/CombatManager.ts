@@ -53,7 +53,7 @@ export type CombatAction =
 type EncounterKind = 'normal' | 'elite' | 'boss';
 
 /**
- * [FIX-10] Per-combat boss phase tracking. Built from a BossBlueprint
+ * Per-combat boss phase tracking. Built from a BossBlueprint
  * when the enemy's name matches an entry in BOSS_BLUEPRINT_BY_NAME.
  * Lives on the ActiveEnemy so it is GC'd when combat ends.
  */
@@ -145,14 +145,14 @@ export interface ActiveEnemy {
      * player has one turn to react with Defend).
      */
     pendingPrepare?: { def: EnemyPrepareDef; turnsRemaining: number };
-    /** [FIX-10] Phase blueprint runtime state, only set on bosses. */
+    /** Phase blueprint runtime state, only set on bosses. */
     bossPhase?: BossPhaseState;
     /**
-     * [FIX-10] Localised one-line intent shown BEFORE the boss's next
+     * Localised one-line intent shown BEFORE the boss's next
      * turn so the player can respond. `null` for non-boss enemies.
      */
     currentIntent?: string | null;
-    /** [FIX-1] Hard cap on stack count for bleed (final boss). */
+    /** Hard cap on stack count for bleed (final boss). */
     bleedCap?: number;
 }
 
@@ -170,7 +170,7 @@ export interface CombatEndPayload {
     kind: EncounterKind;
     rewards: CombatRewards;
     killedByBleed: boolean;
-    /** [FIX-1] Set when the slain enemy was the final boss. */
+    /** Set when the slain enemy was the final boss. */
     finalBossDefeated: boolean;
 }
 
@@ -226,12 +226,12 @@ export class CombatManager {
     public readonly playerHit = new Emitter<{ damage: number }>();
     public readonly combatEnd = new Emitter<CombatEndPayload>();
 
-    /** [FIX-5] Per-combat skill cooldowns keyed by SkillId. */
+    /** Per-combat skill cooldowns keyed by SkillId. */
     public skillCooldowns: Partial<Record<SkillId, number>> = {};
     /** Preparation buff: next attack +1 damage, next defend +1 defense. */
     public preparationActive = false;
     /**
-     * [FIX-13] Per-turn relic guards. Reset at the top of every player
+     * Per-turn relic guards. Reset at the top of every player
      * turn so Vampiric Sigil / Gambler's Knuckle resolve gain can fire
      * at most once per turn regardless of how many crits / kills line
      * up in that turn.
@@ -296,7 +296,7 @@ export class CombatManager {
                 ? Math.round(definition.attack * COMBAT_CONFIG.eliteAttackMultiplier)
                 : definition.attack;
 
-        // [FIX-10] Look up a boss blueprint by canonical English name so
+        // Look up a boss blueprint by canonical English name so
         // localisation never breaks the lookup. Non-boss kinds skip this.
         const blueprint = kind === 'boss' ? BOSS_BLUEPRINT_BY_NAME[definition.name] : undefined;
 
@@ -369,14 +369,14 @@ export class CombatManager {
     }
 
     /**
-     * [FIX-5] Look up the remaining cooldown for a skill (0 = ready).
+     * Look up the remaining cooldown for a skill (0 = ready).
      * Used by both UI and the headless simulator.
      */
     getSkillCooldown(id: SkillId): number {
         return this.skillCooldowns[id] ?? 0;
     }
 
-    /** [FIX-5] True when the skill is on cooldown and unusable. */
+    /** True when the skill is on cooldown and unusable. */
     isSkillOnCooldown(id: SkillId): boolean {
         return this.getSkillCooldown(id) > 0;
     }
@@ -392,15 +392,15 @@ export class CombatManager {
             enemyEvaded: false,
         };
         this.enemy.turnsAlive += 1;
-        // [FIX-10] Reset per-turn boss-phase state before the player acts.
+        // Reset per-turn boss-phase state before the player acts.
         if (this.enemy.bossPhase) {
             this.enemy.bossPhase.damagedThisTurn = false;
         }
-        // [FIX-13] Reset per-turn relic guards.
+        // Reset per-turn relic guards.
         this.vampiricHealedThisTurn = false;
         this.gamblersResolveThisTurn = 0;
 
-        // [FIX-5] Tick down cooldowns at the start of each player turn.
+        // Tick down cooldowns at the start of each player turn.
         for (const id of Object.keys(this.skillCooldowns) as SkillId[]) {
             const remaining = this.skillCooldowns[id] ?? 0;
             if (remaining > 0) {
@@ -754,7 +754,7 @@ export class CombatManager {
             damage = Math.max(1, Math.round(damage * COMBAT_CONFIG.criticalMultiplier));
         }
 
-        // [FIX-10] Boss "Exposed" actions queue +N damage on the next
+        // Boss "Exposed" actions queue +N damage on the next
         // player hit. Consume the queue here so subsequent hits (e.g.
         // bleed tick) do NOT eat the bonus.
         if (this.enemy.bossPhase && this.enemy.bossPhase.pendingExposeBonus > 0) {
@@ -762,7 +762,7 @@ export class CombatManager {
             this.enemy.bossPhase.pendingExposeBonus = 0;
         }
 
-        // [FIX-10] Bone-Shield style block on the boss soaks the next
+        // Bone-Shield style block on the boss soaks the next
         // player hit before HP loss.
         if (this.enemy.bossPhase && this.enemy.bossPhase.pendingBlock > 0) {
             const blocked = Math.min(this.enemy.bossPhase.pendingBlock, damage);
@@ -1234,7 +1234,7 @@ export class CombatManager {
     }
 
     // -----------------------------------------------------------------
-    // [FIX-10] Boss phase / intent runner. Pure helpers
+    // Boss phase / intent runner. Pure helpers
     // (intentLabelForPhase / intentLabelForPrepare / prepareName /
     // maybeAdvancePhase / tickBossBlockAtTurnEnd /
     // breakBossBlockOnSkillDamage) live in ./BossRuntime.ts.

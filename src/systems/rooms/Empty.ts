@@ -45,7 +45,7 @@ export function handleEmptyRoom(scene: GameScene): void {
         'EMPTY'
     );
 
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: scene.loc.t('actionScout'),
             callback: () => {
@@ -75,7 +75,7 @@ export function handleEmptyRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('roomEmptyAfterSearch'));
                 scene.showReturnButton();
             },
-            fill: 0x3d3d3d,
+            variant: 'dark',
         },
         {
             label: scene.loc.t('actionSteady'),
@@ -85,7 +85,7 @@ export function handleEmptyRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('roomEmptyAfterSkip'));
                 scene.showReturnButton();
             },
-            fill: 0x2b2b2b,
+            variant: 'dark',
         },
     ]);
 }

@@ -1,5 +1,5 @@
 /**
- * [FIX-1, FIX-10] Boss phase blueprints.
+ * Boss phase blueprints.
  *
  * Each boss has 1+ phases; a phase becomes active when the boss's HP
  * fraction first drops to or below `enterAtHpRatio`. On entry the

@@ -21,7 +21,7 @@ export function handleShrineRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x5f4e8a,
+            variant: 'danger',
         },
         {
             label: ru
@@ -38,7 +38,7 @@ export function handleShrineRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x2f8b4b,
+            variant: 'positive',
         },
         {
             label: ru
@@ -55,7 +55,7 @@ export function handleShrineRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x1b335b,
+            variant: 'silver',
         },
         {
             label: ru
@@ -72,12 +72,12 @@ export function handleShrineRoom(scene: GameScene): void {
                 scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x355070,
+            variant: 'silver',
         },
         {
             label: scene.loc.t('actionDynamicLeave', { num: 5 }),
             callback: () => scene.showReturnButton(),
-            fill: 0x202020,
+            variant: 'dark',
         },
     ];
 
@@ -89,5 +89,5 @@ export function handleShrineRoom(scene: GameScene): void {
         'S',
         'SHRINE'
     );
-    scene.setRoomButtons(actions);
+    scene.roomButtons.setActions(actions);
 }
