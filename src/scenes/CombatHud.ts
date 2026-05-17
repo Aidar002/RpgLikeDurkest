@@ -111,6 +111,7 @@ export class CombatHudController {
             callback: () => this.performAction('potion'),
             enabled: scene.player.resources.potions > 0,
             variant: 'positive',
+            vfx: 'healPulse',
         });
 
         scene.roomButtons.setActions(actions);

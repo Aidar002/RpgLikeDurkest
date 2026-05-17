@@ -62,6 +62,18 @@ export interface EffectOptions {
     color?: number;
     /** Linear scale on the radius / reach (1 = recipe default). */
     scale?: number;
+    /** Half-width of a rectangular spawn area centred on (x, y).
+     *  Currently honoured by {@link EffectKind} `'healPulse'` so
+     *  the effect can paint across the full width of a UI button
+     *  rather than a single point. Defaults to the recipe's own
+     *  spawn radius. */
+    spreadX?: number;
+    /** Half-height of the rectangular spawn area. See
+     *  {@link EffectOptions.spreadX}. */
+    spreadY?: number;
+    /** Linear multiplier on the recipe's default particle count
+     *  (e.g. 4 → 4× the glyph density). Defaults to 1. */
+    countScale?: number;
 }
 
 /** A recipe entry that the gallery can display. Pure data — the
@@ -540,28 +552,42 @@ function magicSigil(scene: Phaser.Scene, x: number, y: number, opts: EffectOptio
     });
 }
 
-/** Green pulse + 5 rising plus signs. Reads as a heal / regen
- *  trigger — useable on the player at rest sites. */
+/** Green pulse + drifting plus signs. Reads as a heal / regen
+ *  trigger — usable on the player at rest sites, on the altar
+ *  "prayer" action, and on the combat heal-potion button. The
+ *  spawn rectangle is controlled by `opts.spreadX` / `opts.spreadY`
+ *  so the same recipe can paint across an entire button frame
+ *  instead of a single point; `opts.countScale` multiplies the
+ *  glyph count so the wider spawn area doesn't read as sparse. */
 function healPulse(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
     const depth = pickDepth(opts);
     const color = pickColor(opts, 0x9aff9a);
-    const reach = 40 * pickScale(opts);
+    const scaleMul = pickScale(opts);
+    const reach = 40 * scaleMul;
+    // Half-width / half-height of the rectangular spawn area. The
+    // defaults reproduce the original ±15 / ±3 spawn band when
+    // callers don't override them, so the gallery preview and other
+    // non-button call sites keep their existing look.
+    const spreadX = opts.spreadX ?? 15 * scaleMul;
+    const spreadY = opts.spreadY ?? 3 * scaleMul;
+    const ringTarget = Math.max(reach + 20, spreadX + 12);
+    const count = Math.max(1, Math.round(5 * (opts.countScale ?? 1)));
     // Single soft pulse.
     const ring = scene.add.circle(x, y, 4, 0x000000, 0).setDepth(depth);
     ring.setStrokeStyle(3, color, 0.9);
     scene.tweens.add({
         targets: ring,
-        radius: reach + 20,
+        radius: ringTarget,
         alpha: 0,
         duration: 700,
         ease: 'Quad.out',
         onUpdate: () => ring.setStrokeStyle(3, color, ring.alpha),
         onComplete: () => ring.destroy(),
     });
-    // 5 plus glyphs drifting upward.
-    for (let i = 0; i < 5; i++) {
-        const startX = x + (Math.random() - 0.5) * 30;
-        const startY = y + (Math.random() - 0.5) * 6;
+    // Plus glyphs drifting upward, scattered across the spawn rect.
+    for (let i = 0; i < count; i++) {
+        const startX = x + (Math.random() - 0.5) * 2 * spreadX;
+        const startY = y + (Math.random() - 0.5) * 2 * spreadY;
         const t = scene.add
             .text(startX, startY, '+', {
                 fontFamily: 'monospace',
