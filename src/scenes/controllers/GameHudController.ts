@@ -37,6 +37,17 @@ import { RELICS } from '../../systems/Relics';
 import type { RelicId } from '../../systems/Relics';
 import type { GameScene } from '../GameScene';
 
+/** Pixel size of the icon, label, and value text in the resource and
+ *  progress columns of the top bar. Bumped from the legacy 18 / 13 /
+ *  15 (still used by the ATK/DEF column to its left) so the
+ *  gold / potion / will trio and the depth / kills / boss trio read
+ *  as the visual centrepiece of the bar — both columns share the
+ *  same constants so their icons / labels / values line up
+ *  vertically across the top bar's right half. */
+const RESOURCE_ICON_SIZE = 24;
+const RESOURCE_LABEL_FONT_SIZE = '14px';
+const RESOURCE_VALUE_FONT_SIZE = '17px';
+
 /**
  * Owns the global HUD: top bar (HP/XP, ATK/DEF, gold/potion/resolve),
  * bottom bar (relic shards + depth/kills/bosses), below-bar text,
@@ -616,21 +627,31 @@ export class GameHudController {
      * core resources in the same eye-line as HP/XP/АТАКА during
      * combat. valueOffsetX keeps the numeric column aligned even
      * though the labels are different lengths.
+     *
+     * The shared `RESOURCE_*` constants below scale up the icon /
+     * label / value typography (vs the ATK/DEF column) so the
+     * resource trio reads as the visual centrepiece of the top bar,
+     * per player feedback. The progress column on the right mirrors
+     * the same sizes so the two columns balance visually.
      */
     private buildTopResources() {
         const { topHud } = HudLayout;
         this.goldStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow1Y, {
             icon: 'coin',
+            iconSize: RESOURCE_ICON_SIZE,
             label: this.scene.loc.t('goldShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentGold,
-            valueFontSize: '15px',
+            valueFontSize: RESOURCE_VALUE_FONT_SIZE,
             valueOffsetX: topHud.resourceValueOffset,
         });
         this.potionStat = createHudInlineSlot(this.scene, topHud.resourcesX, topHud.resourceRow2Y, {
             icon: 'potion',
+            iconSize: RESOURCE_ICON_SIZE,
             label: this.scene.loc.t('potionShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentPotion,
-            valueFontSize: '15px',
+            valueFontSize: RESOURCE_VALUE_FONT_SIZE,
             valueOffsetX: topHud.resourceValueOffset,
         });
         this.resolveStat = createHudInlineSlot(
@@ -639,9 +660,11 @@ export class GameHudController {
             topHud.resourceRow3Y,
             {
                 icon: 'quill',
+                iconSize: RESOURCE_ICON_SIZE,
                 label: this.scene.loc.t('resolveShort').toUpperCase(),
+                labelFontSize: RESOURCE_LABEL_FONT_SIZE,
                 valueColor: HudHex.accentResolve,
-                valueFontSize: '15px',
+                valueFontSize: RESOURCE_VALUE_FONT_SIZE,
                 valueOffsetX: topHud.resourceValueOffset,
             }
         );
@@ -681,23 +704,29 @@ export class GameHudController {
         const { topHud } = HudLayout;
         this.depthStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow1Y, {
             icon: 'depth',
+            iconSize: RESOURCE_ICON_SIZE,
             label: this.scene.loc.t('depthShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentDepth,
-            valueFontSize: '15px',
+            valueFontSize: RESOURCE_VALUE_FONT_SIZE,
             valueOffsetX: topHud.progressValueOffset,
         });
         this.killsStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow2Y, {
             icon: 'kills',
+            iconSize: RESOURCE_ICON_SIZE,
             label: this.scene.loc.t('killShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentKills,
-            valueFontSize: '15px',
+            valueFontSize: RESOURCE_VALUE_FONT_SIZE,
             valueOffsetX: topHud.progressValueOffset,
         });
         this.bossStat = createHudInlineSlot(this.scene, topHud.progressX, topHud.resourceRow3Y, {
             icon: 'boss',
+            iconSize: RESOURCE_ICON_SIZE,
             label: this.scene.loc.t('bossShort').toUpperCase(),
+            labelFontSize: RESOURCE_LABEL_FONT_SIZE,
             valueColor: HudHex.accentBoss,
-            valueFontSize: '15px',
+            valueFontSize: RESOURCE_VALUE_FONT_SIZE,
             valueOffsetX: topHud.progressValueOffset,
         });
     }
