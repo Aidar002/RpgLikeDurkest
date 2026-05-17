@@ -481,18 +481,22 @@ export class GameHudController {
         const SHIFT = HudLayout.topHud.shiftX;
         const VITALS_LABEL_X = pad + 8 + SHIFT;
         const VITALS_BAR_X = pad + 8 + 64 + 12 + SHIFT;
-        const hpLabel = this.scene.add.text(
-            VITALS_LABEL_X,
-            29,
-            this.scene.loc.t('hp').toUpperCase(),
-            {
+        // The "ОЗ" / "УР" labels both anchor the HP/XP block visually,
+        // so they use the same weight (bold) and size (13px) and the
+        // primary text colour — the bar / value pair to the right
+        // carries the row-specific styling (red track for HP, blue
+        // for XP). Origin (0, 0.5) so y=36 / y=64 puts them on the
+        // same vertical centre as their bar.
+        const hpLabel = this.scene.add
+            .text(VITALS_LABEL_X, 36, this.scene.loc.t('hp').toUpperCase(), {
                 fontFamily: HUD_FONT,
-                fontSize: '11px',
-                color: HudHex.textSecondary,
+                fontSize: '13px',
+                fontStyle: 'bold',
+                color: HudHex.textPrimary,
                 stroke: HUD_STROKE,
                 strokeThickness: 2,
-            }
-        );
+            })
+            .setOrigin(0, 0.5);
         const hpBarX = VITALS_BAR_X;
         const hpBarY = 36;
         const hpBarFrame = drawBarFrame(
