@@ -166,10 +166,10 @@ const ROOM_SPRITE_MAX_DIM = 64;
 /** Target box for enemy + room-card portraits in the right-hand
  *  panel. The portrait is rendered at exactly this size so the
  *  hand-authored 256×256 art reads as the panel's focal element
- *  (was 140 — bumped per design feedback). The HP bar / name text
- *  Y positions in {@link GameRoomController} are anchored off this
- *  value. */
-export const ENEMY_SPRITE_MAX_DIM = 250;
+ *  (140 → 250 → 230 per successive design passes). The HP bar /
+ *  name text Y positions in {@link GameRoomController} are anchored
+ *  off this value. */
+export const ENEMY_SPRITE_MAX_DIM = 230;
 
 /**
  * Scale down high-resolution hand-authored room textures to fit the map node.
