@@ -107,9 +107,15 @@ export class GameRoomController {
         // fillAlpha=0 + no stroke — the artwork already fills the
         // entire portrait box, so any visible frame around it just
         // reads as a stray border. The rectangle is still constructed
-        // (and sized in {@link applyPortraitLayout}) so VFX.shake /
-        // VFX.flash in CombatHud can still target it as a hit-target.
-        const portraitCY = panelY + 132;
+        // (and sized in {@link applyPortraitLayout}) so future hit
+        // effects can target it as a logical hit-area; the visible
+        // shake/tint lives on `enemySpriteImage` / `enemyIconText`
+        // instead (see CombatHudController.updateEnemyUI).
+        //
+        // portraitCY shifted down to panelY + 138 (was +132) so the
+        // 230×230 box clears the "ВРАГ" header strip at the top of the
+        // panel by ~5 px instead of butting against it.
+        const portraitCY = panelY + 138;
         // For NPC rooms the portrait slides over to the right side of
         // the panel so the dialog window can claim the left half.
         const rightCx = panelX + panelW - 160;
@@ -131,8 +137,13 @@ export class GameRoomController {
             .setVisible(false)
             .setOrigin(0.5);
 
+        // Name sits 9 px below the icon's bottom edge (portraitCY +
+        // 124 - portraitCY + 115 = 9). The previous +118 left only a
+        // 3 px gap which read as the icon overlapping the text —
+        // bumped to +124 so the "name" reads as a separate row
+        // beneath the portrait.
         scene.enemyNameText = scene.add
-            .text(cx, portraitCY + 118, '', {
+            .text(cx, portraitCY + 124, '', {
                 fontFamily: BODY_FONT,
                 fontSize: '20px',
                 color: '#f4f0e0',
@@ -144,11 +155,12 @@ export class GameRoomController {
             .setOrigin(0.5, 0);
 
         // HP bar gets wider + taller so it reads as the primary
-        // damage indicator (was 280×14; bumped to 360×18). With the
-        // 230×230 portrait it shifts to portraitCY + 152 so the bar
-        // sits just below the name without crowding the action
-        // buttons at the bottom of the panel.
-        const hpBarY = portraitCY + 152;
+        // damage indicator (was 280×14; bumped to 360×18). The bar
+        // sits at portraitCY + 156 — just below the new name row (name
+        // bottom is at +144) with a 3 px gap, leaving room for the
+        // intent line + the 4 px breathing room before the action
+        // button block.
+        const hpBarY = portraitCY + 156;
         scene.enemyHpBarBg = scene.add
             .rectangle(cx - 180, hpBarY, 360, 18, 0x331111)
             .setStrokeStyle(1, 0x5a1a1a)
@@ -188,10 +200,12 @@ export class GameRoomController {
         // (not below HP/intent like before) so non-combat room cards
         // — which hide the HP bar + intent — get a clean two-row
         // "name + description" layout right under the 230 portrait.
+        // Offset +150 keeps a 6 px gap with the name (which now ends
+        // at +144) instead of butting up against it.
         // During combat the description is hidden in favour of the
         // HP bar + intent stack (see CombatHudController.updateEnemyUI).
         scene.roomFlavorText = scene.add
-            .text(cx, portraitCY + 142, '', {
+            .text(cx, portraitCY + 150, '', {
                 fontFamily: BODY_FONT,
                 fontSize: '13px',
                 color: '#b0b0b0',
@@ -317,7 +331,7 @@ export class GameRoomController {
             scene.enemyPortrait.setPosition(cx, cy).setSize(230, 230);
             scene.enemyIconText.setPosition(cx, cy + 14).setFontSize('96px');
             scene.enemySpriteImage.setPosition(cx, cy);
-            scene.enemyNameText.setPosition(cx, cy + 118);
+            scene.enemyNameText.setPosition(cx, cy + 124);
         }
     }
 
