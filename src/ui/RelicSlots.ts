@@ -163,6 +163,21 @@ export class RelicSlots {
         }
     }
 
+    /**
+     * Return the on-screen centre of the slot currently displaying
+     * `id`, or `null` when the relic isn't equipped. Used by the
+     * HUD's `relicGained` listener to anchor the pickup VFX on the
+     * exact slot the new relic just landed in.
+     */
+    public getSlotCenter(id: RelicId): { x: number; y: number } | null {
+        for (const slot of this.slots) {
+            if (slot.relicId === id) {
+                return { x: slot.container.x, y: slot.container.y };
+            }
+        }
+        return null;
+    }
+
     /** Hand back every Phaser game object so the HUD controller can
      *  drop them into `uiContainer` in one shot. Tooltip widgets are
      *  included so they inherit container depth. */

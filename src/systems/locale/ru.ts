@@ -279,4 +279,28 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     lockpickSuccess: 'Успех!',
     lockpickFailure: 'Провал… отмычка сломалась ({damage} урона).',
     lockpickLeft: 'Ты оставляешь сундук в покое.',
+    // ── Галерея эффектов ───────────────────────────────────────
+    // Кнопка на экране карты, чрома галереи и подписи рецептов.
+    // Поиск рецептов: `loc.t(recipe.labelKey)` в
+    // `src/ui/EffectsGalleryOverlay.ts`; сами рецепты — в
+    // `src/ui/EffectsLibrary.ts`.
+    effectsButton: 'Эффекты и партиклы',
+    effectsGalleryTitle: 'Эффекты и партиклы',
+    effectsGalleryHint: 'Нажмите на плитку, чтобы увидеть эффект.',
+    effectsGalleryClose: 'Закрыть',
+    effectRadialBurst: 'Лучевой взрыв',
+    effectRingShock: 'Кольцевая волна',
+    effectStarFountain: 'Фонтан звёзд',
+    effectGoldShower: 'Золотой дождь',
+    effectSparkleConfetti: 'Конфетти искр',
+    effectShockwaveTriple: 'Тройная волна',
+    effectDustImplosion: 'Имплозия пыли',
+    effectEmberFloat: 'Парящие угли',
+    effectLightningArc: 'Молния',
+    effectCometSweep: 'Комета',
+    effectMagicSigil: 'Магическая сигила',
+    effectHealPulse: 'Целебный пульс',
+    effectRunicCircle: 'Рунический круг',
+    effectCritFlashRing: 'Критическая вспышка',
+    effectPulseBurst: 'Пульсирующий залп',
 };
