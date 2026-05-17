@@ -29,10 +29,15 @@ import {
     type HudInlineSlotHandle,
 } from '../../ui/HudCell';
 import { createHudIcon } from '../../ui/HudIcons';
+import { RelicSlots } from '../../ui/RelicSlots';
+import { RelicSwapModal } from '../../ui/RelicSwapModal';
 import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
+import { drawUiButton, type ButtonBackground } from '../../ui/UiButton';
 import { VFX } from '../../ui/VFX';
 import { statusSummary } from '../../systems/StatusEffects';
-import { relicSummary as relicSummaryImpl } from '../../systems/RelicDrops';
+import { MAX_RELICS } from '../../systems/PlayerManager';
+import { RELICS } from '../../systems/Relics';
+import type { RelicId } from '../../systems/Relics';
 import type { GameScene } from '../GameScene';
 
 /**
@@ -46,8 +51,8 @@ import type { GameScene } from '../GameScene';
  * `GameScene` keeps a thin shim API (`refreshUI`) that forwards into
  * the controller so existing call sites in `RoomFlow` / `CombatHud`
  * keep compiling unchanged. The HUD controller's own methods
- * (`updatePlayerStatus`, `updateEnemyStatus`, `relicSummary`, …) are
- * called directly from the scene (e.g. from emitter listeners on
+ * (`updatePlayerStatus`, `updateEnemyStatus`, …) are called directly
+ * from the scene (e.g. from emitter listeners on
  * `CombatManager.playerStatusChange` / `enemyStatusChange`).
  */
 export class GameHudController {
@@ -82,19 +87,27 @@ export class GameHudController {
     private resolveStat!: HudInlineSlotHandle;
 
     // Bottom-bar cells.
-    private shardStat!: HudCellHandle;
     private depthStat!: HudCellHandle;
     private killsStat!: HudCellHandle;
     private bossStat!: HudCellHandle;
 
+    /** Inline relic-icon row that lives in the bottom bar before the
+     *  pillar divider. Hover-aware; tooltips are owned by the
+     *  widget itself. */
+    private relicSlots!: RelicSlots;
+
+    /** Modal that pops on `player.relicOffer` (cap reached) so the
+     *  player can drop one of the equipped five for the candidate
+     *  or skip the candidate. */
+    private relicSwapModal!: RelicSwapModal;
+
     // Below-bar floating text + chrome buttons.
     private hintText!: Phaser.GameObjects.Text;
-    private relicText!: Phaser.GameObjects.Text;
     private playerStatusText!: Phaser.GameObjects.Text;
     private enemyStatusText!: Phaser.GameObjects.Text;
-    private escapeButtonBg!: Phaser.GameObjects.Rectangle;
+    private escapeButtonBg!: ButtonBackground;
     private escapeButtonLabel!: Phaser.GameObjects.Text;
-    private restartButtonBg!: Phaser.GameObjects.Rectangle;
+    private restartButtonBg!: ButtonBackground;
     private restartButtonLabel!: Phaser.GameObjects.Text;
 
     /** Restart-confirm modal. Built once in `build()` and toggled
@@ -130,7 +143,9 @@ export class GameHudController {
 
         // ── BOTTOM BAR ──────────────────────────────────────────
         const bottom = this.buildBottomBar(BOT_Y, BOT_H);
+        this.buildRelicSlots(BOT_Y, BOT_H);
         this.buildBelowBarText(BOT_Y, PAD);
+        this.buildRelicSwapModal();
 
         // ── CHROME BUTTONS + CONFIRM MODAL ──────────────────────
         this.buildHudButtons(TOP_H, PAD);
@@ -161,12 +176,11 @@ export class GameHudController {
 
         const bottomWidgets: Phaser.GameObjects.GameObject[] = [
             bottom.botFrame,
-            this.shardStat.root,
             bottom.pillarG,
             this.depthStat.root,
             this.killsStat.root,
             this.bossStat.root,
-            this.relicText,
+            ...this.relicSlots.widgets(),
             this.hintText,
             this.escapeButtonBg,
             this.escapeButtonLabel,
@@ -241,6 +255,13 @@ export class GameHudController {
             scene.cameras.main.shake(650, 0.04);
             scene.time.delayedCall(320, () => scene.showDeathScreenInternal());
         });
+
+        // When a relic drops with the inventory at the cap, the
+        // manager fires `relicOffer` instead of mutating. The
+        // swap-modal owns the resolution.
+        scene.player.relicOffer.on(({ id }) => {
+            this.relicSwapModal.show(id);
+        });
     }
 
     /**
@@ -289,8 +310,6 @@ export class GameHudController {
         this.potionStat.setVisible(unlocks.showPotions);
         this.resolveStat.setValue(`${resources.resolve}/${resources.maxResolve}`);
         this.resolveStat.setVisible(unlocks.showResolve);
-        this.shardStat.setValue(`${resources.relicShards}`);
-        this.shardStat.setVisible(unlocks.showRelicShards);
 
         // Run progress cells (depth / kills / bosses). The legacy
         // PRESTIGE forecast cell was removed when the meta-progression
@@ -317,7 +336,7 @@ export class GameHudController {
         this.xpValueText.setVisible(unlocks.showLevelPanel);
         this.hintText.setVisible(false);
 
-        this.relicText.setText(this.relicSummary());
+        this.relicSlots.refresh();
         this.updatePlayerStatus();
 
         // Escape and Restart buttons live on the map UI only. They
@@ -344,10 +363,6 @@ export class GameHudController {
         }
         const txt = statusSummary(this.scene.combat.enemy.status, this.scene.loc.language);
         this.enemyStatusText.setText(txt);
-    }
-
-    public relicSummary(): string {
-        return relicSummaryImpl(this.scene.player, this.scene.loc);
     }
 
     /**
@@ -601,16 +616,7 @@ export class GameHudController {
         const STAT_LABEL_FONT = '12px';
         const STAT_VALUE_FONT = '17px';
 
-        this.shardStat = createHudCell(this.scene, resStart + 0 * resW, cellTop, resW, cellH, {
-            icon: 'shard',
-            label: this.scene.loc.t('shardShort').toUpperCase(),
-            valueColor: HudHex.accentShard,
-            iconPixelSize: STAT_ICON_SIZE,
-            labelFontSize: STAT_LABEL_FONT,
-            valueFontSize: STAT_VALUE_FONT,
-        });
-
-        // Pillar divider between the resource block and the progress block.
+        // Pillar divider between the relic-slot block and the progress block.
         const pillarG = this.scene.add.graphics();
         pillarG.fillStyle(HudColors.panelOuter, 0.95);
         pillarG.fillRect(resStart + 5 * resW + 2, cellTop + 6, 4, cellH - 12);
@@ -647,34 +653,86 @@ export class GameHudController {
     }
 
     /**
-     * Floating text rows that sit *above* the bottom bar (relic
-     * summary on the left, milestone hint centred) and the
-     * out-of-bar enemy status text used during combat. Anchored to
-     * `botY − small offset` so a future change to BOTTOM_BAR_H carries
-     * them along, and the carved bar interior is left entirely to
-     * the resource cells (so the milestone hint no longer sits on
-     * top of the bottom rim where it gets visually clipped).
-     *
-     * The two are stacked vertically — hint sits on the bottom line
-     * just above the bar (centred so it reads as a deliberate goal
-     * reminder), relic summary sits one line up on the left —
-     * because their horizontal extents (centred + 540 px word wrap)
-     * would otherwise collide whenever the player has both relics
-     * and an outstanding milestone simultaneously.
+     * Build the inline relic-icon row that lives between the shard
+     * cell and the pillar divider in the bottom bar. The widget owns
+     * its own `relicsChange` subscription and tooltip; the HUD
+     * controller only needs to flush it through `widgets()` so the
+     * icons share the `uiContainer`.
+     */
+    private buildRelicSlots(botY: number, botH: number) {
+        // Anchor the relic row to the left side of the bottom bar so
+        // the player's collected items get a dedicated, prominent
+        // slot block — mirroring the depth/kills/bosses block on the
+        // right. Leftmost slot edge sits at the `resStart = 36`
+        // safe-area inset. Slots are 60×60 with an 18 px gap
+        // (1.5× the original 40/12), so the row spans
+        // `MAX_RELICS * 60 + (MAX_RELICS - 1) * 18` = 372 px,
+        // leaving plenty of room before the pillar at 600.
+        const cellH = 110;
+        const cellTop = botY + Math.round((botH - cellH) / 2);
+        const SLOT_SIZE = 60;
+        const SLOT_GAP = 18;
+        const ROW_LEFT = 36;
+        const totalW = MAX_RELICS * SLOT_SIZE + (MAX_RELICS - 1) * SLOT_GAP;
+        const centerX = ROW_LEFT + Math.round(totalW / 2);
+        const centerY = cellTop + Math.round(cellH / 2);
+        this.relicSlots = new RelicSlots(this.scene, this.scene.player, this.scene.loc, {
+            centerX,
+            centerY,
+            capacity: MAX_RELICS,
+        });
+    }
+
+    /** Build the cap-reached swap modal. The modal owns its own
+     *  show/hide state; we just keep the handle here so the
+     *  `relicOffer` listener in `wire()` can invoke `show(candidate)`. */
+    private buildRelicSwapModal() {
+        const scene = this.scene;
+        this.relicSwapModal = new RelicSwapModal(scene, {
+            loc: scene.loc,
+            sfx: scene.sfx,
+            player: scene.player,
+            onSwap: (droppedId: RelicId, candidateId: RelicId) => {
+                scene.player.removeRelic(droppedId);
+                scene.player.addRelic(candidateId);
+                const relic = RELICS[candidateId];
+                scene.sfx.play('relicDrop');
+                scene.tracker.record('relicsFound');
+                scene.log.addMessage(
+                    scene.loc.t('relicObtained', {
+                        value: scene.loc.pick(relic.name),
+                        value2: scene.loc.pick(relic.description),
+                    }),
+                    relic.rarity === 'unique'
+                        ? '#f0a8ff'
+                        : relic.rarity === 'rare'
+                          ? '#ffd36e'
+                          : '#ffcc99'
+                );
+            },
+            onSkip: () => {
+                // Intentional no-op: declined relics don't write to
+                // the log so a busy combat tail doesn't get spammed
+                // with "skipped X" lines on every enemy. The slot
+                // row stays unchanged so the player has visual
+                // confirmation that nothing was equipped.
+            },
+        });
+    }
+
+    /**
+     * Floating text rows that sit *above* the bottom bar (milestone
+     * hint centred) and the out-of-bar enemy status text used during
+     * combat. Anchored to `botY − small offset` so a future change to
+     * BOTTOM_BAR_H carries them along.
      */
     private buildBelowBarText(botY: number, pad: number) {
         const HINT_LINE_Y = botY - 8;
-        const RELIC_LINE_Y = botY - 24;
-        this.relicText = this.scene.add
-            .text(pad, RELIC_LINE_Y, '', {
-                fontFamily: HUD_FONT,
-                fontSize: '12px',
-                color: HudHex.accentGold,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-                wordWrap: { width: 540 },
-            })
-            .setOrigin(0, 1);
+        // Relic display moved into the bottom bar itself (see
+        // `buildRelicSlots`). The old `relicText` line was a
+        // throwaway summary that didn't communicate rarity or let
+        // the player inspect a relic's effect.
+        void pad;
         this.hintText = this.scene.add
             .text(CENTER_X, HINT_LINE_Y, '', {
                 fontFamily: HUD_FONT,
@@ -707,73 +765,51 @@ export class GameHudController {
      */
     private buildHudButtons(topH: number, pad: number) {
         const ESCAPE_BTN_W = 110;
-        const ESCAPE_BTN_H = 26;
+        const ESCAPE_BTN_H = 28;
         const ESCAPE_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W / 2;
         const ESCAPE_BTN_Y = topH + 18;
-        this.escapeButtonBg = this.scene.add
-            .rectangle(
-                ESCAPE_BTN_X,
-                ESCAPE_BTN_Y,
-                ESCAPE_BTN_W,
-                ESCAPE_BTN_H,
-                HudColors.panelBg,
-                0.92
-            )
-            .setStrokeStyle(1, HudColors.panelHi)
-            .setOrigin(0.5)
-            .setDepth(220)
-            .setInteractive({ useHandCursor: true });
-        this.escapeButtonLabel = this.scene.add
-            .text(ESCAPE_BTN_X, ESCAPE_BTN_Y - 1, this.scene.loc.t('escapeButton'), {
-                fontFamily: HUD_FONT,
+        const escapeUi = drawUiButton(
+            this.scene,
+            ESCAPE_BTN_X,
+            ESCAPE_BTN_Y,
+            ESCAPE_BTN_W,
+            ESCAPE_BTN_H,
+            this.scene.loc.t('escapeButton'),
+            {
+                variant: 'silver',
                 fontSize: '12px',
                 color: HudHex.textSecondary,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setDepth(221);
-        this.escapeButtonBg.on('pointerover', () => {
-            this.escapeButtonBg.setStrokeStyle(2, HudColors.accentExp);
-        });
-        this.escapeButtonBg.on('pointerout', () => {
-            this.escapeButtonBg.setStrokeStyle(1, HudColors.panelHi);
-        });
+                depth: 220,
+                sfx: this.scene.sfx,
+            }
+        );
+        this.escapeButtonBg = escapeUi.background;
+        this.escapeButtonLabel = escapeUi.label;
+        this.escapeButtonLabel.setY(ESCAPE_BTN_Y - 1);
         this.escapeButtonBg.on('pointerdown', () => this.handleEscapeClick());
 
         const RESTART_BTN_W = 130;
-        const RESTART_BTN_H = 26;
+        const RESTART_BTN_H = 28;
         const RESTART_BTN_X = GAME_WIDTH - pad - ESCAPE_BTN_W - 8 - RESTART_BTN_W / 2;
         const RESTART_BTN_Y = ESCAPE_BTN_Y;
-        this.restartButtonBg = this.scene.add
-            .rectangle(
-                RESTART_BTN_X,
-                RESTART_BTN_Y,
-                RESTART_BTN_W,
-                RESTART_BTN_H,
-                HudColors.panelBg,
-                0.92
-            )
-            .setStrokeStyle(1, HudColors.panelHi)
-            .setOrigin(0.5)
-            .setDepth(220)
-            .setInteractive({ useHandCursor: true });
-        this.restartButtonLabel = this.scene.add
-            .text(RESTART_BTN_X, RESTART_BTN_Y - 1, this.scene.loc.t('restartButton'), {
-                fontFamily: HUD_FONT,
+        const restartUi = drawUiButton(
+            this.scene,
+            RESTART_BTN_X,
+            RESTART_BTN_Y,
+            RESTART_BTN_W,
+            RESTART_BTN_H,
+            this.scene.loc.t('restartButton'),
+            {
+                variant: 'silver',
                 fontSize: '12px',
                 color: HudHex.textSecondary,
-                stroke: HUD_STROKE,
-                strokeThickness: 2,
-            })
-            .setOrigin(0.5)
-            .setDepth(221);
-        this.restartButtonBg.on('pointerover', () => {
-            this.restartButtonBg.setStrokeStyle(2, HudColors.accentExp);
-        });
-        this.restartButtonBg.on('pointerout', () => {
-            this.restartButtonBg.setStrokeStyle(1, HudColors.panelHi);
-        });
+                depth: 220,
+                sfx: this.scene.sfx,
+            }
+        );
+        this.restartButtonBg = restartUi.background;
+        this.restartButtonLabel = restartUi.label;
+        this.restartButtonLabel.setY(RESTART_BTN_Y - 1);
         this.restartButtonBg.on('pointerdown', () => this.handleRestartClick());
     }
 
@@ -788,6 +824,7 @@ export class GameHudController {
     private buildRestartConfirmModal() {
         this.restartConfirmModal = new RestartConfirmModal(this.scene, {
             loc: this.scene.loc,
+            sfx: this.scene.sfx,
             onConfirm: () => this.confirmRestart(),
         });
     }

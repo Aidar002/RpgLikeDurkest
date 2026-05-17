@@ -19,14 +19,22 @@
 import * as Phaser from 'phaser';
 
 import type { Localization } from '../systems/Localization';
+import type { SoundManager } from '../systems/SoundManager';
+import { BODY_FONT } from './HudTheme';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from './Layout';
+import { drawUiButton } from './UiButton';
 
-type Widget = Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text;
+type Widget = Phaser.GameObjects.Rectangle | Phaser.GameObjects.Text | Phaser.GameObjects.NineSlice;
 
 interface RestartConfirmModalOptions {
     /** Localisation runtime; used to translate the four user-facing
      *  strings on the modal. */
     loc: Localization;
+    /** Shared SFX bank; when supplied the Yes/Cancel buttons inherit
+     *  the standard `buttonHover` / `buttonClick` cues via
+     *  {@link drawUiButton}'s `sfx` option. Optional so tests can
+     *  mount the modal without a full audio stack. */
+    sfx?: SoundManager;
     /** Invoked when the player accepts the wipe. The caller is
      *  responsible for actually resetting progress and switching
      *  scenes — the modal only hides itself before delegating. */
@@ -37,7 +45,7 @@ export class RestartConfirmModal {
     private readonly widgets: Widget[];
 
     constructor(scene: Phaser.Scene, options: RestartConfirmModalOptions) {
-        const { loc, onConfirm } = options;
+        const { loc, sfx, onConfirm } = options;
         const overlay = scene.add
             .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
             .setDepth(Depths.ConfirmOverlay)
@@ -48,7 +56,7 @@ export class RestartConfirmModal {
         panel.setStrokeStyle(2, 0x8a4d4d);
         const title = scene.add
             .text(CENTER_X, CENTER_Y - 50, loc.t('confirmRestartTitle'), {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '22px',
                 color: '#ffd2d2',
             })
@@ -56,7 +64,7 @@ export class RestartConfirmModal {
             .setDepth(Depths.ConfirmContent);
         const body = scene.add
             .text(CENTER_X, CENTER_Y, loc.t('confirmRestartBody'), {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '14px',
                 color: '#d6d6d6',
                 align: 'center',
@@ -65,42 +73,40 @@ export class RestartConfirmModal {
             })
             .setOrigin(0.5)
             .setDepth(Depths.ConfirmContent);
-        const yesBtn = scene.add
-            .rectangle(CENTER_X - 90, CENTER_Y + 66, 170, 38, 0x5a1d1d)
-            .setDepth(Depths.ConfirmContent);
-        yesBtn.setStrokeStyle(1, 0xc57d7d);
-        yesBtn.setInteractive({ useHandCursor: true });
-        const yesText = scene.add
-            .text(CENTER_X - 90, CENTER_Y + 66, loc.t('confirmRestartYes'), {
-                fontFamily: 'Courier New',
+        const yesUi = drawUiButton(
+            scene,
+            CENTER_X - 90,
+            CENTER_Y + 66,
+            170,
+            38,
+            loc.t('confirmRestartYes'),
+            {
+                variant: 'danger',
                 fontSize: '14px',
                 color: '#ffe8e8',
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmForeground);
-        const noBtn = scene.add
-            .rectangle(CENTER_X + 90, CENTER_Y + 66, 170, 38, 0x252525)
-            .setDepth(Depths.ConfirmContent);
-        noBtn.setStrokeStyle(1, 0x8a8a8a);
-        noBtn.setInteractive({ useHandCursor: true });
-        const noText = scene.add
-            .text(CENTER_X + 90, CENTER_Y + 66, loc.t('cancel'), {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
-                color: '#f0f0f0',
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmForeground);
+                depth: Depths.ConfirmContent,
+                sfx,
+            }
+        );
+        const yesBtn = yesUi.background;
+        const yesText = yesUi.label;
+        yesText.setDepth(Depths.ConfirmForeground);
 
-        yesBtn.on('pointerover', () => yesBtn.setStrokeStyle(2, 0xffd7d7));
-        yesBtn.on('pointerout', () => yesBtn.setStrokeStyle(1, 0xc57d7d));
+        const noUi = drawUiButton(scene, CENTER_X + 90, CENTER_Y + 66, 170, 38, loc.t('cancel'), {
+            variant: 'dark',
+            fontSize: '14px',
+            color: '#f0f0f0',
+            depth: Depths.ConfirmContent,
+            sfx,
+        });
+        const noBtn = noUi.background;
+        const noText = noUi.label;
+        noText.setDepth(Depths.ConfirmForeground);
+
         yesBtn.on('pointerdown', () => {
             this.hide();
             onConfirm();
         });
-
-        noBtn.on('pointerover', () => noBtn.setStrokeStyle(2, 0xffffff));
-        noBtn.on('pointerout', () => noBtn.setStrokeStyle(1, 0x8a8a8a));
         noBtn.on('pointerdown', () => this.hide());
         overlay.on('pointerdown', () => this.hide());
 

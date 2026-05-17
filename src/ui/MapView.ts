@@ -5,9 +5,8 @@
  * - the `mapContainer` children that represent each node (background
  *   rect, icon glyph, optional spritesheet image, optional carved
  *   frame overlay),
- * - per-node "fire" particle effects and the legacy "glow" overlay
- *   map (kept for cleanup compatibility — actual reachable-node
- *   pulse is now rendered as a yoyo on the carved frame inside
+ * - per-node "fire" particle effects (the reachable-node pulse is
+ *   rendered as a yoyo on the carved frame inside
  *   {@link MapView.startNodePulse}),
  * - the edge `Graphics` strip that draws connections between nodes.
  *
@@ -26,7 +25,9 @@ import type { DungeonManager } from '../systems/DungeonManager';
 import type { Localization } from '../systems/Localization';
 import type { MapNode } from '../data/MapTypes';
 import type { MetaProgressionManager, UiUnlockState } from '../systems/MetaProgressionManager';
+import type { SoundManager } from '../systems/SoundManager';
 import { hasTexture } from './AssetGuard';
+import { BODY_FONT } from './HudTheme';
 import { PixelSprite } from './PixelSprite';
 import {
     fitRoomSprite,
@@ -70,6 +71,7 @@ interface MapViewDeps {
     scene: Phaser.Scene;
     container: Phaser.GameObjects.Container;
     dungeon: DungeonManager;
+    sfx: SoundManager;
     meta: MetaProgressionManager;
     loc: Localization;
     tooltipText: Phaser.GameObjects.Text;
@@ -83,6 +85,7 @@ export class MapView {
     private scene: Phaser.Scene;
     public readonly container: Phaser.GameObjects.Container;
     private dungeon: DungeonManager;
+    private sfx: SoundManager;
     private meta: MetaProgressionManager;
     private loc: Localization;
     private tooltipText: Phaser.GameObjects.Text;
@@ -90,7 +93,6 @@ export class MapView {
     private onNodeClickDelegate: (node: MapNode) => void;
 
     public readonly visuals: Map<string, NodeVisual> = new Map();
-    public readonly glowMap: Map<string, Phaser.GameObjects.Graphics> = new Map();
     public readonly fireMap: Map<string, { destroy: () => void }> = new Map();
     private edgeGfx!: Phaser.GameObjects.Graphics;
 
@@ -103,6 +105,22 @@ export class MapView {
      */
     private lastVisibleIds = new Set<string>();
 
+    /**
+     * Id of the node the player is *visually* sitting in. The room
+     * icon (sprite or text glyph) is suppressed for that node — only
+     * the carved frame and the dark backdrop remain — so the slot
+     * reads as "you are here" without a redundant pictogram.
+     *
+     * Intentionally lags behind {@link DungeonManager.currentNode}:
+     * `dungeon.currentNode` flips to the destination the moment the
+     * click handler fires, but the player isn't *visually* there
+     * until the walk animation completes. The host scene calls
+     * {@link setArrivedNode} from the walk's `onComplete` callback so
+     * the destination keeps showing its icon during the 2 s walk and
+     * only loses it once the player has fully arrived.
+     */
+    private arrivedNodeId: string | null = null;
+
     /** Duration (ms) of the per-node reveal/hide fade. */
     private readonly REVEAL_DURATION = 380;
 
@@ -110,6 +128,7 @@ export class MapView {
         this.scene = deps.scene;
         this.container = deps.container;
         this.dungeon = deps.dungeon;
+        this.sfx = deps.sfx;
         this.meta = deps.meta;
         this.loc = deps.loc;
         this.tooltipText = deps.tooltipText;
@@ -146,6 +165,17 @@ export class MapView {
     centerOnNode(node: MapNode): void {
         const { x, y } = this.getMapOffset(node);
         this.container.setPosition(x, y);
+    }
+
+    /**
+     * Pin which node currently holds the player. Suppresses the room
+     * icon on that node via {@link refresh}. See the field doc on
+     * {@link arrivedNodeId} for why this is decoupled from
+     * `dungeon.currentNode` and lags behind during walk animations.
+     */
+    setArrivedNode(id: string): void {
+        this.arrivedNodeId = id;
+        this.refresh();
     }
 
     /**
@@ -201,7 +231,7 @@ export class MapView {
 
             const icon = this.scene.add
                 .text(x, y, revealed && knowsType ? roomIcon(node.type) : '?', {
-                    fontFamily: 'Courier New',
+                    fontFamily: BODY_FONT,
                     fontSize: '28px',
                     color: node.cleared ? '#888888' : '#ffffff',
                 })
@@ -283,6 +313,10 @@ export class MapView {
         rect.on('pointerover', () => {
             if (this.canUseNode(node)) {
                 this.applyHover(node, true);
+                // Sampled hover chime; only fires for reachable nodes
+                // so clicks-required rooms (visited / locked) don't
+                // chatter at the player as the cursor passes over.
+                this.sfx.play('roomHover');
             }
             const unlocks = this.meta.getUiUnlockState();
             const revealed =
@@ -465,19 +499,15 @@ export class MapView {
      * Cheap idempotent pass; safe to call after every move or unlock.
      *
      * Also re-attaches the per-frame fire effect to camp/altar nodes
-     * (REST/START/SHRINE) and clears the legacy `glowMap` overlay.
+     * (REST/START/SHRINE).
      */
     refresh(_unlocks?: UiUnlockState): void {
         const unlocks = _unlocks ?? this.meta.getUiUnlockState();
 
-        // The reachable-node affordance used to be a separate grey
-        // VFX.nodeGlow rectangle; we now pulsate the carved frame
-        // itself instead, so this map only holds left-over glows from
-        // older runs and is always cleared here. The active "pulse"
-        // tween on each frame is killed below as part of the per-node
-        // refresh so it doesn't compound.
-        this.glowMap.forEach((glow) => glow.destroy());
-        this.glowMap.clear();
+        // The reachable-node affordance is rendered by pulsating the
+        // carved frame itself; the active "pulse" tween on each
+        // frame is killed below as part of the per-node refresh so
+        // it doesn't compound.
         this.fireMap.forEach((fire) => fire.destroy());
         this.fireMap.clear();
 
@@ -620,6 +650,17 @@ export class MapView {
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
+            // "You are here" — suppress the room pictogram on the
+            // node the player has visually arrived at. The carved
+            // frame and dark backdrop stay visible, so the slot still
+            // reads as a room without the redundant pictogram. See
+            // the field doc on `arrivedNodeId` for why this is
+            // delayed past the walk animation.
+            if (id === this.arrivedNodeId) {
+                visual.icon.setVisible(false);
+                if (visual.sprite) visual.sprite.setVisible(false);
+            }
+
             // Reachable-node affordance: pulsate the carved frame
             // (or, when the PNG is missing, the rect stroke) so the
             // forward options breathe in and out. The grey
@@ -661,8 +702,12 @@ export class MapView {
 
             // Tiny fire embers above campfire/altar nodes
             // (REST/START/SHRINE). Skipped on cleared rooms because
-            // their fire is "out".
-            if (!node.cleared && hasFireEffect(node.type)) {
+            // their fire is "out", and skipped on the player's
+            // current node — the embers competed with the framed
+            // "you are here" affordance and read as a fake forward
+            // option. See `arrivedNodeId` for why this lags behind
+            // `dungeon.currentNode` during walk animations.
+            if (!node.cleared && id !== this.arrivedNodeId && hasFireEffect(node.type)) {
                 const fire = VFX.nodeFire(
                     this.scene,
                     this.container,

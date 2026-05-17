@@ -10,7 +10,6 @@
  *
  * Public API:
  *   - {@link maybeDropRelic}  — roll + apply for a kind/enemy.
- *   - {@link relicSummary}    — localized one-liner of owned relics.
  *
  * The caller passes a {@link RelicDropContext} carrying every system
  * the function touches, so this module has zero scene-graph access
@@ -19,6 +18,7 @@
  */
 import { ROOM_CONFIG } from '../data/GameConfig';
 import type { EventLog } from '../ui/EventLog';
+import { getEnemyDropMod } from './EnemyPicker';
 import type { Localization } from './Localization';
 import type { MetaProgressionManager } from './MetaProgressionManager';
 import type { PlayerManager } from './PlayerManager';
@@ -37,6 +37,22 @@ interface RelicDropContext {
     sfx: SoundManager;
     log: EventLog;
     loc: Localization;
+    /**
+     * Stage [4] drop-formula context. Combat drops (`normal` /
+     * `elite` / `boss` with a known enemy) use the X+Y*depth+Z+K
+     * formula in `Relics.rollRelicForEnemy`; treasure / shrine
+     * paths ignore both fields and gate on {@link ROOM_CONFIG}
+     * percentages instead.
+     *
+     *  - `depth`  → `dungeon.currentDepth` at the time of the kill.
+     *               Default 0 if the caller doesn't supply it (e.g.
+     *               legacy treasure / shrine paths that don't need
+     *               it).
+     *  - `relicMod` → `player.aggregate.relicDropChanceMod` (Clover
+     *                 +0.10, Cursed set -0.25). Default 0.
+     */
+    depth?: number;
+    relicMod?: number;
     /** Optional override (defaults to {@link defaultRng}). Tests can
      *  inject a seeded {@link Rng} to make rolls deterministic. */
     rng?: Rng;
@@ -49,9 +65,11 @@ interface RelicDropContext {
  *
  * Rules:
  *   - Combat drops with a known `enemyName` (`normal` / `elite` /
- *     `boss`) consult the per-enemy drop table directly: each entry
- *     rolls its own chance, so the legacy kind-level chance gate is
- *     skipped.
+ *     `boss`) go through the Stage [4] X+Y+Z+K formula in
+ *     {@link rollRelicForEnemy}: any unowned drop entry with
+ *     `chance >= 1.0` is returned immediately as a guaranteed drop;
+ *     otherwise the formula clamps to [0..1] and the post-roll
+ *     winner is picked weighted by the per-relic `chance` field.
  *   - Treasure / shrine / unknown-enemy paths gate on a per-kind
  *     chance (see {@link ROOM_CONFIG}) and then roll from the
  *     generic rarity pool.
@@ -64,13 +82,16 @@ export function maybeDropRelic(
     kind: RelicDropKind,
     enemyName?: string
 ): boolean {
-    const { meta, player, tracker, sfx, log, loc } = ctx;
+    const { meta, player } = ctx;
     const rng = ctx.rng ?? defaultRng;
     const allowedRarities = meta.getRelicRarityPool();
 
     let relicId: RelicId | null = null;
     if (enemyName && (kind === 'normal' || kind === 'elite' || kind === 'boss')) {
-        relicId = rollRelicForEnemy(enemyName, player.relics, rng);
+        const depth = ctx.depth ?? 0;
+        const relicMod = ctx.relicMod ?? 0;
+        const enemyDropMod = getEnemyDropMod(enemyName);
+        relicId = rollRelicForEnemy(enemyName, player.relics, depth, relicMod, enemyDropMod, rng);
         if (!relicId) return false;
     } else {
         const chance =
@@ -95,20 +116,30 @@ export function maybeDropRelic(
         // Downgrade to common alternative.
         const fallback = rollRelicFor(player.relics, 'normal', rng);
         if (!fallback) return false;
-        player.addRelic(fallback);
-        tracker.record('relicsFound');
-        sfx.play('relicDrop');
-        log.addMessage(
-            loc.t('relicObtained', {
-                value: loc.pick(RELICS[fallback].name),
-                value2: loc.pick(RELICS[fallback].description),
-            }),
-            '#ffcc99'
-        );
-        return true;
+        return acceptOrOffer(ctx, fallback);
     }
 
-    player.addRelic(relicId);
+    return acceptOrOffer(ctx, relicId);
+}
+
+/**
+ * Try to add a relic; on `'full'`, route through `relicOffer` so the
+ * HUD can ask the player to drop one of the equipped five (or skip
+ * the candidate). Logs / SFX fire only on the successful `'added'`
+ * branch \u2014 the swap-modal owns its own pickup log/SFX after the
+ * player resolves the choice.
+ */
+function acceptOrOffer(ctx: RelicDropContext, relicId: RelicId): boolean {
+    const { player, tracker, sfx, log, loc } = ctx;
+    const outcome = player.addRelic(relicId);
+    if (outcome === 'duplicate') return false;
+
+    if (outcome === 'full') {
+        player.relicOffer.emit({ id: relicId });
+        return false;
+    }
+
+    const relic = RELICS[relicId];
     tracker.record('relicsFound');
     sfx.play('relicDrop');
     log.addMessage(
@@ -119,14 +150,4 @@ export function maybeDropRelic(
         relic.rarity === 'unique' ? '#f0a8ff' : relic.rarity === 'rare' ? '#ffd36e' : '#ffcc99'
     );
     return true;
-}
-
-/**
- * Build the localized "relics: a, b, c" line shown under the HUD.
- * Returns the empty string when no relics are owned (caller decides
- * whether to clear the field or hide the row).
- */
-export function relicSummary(player: PlayerManager, loc: Localization): string {
-    if (player.relics.length === 0) return '';
-    return loc.t('relicsLabel') + player.relics.map((id) => loc.pick(RELICS[id].short)).join(', ');
 }

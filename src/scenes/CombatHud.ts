@@ -1,14 +1,14 @@
 import * as Phaser from 'phaser';
 import { MAP_CONFIG } from '../data/GameConfig';
 import { type CombatAction, type CombatEndPayload } from '../systems/CombatManager';
-import { chance, defaultRng, pick } from '../systems/Rng';
 import { SKILLS } from '../systems/Skills';
 import { compactText } from '../ui/TextHelpers';
-import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH } from '../ui/Layout';
+import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH, RoomLayout } from '../ui/Layout';
 import { PixelSprite } from '../ui/PixelSprite';
 import { fitEnemySprite } from '../ui/RoomVisuals';
 import { VFX } from '../ui/VFX';
 import type { GameScene, RoomButtonAction } from './GameScene';
+import { variantFromFill } from '../ui/RoomButtonVariant';
 
 export class CombatHudController {
     private readonly scene: GameScene;
@@ -63,7 +63,6 @@ export class CombatHudController {
             card.description,
             card.color,
             card.icon,
-            scene.loc.t('chooseMove'),
             kind === 'boss' ? 'BOSS' : kind === 'elite' ? 'ELITE' : 'ENEMY'
         );
         scene.combat.startCombat(scene.dungeon.currentDepth, kind);
@@ -74,19 +73,12 @@ export class CombatHudController {
         } else if (kind === 'elite') {
             scene.sfx.play('eliteAppear');
         }
-
-        if (kind === 'boss') {
-            const intro = scene.npcs.pickBossIntro(scene.loc.language);
-            if (intro) {
-                scene.log.addMessage(intro.line, '#cdb8ff');
-            }
-        }
     }
 
     refreshButtons(): void {
         const scene = this.scene;
         if (!scene.combat.enemy) {
-            scene.setRoomButtons([]);
+            scene.roomButtons.setActions([]);
             return;
         }
 
@@ -94,12 +86,12 @@ export class CombatHudController {
             {
                 label: scene.loc.t('actionAttack'),
                 callback: () => this.performAction('attack'),
-                fill: 0x5a1d1d,
+                variant: 'default',
             },
             {
                 label: scene.loc.t('actionDefend'),
                 callback: () => this.performAction('defend'),
-                fill: 0x1b335b,
+                variant: 'silver',
             },
         ];
 
@@ -110,7 +102,7 @@ export class CombatHudController {
                 label: `[${actions.length + 1}] ${scene.skillShort(id)} ${cost} ${scene.loc.t('resolveShort').toLowerCase()}`,
                 callback: () => this.performAction({ kind: 'skill', id }),
                 enabled: scene.player.resources.resolve >= cost,
-                fill: def.color,
+                variant: variantFromFill(def.color),
             });
         });
 
@@ -118,10 +110,10 @@ export class CombatHudController {
             label: scene.loc.t('actionPotion', { num: actions.length + 1 }),
             callback: () => this.performAction('potion'),
             enabled: scene.player.resources.potions > 0,
-            fill: 0x1f5b2f,
+            variant: 'positive',
         });
 
-        scene.setRoomButtons(actions);
+        scene.roomButtons.setActions(actions);
         scene.enemyIntelText.setText(this.buildIntel());
         scene.enemyIntelText.setVisible(true);
     }
@@ -180,7 +172,7 @@ export class CombatHudController {
 
         const enemy = scene.combat.enemy;
         const hints: string[] = [];
-        // [FIX-10][FIX-15] Show the boss intent + phase first so the player
+        // Show the boss intent + phase first so the player
         // can read what the boss is about to do before deciding their turn.
         if (enemy.currentIntent) {
             hints.push(scene.loc.t('hudIntentLabel', { intent: enemy.currentIntent }));
@@ -219,8 +211,8 @@ export class CombatHudController {
         );
         scene.enemyPortrait.setFillStyle(color);
         scene.enemyIconText.setText(icon);
-        scene.enemyNameText.setText(compactText(name, 28));
-        scene.roomFlavorText.setText(compactText(description, 72));
+        scene.enemyNameText.setText(compactText(name, 36));
+        scene.roomFlavorText.setText(compactText(description, 96));
         scene.roomPanelGroup.setVisible(true);
 
         const profile = scene.combat.enemy?.profile;
@@ -240,7 +232,9 @@ export class CombatHudController {
         }
 
         const ratio = Phaser.Math.Clamp(hp / maxHp, 0, 1);
-        scene.enemyHpBar.setDisplaySize(ratio * 280, 14);
+        // HP bar grew to 360×18 in the redesigned right panel — keep
+        // setDisplaySize in sync with GameRoomController.build().
+        scene.enemyHpBar.setDisplaySize(ratio * 360, 18);
         scene.enemyHpBar.setFillStyle(ratio > 0.5 ? 0xc65a2e : ratio > 0.25 ? 0xcf9e16 : 0xc63d2d);
         scene.enemyHpText.setText(`${scene.loc.t('hp')} ${Math.max(0, hp)}/${maxHp}`);
         scene.enemyHpBarBg.setVisible(unlocks.showEnemyHp);
@@ -249,13 +243,13 @@ export class CombatHudController {
         scene.enemyIntelText.setVisible(true);
         scene.enemyIntelText.setText(
             unlocks.showEnemyHp
-                ? compactText(this.buildIntel(), 54)
+                ? compactText(this.buildIntel(), 64)
                 : scene.loc.t('enemyInfoLocked')
         );
 
         if (scene.lastEnemyHp > 0 && hp < scene.lastEnemyHp) {
             const damage = scene.lastEnemyHp - hp;
-            VFX.floatText(scene, 787, 150, `-${damage}`, '#ff7373');
+            VFX.floatText(scene, RoomLayout.panelCenterX, 130, `-${damage}`, '#ff7373');
             VFX.shake(scene, scene.enemyPortrait);
             VFX.flash(scene, scene.enemyPortrait, 0xff3232, 120);
         }
@@ -278,7 +272,7 @@ export class CombatHudController {
             const bossMilestones = scene.meta.registerBossKill();
             scene.handleMilestoneUnlocks(bossMilestones);
         }
-        // [FIX-1] Final-boss specific log line. The actual win is gated
+        // Final-boss specific log line. The actual win is gated
         // below by depth and finalBossDefeated to avoid surprising the
         // player on non-final boss kills.
         if (payload.finalBossDefeated) {
@@ -304,11 +298,6 @@ export class CombatHudController {
             rewardLines.push(scene.loc.t('plusAttack', { value: payload.rewards.attackBonus }));
         }
 
-        const gainedShards = scene.player.gainRelicShards(payload.rewards.relicShards);
-        if (gainedShards > 0) {
-            rewardLines.push(scene.loc.t('plusShard', { value: gainedShards }));
-        }
-
         scene.player.registerKill();
         scene.log.addMessage(
             scene.loc.t('victoryRewards', { parts: rewardLines.join(', ') }),
@@ -317,12 +306,6 @@ export class CombatHudController {
 
         if (payload.kind === 'boss') {
             scene.maybeDropRelic('boss', payload.enemyCanonicalName);
-            const intro = scene.npcs.pickBossIntro(scene.loc.language);
-            if (intro) {
-                const farewells = intro.npc.voice.farewell;
-                const line = scene.loc.pick(pick(defaultRng, farewells));
-                scene.log.addMessage(line, '#cdb8ff');
-            }
 
             if (scene.dungeon.currentDepth >= MAP_CONFIG.finalDepth) {
                 scene.time.delayedCall(800, () => scene.showVictoryScreen());
@@ -358,14 +341,5 @@ export class CombatHudController {
             onComplete: () => flash.destroy(),
         });
         VFX.floatText(scene, 160, 82, `-${damage}`, '#ff5555');
-
-        if (
-            scene.player.stats.maxHp > 0 &&
-            scene.player.stats.hp / scene.player.stats.maxHp <= 0.25 &&
-            chance(defaultRng, 0.4)
-        ) {
-            const recall = scene.npcs.pickLowHpRecall(scene.loc.language);
-            if (recall) scene.log.addMessage(recall, '#a89dc4');
-        }
     }
 }

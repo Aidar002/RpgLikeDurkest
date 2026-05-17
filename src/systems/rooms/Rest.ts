@@ -9,11 +9,10 @@ export function handleRestRoom(scene: GameScene): void {
         scene.loc.t('restCampfireDesc'),
         0x2f8b4b,
         '+',
-        scene.loc.t('restHint'),
         'REST'
     );
 
-    scene.setRoomButtons([
+    scene.roomButtons.setActions([
         {
             label: scene.loc.t('actionRecover'),
             callback: () => {
@@ -24,20 +23,20 @@ export function handleRestRoom(scene: GameScene): void {
                     scene.loc.t('restRecover', { parts: summary.join(', ') }),
                     '#79e28f'
                 );
-                scene.enemyIntelText.setText(scene.loc.t('restAfterHint'));
+                scene.roomFlavorText.setText(scene.loc.t('restAfterHint'));
                 scene.showReturnButton();
             },
-            fill: 0x1f5b2f,
+            variant: 'positive',
         },
         {
             label: scene.loc.t('actionFocus'),
             callback: () => {
                 const gained = scene.player.gainResolve(ROOM_CONFIG.rest.focusResolve);
                 scene.log.addMessage(scene.loc.t('focusResolve', { value: gained }), '#9bc8ff');
-                scene.enemyIntelText.setText(scene.loc.t('restAfterSteady'));
+                scene.roomFlavorText.setText(scene.loc.t('restAfterSteady'));
                 scene.showReturnButton();
             },
-            fill: 0x1b335b,
+            variant: 'silver',
         },
     ]);
 }

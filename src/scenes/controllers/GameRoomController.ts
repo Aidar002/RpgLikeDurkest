@@ -1,16 +1,39 @@
-import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, TOP_BAR_H } from '../../ui/Layout';
+import {
+    BOTTOM_BAR_H,
+    GAME_HEIGHT,
+    HUD_BOTTOM_OFFSET,
+    RoomLayout,
+    TOP_BAR_H,
+} from '../../ui/Layout';
 import { hasTexture } from '../../ui/AssetGuard';
+import { BODY_FONT } from '../../ui/HudTheme';
 import { PixelSprite } from '../../ui/PixelSprite';
 import { fitEnemySprite } from '../../ui/RoomVisuals';
 import { compactText } from '../../ui/TextHelpers';
-import { createRoomButtons, type RoomButtonAction } from '../../ui/RoomButtons';
+import { createRoomButtons } from '../../ui/RoomButtons';
+import { LockpickOverlay, type LockpickShowOptions } from '../../ui/LockpickOverlay';
 import type { GameScene } from '../GameScene';
+
+/**
+ * Dialog speech colours. NPC lines render in the warm accent orange,
+ * the player's own choices stay muted grey — so each turn in the
+ * chat log reads at a glance even though every line starts with the
+ * same `- ` dash marker.
+ */
+const DIALOG_NPC_COLOR = '#f0a050';
+const DIALOG_PLAYER_COLOR = '#a09898';
+
+/** Strip the leading `[1] ` / `[2] ` button index off a localized
+ *  offer label so the dialog window shows only the spoken phrase. */
+function stripChoicePrefix(label: string): string {
+    return label.replace(/^\[\d+\]\s*/, '');
+}
 
 /**
  * Owns the room-info panel: the right-hand portrait/name/HP/intel/flavor
  * widgets, the action-button row beneath it, plus the helpers that
  * `RoomFlow` / `CombatHud` lean on (`showRoomCard`, `showReturnButton`,
- * `setRoomButtons`, `applyTrapDamage`, `triggerActionButton`).
+ * `applyTrapDamage`, `triggerActionButton`).
  *
  * The widget fields are still declared on `GameScene` — both
  * controllers (`RoomFlow` / `CombatHud`) reach into them directly to
@@ -21,10 +44,37 @@ import type { GameScene } from '../GameScene';
  */
 export class GameRoomController {
     private readonly scene: GameScene;
+    /** Built lazily in `build()` after the scene's `loc`/`sfx` are
+     *  set. Used by the treasure room's locked-chest path. */
+    private lockpickOverlay!: LockpickOverlay;
 
     constructor(scene: GameScene) {
         this.scene = scene;
     }
+
+    /** Portrait centre when no NPC dialog is active (combat, generic
+     *  room cards). Computed in `build()`. */
+    private centerLayoutCx = 0;
+    /** Portrait centre when an NPC dialog window is open — portrait
+     *  shifts to the right column so the dialog can fill the left
+     *  half of the panel. Computed in `build()`. */
+    private rightLayoutCx = 0;
+    /** Cached Y of the portrait centre, shared by both layouts. */
+    private portraitCY = 0;
+
+    // --- Dialog log state -------------------------------------------------
+    // `dialogScrollContent` holds one Text widget per chat-log entry,
+    // stacked vertically. A geometry mask clips it to the dialog
+    // inner rect so off-screen entries don't bleed out. The scrollbar
+    // is drawn separately so it can sit on top of the mask.
+    private dialogScrollContent!: Phaser.GameObjects.Container;
+    private dialogScrollbar!: Phaser.GameObjects.Graphics;
+    private dialogEntries: Phaser.GameObjects.Text[] = [];
+    private dialogScrollOffset = 0;
+    private dialogInnerX = 0;
+    private dialogInnerY = 0;
+    private dialogInnerW = 0;
+    private dialogInnerH = 0;
 
     /**
      * Build the room-panel widgets and attach them to
@@ -34,72 +84,164 @@ export class GameRoomController {
      */
     public build(): void {
         const scene = this.scene;
+        // Right panel — 65 % of the play area (see Layout.RoomLayout
+        // for the full split rationale and ratios).
         const panelY = TOP_BAR_H + 12;
         const panelH = GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12;
-        const panel = scene.add.rectangle(570, panelY, 434, panelH, 0x111111).setOrigin(0);
+        const panelX = RoomLayout.panelX;
+        const panelW = RoomLayout.panelWidth;
+        const cx = RoomLayout.panelCenterX;
+        const panel = scene.add.rectangle(panelX, panelY, panelW, panelH, 0x111111).setOrigin(0);
         panel.setStrokeStyle(2, 0x353535);
 
-        scene.roomHeaderText = scene.add.text(590, panelY + 4, '', {
-            fontFamily: 'Courier New',
-            fontSize: '13px',
+        scene.roomHeaderText = scene.add.text(panelX + 20, panelY + 6, '', {
+            fontFamily: BODY_FONT,
+            fontSize: '14px',
             color: '#8b8b8b',
         });
 
+        // Bigger portrait so the enemy reads as the focal point of
+        // the right panel (was 120×120; bumped to 140×140 along with
+        // matching ENEMY_SPRITE_MAX_DIM in RoomVisuals). 140 is the
+        // sweet spot — bigger than before while still leaving room
+        // beneath for the name + HP + intent + flavour stack above
+        // the taller action buttons.
+        const portraitCY = panelY + 82;
+        // For NPC rooms the portrait slides over to the right side of
+        // the panel so the dialog window can claim the left half.
+        const rightCx = panelX + panelW - 160;
+        this.centerLayoutCx = cx;
+        this.rightLayoutCx = rightCx;
+        this.portraitCY = portraitCY;
         scene.enemyPortrait = scene.add
-            .rectangle(787, 190, 120, 120, 0x333333)
+            .rectangle(cx, portraitCY, 140, 140, 0x333333)
             .setStrokeStyle(2, 0x555555);
         scene.enemyIconText = scene.add
-            .text(787, 204, '', {
-                fontFamily: 'Courier New',
-                fontSize: '42px',
+            .text(cx, portraitCY + 14, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '52px',
                 color: '#ffffff',
             })
             .setOrigin(0.5);
         scene.enemySpriteImage = scene.add
-            .image(787, 190, '__DEFAULT')
+            .image(cx, portraitCY, '__DEFAULT')
             .setVisible(false)
             .setOrigin(0.5);
 
         scene.enemyNameText = scene.add
-            .text(787, 266, '', {
-                fontFamily: 'Courier New',
-                fontSize: '18px',
-                color: '#f0f0f0',
+            .text(cx, portraitCY + 84, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '20px',
+                color: '#f4f0e0',
                 align: 'center',
-                wordWrap: { width: 280 },
+                stroke: '#000000',
+                strokeThickness: 2,
+                wordWrap: { width: panelW - 40 },
             })
             .setOrigin(0.5, 0);
 
-        scene.enemyHpBarBg = scene.add.rectangle(647, 326, 280, 14, 0x331111).setOrigin(0, 0.5);
-        scene.enemyHpBar = scene.add.rectangle(647, 326, 280, 14, 0xc93d2f).setOrigin(0, 0.5);
+        // HP bar gets wider + taller so it reads as the primary
+        // damage indicator (was 280×14; bumped to 360×18).
+        const hpBarY = portraitCY + 116;
+        scene.enemyHpBarBg = scene.add
+            .rectangle(cx - 180, hpBarY, 360, 18, 0x331111)
+            .setStrokeStyle(1, 0x5a1a1a)
+            .setOrigin(0, 0.5);
+        scene.enemyHpBar = scene.add
+            .rectangle(cx - 180, hpBarY, 360, 18, 0xc93d2f)
+            .setOrigin(0, 0.5);
         scene.enemyHpText = scene.add
-            .text(787, 342, '', {
-                fontFamily: 'Courier New',
-                fontSize: '12px',
-                color: '#ad6767',
+            .text(cx, hpBarY + 1, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '14px',
+                color: '#ffd9d2',
+                stroke: '#000000',
+                strokeThickness: 2,
             })
             .setOrigin(0.5);
 
+        // Intent gets a dedicated highlighted line so the player can
+        // tell at a glance what the enemy is winding up to do
+        // (was 11px subtle; bumped to 14px and brighter blue).
         scene.enemyIntelText = scene.add
-            .text(787, 370, '', {
-                fontFamily: 'Courier New',
-                fontSize: '11px',
-                color: '#7ea4ff',
+            .text(cx, hpBarY + 22, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '14px',
+                color: '#9ec3ff',
                 align: 'center',
-                wordWrap: { width: 300 },
+                stroke: '#0c1828',
+                strokeThickness: 2,
+                wordWrap: { width: panelW - 50 },
             })
             .setOrigin(0.5, 0);
 
+        // Contextual flavour / dialogue block sits below the intent
+        // and above the action buttons. Wider word wrap and a hair
+        // larger font than before so room descriptions and merchant
+        // dialogue lines read naturally inside the wider panel.
         scene.roomFlavorText = scene.add
-            .text(787, 416, '', {
-                fontFamily: 'Courier New',
-                fontSize: '12px',
-                color: '#9b9b9b',
+            .text(cx, hpBarY + 58, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '13px',
+                color: '#b0b0b0',
                 align: 'center',
-                wordWrap: { width: 300 },
-                lineSpacing: 2,
+                wordWrap: { width: panelW - 50 },
+                lineSpacing: 3,
             })
             .setOrigin(0.5, 0);
+
+        // NPC dialog window. Fills the LEFT half of the panel between
+        // the header and the action-button row; the portrait/name
+        // stack moves over to the RIGHT half (see applyPortraitLayout).
+        // The window is an append-only chat log: every new turn
+        // (NPC or player) becomes its own Text widget stacked below
+        // the previous one. We auto-scroll to keep the latest line in
+        // view; a scrollbar only appears once content overflows.
+        const dialogX = panelX + 16;
+        const dialogW = 288;
+        const dialogTop = panelY + 26;
+        const dialogBottom = panelY + 312;
+        const dialogH = dialogBottom - dialogTop;
+        const dialogPad = 14;
+
+        this.dialogInnerX = dialogX + dialogPad;
+        this.dialogInnerY = dialogTop + dialogPad;
+        this.dialogInnerW = dialogW - dialogPad * 2;
+        this.dialogInnerH = dialogH - dialogPad * 2;
+
+        const dialogBg = scene.add.graphics();
+        dialogBg.fillStyle(0x16131c, 1);
+        dialogBg.fillRect(dialogX, dialogTop, dialogW, dialogH);
+        dialogBg.lineStyle(1, 0x2c2738, 1);
+        dialogBg.strokeRect(dialogX + 0.5, dialogTop + 0.5, dialogW - 1, dialogH - 1);
+
+        this.dialogScrollContent = scene.add.container(this.dialogInnerX, this.dialogInnerY);
+        const maskGfx = scene.add.graphics({ x: 0, y: 0 });
+        maskGfx.fillStyle(0xffffff);
+        maskGfx.fillRect(
+            this.dialogInnerX,
+            this.dialogInnerY,
+            this.dialogInnerW,
+            this.dialogInnerH
+        );
+        maskGfx.setVisible(false);
+        this.dialogScrollContent.setMask(maskGfx.createGeometryMask());
+
+        this.dialogScrollbar = scene.add.graphics().setVisible(false);
+
+        scene.roomDialogContainer = scene.add
+            .container(0, 0, [dialogBg, this.dialogScrollContent, this.dialogScrollbar])
+            .setVisible(false);
+
+        // Mouse-wheel scroll over the dialog box. Global handler;
+        // it no-ops unless the dialog is visible AND the pointer is
+        // inside the dialog inner rect.
+        scene.input.on(
+            'wheel',
+            (pointer: Phaser.Input.Pointer, _objects: unknown, _dx: number, dy: number) => {
+                this.handleDialogWheel(pointer, dy);
+            }
+        );
 
         scene.roomPanelGroup = scene.add.container(0, 0, [
             panel,
@@ -113,6 +255,7 @@ export class GameRoomController {
             scene.enemyHpText,
             scene.enemyIntelText,
             scene.roomFlavorText,
+            scene.roomDialogContainer,
         ]);
 
         scene.roomContainer.add(scene.roomPanelGroup);
@@ -125,15 +268,38 @@ export class GameRoomController {
         // returned handle exposes setActions / trigger / wideEnabled /
         // disableAll for keyboard shortcuts and combat to call.
         scene.roomButtons = createRoomButtons(scene, scene.roomContainer, scene.sfx);
+
+        // Lockpick mini-game modal — fully hidden until the treasure
+        // room's locked-chest path calls `showLockpickModal`.
+        this.lockpickOverlay = new LockpickOverlay(scene, {
+            loc: scene.loc,
+            sfx: scene.sfx,
+        });
     }
 
-    /**
-     * @deprecated Use `scene.roomButtons.setActions(...)` directly.
-     * Kept as a thin shim so RoomFlow / CombatHud call sites compile
-     * unchanged after the RoomButtons extraction.
-     */
-    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
-        this.scene.roomButtons.setActions(actions, useWideOnly);
+    /** Move + resize the portrait/name/sprite block. NPC mode places
+     *  a larger portrait in the right column, vertically aligned with
+     *  the dialog window on the left. Center mode restores the
+     *  default smaller portrait used by combat + generic room cards. */
+    private applyPortraitLayout(npcMode: boolean): void {
+        const scene = this.scene;
+        if (npcMode) {
+            const cx = this.rightLayoutCx;
+            // Vertically centre the bigger portrait inside the dialog
+            // window's y-range (top ≈ 134, bottom ≈ 420).
+            const cy = 248;
+            scene.enemyPortrait.setPosition(cx, cy).setSize(200, 200);
+            scene.enemyIconText.setPosition(cx, cy + 18).setFontSize('75px');
+            scene.enemySpriteImage.setPosition(cx, cy);
+            scene.enemyNameText.setPosition(cx, cy + 112);
+        } else {
+            const cx = this.centerLayoutCx;
+            const cy = this.portraitCY;
+            scene.enemyPortrait.setPosition(cx, cy).setSize(140, 140);
+            scene.enemyIconText.setPosition(cx, cy + 14).setFontSize('52px');
+            scene.enemySpriteImage.setPosition(cx, cy);
+            scene.enemyNameText.setPosition(cx, cy + 84);
+        }
     }
 
     public showRoomCard(
@@ -142,17 +308,21 @@ export class GameRoomController {
         description: string,
         color: number,
         icon: string,
-        intel: string,
         spriteKey: string = header
     ): void {
         const scene = this.scene;
+        this.applyPortraitLayout(false);
         scene.roomHeaderText.setText(header);
         scene.enemyPortrait.setFillStyle(color);
         scene.enemyIconText.setText(icon);
-        scene.enemyNameText.setText(compactText(title, 28));
-        scene.roomFlavorText.setText(compactText(description, 72));
-        scene.enemyIntelText.setText(compactText(intel, 54));
-        scene.enemyIntelText.setVisible(true);
+        scene.enemyNameText.setText(compactText(title, 36));
+        scene.roomFlavorText.setText(compactText(description, 160));
+        scene.roomFlavorText.setVisible(true);
+        // Non-NPC rooms render a single description line — the legacy
+        // "intel hint" row and the NPC dialog window both stay hidden.
+        scene.enemyIntelText.setText('');
+        scene.enemyIntelText.setVisible(false);
+        scene.roomDialogContainer.setVisible(false);
         scene.enemyHpBarBg.setVisible(false);
         scene.enemyHpBar.setVisible(false);
         scene.enemyHpText.setVisible(false);
@@ -169,14 +339,190 @@ export class GameRoomController {
         }
     }
 
+    /**
+     * Open the NPC dialog window for an encounter. Used by every NPC
+     * room (Sara, Gogi, future NPCs) through `presentNpcRoom`, so all
+     * conversations share the same NPC-right / player-left layout.
+     * The description/intel rows are hidden in favour of the dialog
+     * window. Call {@link updateRoomDialog} on subsequent choices to
+     * advance the conversation.
+     */
+    public showRoomNpcCard(
+        header: string,
+        title: string,
+        color: number,
+        icon: string,
+        npcSpeech: string
+    ): void {
+        const scene = this.scene;
+        this.applyPortraitLayout(true);
+        scene.roomHeaderText.setText(header);
+        scene.enemyPortrait.setFillStyle(color);
+        scene.enemyIconText.setText(icon);
+        scene.enemyNameText.setText(compactText(title, 36));
+        scene.roomFlavorText.setText('');
+        scene.roomFlavorText.setVisible(false);
+        scene.enemyIntelText.setText('');
+        scene.enemyIntelText.setVisible(false);
+        scene.enemyHpBarBg.setVisible(false);
+        scene.enemyHpBar.setVisible(false);
+        scene.enemyHpText.setVisible(false);
+        scene.enemySpriteImage.setVisible(false);
+        scene.enemyIconText.setVisible(true);
+
+        this.clearDialogEntries();
+        this.appendDialogEntry('npc', npcSpeech);
+        scene.roomDialogContainer.setVisible(true);
+        scene.roomPanelGroup.setVisible(true);
+    }
+
+    /**
+     * Append turn(s) to the current NPC dialog log. If both `player`
+     * and `npc` are provided the player line is added first — that
+     * preserves natural conversation order: player picks an option,
+     * NPC responds. Empty / undefined sides are skipped. The log
+     * auto-scrolls so the newest entry stays in view.
+     */
+    public updateRoomDialog(opts: { npc?: string; player?: string }): void {
+        if (opts.player) {
+            this.appendDialogEntry('player', opts.player);
+        }
+        if (opts.npc) {
+            this.appendDialogEntry('npc', opts.npc);
+        }
+        this.scene.roomDialogContainer.setVisible(true);
+    }
+
+    /** Add one chat-log entry. NPC lines render orange, player lines
+     *  grey; both are prefixed with `- ` so the speaker change is
+     *  obvious at a glance even on monochrome screenshots. */
+    private appendDialogEntry(speaker: 'npc' | 'player', text: string): void {
+        const scene = this.scene;
+        const color = speaker === 'npc' ? DIALOG_NPC_COLOR : DIALOG_PLAYER_COLOR;
+        const cleanText = speaker === 'player' ? stripChoicePrefix(text) : text;
+        const formatted = `- ${cleanText}`;
+        const lineGap = 8;
+
+        let yPos = 0;
+        const last = this.dialogEntries[this.dialogEntries.length - 1];
+        if (last) {
+            yPos = last.y + last.height + lineGap;
+        }
+
+        const entry = scene.add
+            .text(0, yPos, formatted, {
+                fontFamily: BODY_FONT,
+                fontSize: '17px',
+                color,
+                stroke: '#0c1828',
+                strokeThickness: 2,
+                lineSpacing: 4,
+                wordWrap: { width: this.dialogInnerW - 12 },
+            })
+            .setOrigin(0, 0);
+
+        this.dialogScrollContent.add(entry);
+        this.dialogEntries.push(entry);
+
+        this.refreshDialogScroll(true);
+    }
+
+    /** Reset the dialog log — destroys every entry text widget and
+     *  hides the scrollbar. Called whenever a new NPC conversation
+     *  opens via `showRoomNpcCard`. */
+    private clearDialogEntries(): void {
+        for (const entry of this.dialogEntries) {
+            entry.destroy();
+        }
+        this.dialogEntries = [];
+        this.dialogScrollOffset = 0;
+        this.dialogScrollContent.y = this.dialogInnerY;
+        this.dialogScrollbar.clear().setVisible(false);
+    }
+
+    /** Recompute scroll offset + scrollbar visibility. When
+     *  `scrollToBottom` is true the log jumps to the newest entry. */
+    private refreshDialogScroll(scrollToBottom: boolean): void {
+        const entries = this.dialogEntries;
+        if (entries.length === 0) {
+            this.dialogScrollOffset = 0;
+            this.dialogScrollContent.y = this.dialogInnerY;
+            this.dialogScrollbar.clear().setVisible(false);
+            return;
+        }
+        const last = entries[entries.length - 1];
+        const contentHeight = last.y + last.height;
+        const viewH = this.dialogInnerH;
+
+        if (contentHeight <= viewH) {
+            this.dialogScrollOffset = 0;
+            this.dialogScrollbar.clear().setVisible(false);
+        } else {
+            if (scrollToBottom) {
+                this.dialogScrollOffset = contentHeight - viewH;
+            }
+            this.dialogScrollOffset = Math.max(
+                0,
+                Math.min(this.dialogScrollOffset, contentHeight - viewH)
+            );
+            this.drawScrollbar(contentHeight);
+            this.dialogScrollbar.setVisible(true);
+        }
+        this.dialogScrollContent.y = this.dialogInnerY - this.dialogScrollOffset;
+    }
+
+    /** Paint the scrollbar track + thumb. Thumb height scales with
+     *  visible-to-total ratio; thumb y reflects current scroll. */
+    private drawScrollbar(contentHeight: number): void {
+        const sb = this.dialogScrollbar;
+        sb.clear();
+        const trackX = this.dialogInnerX + this.dialogInnerW - 4;
+        const trackY = this.dialogInnerY;
+        const trackW = 4;
+        const trackH = this.dialogInnerH;
+        sb.fillStyle(0x2c2738, 0.6);
+        sb.fillRect(trackX, trackY, trackW, trackH);
+
+        const thumbH = Math.max(24, (this.dialogInnerH / contentHeight) * trackH);
+        const scrollRange = contentHeight - this.dialogInnerH;
+        const thumbY =
+            trackY +
+            (scrollRange > 0 ? (this.dialogScrollOffset / scrollRange) * (trackH - thumbH) : 0);
+        sb.fillStyle(0xf0a050, 0.85);
+        sb.fillRect(trackX, thumbY, trackW, thumbH);
+    }
+
+    /** Wheel handler installed on `scene.input`. Scrolls the dialog
+     *  log when the pointer is over the dialog inner rect AND there
+     *  is overflow content; otherwise no-op so other UI is unaffected. */
+    private handleDialogWheel(pointer: Phaser.Input.Pointer, deltaY: number): void {
+        const scene = this.scene;
+        if (!scene.roomDialogContainer.visible) return;
+        const px = pointer.x;
+        const py = pointer.y;
+        if (px < this.dialogInnerX || px > this.dialogInnerX + this.dialogInnerW) return;
+        if (py < this.dialogInnerY || py > this.dialogInnerY + this.dialogInnerH) return;
+        if (this.dialogEntries.length === 0) return;
+        const last = this.dialogEntries[this.dialogEntries.length - 1];
+        const contentHeight = last.y + last.height;
+        if (contentHeight <= this.dialogInnerH) return;
+
+        this.dialogScrollOffset = Math.max(
+            0,
+            Math.min(this.dialogScrollOffset + deltaY, contentHeight - this.dialogInnerH)
+        );
+        this.dialogScrollContent.y = this.dialogInnerY - this.dialogScrollOffset;
+        this.drawScrollbar(contentHeight);
+    }
+
     public showReturnButton(): void {
         const scene = this.scene;
-        this.setRoomButtons(
+        scene.roomButtons.setActions(
             [
                 {
                     label: scene.loc.t('returnToMap'),
                     callback: () => scene.returnToMap(),
-                    fill: 0x202020,
+                    variant: 'dark',
                 },
             ],
             true
@@ -189,6 +535,15 @@ export class GameRoomController {
      */
     public applyTrapDamage(rawDamage: number): number {
         return this.scene.player.takeDamage(rawDamage, 0, 'trap');
+    }
+
+    /**
+     * Open the lockpick mini-game modal. The result is delivered
+     * through `options.onResolve` exactly once. See
+     * {@link LockpickOverlay} for the visual/input model.
+     */
+    public showLockpickModal(options: LockpickShowOptions): void {
+        this.lockpickOverlay.show(options);
     }
 
     /**

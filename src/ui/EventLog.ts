@@ -1,4 +1,5 @@
 import * as Phaser from 'phaser';
+import { HUD_FONT } from './HudTheme';
 
 interface LogEntry {
     container: Phaser.GameObjects.Container;
@@ -10,8 +11,6 @@ interface LogEntry {
 }
 
 type LogTone = 'danger' | 'success' | 'reward' | 'mystic' | 'info' | 'neutral';
-
-const LOG_FONT = 'Lucida Console, Consolas, monospace';
 
 const TONE_META: Record<LogTone, { marker: string; rail: number; text: string }> = {
     danger: { marker: '!', rail: 0x9a3535, text: '#ff9a8f' },
@@ -54,7 +53,7 @@ export class EventLog {
         inner.setStrokeStyle(1, 0x171d23);
 
         const header = scene.add.text(16, 12, title.toUpperCase(), {
-            fontFamily: LOG_FONT,
+            fontFamily: HUD_FONT,
             fontSize: '13px',
             color: '#c9d3dc',
             stroke: '#020304',
@@ -83,7 +82,7 @@ export class EventLog {
         const baseColor = this.normalizeColor(color, meta.text);
 
         const marker = this.scene.add.text(0, 1, meta.marker, {
-            fontFamily: LOG_FONT,
+            fontFamily: HUD_FONT,
             fontSize: '14px',
             color: meta.text,
             stroke: '#020304',
@@ -91,7 +90,7 @@ export class EventLog {
         });
 
         const body = this.scene.add.text(22, 0, cleanText, {
-            fontFamily: LOG_FONT,
+            fontFamily: HUD_FONT,
             fontSize: '13px',
             color: baseColor,
             wordWrap: { width: entryWidth - 26 },

@@ -23,16 +23,16 @@ import * as Phaser from 'phaser';
 
 import type { SoundManager } from '../systems/SoundManager';
 import { compactText } from './TextHelpers';
-import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET } from './Layout';
+import { BODY_FONT } from './HudTheme';
+import { BOTTOM_BAR_H, GAME_HEIGHT, HUD_BOTTOM_OFFSET, RoomLayout } from './Layout';
+import type { RoomButtonVariant } from './RoomButtonVariant';
 
 /**
- * Visual variants for room-choice buttons. Each maps to a sliced
- * sprite preloaded in BootScene (btn_default / btn_gold / btn_dark /
- * btn_silver / btn_positive / btn_danger). Callers that don't supply
- * a variant get 'default' unless their legacy `fill` value can be
- * heuristically mapped (see {@link variantFromFill}).
+ * Visual variants for room-choice buttons. The variant catalog and
+ * the legacy-fill heuristic both live in {@link RoomButtonVariant}
+ * so data-side call sites can import them without touching Phaser.
  */
-export type RoomButtonVariant = 'default' | 'gold' | 'dark' | 'silver' | 'positive' | 'danger';
+export type { RoomButtonVariant } from './RoomButtonVariant';
 
 const BUTTON_TEXTURES: Record<RoomButtonVariant, string> = {
     default: 'btn_default',
@@ -52,25 +52,10 @@ const BUTTON_SLICE = { left: 16, right: 16, top: 14, bottom: 14 };
 
 /**
  * Map a legacy fill colour to the closest variant the new
- * spritesheet provides. Used as a backward-compat shim so call sites
- * that still pass `fill` get a sensible button skin without every
- * site needing to migrate to explicit `variant` simultaneously.
+ * spritesheet provides. Re-exported here for backward compat;
+ * the implementation now lives in {@link RoomButtonVariant}.
  */
-function variantFromFill(fill: number | undefined): RoomButtonVariant {
-    if (fill === undefined) return 'default';
-    const r = (fill >> 16) & 0xff;
-    const g = (fill >> 8) & 0xff;
-    const b = fill & 0xff;
-    const max = Math.max(r, g, b);
-    const min = Math.min(r, g, b);
-    if (max - min < 20) return max < 80 ? 'dark' : 'silver';
-    if (g === max && g > r + 16 && g > b + 16) return 'positive';
-    if (b === max && r > g + 8) return 'danger';
-    if (r === max && b > g + 16) return 'danger';
-    if (r === max && g > b + 16) return 'gold';
-    if (b === max) return 'silver';
-    return 'default';
-}
+export { variantFromFill } from './RoomButtonVariant';
 
 interface ActionButton {
     background: Phaser.GameObjects.NineSlice;
@@ -88,8 +73,6 @@ export interface RoomButtonAction {
     label: string;
     callback: () => void;
     enabled?: boolean;
-    /** @deprecated kept for backward compat; prefer `variant`. */
-    fill?: number;
     variant?: RoomButtonVariant;
 }
 
@@ -133,19 +116,32 @@ export function createRoomButtons(
     // follow the panel's bottom edge whenever BOTTOM_BAR_H changes
     // (otherwise the wide [5] button slips under the HUD bar — see
     // PR #54).
-    const BTN_H = 40;
-    const BTN_ROW_GAP = 10;
-    const BTN_PANEL_PAD = 4;
+    //
+    // Buttons sit inside the right combat / room panel
+    // (RoomLayout.panelX..panelX+panelWidth, centred at panelCenterX).
+    // BTN_H + BTN_ROW_GAP got bumped so each row reads as its own
+    // option with breathing room rather than a tight block, and the
+    // column anchors track RoomLayout instead of hard-coded x values.
+    const BTN_H = 48;
+    const BTN_ROW_GAP = 16;
+    const BTN_PANEL_PAD = 10;
+    const COL_GAP = 16;
+    const COL_INSET = 14;
+    const colWidth = Math.floor((RoomLayout.panelWidth - COL_INSET * 2 - COL_GAP) / 2);
+    const wideWidth = RoomLayout.panelWidth - COL_INSET * 2;
+    const leftColX = RoomLayout.panelX + COL_INSET + colWidth / 2;
+    const rightColX = RoomLayout.panelX + COL_INSET + colWidth + COL_GAP + colWidth / 2;
+    const wideX = RoomLayout.panelCenterX;
     const panelBottom = GAME_HEIGHT - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET;
     const wideButtonY = panelBottom - BTN_PANEL_PAD - BTN_H / 2;
     const middleRowY = wideButtonY - (BTN_H + BTN_ROW_GAP);
     const topRowY = middleRowY - (BTN_H + BTN_ROW_GAP);
     const buttonSpecs = [
-        { x: 682, y: topRowY, width: 180 },
-        { x: 892, y: topRowY, width: 180 },
-        { x: 682, y: middleRowY, width: 180 },
-        { x: 892, y: middleRowY, width: 180 },
-        { x: 787, y: wideButtonY, width: 390 },
+        { x: leftColX, y: topRowY, width: colWidth },
+        { x: rightColX, y: topRowY, width: colWidth },
+        { x: leftColX, y: middleRowY, width: colWidth },
+        { x: rightColX, y: middleRowY, width: colWidth },
+        { x: wideX, y: wideButtonY, width: wideWidth },
     ];
 
     buttonSpecs.forEach((spec) => {
@@ -156,7 +152,7 @@ export function createRoomButtons(
                 BUTTON_TEXTURES.default,
                 undefined,
                 spec.width,
-                40,
+                BTN_H,
                 BUTTON_SLICE.left,
                 BUTTON_SLICE.right,
                 BUTTON_SLICE.top,
@@ -166,8 +162,8 @@ export function createRoomButtons(
 
         const label = scene.add
             .text(spec.x, spec.y, '', {
-                fontFamily: 'Courier New',
-                fontSize: '14px',
+                fontFamily: BODY_FONT,
+                fontSize: '16px',
                 color: '#dddddd',
             })
             .setOrigin(0.5);
@@ -237,7 +233,7 @@ export function createRoomButtons(
 
     function applyAction(button: ActionButton, action: RoomButtonAction): void {
         const enabled = action.enabled ?? true;
-        const variant = action.variant ?? variantFromFill(action.fill);
+        const variant = action.variant ?? 'default';
         button.callback = action.callback;
         button.enabled = enabled;
         button.variant = variant;
@@ -245,12 +241,24 @@ export function createRoomButtons(
         button.label.setVisible(true);
         button.background.setInteractive({ useHandCursor: true });
         button.background.setTexture(BUTTON_TEXTURES[variant]);
-        button.background.clearTint();
-        // Disabled buttons render at half alpha so the carved frame
-        // still reads but the variant colour is visibly muted.
-        button.background.setAlpha(enabled ? 1 : 0.5);
-        button.label.setText(compactText(action.label, button.defaultWidth > 200 ? 42 : 24));
-        button.label.setColor(enabled ? '#f0f0f0' : '#686868');
+        // Disabled buttons render dimmer + desaturated grey tint so
+        // the unavailable option visually recedes; enabled buttons
+        // keep the variant's full colour at full alpha so the
+        // active actions stand out.
+        if (enabled) {
+            button.background.clearTint();
+            button.background.setAlpha(1);
+            button.label.setColor('#f4f0e0');
+            button.label.setAlpha(1);
+        } else {
+            button.background.setTint(0x4a4d54);
+            button.background.setAlpha(0.55);
+            button.label.setColor('#5a5d63');
+            button.label.setAlpha(0.85);
+        }
+        button.label.setText(
+            compactText(action.label, button.defaultWidth > wideWidth - 40 ? 60 : 32)
+        );
     }
 
     const handle: RoomButtonsHandle = {
@@ -262,12 +270,14 @@ export function createRoomButtons(
                 button.background.setScale(1, 1);
                 button.label.setScale(1, 1);
                 button.background.setPosition(button.defaultX, button.defaultY);
-                button.background.setSize(button.defaultWidth, 40);
+                button.background.setSize(button.defaultWidth, BTN_H);
                 button.label.setPosition(button.defaultX, button.defaultY);
                 button.background.setVisible(false);
                 button.label.setVisible(false);
                 button.background.disableInteractive();
                 button.background.clearTint();
+                button.background.setAlpha(1);
+                button.label.setAlpha(1);
                 button.callback = null;
                 button.enabled = false;
             });

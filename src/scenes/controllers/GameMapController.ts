@@ -26,15 +26,24 @@ export class GameMapController {
 
     private mapView!: MapView;
     private animating = false;
+    private animatingWatchdog: Phaser.Time.TimerEvent | null = null;
     private roomTintOverlay: Phaser.GameObjects.Rectangle | null = null;
 
-    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`). */
-    private readonly roomTransitionPhaseMs = 800;
+    /** Duration of each fade phase (`fade-to-black` / `fade-from-black`).
+     *  Total transition = 2 × this value. */
+    private readonly roomTransitionPhaseMs = 550;
     /** Duration of the walk along the map edge before the room fade. */
-    private readonly walkDurationMs = 2000;
+    private readonly walkDurationMs = 1500;
     /** Fade-in / fade-out duration for the looped footsteps SFX that
      *  plays during the camera-pan room transition. */
     private readonly footstepsFadeMs = 500;
+    /** Safety-net duration for the `animating` flag. A full transition
+     *  is ~`350 + walkDurationMs + 2 × roomTransitionPhaseMs` ≈ 2.95s;
+     *  we use 8s so the watchdog only fires if a tween's `onComplete`
+     *  callback was genuinely lost. Without this, any silent break in
+     *  the fade / walk / fade chain would leave `animating=true` and
+     *  block every subsequent map click for the rest of the run. */
+    private readonly animatingWatchdogMs = 8000;
 
     constructor(scene: GameScene) {
         this.scene = scene;
@@ -44,6 +53,37 @@ export class GameMapController {
      *  controller (via the scene shim) to gate clicks. */
     public isAnimating(): boolean {
         return this.animating;
+    }
+
+    /**
+     * Lock the transition flag and arm the watchdog. Centralising the
+     * write lets us guarantee a stuck flag self-recovers — see
+     * `animatingWatchdogMs`. Idempotent: a second call while already
+     * locked just re-arms the watchdog.
+     */
+    private beginAnimating(): void {
+        this.animating = true;
+        this.animatingWatchdog?.remove(false);
+        this.animatingWatchdog = this.scene.time.delayedCall(this.animatingWatchdogMs, () => {
+            if (this.animating) {
+                // Defensive net: a transition's onComplete chain
+                // was lost (e.g. a callback threw silently). Reset
+                // so the player can keep clicking the map instead
+                // of having to refresh the page.
+                this.animating = false;
+            }
+            this.animatingWatchdog = null;
+        });
+    }
+
+    /**
+     * Release the transition flag and disarm the watchdog. Mirror of
+     * {@link beginAnimating}. Safe to call when not animating.
+     */
+    private endAnimating(): void {
+        this.animating = false;
+        this.animatingWatchdog?.remove(false);
+        this.animatingWatchdog = null;
     }
 
     /**
@@ -57,6 +97,7 @@ export class GameMapController {
             scene,
             container: scene.mapContainer,
             dungeon: scene.dungeon,
+            sfx: scene.sfx,
             meta: scene.meta,
             loc: scene.loc,
             tooltipText: scene.tooltipText,
@@ -78,6 +119,10 @@ export class GameMapController {
         this.mapView.redrawEdges();
         this.mapView.refresh();
         this.mapView.centerOnNode(this.scene.dungeon.currentNode);
+        // Pin the player on the starting node so its room pictogram
+        // is suppressed from the very first frame — the carved frame
+        // alone marks "you are here". See `MapView.arrivedNodeId`.
+        this.mapView.setArrivedNode(this.scene.dungeon.currentNode.id);
     }
 
     public getUnlockedRoomTypes(unlocks: ContentUnlockState): RoomTypeValue[] {
@@ -114,7 +159,10 @@ export class GameMapController {
     public afterMove(node: MapNode, previous: MapNode): void {
         const scene = this.scene;
         this.updateRunProgress(node.depth);
-        this.animating = true;
+        // `advanceToNode` already armed the flag synchronously; this
+        // call is a no-op for entries via the click path but still
+        // covers any future direct call site (e.g. a debug skip).
+        this.beginAnimating();
 
         this.mapView.animateClearedOut(() => {
             this.mapView.build(true);
@@ -140,6 +188,12 @@ export class GameMapController {
                             scene.hud.torchlightHomeY
                         );
                     }
+                    // Player has fully arrived — drop the destination's
+                    // room pictogram so the slot reads as "you are
+                    // here". The icon stayed visible during the walk
+                    // so the player could see what they were walking
+                    // toward. See `MapView.arrivedNodeId`.
+                    this.mapView.setArrivedNode(node.id);
                     this.fadeToRoom(node);
                 }
             );
@@ -189,7 +243,7 @@ export class GameMapController {
 
     private fadeToRoom(node: MapNode): void {
         const scene = this.scene;
-        this.animating = true;
+        this.beginAnimating();
         const overlay = scene.add
             .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000)
             .setAlpha(0)
@@ -215,7 +269,7 @@ export class GameMapController {
                     ease: 'Sine.out',
                     onComplete: () => {
                         overlay.destroy();
-                        this.animating = false;
+                        this.endAnimating();
                     },
                 });
                 this.enterRoom(node);
@@ -305,7 +359,7 @@ export class GameMapController {
     public returnToMap(): void {
         if (this.animating) return;
         const scene = this.scene;
-        this.animating = true;
+        this.beginAnimating();
         const overlay = scene.add
             .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000)
             .setAlpha(0)
@@ -320,7 +374,7 @@ export class GameMapController {
                 scene.roomContainer.setVisible(false);
                 scene.mapContainer.setVisible(true);
                 scene.roomPanelGroup.setVisible(false);
-                scene.setRoomButtons([]);
+                scene.roomButtons.setActions([]);
                 this.clearRoomTint();
                 this.mapView.refresh();
                 scene.refreshUI();
@@ -331,7 +385,7 @@ export class GameMapController {
                     ease: 'Sine.out',
                     onComplete: () => {
                         overlay.destroy();
-                        this.animating = false;
+                        this.endAnimating();
                     },
                 });
             },
@@ -339,15 +393,32 @@ export class GameMapController {
     }
 
     public advanceToNode(node: MapNode): void {
+        // Re-entry guard. The flag is normally already set to true by
+        // a previous in-flight transition, so this short-circuits any
+        // rapid follow-up clicks even if Phaser delivered them after
+        // `canUseNode` would otherwise have passed.
+        if (this.animating) return;
         if (!this.mapView.canUseNode(node)) {
             return;
         }
+
+        // Lock the transition flag *before* mutating any scene state
+        // or calling `dungeon.moveTo`. This closes the (tiny but real)
+        // race where a click on a different node — most commonly the
+        // one the player is leaving — was queued between the
+        // `canUseNode` check above and `afterMove` setting the flag.
+        // With the flag now armed up-front, `canMoveDelegate` rejects
+        // any further click in the same input batch, so the second
+        // click can't trigger a second `moveTo` that would corrupt the
+        // transition's tween chain and leave the map permanently
+        // unresponsive (the freeze users reported).
+        this.beginAnimating();
 
         const scene = this.scene;
         scene.roomContainer.setVisible(false);
         scene.roomPanelGroup.setVisible(false);
         scene.mapContainer.setVisible(true);
-        scene.setRoomButtons([]);
+        scene.roomButtons.setActions([]);
         this.clearRoomTint();
         scene.refreshUI();
         scene.dungeon.moveTo(node.id);

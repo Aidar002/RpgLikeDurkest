@@ -26,8 +26,17 @@ interface RunResources {
     potions: number;
     resolve: number;
     maxResolve: number;
-    relicShards: number;
 }
+
+/**
+ * Hard cap on equipped relics. Above this, `addRelic` returns
+ * `'full'` instead of mutating, and the drop pipeline routes the
+ * candidate through {@link PlayerManager.relicOffer} so the HUD can
+ * put up a swap-or-skip modal. The catalog has 10 unique ids today
+ * \u2014 the cap is intentionally well below that so the inventory stays
+ * a meaningful constraint instead of "wear them all".
+ */
+export const MAX_RELICS = 5;
 
 export class PlayerManager {
     public stats: PlayerStats;
@@ -35,6 +44,13 @@ export class PlayerManager {
     public killCount = 0;
     public status: StatusState = emptyStatusState();
     public relics: RelicId[] = [];
+    /**
+     * Whether the player has bought Gogi's "Initial Training" buff this
+     * run (+5 max HP, +1 defense). The buff stacks naively if applied
+     * twice, so we gate it to a single purchase per run via this flag.
+     * Resets on every new {@link PlayerManager}, i.e. on death/new run.
+     */
+    public gogiTrainingTaken = false;
 
     public readonly hpChange = new Emitter<{ hp: number; max: number }>();
     public readonly death = new Emitter<void>();
@@ -42,8 +58,28 @@ export class PlayerManager {
     public readonly statsChange = new Emitter<void>();
     public readonly resourcesChange = new Emitter<void>();
     public readonly relicsChange = new Emitter<void>();
+    /**
+     * Fires when {@link addRelic} is called with the inventory already
+     * at {@link MAX_RELICS}. The HUD listens here to put up the
+     * `RelicSwapModal` so the player can decide which relic to drop
+     * for the candidate (or skip the candidate entirely). The relic
+     * is *not* added until the modal calls back through
+     * {@link removeRelic} + {@link addRelic}.
+     */
+    public readonly relicOffer = new Emitter<{ id: RelicId }>();
 
-    private goldGainMult: number;
+    /**
+     * Multiplier on every gainGold call coming from MetaProgression
+     * (Gogi's "Greedy hands" + permanent unlocks). The relic-side
+     * multiplier (Crown of Greed / Sin set) lives on
+     * {@link RelicAggregate.goldGainMult} so it can update as the
+     * player picks up / drops relics. The two are combined in
+     * {@link gainGold} by straight multiplication; same pattern in
+     * {@link gainXp} for the xp side, which has no meta multiplier
+     * yet but is plumbed through the aggregate so the Sin set can
+     * grant +100% XP.
+     */
+    private metaGoldGainMult: number;
     private relicAggregate: RelicAggregate = emptyAggregate();
 
     constructor(bonuses: Partial<PlayerMetaBonuses> = {}) {
@@ -65,14 +101,19 @@ export class PlayerManager {
             potions: EXPEDITION_CONFIG.startingPotions,
             resolve: EXPEDITION_CONFIG.startingResolve,
             maxResolve: PLAYER_CONFIG.maxResolve,
-            relicShards: 0,
         };
 
-        this.goldGainMult = bonuses.goldGainMult ?? 1;
+        this.metaGoldGainMult = bonuses.goldGainMult ?? 1;
     }
 
+    /**
+     * XP required to reach the next level. Flat: every level costs the
+     * same {@link LEVEL_UP_CONFIG.xpPerLevel} XP. (Earlier this scaled
+     * by `level * xpPerLevel`, which made later levels feel like a slog
+     * even though the data config never said it should.)
+     */
     get xpToNextLevel(): number {
-        return this.stats.level * LEVEL_UP_CONFIG.xpPerLevel;
+        return LEVEL_UP_CONFIG.xpPerLevel;
     }
 
     get aggregate(): RelicAggregate {
@@ -80,12 +121,12 @@ export class PlayerManager {
     }
 
     getAttackPower(): number {
-        let setBonus = 0;
-        // Flesh set: +2 attack while HP < 50% (lives/max strictly less).
-        if (this.relicAggregate.sets.flesh && this.stats.hp * 2 < this.stats.maxHp) {
-            setBonus += 2;
-        }
-        return this.stats.attack + this.relicAggregate.bonusAttack + setBonus;
+        // Enemy-applied weaken (e.g. Underground Ent's strangling roots)
+        // chips a flat amount off the player's swing while active. Mirror
+        // of the enemy-side reduction in EnemyTurn/CombatManager. Min
+        // clamp at 1 keeps a swing always-meaningful.
+        const weakenAmount = this.status.weaken.turns > 0 ? this.status.weaken.amount : 0;
+        return Math.max(1, this.stats.attack + this.relicAggregate.bonusAttack - weakenAmount);
     }
 
     getCritChance(): number {
@@ -93,12 +134,12 @@ export class PlayerManager {
     }
 
     getEffectiveDefense(): number {
-        let setBonus = 0;
-        // Flesh set: +1 defense while HP > 50% (strictly more).
-        if (this.relicAggregate.sets.flesh && this.stats.hp * 2 > this.stats.maxHp) {
-            setBonus += 1;
-        }
-        return this.stats.defense + this.relicAggregate.bonusDefense + setBonus;
+        // Enemy-applied armor break (e.g. Gelatinous Cube acid vomit)
+        // chips a flat amount off the player's defense while active.
+        // Clamps at 0 so we never end up with negative defense (which
+        // would amplify damage rather than just remove the buffer).
+        const armorBreak = this.status.armorBreak.turns > 0 ? this.status.armorBreak.amount : 0;
+        return Math.max(0, this.stats.defense + this.relicAggregate.bonusDefense - armorBreak);
     }
 
     takeDamage(
@@ -106,7 +147,14 @@ export class PlayerManager {
         flatBlock: number = 0,
         source: 'combat' | 'trap' | 'true' = 'combat'
     ): number {
-        const defense = source === 'true' ? 0 : this.getEffectiveDefense();
+        // Trap-typed hits (room traps + failed lockpicks) bypass defense
+        // entirely, just like 'true' damage — design choice so that
+        // late-run defense stacks don't trivialise the trap / lockpick
+        // sub-systems. The 'trap' source still uses the regular
+        // {@link COMBAT_CONFIG.minDamage} floor; only 'true' damage
+        // ignores both defense AND flat block AND the minDamage floor.
+        const bypassesDefense = source === 'true' || source === 'trap';
+        const defense = bypassesDefense ? 0 : this.getEffectiveDefense();
         const reduced = amount - flatBlock - defense;
         const actual =
             reduced <= 0 && source !== 'true'
@@ -132,14 +180,14 @@ export class PlayerManager {
     }
 
     gainXp(amount: number): number {
-        // [FIX-9] Hard level cap. Past the cap, no further XP is awarded
+        // Hard level cap. Past the cap, no further XP is awarded
         // and no level-up loop can fire.
         if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {
             this.stats.xp = 0;
             this.emitStats();
             return 0;
         }
-        const scaledAmount = Math.max(1, Math.round(amount));
+        const scaledAmount = Math.max(1, Math.round(amount * this.relicAggregate.xpGainMult));
         this.stats.xp += scaledAmount;
 
         while (this.stats.level < LEVEL_UP_CONFIG.levelCap && this.stats.xp >= this.xpToNextLevel) {
@@ -167,7 +215,8 @@ export class PlayerManager {
 
     gainGold(amount: number): number {
         if (amount <= 0) return 0;
-        const scaled = Math.max(0, Math.round(amount * this.goldGainMult));
+        const mult = this.metaGoldGainMult * this.relicAggregate.goldGainMult;
+        const scaled = Math.max(0, Math.round(amount * mult));
         if (scaled <= 0) return 0;
         this.resources.gold += scaled;
         this.emitResources();
@@ -208,7 +257,7 @@ export class PlayerManager {
 
     spendResolve(amount: number): boolean {
         if (amount > this.resources.resolve) return false;
-        // [FIX-3] Defensive clamp — guarantees `resolve >= 0` even if a
+        // Defensive clamp — guarantees `resolve >= 0` even if a
         // bug elsewhere requested a negative-spend.
         this.resources.resolve = Math.max(
             0,
@@ -218,24 +267,26 @@ export class PlayerManager {
         return true;
     }
 
-    gainRelicShards(amount: number): number {
-        if (amount <= 0) return 0;
-        this.resources.relicShards += amount;
-        this.emitResources();
-        return amount;
-    }
-
-    spendRelicShard(amount: number): boolean {
-        if (amount > this.resources.relicShards) return false;
-        this.resources.relicShards -= amount;
-        this.emitResources();
-        return true;
-    }
-
-    addRelic(id: RelicId) {
-        if (this.relics.includes(id)) return;
+    /**
+     * Add a relic to the inventory. Returns the outcome so the caller
+     * (`RelicDrops.maybeDropRelic`) can decide whether to log the
+     * pickup, swallow the duplicate silently, or hand off to the
+     * swap-modal flow when the inventory is full.
+     *
+     *   - `'added'`     — relic was new and inventory had room.
+     *   - `'duplicate'` — id already in `relics`. No emit, no aggregate
+     *                     change, no event fires.
+     *   - `'full'`      — inventory was already at {@link MAX_RELICS}.
+     *                     Nothing changes; the caller is expected to
+     *                     either drop the candidate or run the swap
+     *                     flow (`removeRelic` then `addRelic`).
+     */
+    addRelic(id: RelicId): 'added' | 'duplicate' | 'full' {
+        if (this.relics.includes(id)) return 'duplicate';
+        if (this.relics.length >= MAX_RELICS) return 'full';
         this.relics.push(id);
         this.recomputeAggregate();
+        return 'added';
     }
 
     removeRelic(id: RelicId) {
@@ -292,6 +343,23 @@ export class PlayerManager {
             this.stats.hp = Math.min(this.stats.hp, this.stats.maxHp);
         }
 
+        // MaxResolve relic bonus follows the same pattern: aggregate
+        // growth raises both max and current resolve so the Lost
+        // Staff "+3 max resolve" picks up immediately, and a shrink
+        // (Cursed Ring "-2 max resolve") clamps current resolve down
+        // so the bar can't show > max.
+        const addedMaxResolve = next.bonusMaxResolve - prev.bonusMaxResolve;
+        if (addedMaxResolve > 0) {
+            this.resources.maxResolve += addedMaxResolve;
+            this.resources.resolve = Math.min(
+                this.resources.maxResolve,
+                this.resources.resolve + addedMaxResolve
+            );
+        } else if (addedMaxResolve < 0) {
+            this.resources.maxResolve = Math.max(0, this.resources.maxResolve + addedMaxResolve);
+            this.resources.resolve = Math.min(this.resources.resolve, this.resources.maxResolve);
+        }
+
         // Preserve the Sara vampire-blessing buff across relic changes.
         const vampireChance = prev.vampireBlessingChance;
         const vampireAmount = prev.vampireBlessingAmount;
@@ -304,7 +372,7 @@ export class PlayerManager {
     }
 
     private applyLevelUp() {
-        // [FIX-9] Belt-and-braces guard: gainXp() is the only caller and
+        // Belt-and-braces guard: gainXp() is the only caller and
         // already blocks past the cap, but applyLevelUp() is safe even
         // if a future call site forgets that.
         if (this.stats.level >= LEVEL_UP_CONFIG.levelCap) {

@@ -18,10 +18,10 @@ export function handleShrineRoom(scene: GameScene): void {
                         : `The altar blesses your weapon: +${ALTAR_EFFECTS.blessingAttack} attack.`,
                     '#d7b6ff'
                 );
-                scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x5f4e8a,
+            variant: 'danger',
         },
         {
             label: ru
@@ -35,10 +35,10 @@ export function handleShrineRoom(scene: GameScene): void {
                         : `The altar strengthens your body: +${ALTAR_EFFECTS.prayerMaxHp} HP.`,
                     '#79e28f'
                 );
-                scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x2f8b4b,
+            variant: 'positive',
         },
         {
             label: ru
@@ -52,10 +52,10 @@ export function handleShrineRoom(scene: GameScene): void {
                         : `The altar fills you with resolve: +${ALTAR_EFFECTS.speechResolve} resolve.`,
                     '#9bc8ff'
                 );
-                scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x1b335b,
+            variant: 'silver',
         },
         {
             label: ru
@@ -69,15 +69,15 @@ export function handleShrineRoom(scene: GameScene): void {
                         : `The altar fortifies your guard: +${ALTAR_EFFECTS.counselDefense} defense.`,
                     '#b8d3ff'
                 );
-                scene.enemyIntelText.setText(scene.loc.t('shrineRemembersName'));
+                scene.roomFlavorText.setText(scene.loc.t('shrineRemembersName'));
                 scene.showReturnButton();
             },
-            fill: 0x355070,
+            variant: 'silver',
         },
         {
             label: scene.loc.t('actionDynamicLeave', { num: 5 }),
             callback: () => scene.showReturnButton(),
-            fill: 0x202020,
+            variant: 'dark',
         },
     ];
 
@@ -87,8 +87,7 @@ export function handleShrineRoom(scene: GameScene): void {
         scene.loc.t('roomShrineGenericDesc'),
         0x5f4e8a,
         'S',
-        scene.loc.t('roomShrineGenericHint'),
         'SHRINE'
     );
-    scene.setRoomButtons(actions);
+    scene.roomButtons.setActions(actions);
 }

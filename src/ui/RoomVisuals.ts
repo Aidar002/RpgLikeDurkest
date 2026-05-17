@@ -60,17 +60,17 @@ export function roomFrameIndex(type: RoomTypeValue): 0 | 1 | 2 {
 }
 
 /**
- * Frame index in {@link hud_room_icons} (an 8-frame spritesheet) for each
+ * Frame index in {@link hud_room_icons} (a 9-frame spritesheet) for each
  * room type. Frame layout (left → right):
  *   0 → campfire           (START, REST)
  *   1 → red skull crossbones (basic ENEMY)
  *   2 → stone "?"          (EMPTY / unknown)
  *   3 → red skull crossbones, darker (ELITE)
- *   4 → demon skull with crown (BOSS)
- *   5 → treasure chest     (TREASURE, MERCHANT — merchants are gold-rimmed
- *                           and distinguished by frame color, not the icon)
+ *   4 → demon skull with crown (BOSS, MINI_BOSS)
+ *   5 → treasure chest     (TREASURE)
  *   6 → occult sigil       (TRAP)
  *   7 → tombstone altar    (SHRINE)
+ *   8 → coin pouch         (MERCHANT)
  */
 const ROOM_ICON_FRAME: Record<RoomTypeValue, number> = {
     [RoomType.START]: 0,
@@ -81,9 +81,9 @@ const ROOM_ICON_FRAME: Record<RoomTypeValue, number> = {
     [RoomType.BOSS]: 4,
     [RoomType.MINI_BOSS]: 4,
     [RoomType.TREASURE]: 5,
-    [RoomType.MERCHANT]: 5,
     [RoomType.TRAP]: 6,
     [RoomType.SHRINE]: 7,
+    [RoomType.MERCHANT]: 8,
 };
 
 export function roomIconFrame(type: RoomTypeValue): number {
@@ -129,8 +129,10 @@ export function roomTypeName(type: RoomTypeValue, loc: Localization): string {
 /** Target box for room sprites on the map — slightly inset from the node rect. */
 const ROOM_SPRITE_MAX_DIM = 64;
 
-/** Target box for enemy portraits in the combat/room panel. */
-const ENEMY_SPRITE_MAX_DIM = 120;
+/** Target box for enemy portraits in the combat/room panel. The
+ *  portrait rectangle is 140×140; this cap matches so the sprite
+ *  fills the frame without overflowing into the name/HP bar below. */
+const ENEMY_SPRITE_MAX_DIM = 140;
 
 /**
  * Scale down high-resolution hand-authored room textures to fit the map node.

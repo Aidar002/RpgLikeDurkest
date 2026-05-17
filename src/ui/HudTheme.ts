@@ -24,7 +24,6 @@ export const HudColors = {
     accentResolve: 0x7da8d9,
     accentLight: 0xf0a050,
     accentGold: 0xc8a060,
-    accentShard: 0xb89cd8,
 
     /** Bright gold rim used for the highlighted "PRESTIGE" cell. */
     cellGoldEdge: 0xe2b04a,
@@ -43,14 +42,33 @@ export const HudHex = {
     accentLight: '#f0a050',
     accentMoon: '#9bb6d8',
     accentGold: '#d4b070',
-    accentShard: '#c4abdf',
     accentPotion: '#86d49a',
     accentBoss: '#e08a7a',
     accentKills: '#c0a0a0',
     accentDepth: '#b0b8c0',
 } as const;
 
-export const HUD_FONT = 'Lucida Console, Consolas, monospace';
+/**
+ * Centralised font stacks for the UI. Two roles:
+ *
+ *  - `HUD_FONT` — JetBrains Mono, used wherever columnar alignment
+ *    matters: bottom-bar resource cells, top-bar stats, event log,
+ *    relic slots / modal, boot-screen widgets, volume panel, scene
+ *    chrome. The fallback stack keeps the column-alignment property
+ *    if the web font fails to load.
+ *  - `BODY_FONT` — EB Garamond, a proportional serif used for room
+ *    descriptions, combat action button labels, end-screen narrative
+ *    copy, and other "prose" surfaces where readability of full
+ *    sentences matters more than digit alignment.
+ *
+ * The actual font files live in `public/fonts/` and are registered
+ * via `@font-face` in `src/style.css`. `main.ts` blocks on
+ * `document.fonts.ready` before booting Phaser so the canvas Text
+ * objects render with the web font from the very first frame rather
+ * than starting on a system fallback and snapping.
+ */
+export const HUD_FONT = "'JetBrains Mono', 'Lucida Console', Consolas, monospace";
+export const BODY_FONT = "'EB Garamond', 'Times New Roman', Georgia, serif";
 export const HUD_STROKE = '#020304';
 
 /**

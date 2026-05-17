@@ -1,24 +1,24 @@
 // Status effect engine. Runs on both enemy and player sides.
 // Effects:
-//   bleed:  stacks * dmg at end of each turn for N turns
-//   poison: damage at end of each turn for N turns (ghoul rider)
-//   stun:   skips next enemy turn(s)
-//   weaken: enemy attack -X for N turns
-//   mark:   next incoming attack on this target is guaranteed critical
-//   guard:  flat damage block for the next N incoming hits
-//   focus:  +X attack for N turns (player)
-//   regen:  heals per turn for N turns (player)
+//   bleed:      stacks * dmg at end of each turn for N turns
+//   poison:     damage at end of each turn for N turns (ghoul rider)
+//   stun:       skips next enemy/player turn(s)
+//   weaken:     attack -X for N turns
+//   armorBreak: defense -X for N turns (gelatinous cube acid)
+//   mark:       next incoming attack on this target is guaranteed crit
+//   guard:      flat damage block for the next N incoming hits
+//   regen:      heals per turn for N turns (player)
 
-type StatusId = 'bleed' | 'poison' | 'stun' | 'weaken' | 'mark' | 'guard' | 'focus' | 'regen';
+type StatusId = 'bleed' | 'poison' | 'stun' | 'weaken' | 'armorBreak' | 'mark' | 'guard' | 'regen';
 
 export interface StatusState {
     bleed: { stacks: number; turns: number };
     poison: { damage: number; turns: number };
     stun: { turns: number };
     weaken: { turns: number; amount: number };
+    armorBreak: { turns: number; amount: number };
     mark: { turns: number };
     guard: { hits: number; amount: number };
-    focus: { turns: number; amount: number };
     regen: { turns: number; amount: number };
 }
 
@@ -30,9 +30,9 @@ export function emptyStatusState(): StatusState {
         poison: { damage: 0, turns: 0 },
         stun: { turns: 0 },
         weaken: { turns: 0, amount: 0 },
+        armorBreak: { turns: 0, amount: 0 },
         mark: { turns: 0 },
         guard: { hits: 0, amount: 0 },
-        focus: { turns: 0, amount: 0 },
         regen: { turns: 0, amount: 0 },
     };
 }
@@ -68,6 +68,16 @@ export function applyWeaken(s: StatusState, amount: number, turns: number) {
     s.weaken.turns = Math.max(s.weaken.turns, turns);
 }
 
+/**
+ * Apply or refresh an armor-break stack. Reduces effective defense by
+ * {@link StatusState.armorBreak.amount} while active. Highest pending
+ * amount wins so a light reapply cannot weaken a heavier break.
+ */
+export function applyArmorBreak(s: StatusState, amount: number, turns: number) {
+    if (amount > s.armorBreak.amount) s.armorBreak.amount = amount;
+    s.armorBreak.turns = Math.max(s.armorBreak.turns, turns);
+}
+
 export function applyMark(s: StatusState, turns: number) {
     s.mark.turns = Math.max(s.mark.turns, turns);
 }
@@ -75,11 +85,6 @@ export function applyMark(s: StatusState, turns: number) {
 export function applyGuard(s: StatusState, hits: number, amount: number) {
     s.guard.hits += hits;
     if (amount > s.guard.amount) s.guard.amount = amount;
-}
-
-export function applyFocus(s: StatusState, amount: number, turns: number) {
-    if (amount > s.focus.amount) s.focus.amount = amount;
-    s.focus.turns = Math.max(s.focus.turns, turns);
 }
 
 export function applyRegen(s: StatusState, amount: number, turns: number) {
@@ -145,17 +150,17 @@ export function tickTurn(s: StatusState): TickResult {
         }
     }
 
+    if (s.armorBreak.turns > 0) {
+        s.armorBreak.turns -= 1;
+        if (s.armorBreak.turns <= 0) {
+            s.armorBreak.amount = 0;
+            expired.push('armorBreak');
+        }
+    }
+
     if (s.mark.turns > 0) {
         s.mark.turns -= 1;
         if (s.mark.turns <= 0) expired.push('mark');
-    }
-
-    if (s.focus.turns > 0) {
-        s.focus.turns -= 1;
-        if (s.focus.turns <= 0) {
-            s.focus.amount = 0;
-            expired.push('focus');
-        }
     }
 
     if (s.regen.turns > 0) {
@@ -184,9 +189,9 @@ interface StatusLabels {
     poison: (damage: number, turns: number) => string;
     stun: (turns: number) => string;
     weaken: (amount: number, turns: number) => string;
+    armorBreak: (amount: number, turns: number) => string;
     mark: () => string;
     guard: (amount: number, hits: number) => string;
-    focus: (amount: number, turns: number) => string;
     regen: (amount: number, turns: number) => string;
 }
 
@@ -196,9 +201,9 @@ const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
         poison: (damage, turns) => `Яд ${damage}/${turns}х`,
         stun: (turns) => `Оглуш. ${turns}х`,
         weaken: (amount, turns) => `Слаб. -${amount}/${turns}х`,
+        armorBreak: (amount, turns) => `Броня -${amount}/${turns}х`,
         mark: () => 'Метка',
         guard: (amount, hits) => `Защита ${amount}x${hits}`,
-        focus: (amount, turns) => `Фокус +${amount}/${turns}х`,
         regen: (amount, turns) => `Реген. +${amount}/${turns}х`,
     },
     en: {
@@ -206,9 +211,9 @@ const STATUS_LABELS: Record<StatusLanguage, StatusLabels> = {
         poison: (damage, turns) => `Poison ${damage}/${turns}t`,
         stun: (turns) => `Stun ${turns}t`,
         weaken: (amount, turns) => `Weaken -${amount}/${turns}t`,
+        armorBreak: (amount, turns) => `Armor -${amount}/${turns}t`,
         mark: () => 'Marked',
         guard: (amount, hits) => `Guard ${amount}x${hits}`,
-        focus: (amount, turns) => `Focus +${amount}/${turns}t`,
         regen: (amount, turns) => `Regen +${amount}/${turns}t`,
     },
 };
@@ -220,9 +225,10 @@ export function statusSummary(s: StatusState, language: StatusLanguage = 'en'): 
     if (s.poison.turns > 0) parts.push(labels.poison(s.poison.damage, s.poison.turns));
     if (s.stun.turns > 0) parts.push(labels.stun(s.stun.turns));
     if (s.weaken.turns > 0) parts.push(labels.weaken(s.weaken.amount, s.weaken.turns));
+    if (s.armorBreak.turns > 0)
+        parts.push(labels.armorBreak(s.armorBreak.amount, s.armorBreak.turns));
     if (s.mark.turns > 0) parts.push(labels.mark());
     if (s.guard.hits > 0) parts.push(labels.guard(s.guard.amount, s.guard.hits));
-    if (s.focus.turns > 0) parts.push(labels.focus(s.focus.amount, s.focus.turns));
     if (s.regen.turns > 0) parts.push(labels.regen(s.regen.amount, s.regen.turns));
     return parts.join(' | ');
 }

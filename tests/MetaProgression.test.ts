@@ -135,6 +135,84 @@ describe('MetaProgressionManager.purchaseUpgrade', () => {
     });
 });
 
+describe('MetaProgressionManager.resetNpcMemoryForNewRun', () => {
+    it('wipes every NPC memory entry but keeps the rest of the profile', () => {
+        const manager = new MetaProgressionManager();
+        const npcs = manager.getNpcManager();
+        npcs.markEncounter('sara', 3);
+        npcs.markEncounter('sara', 5);
+        npcs.adjustAffinity('sara', 2);
+        npcs.addFlag('sara', 'helped-once');
+        npcs.markEncounter('gogi', 1);
+        manager.bankSkillPoints(5, 4);
+        const skillPointsBefore = manager.availableSkillPoints;
+        const totalBankedBefore = manager.totalSkillPointsBanked;
+        const highestDepthBefore = manager.highestDepthEver;
+
+        manager.resetNpcMemoryForNewRun();
+
+        const after = manager.getNpcManager();
+        expect(after.getMemory('sara')).toEqual({
+            metCount: 0,
+            affinity: 0,
+            lastDepthMet: 0,
+            flags: [],
+        });
+        expect(after.getMemory('gogi')).toEqual({
+            metCount: 0,
+            affinity: 0,
+            lastDepthMet: 0,
+            flags: [],
+        });
+        // Non-NPC profile fields stay intact.
+        expect(manager.availableSkillPoints).toBe(skillPointsBefore);
+        expect(manager.totalSkillPointsBanked).toBe(totalBankedBefore);
+        expect(manager.highestDepthEver).toBe(highestDepthBefore);
+    });
+
+    it('flushes the reset state to localStorage so the next load starts fresh', () => {
+        const manager = new MetaProgressionManager();
+        manager.getNpcManager().markEncounter('sara', 2);
+        manager.resetNpcMemoryForNewRun();
+
+        const next = new MetaProgressionManager();
+        expect(next.getNpcManager().getMemory('sara')).toEqual({
+            metCount: 0,
+            affinity: 0,
+            lastDepthMet: 0,
+            flags: [],
+        });
+    });
+
+    it('makes pickDialog return the `first` beat after a reset, even after prior encounters', () => {
+        const manager = new MetaProgressionManager();
+        manager.getNpcManager().markEncounter('sara', 1);
+        manager.getNpcManager().markEncounter('sara', 2);
+        // Sanity: without the reset we'd be in the `return` stage.
+        expect(
+            manager.getNpcManager().pickDialog('sara', {
+                depth: 1,
+                hpFrac: 1,
+                bleedDamageDealt: 0,
+                relicsFound: 0,
+                bossesKilledEver: 0,
+            }).beat.stage
+        ).toBe('return');
+
+        manager.resetNpcMemoryForNewRun();
+
+        expect(
+            manager.getNpcManager().pickDialog('sara', {
+                depth: 1,
+                hpFrac: 1,
+                bleedDamageDealt: 0,
+                relicsFound: 0,
+                bossesKilledEver: 0,
+            }).beat.stage
+        ).toBe('first');
+    });
+});
+
 describe('MetaProgressionManager.resetProgress', () => {
     it('wipes the bank, every upgrade, and legacy localStorage entries', () => {
         const manager = new MetaProgressionManager();
@@ -153,6 +231,61 @@ describe('MetaProgressionManager.resetProgress', () => {
         expect(window.localStorage.getItem(STORAGE_KEY)).toBeNull();
         LEGACY_KEYS.forEach((key) => {
             expect(window.localStorage.getItem(key)).toBeNull();
+        });
+    });
+});
+
+describe('MetaProgressionManager.getMilestoneProgressList', () => {
+    it('returns one entry per milestone with current/target in the natural unit', () => {
+        const manager = new MetaProgressionManager();
+        const entries = manager.getMilestoneProgressList('en');
+        expect(entries).toHaveLength(4);
+        const targets = entries.map((e) => ({ id: e.id, target: e.target }));
+        expect(targets).toEqual([
+            { id: 'depth-5', target: 5 },
+            { id: 'depth-15', target: 15 },
+            { id: 'depth-25', target: 25 },
+            { id: 'first-boss', target: 1 },
+        ]);
+        entries.forEach((entry) => {
+            expect(entry.current).toBe(0);
+            expect(entry.unlocked).toBe(false);
+        });
+    });
+
+    it('clamps depth progress to the milestone target and lights up unlocked rows', () => {
+        const manager = new MetaProgressionManager();
+        manager.unlockDepthMilestones(15);
+        manager.bankSkillPoints(0, 15);
+
+        const entries = manager.getMilestoneProgressList('en');
+        const byId = Object.fromEntries(entries.map((e) => [e.id, e]));
+        expect(byId['depth-5']).toMatchObject({ current: 5, target: 5, unlocked: true });
+        expect(byId['depth-15']).toMatchObject({ current: 15, target: 15, unlocked: true });
+        expect(byId['depth-25']).toMatchObject({ current: 15, target: 25, unlocked: false });
+        expect(byId['first-boss']).toMatchObject({ current: 0, target: 1, unlocked: false });
+    });
+
+    it('treats the first boss kill as a 0/1 -> 1/1 ✓ row', () => {
+        const manager = new MetaProgressionManager();
+        manager.registerBossKill();
+        const boss = manager
+            .getMilestoneProgressList('en')
+            .find((entry) => entry.id === 'first-boss');
+        expect(boss).toMatchObject({ current: 1, target: 1, unlocked: true });
+    });
+
+    it('zeroes every entry after resetProgress', () => {
+        const manager = new MetaProgressionManager();
+        manager.unlockDepthMilestones(9);
+        manager.registerBossKill();
+        manager.bankSkillPoints(0, 9);
+        manager.resetProgress();
+
+        const entries = manager.getMilestoneProgressList('en');
+        entries.forEach((entry) => {
+            expect(entry.current).toBe(0);
+            expect(entry.unlocked).toBe(false);
         });
     });
 });

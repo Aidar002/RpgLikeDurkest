@@ -1,6 +1,6 @@
-import { FEATURES } from '../data/GameConfig';
 import { lt, pickLocalized } from './LocalizedText';
 import type { LocalizedText } from './LocalizedText';
+import type { Language } from './Localization';
 import type { SkillId } from './Skills';
 import {
     NpcManager,
@@ -38,9 +38,6 @@ type UnlockId =
     | 'ui_enemy_hp'
     | 'ui_run_metrics'
     | 'ui_kill_counter'
-    | 'currency_relic_shards'
-    | 'merchant_premium'
-    | 'shrine_premium'
     | 'skill_cleave'
     | 'skill_bleed_strike'
     | 'skill_preparation'
@@ -68,7 +65,6 @@ export interface UiUnlockState {
     showEnemyHp: boolean;
     showRunMetrics: boolean;
     showKillCounter: boolean;
-    showRelicShards: boolean;
 }
 
 export type ContentUnlockState = Record<UnlockId, boolean>;
@@ -91,6 +87,20 @@ interface UpgradeCardInfo {
     maxLevel: number;
     cost: number | null;
     canPurchase: boolean;
+}
+
+/**
+ * Localised snapshot of one content-unlock milestone for the
+ * end-screen 'discovery progress' block. `current` and `target`
+ * live in the milestone's natural unit (depth, boss kills, ...).
+ */
+export interface MilestoneProgressEntry {
+    id: string;
+    label: string;
+    requirement: string;
+    current: number;
+    target: number;
+    unlocked: boolean;
 }
 
 export interface ContentUnlockMilestone {
@@ -142,9 +152,6 @@ const DEFAULT_CONTENT_UNLOCKS: ContentUnlockState = {
     ui_enemy_hp: true,
     ui_run_metrics: true,
     ui_kill_counter: true,
-    currency_relic_shards: true,
-    merchant_premium: true,
-    shrine_premium: true,
     skill_cleave: false,
     skill_bleed_strike: false,
     skill_preparation: false,
@@ -169,24 +176,24 @@ const DEFAULT_PROFILE: MetaProfile = {
 
 const DEPTH_MILESTONES: ContentUnlockMilestone[] = [
     {
-        id: 'depth-3',
+        id: 'depth-5',
         label: lt('Навык: Рубка', 'Skill: Cleave'),
-        requirement: lt('Достигни глубины 3', 'Reach depth 3'),
-        depth: 3,
+        requirement: lt('Достигни глубины 5', 'Reach depth 5'),
+        depth: 5,
         unlocks: ['skill_cleave'],
     },
     {
-        id: 'depth-5',
+        id: 'depth-15',
         label: lt('Навык: Кровавый разрез', 'Skill: Bleed Strike'),
-        requirement: lt('Достигни глубины 5', 'Reach depth 5'),
-        depth: 5,
+        requirement: lt('Достигни глубины 15', 'Reach depth 15'),
+        depth: 15,
         unlocks: ['skill_bleed_strike'],
     },
     {
-        id: 'depth-7',
+        id: 'depth-25',
         label: lt('Редкие реликвии в добыче', 'Rare relic rolls'),
-        requirement: lt('Достигни глубины 7', 'Reach depth 7'),
-        depth: 7,
+        requirement: lt('Достигни глубины 25', 'Reach depth 25'),
+        depth: 25,
         unlocks: ['relic_pool_rare'],
     },
 ];
@@ -405,12 +412,40 @@ export class MetaProgressionManager {
         return unlocked;
     }
 
-    getNextContentUnlock(): ContentUnlockMilestone | null {
-        return (
-            ALL_MILESTONES.find((milestone) =>
-                milestone.unlocks.some((unlockId) => !this.profile.contentUnlocks[unlockId])
-            ) ?? null
-        );
+    /**
+     * Snapshot of every content-unlock milestone for end-screen
+     * rendering. The list is stable across runs (one entry per
+     * milestone, in display order); each entry carries the localised
+     * label, the natural-unit progress (`current`/`target`) and the
+     * unlocked flag. `resetProgress` zeroes the source counters so a
+     * post-wipe snapshot reports every entry at `0/target` again.
+     */
+    getMilestoneProgressList(language: Language): MilestoneProgressEntry[] {
+        return ALL_MILESTONES.map((milestone) => {
+            const unlocked = milestone.unlocks.every((id) => this.profile.contentUnlocks[id]);
+
+            let current: number;
+            let target: number;
+            if (milestone.depth !== undefined) {
+                target = milestone.depth;
+                current = Math.min(this.profile.highestDepthEver, target);
+            } else if (milestone.requiresFirstBossKill) {
+                target = 1;
+                current = Math.min(this.profile.bossesKilledEver, target);
+            } else {
+                target = 1;
+                current = unlocked ? 1 : 0;
+            }
+
+            return {
+                id: milestone.id,
+                label: pickLocalized(language, milestone.label),
+                requirement: pickLocalized(language, milestone.requirement),
+                current,
+                target,
+                unlocked,
+            };
+        });
     }
 
     getUiUnlockState(): UiUnlockState {
@@ -426,7 +461,6 @@ export class MetaProgressionManager {
             showEnemyHp: true,
             showRunMetrics: true,
             showKillCounter: true,
-            showRelicShards: FEATURES.shards,
         };
     }
 
@@ -500,6 +534,20 @@ export class MetaProgressionManager {
         } catch {
             // ignore
         }
+    }
+
+    /**
+     * Reset NPC memory back to defaults at the start of every run.
+     * Wipes metCount / affinity / lastDepthMet / flags for every NPC
+     * so the player always sees the `first` dialog beat on the first
+     * encounter of a fresh run. Upgrades, unlocks, skill points and
+     * depth records are intentionally left alone — only the per-NPC
+     * memory map is touched.
+     */
+    resetNpcMemoryForNewRun() {
+        this.profile.npcMemory = makeDefaultNpcMemoryMap();
+        this.npcManager = new NpcManager(this.profile.npcMemory, () => this.saveProfile());
+        this.saveProfile();
     }
 
     private loadProfile(): MetaProfile {

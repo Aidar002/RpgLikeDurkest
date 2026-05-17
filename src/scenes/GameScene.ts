@@ -17,6 +17,7 @@ import { Localization } from '../systems/Localization';
 import type { NpcManager } from '../systems/NpcManager';
 import type { NpcOfferTemplate } from '../systems/Npcs';
 import { EventLog } from '../ui/EventLog';
+import { BODY_FONT } from '../ui/HudTheme';
 import { VFX } from '../ui/VFX';
 import { MusicManager } from '../systems/MusicManager';
 import { SoundManager } from '../systems/SoundManager';
@@ -27,10 +28,12 @@ import {
     GAME_HEIGHT,
     GAME_WIDTH,
     HUD_BOTTOM_OFFSET,
+    RoomLayout,
     TOP_BAR_H,
 } from '../ui/Layout';
 import { setupSceneChrome } from '../ui/SceneChrome';
-import type { RoomButtonAction, RoomButtonsHandle } from '../ui/RoomButtons';
+import type { RoomButtonsHandle } from '../ui/RoomButtons';
+import type { LockpickShowOptions } from '../ui/LockpickOverlay';
 import type { RunEndState } from '../ui/end/types';
 import { RoomFlowController } from './RoomFlow';
 import { CombatHudController } from './CombatHud';
@@ -43,9 +46,8 @@ import { maybeDropRelic as maybeDropRelicImpl, type RelicDropKind } from '../sys
 // Map layout / node-visual types moved to ../ui/MapView.ts.
 
 // Room-action button types/builders moved to ../ui/RoomButtons.ts.
-// `RoomButtonAction` is re-exported here for backward compat with
-// `import { RoomButtonAction } from '../scenes/GameScene'` call sites
-// in CombatHud / RoomFlow.
+// Re-exported here for backward compat with `import { RoomButtonAction }
+// from '../scenes/GameScene'` call sites in CombatHud / RoomFlow.
 export type { RoomButtonAction } from '../ui/RoomButtons';
 
 // =============================================================================
@@ -125,6 +127,7 @@ export class GameScene extends Phaser.Scene {
     public enemyHpText!: Phaser.GameObjects.Text;
     public enemyIntelText!: Phaser.GameObjects.Text;
     public roomFlavorText!: Phaser.GameObjects.Text;
+    public roomDialogContainer!: Phaser.GameObjects.Container;
     public roomPanelGroup!: Phaser.GameObjects.Container;
     public roomButtons!: RoomButtonsHandle;
 
@@ -177,7 +180,21 @@ export class GameScene extends Phaser.Scene {
     }
 
     create() {
+        // Fade the dungeon in from black so the hand-off from BootScene
+        // (which fades the camera out to black just before transitioning)
+        // reads as one continuous dissolve instead of a hard pop. 1400 ms
+        // mirrors `CAMERA_FADE_MS` in BootScene so the in/out beats are
+        // symmetric. The map / HUD / player setup below runs while the
+        // screen is still black, so the player only sees the dungeon
+        // once the fade-in completes.
+        this.cameras.main.fadeIn(1400, 0, 0, 0);
+
         this.meta = new MetaProgressionManager();
+        // Wipe per-NPC memory on every run start so each NPC greets
+        // the player with their `first` dialog beat. Upgrades, unlocks
+        // and banked skill points keep their meta-persistence — only
+        // the dialog memory map is reset.
+        this.meta.resetNpcMemoryForNewRun();
         this.npcs = this.meta.getNpcManager();
         const metaBonuses = this.meta.getBonuses();
 
@@ -244,7 +261,7 @@ export class GameScene extends Phaser.Scene {
         // before MapView so the constructor can capture it.
         this.tooltipText = this.add
             .text(0, 0, '', {
-                fontFamily: 'Courier New',
+                fontFamily: BODY_FONT,
                 fontSize: '11px',
                 color: '#d0d0d0',
                 backgroundColor: '#1a1a1aee',
@@ -257,9 +274,9 @@ export class GameScene extends Phaser.Scene {
 
         this.log = new EventLog(
             this,
-            18,
+            RoomLayout.logX,
             TOP_BAR_H + 12,
-            530,
+            RoomLayout.logWidth,
             GAME_HEIGHT - TOP_BAR_H - BOTTOM_BAR_H - HUD_BOTTOM_OFFSET - 12
         );
         this.roomContainer.add(this.log.view);
@@ -287,6 +304,12 @@ export class GameScene extends Phaser.Scene {
 
         setupSceneChrome(this, this.sfx, this.loc, () => this.safeRestart(), this.music);
         this.sfx.startAmbient(0);
+        // Music setup lives here (not in BootScene) so the title
+        // screen stays silent except for the procedural torch
+        // crackle. `setPlaylist` is safe to call on every restart —
+        // it just rewinds the (single-track) playlist.
+        const audioBase = `${import.meta.env.BASE_URL}audio`;
+        this.music.setPlaylist([{ url: `${audioBase}/dungeon_sound_2.mp3` }]);
         this.music.start();
 
         this.log.addMessage(
@@ -334,6 +357,11 @@ export class GameScene extends Phaser.Scene {
      * here only so external callers (`CombatHud`, `RoomFlow`) can keep
      * using the familiar `scene.maybeDropRelic(...)` shape. Returns
      * `true` if the player picked up a new relic.
+     *
+     * Plumbs `dungeon.currentDepth` and `player.aggregate.relicDropChanceMod`
+     * into the dispatcher so the Stage [4] `X + Y*depth + Z + K + relicMod`
+     * formula in `Relics.rollRelicForEnemy` has its full input vector
+     * even though the call sites still spell `scene.maybeDropRelic(kind, name)`.
      */
     public maybeDropRelic(kind: RelicDropKind, enemyName?: string): boolean {
         return maybeDropRelicImpl(
@@ -344,19 +372,12 @@ export class GameScene extends Phaser.Scene {
                 sfx: this.sfx,
                 log: this.log,
                 loc: this.loc,
+                depth: this.dungeon.currentDepth,
+                relicMod: this.player.aggregate.relicDropChanceMod,
             },
             kind,
             enemyName
         );
-    }
-
-    /**
-     * @deprecated Use `this.roomButtons.setActions(...)` directly.
-     * Kept as a thin shim so RoomFlow / CombatHud call sites compile
-     * unchanged after the RoomButtons extraction.
-     */
-    public setRoomButtons(actions: RoomButtonAction[], useWideOnly: boolean = false): void {
-        this.room.setRoomButtons(actions, useWideOnly);
     }
 
     /** Forward to {@link GameMapController.applyRoomTint}. */
@@ -378,6 +399,11 @@ export class GameScene extends Phaser.Scene {
         return this.room.applyTrapDamage(rawDamage);
     }
 
+    /** Forward to {@link GameRoomController.showLockpickModal}. */
+    public showLockpickModal(options: LockpickShowOptions): void {
+        this.room.showLockpickModal(options);
+    }
+
     /** Forward to {@link GameRoomController.showRoomCard}. */
     public showRoomCard(
         header: string,
@@ -385,10 +411,25 @@ export class GameScene extends Phaser.Scene {
         description: string,
         color: number,
         icon: string,
-        intel: string,
         spriteKey: string = header
     ) {
-        this.room.showRoomCard(header, title, description, color, icon, intel, spriteKey);
+        this.room.showRoomCard(header, title, description, color, icon, spriteKey);
+    }
+
+    /** Forward to {@link GameRoomController.showRoomNpcCard}. */
+    public showRoomNpcCard(
+        header: string,
+        title: string,
+        color: number,
+        icon: string,
+        npcSpeech: string
+    ) {
+        this.room.showRoomNpcCard(header, title, color, icon, npcSpeech);
+    }
+
+    /** Forward to {@link GameRoomController.updateRoomDialog}. */
+    public updateRoomDialog(opts: { npc?: string; player?: string }) {
+        this.room.updateRoomDialog(opts);
     }
 
     /** Forward to {@link GameRoomController.showReturnButton}. */

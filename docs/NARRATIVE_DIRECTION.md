@@ -2,7 +2,7 @@
 
 ## Core Pitch
 
-Darkest Descent is about repeated expeditions into a hostile underground ruin. The player is not a chosen hero. They are an explorer trying to bring back resources, learn from death, and push one floor deeper.
+Wishbound: Eternal Dungeon is about repeated expeditions into a hostile underground ruin. The player is not a chosen hero. They are an explorer trying to bring back resources, learn from death, and push one floor deeper.
 
 The dungeon is not vague evil. It is practical, old, and built to kill people. Its traps, rooms, monsters, and bargains should feel like parts of one dangerous machine.
 

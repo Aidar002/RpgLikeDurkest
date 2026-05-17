@@ -37,9 +37,13 @@ export const HudLayout = {
         /** X offset (from `statsX`) of the second column. */
         secondColumnDx: 130,
         /** X anchor for the ЗОЛОТО / ЭЛИК. / ВОЛЯ resource column.
-         *  Lives in the right third of the top bar, between the
-         *  combat stat block and the chrome icon row. */
-        resourcesX: 700,
+         *  Sits ~20 px to the right of the ATK/DEF value column so
+         *  the two stat blocks read as one unit. The ATK/DEF value
+         *  text starts at `statsX + statsValueOffset = 504` and
+         *  takes up ~30 px even for a 3-digit value, so 540 keeps a
+         *  visible 20 px gap in the typical 1- or 2-digit case
+         *  without crowding the high-roll edge. */
+        resourcesX: 540,
         /** Y of the topmost resource row (ЗОЛОТО). */
         resourceRow1Y: 14,
         /** Y of the middle resource row (ЭЛИК.). */
@@ -73,6 +77,36 @@ export const TOP_BAR_H = 96;
 export const BOTTOM_BAR_H = 140;
 export const HUD_PAD = 24;
 export const HUD_BOTTOM_OFFSET = 10;
+
+/**
+ * Horizontal split of the in-room play area. The left panel hosts the
+ * event log; the right panel hosts the enemy portrait, name, HP bar,
+ * intent label, contextual flavour text, and action buttons.
+ *
+ * Ratio (per design): left ≈ 35 % / right ≈ 65 % of the panel area,
+ * with a 22 px gap between them and small outer margins so the
+ * carved frames around each panel breathe against the canvas edges.
+ *
+ *   |←18→|‖ LOG (340) ‖|←22→|‖   COMBAT / ROOM (624)   ‖|←20→|
+ *
+ * Consumers (EventLog construction in GameScene, panel rectangle in
+ * GameRoomController, button column anchors in RoomButtons) read
+ * these values so the split stays in lockstep across files.
+ */
+export const RoomLayout = {
+    /** Left edge of the event-log panel. */
+    logX: 18,
+    /** Width of the event-log panel. */
+    logWidth: 340,
+    /** Left edge of the right combat / room panel. */
+    panelX: 380,
+    /** Width of the right combat / room panel. */
+    panelWidth: 624,
+    /** Horizontal centre of the right panel — used to anchor the
+     *  portrait, name text, HP bar, intent, flavour, and the wide
+     *  button. Equals `panelX + panelWidth / 2`. */
+    panelCenterX: 692,
+} as const;
 
 /**
  * Named depth tiers for UI overlays. Keep gaps between groups so individual
