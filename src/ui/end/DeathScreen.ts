@@ -177,13 +177,29 @@ export function showDeathScreen(ctx: EndScreenContext) {
     });
     const skillPointsBanner = skillPointsBannerHandle.background;
     skillPointsBanner.setVisible(escaped);
-    const pointsText = scene.add
+    // Banner text is split into a fixed gold label ("Очки прокачки:")
+    // and a dynamic value glyph so the value can switch to red when
+    // the player can't afford any upgrade. `refreshShop` recomputes
+    // the centred layout after both `.setText` calls so the pair
+    // stays visually centred regardless of locale / digit count.
+    const POINTS_VALUE_GOLD = '#ffd86a';
+    const POINTS_VALUE_RED = '#ff6b6b';
+    const pointsLabel = scene.add
         .text(CENTER_X, bannerY, '', {
             fontFamily: BODY_FONT,
             fontSize: '22px',
-            color: '#ffd86a',
+            color: POINTS_VALUE_GOLD,
         })
-        .setOrigin(0.5)
+        .setOrigin(0, 0.5)
+        .setDepth(Depths.EndScreenForeground)
+        .setVisible(escaped);
+    const pointsValue = scene.add
+        .text(CENTER_X, bannerY, '', {
+            fontFamily: BODY_FONT,
+            fontSize: '22px',
+            color: POINTS_VALUE_GOLD,
+        })
+        .setOrigin(0, 0.5)
         .setDepth(Depths.EndScreenForeground)
         .setVisible(escaped);
 
@@ -399,16 +415,21 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // bar at 0 again.
     //
     // Sized considerably larger than the previous iteration (bar
-    // 260×6 → 340×12, label/status font 12 → 17, min row 16 → 26)
-    // so this section reads at the same scale as the upgrade cards
-    // above it. Anchored directly to `cardsBottomY` since the
-    // two-column run-summary block that used to sit between cards
-    // and bars now lives behind the "Log" popup.
+    // 260×6 → 340×12 → 240×12, label/status font 12 → 17, min row
+    // 16 → 26) so this section reads at the same scale as the
+    // upgrade cards above it. Bar width was dialled back from 340
+    // to 240 after feedback that the right-anchored `current/target`
+    // status text was overlapping the bar's filled end — the new
+    // width leaves ~70 px of breathing room between the bar's right
+    // edge and the status text even with `✓` suffixes. Anchored
+    // directly to `cardsBottomY` since the two-column run-summary
+    // block that used to sit between cards and bars now lives
+    // behind the "Log" popup.
     const PROGRESS_HEADER_GAP = 30;
     const PROGRESS_MIN_ROW_HEIGHT = 26;
     const PROGRESS_ROW_PADDING = 8;
     const PROGRESS_LABEL_FONT = '17px';
-    const PROGRESS_BAR_W = 340;
+    const PROGRESS_BAR_W = 240;
     const PROGRESS_BAR_H = 12;
     const PROGRESS_LABEL_X = panelLeft + 60;
     const PROGRESS_BAR_X = CENTER_X + 50;
@@ -686,9 +707,24 @@ export function showDeathScreen(ctx: EndScreenContext) {
         if (!escaped) {
             return;
         }
-        pointsText.setText(`${loc.t('shopSkillPointsBank')}: ${meta.availableSkillPoints}`);
-
+        // Re-layout the points banner so the label + value pair stays
+        // centred after either side changes width (e.g. switching
+        // RU↔EN or stepping the digit count from `9` to `10`). The
+        // value's colour flips to red iff the player has at least one
+        // non-maxed upgrade and can't afford any of them — a maxed-
+        // out profile keeps the gold tint because there's nothing to
+        // spend on.
         const upgradeCards = meta.getUpgradeCards(loc.language);
+        const hasNonMaxed = upgradeCards.some((c) => c.cost !== null);
+        const anyAffordable = upgradeCards.some((c) => c.canPurchase);
+        const cantAffordAny = hasNonMaxed && !anyAffordable;
+        pointsLabel.setText(`${loc.t('shopSkillPointsBank')}: `);
+        pointsValue.setText(`${meta.availableSkillPoints}`);
+        pointsValue.setColor(cantAffordAny ? POINTS_VALUE_RED : POINTS_VALUE_GOLD);
+        const pointsTotalW = pointsLabel.width + pointsValue.width;
+        pointsLabel.setPosition(CENTER_X - pointsTotalW / 2, bannerY);
+        pointsValue.setPosition(CENTER_X - pointsTotalW / 2 + pointsLabel.width, bannerY);
+
         cards.forEach((card) => {
             const info = upgradeCards.find((upgrade) => upgrade.id === card.id);
             if (!info) {
@@ -838,7 +874,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
         fadeTargets.push(resetButton, resetText);
     }
     if (escaped) {
-        fadeTargets.push(divider2, skillPointsBanner, pointsText, progressHeader);
+        fadeTargets.push(divider2, skillPointsBanner, pointsLabel, pointsValue, progressHeader);
         progressRows.forEach((row) => {
             fadeTargets.push(row.label, row.barBg, row.barFill, row.status);
         });
