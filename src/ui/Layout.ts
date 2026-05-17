@@ -53,6 +53,11 @@ export const HudLayout = {
          *  removed; 30 px lets the bar tuck right up against the
          *  bold 13 px label with a ~6 px breathing gap. */
         vitalsBarOffsetX: 30,
+        /** Pixel width of the HP and XP bar tracks. Tightened from
+         *  200 to 150 so the vitals column doesn't dominate the top
+         *  bar — the freed 50 px gives the resource/progress trios
+         *  on the right room to grow without bumping the margins. */
+        vitalsBarWidth: 150,
         /** X anchor (icon centre of the leftmost slot — coin) for
          *  the big ЗОЛОТО / ЭЛИК. / ВОЛЯ resource trio. Each slot
          *  renders as icon-on-top, label below, value below — three
@@ -60,41 +65,43 @@ export const HudLayout = {
          *  the top bar.
          *
          *  ATK/DEF value column ends ~530 (statsX + statsValueOffset
-         *  + value width). 556 leaves a ~10 px gap to the leftmost
-         *  resource label ("Монеты" ≈ 50 px wide centred at 556). */
-        resourcesX: 556,
+         *  + value width). 552 leaves ~12 px of gap before the
+         *  leftmost resource block at icon size 40. */
+        resourcesX: 552,
         /** X step between adjacent stacked slots in the resource
-         *  trio. 64 px between centres comfortably fits a 32 px
-         *  icon and the widest label ("Монеты" / "Зелье") below it. */
-        resourcesStepX: 64,
+         *  trio. 72 px between centres clears a 40 px icon plus
+         *  the widest 12 px label ("Монеты" ≈ 52 px) with breathing
+         *  room on each side. */
+        resourcesStepX: 72,
         /** Y of the icon top edge for the big resource and progress
          *  stacked slots. The top bar is 96 px tall with a carved
-         *  rim of ~14 px, so y=10 lets a 32 px icon centre at
-         *  y=26 — clear of the rim — with the label landing around
-         *  y=44 and the value at y=60, leaving ~14 px of headroom
-         *  before the bar's bottom edge. */
-        resourceIconTopY: 10,
+         *  rim of ~14 px, so y=8 lets a 40 px icon centre at
+         *  y=28 — clear of the rim — with the label landing around
+         *  y=50 and the bold value at y=66, leaving ~10 px of
+         *  headroom before the bar's bottom edge. */
+        resourceIconTopY: 8,
         /** Icon side length for the big resource / progress stacked
-         *  slots. */
-        resourceIconSize: 32,
+         *  slots. Bumped from 32 to 40 so the trios read as the
+         *  visual centrepieces of the top bar (per player feedback
+         *  — the 32 px icons felt undersized next to the bars). */
+        resourceIconSize: 40,
         /** X centre of the carved pillar that visually separates the
          *  resource trio from the run-progress trio. Sits midway
-         *  between the rightmost resource slot (556 + 2*64 = 684)
+         *  between the rightmost resource slot (552 + 2*72 = 696)
          *  and the leftmost progress slot (`progressX`, see below). */
-        dividerX: 730,
+        dividerX: 728,
         /** X anchor (icon centre of the leftmost slot — depth) for
          *  the big ГЛУБИНА / УБИТО / БОССЫ run-progress trio. Mirrors
          *  the resource trio's `icon + label + value` style on the
          *  right of the top bar, separated from the resources by
          *  the divider pillar at `dividerX`. The three centres land
-         *  at 776, 840, 904 — the rightmost label / value extends
-         *  ~32 px past the centre, ending ~936 inside the 1024 px
-         *  canvas (~88 px right margin). */
-        progressX: 776,
+         *  at 760, 832, 904 — the rightmost block ends ~940 inside
+         *  the 1024 px canvas (~84 px right margin). */
+        progressX: 760,
         /** X step between adjacent stacked slots in the progress
          *  trio. Matches `resourcesStepX` so the two trios share
          *  the same rhythm. */
-        progressStepX: 64,
+        progressStepX: 72,
     },
     chrome: {
         /** Y of the music/settings/language icon row. Sits in the

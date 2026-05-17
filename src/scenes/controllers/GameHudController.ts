@@ -42,11 +42,12 @@ import { RELICS } from '../../systems/Relics';
 import type { RelicId } from '../../systems/Relics';
 import type { GameScene } from '../GameScene';
 
-/** Pixel size of the value text under each big resource / progress
- *  icon in the top bar. The icon pixel size and X anchors come from
- *  `HudLayout.topHud.*` so a "nudge the icon up 2px" tweak is a
- *  one-line edit in Layout.ts. */
-const RESOURCE_VALUE_FONT_SIZE = '18px';
+/** Pixel size of the bold value text under each big resource /
+ *  progress icon's label. Bumped from 18 to 20 so the headline
+ *  numbers read clearly under the 12 px labels. The icon pixel
+ *  size and X anchors come from `HudLayout.topHud.*` so a "nudge
+ *  the icon up 2px" tweak is a one-line edit in Layout.ts. */
+const RESOURCE_VALUE_FONT_SIZE = '20px';
 
 /**
  * Owns the global HUD: top bar (HP/XP, ATK/DEF, gold/potion/resolve),
@@ -67,9 +68,11 @@ export class GameHudController {
     private readonly scene: GameScene;
 
     // Bar dimensions cached so `refresh` can rescale fills without re-measuring.
-    private readonly hpBarWidth = 200;
+    // Width tracks `HudLayout.topHud.vitalsBarWidth` so a "stretch the
+    // bars" tweak is a one-line edit in Layout.ts.
+    private readonly hpBarWidth = HudLayout.topHud.vitalsBarWidth;
     private readonly hpBarHeight = 14;
-    private readonly xpBarWidth = 200;
+    private readonly xpBarWidth = HudLayout.topHud.vitalsBarWidth;
     private readonly xpBarHeight = 10;
 
     /** Horizontal slide each direction during a room transition (px). */
@@ -728,30 +731,41 @@ export class GameHudController {
     /**
      * Carved vertical pillar dividing the resource trio (gold /
      * potion / will) from the run-progress trio (depth / kills /
-     * bosses). Built procedurally with a dark groove and a faint
-     * gold inner rim to match the chiselled-stone aesthetic of the
-     * top bar's frame, so the eye reads the two trios as separate
-     * groups instead of one long six-icon row.
+     * bosses). Drawn as an 8 px wide chiselled-stone column: a dark
+     * recessed groove flanked by bright gold rims, with rune-dot
+     * accents at the top, middle, and bottom — same vocabulary as
+     * the panel corners and bar frames, so the eye reads the two
+     * trios as separate groups instead of one long six-icon row.
      */
     private buildTopDivider(): Phaser.GameObjects.Graphics {
         const cx = HudLayout.topHud.dividerX;
-        // Pillar lives within the top bar's interior (y 16..80) so
-        // it never collides with the gold rim.
-        const top = 16;
-        const height = 64;
+        // Pillar lives within the top bar's interior (y 12..84) so
+        // it spans most of the bar without crowding the gold rim.
+        const top = 12;
+        const height = 72;
         const g = this.scene.add.graphics();
-        // Dark recessed groove (3 px wide).
+        // Outer dark rim — 8 px wide ribbon of panel-outer colour so
+        // the pillar reads as a recessed slot in the bar.
+        g.fillStyle(HudColors.panelOuter, 1);
+        g.fillRect(cx - 4, top, 8, height);
+        // Dark recessed groove (4 px wide) inside the rim.
         g.fillStyle(HudColors.panelLo, 1);
-        g.fillRect(cx - 1, top, 3, height);
-        // Inner gold rim on the right edge — bright at the top,
-        // fading to a hint at the bottom (mirrors the top bar's
-        // own carved highlights).
-        g.fillStyle(HudColors.cellGoldEdge, 0.45);
-        g.fillRect(cx + 2, top + 4, 1, height - 8);
-        // Dot accents at the rim's vertical midpoint pick up the
-        // carved-stone rune motif from the panel corners.
-        g.fillStyle(HudColors.cellGoldEdge, 0.6);
-        g.fillRect(cx - 2, top + height / 2 - 1, 5, 2);
+        g.fillRect(cx - 2, top + 2, 4, height - 4);
+        // Bright gold rim along both vertical edges of the pillar.
+        g.fillStyle(HudColors.cellGoldEdge, 0.85);
+        g.fillRect(cx - 4, top, 1, height);
+        g.fillRect(cx + 3, top, 1, height);
+        // Softer secondary gold lines just inside the bright rim.
+        g.fillStyle(HudColors.cellGoldEdge, 0.35);
+        g.fillRect(cx - 3, top + 2, 1, height - 4);
+        g.fillRect(cx + 2, top + 2, 1, height - 4);
+        // Rune-dot accents at the top, middle, and bottom of the
+        // pillar — picks up the corner-rune motif from `drawHudPanel`.
+        const dotY = [top + 4, top + height / 2 - 1, top + height - 6];
+        g.fillStyle(HudColors.cellGoldEdge, 1);
+        for (const y of dotY) {
+            g.fillRect(cx - 1, y, 2, 2);
+        }
         return g;
     }
 
