@@ -421,12 +421,17 @@ export class GameRoomController {
         // npc_sara) when its texture is registered. Falls back to
         // the coloured glyph the NPC profile already carries so
         // unit tests / future NPCs without art keep working.
+        //
+        // NPC portrait sources aren't authored at a uniform aspect
+        // ratio (e.g. `npc_sara.webp` is taller than wide), so we go
+        // through {@link fitEnemySprite} to letterbox the sprite into
+        // a 200 px box instead of `setDisplaySize(200, 200)` —
+        // forcing a square stretched non-square art and the NPC art
+        // looked visibly squashed in the panel.
         const hasPortraitTexture = !!portraitKey && scene.textures.exists(portraitKey);
         if (hasPortraitTexture && portraitKey) {
-            scene.enemySpriteImage
-                .setTexture(portraitKey)
-                .setDisplaySize(200, 200)
-                .setVisible(true);
+            scene.enemySpriteImage.setTexture(portraitKey).setVisible(true);
+            fitEnemySprite(scene.enemySpriteImage, 200);
             scene.enemyIconText.setText('');
             scene.enemyIconText.setVisible(false);
         } else {
