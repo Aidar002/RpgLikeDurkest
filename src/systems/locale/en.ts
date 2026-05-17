@@ -27,6 +27,8 @@ export const EN_STRINGS = {
     depth: 'Depth',
     returnToMap: '[Space] Back to map',
     levelUp: 'Level {level} reached.',
+    levelUpBannerTitle: 'LEVEL UP',
+    levelUpBannerTransition: '{prev}  →  {next}',
     levelUpSkillPoint: '+1 skill point earned (banked on escape).',
     unlocked: 'Permanent unlock: {label}.',
     actionAttack: '[1] Strike',

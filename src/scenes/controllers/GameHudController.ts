@@ -34,6 +34,7 @@ import { RestartConfirmModal } from '../../ui/RestartConfirmModal';
 import { drawUiButton, type ButtonBackground } from '../../ui/UiButton';
 import { EscapeHintGlow } from '../../ui/EscapeHintGlow';
 import { VFX } from '../../ui/VFX';
+import { showLevelUpBanner } from '../../ui/LevelUpBanner';
 import { playEffect } from '../../ui/EffectsLibrary';
 import { showEffectsGallery, type EffectsGalleryHandle } from '../../ui/EffectsGalleryOverlay';
 import { statusSummary } from '../../systems/StatusEffects';
@@ -259,6 +260,18 @@ export class GameHudController {
             scene.log.addMessage(scene.loc.t('levelUpSkillPoint'), '#a4d8ff');
             VFX.floatText(scene, 370, 20, `${scene.loc.t('level')} ${level}`, '#fff17a');
             scene.sfx.play('levelUp');
+            // Celebration banner anchored above every HUD frame.
+            // Levels always step by exactly 1 per emit (see
+            // `PlayerManager.applyLevelUp` — the gainXp loop fires
+            // one event per increment), so `level - 1` is the prior
+            // level the player just left behind.
+            showLevelUpBanner(
+                scene,
+                level - 1,
+                level,
+                scene.loc.t('levelUpBannerTitle'),
+                scene.loc.t('levelUpBannerTransition', { prev: level - 1, next: level })
+            );
             const flash = scene.add
                 .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0xfff17a, 0.08)
                 .setDepth(Depths.ScreenFlash);

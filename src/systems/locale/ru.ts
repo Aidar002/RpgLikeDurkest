@@ -21,6 +21,8 @@ export const RU_STRINGS: Record<LocaleKey, string> = {
     depth: 'Глубина',
     returnToMap: '[Пробел] На карту',
     levelUp: 'Уровень {level}.',
+    levelUpBannerTitle: 'УРОВЕНЬ ПОВЫШЕН',
+    levelUpBannerTransition: '{prev}  →  {next}',
     levelUpSkillPoint: '+1 очко прокачки (банкуется при побеге).',
     unlocked: 'Память закрепила: {label}.',
     actionAttack: '[1] Удар',
