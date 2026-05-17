@@ -101,11 +101,18 @@ export class GameMapController {
             meta: scene.meta,
             loc: scene.loc,
             tooltipText: scene.tooltipText,
-            canMove: (_node) =>
-                scene.mapContainer.visible &&
-                !scene.roomContainer.visible &&
-                !this.animating &&
-                !scene.dead,
+            canMove: (_node) => {
+                // Tagged reason vocabulary mirrors the field names so
+                // a `[map-click rejected]` log line in the browser
+                // console points straight at the blocking gate. See
+                // MapView.describeBlockedClick for how this surfaces
+                // to the player.
+                if (!scene.mapContainer.visible) return 'map-hidden';
+                if (scene.roomContainer.visible) return 'room-visible';
+                if (this.animating) return 'animating';
+                if (scene.dead) return 'dead';
+                return null;
+            },
             onNodeClick: (node) => {
                 scene.sfx.play('nodeSelect');
                 this.advanceToNode(node);
