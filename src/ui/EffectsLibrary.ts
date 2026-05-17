@@ -815,19 +815,37 @@ function pulseBurst(scene: Phaser.Scene, x: number, y: number, opts: EffectOptio
 function bloodSplatter(scene: Phaser.Scene, x: number, y: number, opts: EffectOptions): void {
     const depth = pickDepth(opts);
     const color = pickColor(opts, 0xc02828);
-    const reach = 70 * pickScale(opts);
-    const COUNT = 14;
-    for (let i = 0; i < COUNT; i++) {
+    const scaleMul = pickScale(opts);
+    const reach = 70 * scaleMul;
+    // Honour a rectangular spawn band so callers (e.g. the
+    // bleed-strike skill firing this across the enemy portrait)
+    // can spread the droplets across the whole sprite rather than
+    // having them all originate from one pixel. Falls back to a
+    // single-point spawn when neither spread axis is set, which
+    // keeps the gallery preview / generic hit usage unchanged.
+    const spreadX = opts.spreadX ?? 0;
+    const spreadY = opts.spreadY ?? 0;
+    // Bumped from 14 → 40 so the base recipe reads as a meaty
+    // splash even at the default spawn radius. `countScale` lets
+    // the caller multiply on top of that (bleed-strike asks for
+    // 3-4× to paint the enemy portrait).
+    const baseCount = 40;
+    const count = Math.max(1, Math.round(baseCount * (opts.countScale ?? 1)));
+    for (let i = 0; i < count; i++) {
+        const ox = (Math.random() - 0.5) * 2 * spreadX;
+        const oy = (Math.random() - 0.5) * 2 * spreadY;
+        const sx = x + ox;
+        const sy = y + oy;
         const a = -Math.PI + Math.random() * Math.PI; // upper hemisphere bias
         const speed = reach * (0.4 + Math.random() * 0.8);
         const dx = Math.cos(a) * speed;
         const dy = Math.sin(a) * speed;
         const r = 2 + Math.random() * 2;
-        const drop = scene.add.circle(x, y, r, color, 0.95).setDepth(depth);
+        const drop = scene.add.circle(sx, sy, r, color, 0.95).setDepth(depth);
         scene.tweens.add({
             targets: drop,
-            x: x + dx,
-            y: y + dy + 50, // gravity sag
+            x: sx + dx,
+            y: sy + dy + 50, // gravity sag
             scaleX: 0.5,
             scaleY: 0.8,
             alpha: 0,

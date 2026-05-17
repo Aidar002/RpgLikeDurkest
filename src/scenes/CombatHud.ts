@@ -6,6 +6,7 @@ import { compactText } from '../ui/TextHelpers';
 import { CENTER_X, CENTER_Y, Depths, GAME_HEIGHT, GAME_WIDTH, RoomLayout } from '../ui/Layout';
 import { fitEnemySprite, resolveEnemyTextureKey } from '../ui/RoomVisuals';
 import { VFX } from '../ui/VFX';
+import { playEffect } from '../ui/EffectsLibrary';
 import type { GameScene, RoomButtonAction } from './GameScene';
 import { variantFromFill } from '../ui/RoomButtonVariant';
 
@@ -91,6 +92,7 @@ export class CombatHudController {
                 label: scene.loc.t('actionDefend'),
                 callback: () => this.performAction('defend'),
                 variant: 'silver',
+                vfx: 'shieldBubble',
             },
         ];
 
@@ -132,6 +134,21 @@ export class CombatHudController {
         if (actionKind === 'skill') {
             scene.tracker.record('skillsUsed');
             scene.sfx.play('skillUse');
+            // Bleed-strike paints a thick blood splash across the
+            // enemy portrait while the skill is being cast — the
+            // generic `hit` SFX/VFX below isn't enough on its own
+            // for the bleed-themed skill to feel meaty. The spread
+            // covers the full 250×250 portrait box (see
+            // ENEMY_SPRITE_MAX_DIM in RoomVisuals) so droplets land
+            // edge-to-edge.
+            const skillId = typeof action === 'string' ? undefined : action.id;
+            if (skillId === 'bleed_strike') {
+                playEffect(scene, 'bloodSplatter', RoomLayout.panelCenterX, scene.enemyPortrait.y, {
+                    spreadX: 120,
+                    spreadY: 120,
+                    countScale: 4,
+                });
+            }
         }
         if (actionKind === 'defend') {
             scene.tracker.record('defendsUsed');

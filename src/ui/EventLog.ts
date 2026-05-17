@@ -25,7 +25,13 @@ export class EventLog {
     private scene: Phaser.Scene;
     private container: Phaser.GameObjects.Container;
     private entries: LogEntry[] = [];
-    private maxMessages = 9;
+    // Keep a full run's worth of entries in memory so the timeline
+    // spans every room the player just walked through. The visible
+    // strip is still capped by the panel height (see
+    // recalculatePositions — the loop trims any entry that would
+    // overflow the bottom edge), but the cap below stops the array
+    // from growing unbounded on very long runs.
+    private maxMessages = 200;
     private width: number;
     private height: number;
     private contentTop = 48;

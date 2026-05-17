@@ -376,7 +376,8 @@ export class GameRoomController {
         title: string,
         color: number,
         icon: string,
-        npcSpeech: string
+        npcSpeech: string,
+        portraitKey?: string
     ): void {
         const scene = this.scene;
         this.applyPortraitLayout(true);
@@ -385,7 +386,6 @@ export class GameRoomController {
         // 200×200 NPC portrait stays solid art on a transparent
         // backdrop — no grey square behind it.
         scene.enemyPortrait.setFillStyle(color, 0);
-        scene.enemyIconText.setText(icon);
         scene.enemyNameText.setText(compactText(title, 36));
         scene.roomFlavorText.setText('');
         scene.roomFlavorText.setVisible(false);
@@ -394,8 +394,24 @@ export class GameRoomController {
         scene.enemyHpBarBg.setVisible(false);
         scene.enemyHpBar.setVisible(false);
         scene.enemyHpText.setVisible(false);
-        scene.enemySpriteImage.setVisible(false);
-        scene.enemyIconText.setVisible(true);
+
+        // Prefer the hand-authored portrait sprite (npc_gogi /
+        // npc_sara) when its texture is registered. Falls back to
+        // the coloured glyph the NPC profile already carries so
+        // unit tests / future NPCs without art keep working.
+        const hasPortraitTexture = !!portraitKey && scene.textures.exists(portraitKey);
+        if (hasPortraitTexture && portraitKey) {
+            scene.enemySpriteImage
+                .setTexture(portraitKey)
+                .setDisplaySize(200, 200)
+                .setVisible(true);
+            scene.enemyIconText.setText('');
+            scene.enemyIconText.setVisible(false);
+        } else {
+            scene.enemyIconText.setText(icon);
+            scene.enemyIconText.setVisible(true);
+            scene.enemySpriteImage.setVisible(false);
+        }
 
         this.clearDialogEntries();
         this.appendDialogEntry('npc', npcSpeech);

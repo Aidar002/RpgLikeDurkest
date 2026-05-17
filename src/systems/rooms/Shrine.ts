@@ -22,6 +22,7 @@ export function handleShrineRoom(scene: GameScene): void {
                 scene.showReturnButton();
             },
             variant: 'danger',
+            vfx: 'runicCircle',
         },
         {
             label: ru
@@ -57,6 +58,7 @@ export function handleShrineRoom(scene: GameScene): void {
                 scene.showReturnButton();
             },
             variant: 'silver',
+            vfx: 'runicCircle',
         },
         {
             label: ru
