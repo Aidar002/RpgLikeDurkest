@@ -140,6 +140,16 @@ export class RelicSlots {
         // so `destroy()` can detach cleanly when the scene tears
         // down (language toggle / death restart).
         this.listenerOff = player.relicsChange.on(() => this.refresh());
+        // Scene-wide pointerdown watcher: cancels the armed discard
+        // state when the player clicks anywhere outside the red ✕
+        // slot. Phaser fires per-object `pointerdown` events *before*
+        // the scene-level one, so when the user taps a slot the
+        // slot's own handler in {@link applySlot} runs first and we
+        // see the updated `armedSlot` here — meaning clicking the
+        // same armed slot to confirm, or a different filled slot to
+        // re-arm, both short-circuit cleanly. Detached in
+        // {@link destroy}.
+        scene.input.on('pointerdown', this.handleScenePointerDown);
         // Initial paint.
         this.refresh();
     }
@@ -194,6 +204,7 @@ export class RelicSlots {
     public destroy(): void {
         this.dead = true;
         this.listenerOff();
+        this.scene.input.off('pointerdown', this.handleScenePointerDown);
         if (this.armedTimer) {
             this.armedTimer.remove(false);
             this.armedTimer = null;
@@ -205,6 +216,31 @@ export class RelicSlots {
         this.tooltip.body.destroy();
         this.tooltip.rarity.destroy();
     }
+
+    /**
+     * Scene-level pointerdown watcher. Wired in the constructor; runs
+     * after any per-slot `pointerdown` handler has already fired (so
+     * confirms, re-arms on a different slot, and the "click outside"
+     * cancel case all read a consistent `armedSlot`).
+     *
+     * If a slot is armed and the click landed anywhere that isn't
+     * the armed slot's container, we disarm and repaint — matching
+     * the user's expectation that any tap outside the red ✕ cancels
+     * the discard intent. Clicks on the armed slot itself (confirm)
+     * or on a different filled slot (re-arm) are already handled by
+     * the slot's own `pointerdown` listener, so we short-circuit
+     * here when the cursor is over the armed container.
+     */
+    private readonly handleScenePointerDown = (
+        _pointer: Phaser.Input.Pointer,
+        currentlyOver: Phaser.GameObjects.GameObject[]
+    ): void => {
+        if (this.dead) return;
+        const armed = this.armedSlot;
+        if (!armed) return;
+        if (currentlyOver.includes(armed.container)) return;
+        this.clearArm(/* repaint */ true);
+    };
 
     private createSlot(x: number, y: number): SlotHandle {
         const container = this.scene.add.container(x, y).setDepth(Depths.UiBase + 1);
