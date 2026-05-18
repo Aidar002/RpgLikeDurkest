@@ -22,7 +22,7 @@ import { EFFECT_RECIPES, playEffect } from './EffectsLibrary';
 import { HUD_FONT, HUD_STROKE, HudHex } from './HudTheme';
 import { CENTER_X, CENTER_Y, GAME_HEIGHT, GAME_WIDTH } from './Layout';
 import { drawUiButton } from './UiButton';
-import { applyPanelState, drawPanel, type PanelBackground } from './UiPanel';
+import { applyPanelState, drawPanel } from './UiPanel';
 
 /** Base depth for the overlay. Sits above gameplay (≤ 200) and
  *  HUD chrome (≤ 220) so it always paints on top. Internal layers
@@ -292,13 +292,3 @@ export function showEffectsGallery(
 
     return { destroy: close };
 }
-
-/**
- * Re-export the panel-background union so callers that hold onto
- * effect previews can apply state via {@link applyPanelState}.
- *
- * Internal helper; not used by the gallery itself but kept here so
- * the gallery's mounting site can pass through a typed handle if
- * future wiring needs it.
- */
-export type GalleryTileBackground = PanelBackground;
