@@ -603,11 +603,7 @@ function buildUpgradeCards(
             }
         });
         background.on('pointerout', () => {
-            applyCardState(
-                background,
-                visual.canPurchase ? 'idle' : 'disabled',
-                visual.textured
-            );
+            applyCardState(background, visual.canPurchase ? 'idle' : 'disabled', visual.textured);
         });
         background.on('pointerdown', () => {
             const info = meta
@@ -1007,10 +1003,7 @@ function buildLogModal(ctx: EndScreenContext, isRu: boolean): { setVisible(v: bo
  * the modal can attach its own `pointerdown` to it; confirming fires
  * `meta.resetProgress()` then `safeRestart()`.
  */
-function buildResetConfirmModal(
-    ctx: EndScreenContext,
-    resetButton: PanelBackground
-): void {
+function buildResetConfirmModal(ctx: EndScreenContext, resetButton: PanelBackground): void {
     const { scene, loc, meta, sfx } = ctx;
 
     // The reset confirmation modal is only mounted when the reset
