@@ -574,6 +574,17 @@ export class MapGenerator {
             { gx: 0, gy: 1 },
             { gx: 0, gy: -1 },
         ];
+        // START_FANOUT_WIDTH is module-private but used to index
+        // `order` below; we'd run off the end if anyone ever raises
+        // it past the 4 cardinal directions without expanding the
+        // `dirs` array. Assert here so a future tuning change yells
+        // at the next contributor instead of silently picking up
+        // `undefined` slots.
+        if (START_FANOUT_WIDTH > dirs.length) {
+            throw new Error(
+                `START_FANOUT_WIDTH (${START_FANOUT_WIDTH}) cannot exceed available cardinal directions (${dirs.length})`
+            );
+        }
         const order = this.shuffle([...dirs]);
 
         const newLayer: MapNode[] = [];
@@ -642,11 +653,20 @@ export class MapGenerator {
      */
     private decideBossKind(parents: MapNode[], isFinalApproach: boolean): BossKind {
         if (isFinalApproach) return null;
+        if (parents.length === 0) return null;
         if (parents.some((p) => p.bossKind !== null)) return null;
 
         const cfg = RUN_CONFIG.bossPressure;
         const window = this.getPressureWindow();
-        const maxSteps = Math.max(...parents.map((p) => this.stepsSinceBoss.get(p.id) ?? 0));
+        // Manual reduce instead of Math.max(...spread) so the empty-
+        // parents case (already short-circuited above) couldn't slip
+        // through as -Infinity if a future refactor changes the
+        // early-return ordering.
+        let maxSteps = 0;
+        for (const p of parents) {
+            const s = this.stepsSinceBoss.get(p.id) ?? 0;
+            if (s > maxSteps) maxSteps = s;
+        }
         const steps = maxSteps + 1;
         if (steps < window.start) return null;
 
@@ -741,6 +761,15 @@ export class MapGenerator {
             throw new Error('pickWeightedRoom called with empty pool');
         }
         const totalWeight = pool.reduce((sum, t) => sum + this.getWeight(t), 0);
+        // If every entry in `pool` weights to 0 (e.g. an unmaintained
+        // tuning table), `Math.random() * 0` is 0 and the loop below
+        // happily returns pool[0]. Spell that out explicitly so the
+        // intent is clear (uniform fallback over the pool) instead
+        // of relying on the cursor never advancing.
+        if (totalWeight <= 0) {
+            const idx = Math.min(pool.length - 1, Math.floor(this.rng.next() * pool.length));
+            return pool[idx];
+        }
         const roll = this.rng.next() * totalWeight;
         let cursor = 0;
         for (const t of pool) {

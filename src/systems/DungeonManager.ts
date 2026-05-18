@@ -11,6 +11,12 @@ export class DungeonManager {
     // called when lookahead is running thin
     private onNeedNodes: (fromDepth: number) => void;
     private lookahead = MAP_CONFIG.lookaheadBuffer;
+    // Cached max depth across `nodes`. Invalidated on every mutation
+    // (`addNodes` / `moveTo` doesn't grow nodes but is no-op for the
+    // cache). getMaxDepth() previously rebuilt this on every call,
+    // which the lookahead-trigger code path runs at every move and
+    // the map renderer spams during scrolling.
+    private maxDepthCache: number | null = null;
 
     constructor(
         nodes: MapNode[],
@@ -27,7 +33,9 @@ export class DungeonManager {
     }
 
     addNodes(newNodes: MapNode[]) {
+        if (newNodes.length === 0) return;
         this.nodes.push(...newNodes);
+        this.maxDepthCache = null;
     }
 
     getAllNodes(): MapNode[] {
@@ -42,7 +50,23 @@ export class DungeonManager {
     }
 
     getMaxDepth(): number {
-        return Math.max(...this.nodes.map((n) => n.depth));
+        if (this.maxDepthCache !== null) return this.maxDepthCache;
+        // Defensive empty-array guard: Math.max(...[]) returns
+        // -Infinity, which would silently break downstream lookahead
+        // math. Real graphs always have the START node at depth 0,
+        // so the floor of 0 matches the canonical "no progress yet"
+        // semantic.
+        if (this.nodes.length === 0) {
+            this.maxDepthCache = 0;
+            return 0;
+        }
+        let max = this.nodes[0].depth;
+        for (let i = 1; i < this.nodes.length; i++) {
+            const d = this.nodes[i].depth;
+            if (d > max) max = d;
+        }
+        this.maxDepthCache = max;
+        return max;
     }
 
     canMoveTo(nodeId: string): boolean {

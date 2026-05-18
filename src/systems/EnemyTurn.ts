@@ -355,8 +355,13 @@ export function resolveEnemyTurn(
         }
     }
 
-    if (player.stats.hp > 0 && player.stats.hp <= Math.ceil(player.stats.maxHp * 0.25)) {
-        if (rng.next() < 0.25) log.addMessage(narrate('low_hp', loc.language), '#c4a35a');
+    if (
+        player.stats.hp > 0 &&
+        player.stats.hp <= Math.ceil(player.stats.maxHp * COMBAT_CONFIG.lowHpNarrationHpFraction)
+    ) {
+        if (rng.next() < COMBAT_CONFIG.lowHpNarrationChance) {
+            log.addMessage(narrate('low_hp', loc.language), '#c4a35a');
+        }
     }
 
     deps.emitPlayerStatus();
@@ -414,6 +419,10 @@ function resolvePrepare(
                 '#9bc8ff'
             );
         }
+        if (player.stats.hp <= 0) {
+            deps.logDeath();
+            return;
+        }
         if (def.bleed || def.poison) {
             log.addMessage(
                 loc.t('combatEnemyPrepareRidersCancelled', { name: enemy.name, action }),
@@ -447,6 +456,17 @@ function resolvePrepare(
         // Damageless prepare + Defend: still surface the defend line so
         // the player sees that their guard ate the rider rolls.
         log.addMessage(loc.t('combatEnemyPrepareDefend', { name: enemy.name, action }), '#9bc8ff');
+    }
+
+    // The pipe above can drop player HP to 0 (def.damage > 0 with
+    // no Defend). Once dead, skip both the 'riders cancelled'
+    // narration AND the rider applications below — nothing should
+    // touch the corpse's status state, and we owe a single death
+    // log here so the run-log doesn't double-up via processTurn's
+    // own terminal hp<=0 check.
+    if (player.stats.hp <= 0) {
+        deps.logDeath();
+        return;
     }
 
     if (defended) {

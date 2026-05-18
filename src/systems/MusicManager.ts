@@ -196,6 +196,20 @@ export class MusicManager {
         // (e.g. very short tracks, browsers that throttle background tabs).
         if (this.next) return;
         this.advanceIndex();
+        // Tear down the just-ended element BEFORE swapping in the
+        // replacement: pause it and drop its `src` so the decode
+        // pipeline releases immediately and no stale `ended` /
+        // `timeupdate` event can fire after the swap. The closure
+        // captures `audio` so the listeners themselves are inert
+        // once `this.current` no longer points at it, but stopping
+        // the element explicitly prevents the browser from queueing
+        // one more event tick against a dropped audio.
+        try {
+            audio.pause();
+        } catch {
+            /* ignored */
+        }
+        audio.src = '';
         const replacement = new Audio();
         replacement.preload = 'auto';
         replacement.loop = false;

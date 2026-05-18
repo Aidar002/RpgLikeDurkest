@@ -60,6 +60,17 @@ export const COMBAT_CONFIG = {
      *   depth 25 (Death Knight, 50 base xp): 50 * 2.1 * 4 ≈ 420 xp ≈ 42 levels
      */
     bossXpMultiplier: 4,
+    /**
+     * "Edge of death" narration trigger. When the player's HP drops
+     * to at most {@link lowHpNarrationHpFraction} of max HP, the
+     * end-of-enemy-turn narrator rolls
+     * {@link lowHpNarrationChance} for a one-line flavour pop.
+     *
+     * Pulled out of EnemyTurn so designers tuning lethality don't
+     * have to grep for magic 0.25 / 0.25 pairs.
+     */
+    lowHpNarrationHpFraction: 0.25,
+    lowHpNarrationChance: 0.25,
 } as const;
 
 /**
