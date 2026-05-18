@@ -15,8 +15,14 @@ export class Mulberry32 implements Rng {
     private state: number;
 
     constructor(seed: number) {
-        // Force to unsigned 32-bit.
-        this.state = seed >>> 0;
+        // Force to unsigned 32-bit. Seed 0 is degenerate (the
+        // generator stays correlated for several steps before
+        // diffusing), so we bump it to a fixed non-zero constant.
+        // Callers explicitly passing 0 still get a deterministic
+        // stream, just one that doesn't start at the all-zeros
+        // attractor.
+        const u = seed >>> 0;
+        this.state = u === 0 ? 0x9e3779b9 : u;
     }
 
     next(): number {

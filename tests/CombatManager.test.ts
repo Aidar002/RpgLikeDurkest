@@ -1290,6 +1290,64 @@ describe('Dark Chestplate damageReduction floor (Stage [3])', () => {
     });
 });
 
+// Union regex covering every death-narration string (EN + RU) emitted
+// by `narrate('death', ...)`. Tests use this to count how many times
+// the corpse log line was written — exactly one is the invariant we
+// care about for the double-logDeath dedup fix.
+const DEATH_NARRATIONS_RE =
+    /Overconfidence|treasure hunter joins|artifact remains|Самоуверенность|искатель остался|Артефакт лежит/;
+
+describe('Player death narration is logged exactly once', () => {
+    it('does not double-log when the enemy turn kills the player', () => {
+        // Inject a glass enemy with a huge attack so a single defend
+        // turn finishes the player. Defend so the player's own swing
+        // can't end combat first and short-circuit the path under
+        // test.
+        const { combat, player, seenMessages } = makeManager(4242);
+        combat.enemy = makeActiveEnemy({
+            name: 'Executioner',
+            hp: 50,
+            maxHp: 50,
+            attack: 999,
+            color: 0x808080,
+            profile: 'brute',
+        });
+
+        combat.processTurn('defend');
+
+        expect(player.stats.hp).toBe(0);
+        const deathLines = seenMessages.filter((m) => DEATH_NARRATIONS_RE.test(m));
+        expect(deathLines).toHaveLength(1);
+    });
+
+    it('skips the bleed tick narration when the player is already dead', () => {
+        // Pre-apply bleed so the legacy tick block would have fired
+        // "Your wound bleeds for N" after the death log. With the
+        // fix, the tick is skipped entirely once hp <= 0.
+        const { combat, player, seenMessages } = makeManager(4243);
+        combat.enemy = makeActiveEnemy({
+            name: 'Executioner',
+            hp: 50,
+            maxHp: 50,
+            attack: 999,
+            color: 0x808080,
+            profile: 'brute',
+        });
+        // 3 stacks for 4 turns: bleed tick would deal 3 damage if
+        // it ran post-death.
+        player.status.bleed.stacks = 3;
+        player.status.bleed.turns = 4;
+
+        combat.processTurn('defend');
+
+        expect(player.stats.hp).toBe(0);
+        expect(seenMessages.some((m) => /bleeds for|Кровотечение отнимает/.test(m))).toBe(false);
+        // And critically: still exactly one death narration line.
+        const deathLines = seenMessages.filter((m) => DEATH_NARRATIONS_RE.test(m));
+        expect(deathLines).toHaveLength(1);
+    });
+});
+
 describe('Flesh set proc-chance bump 10% → 30% (Stage [3])', () => {
     it('owning all 2 flesh pieces sets healOnAttackChance to 0.3', () => {
         // Bypass PlayerManager so we can test aggregateRelics in

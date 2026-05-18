@@ -276,4 +276,69 @@ describe('DungeonManager — lookahead callback', () => {
         expect(dungeon.getAllNodes()).toHaveLength(4);
         expect(dungeon.getMaxDepth()).toBe(5);
     });
+
+    it('addNodes with an empty array is a no-op (no spurious depth bump)', () => {
+        const nodes = makeLinearGraph(3);
+        const dungeon = new DungeonManager(
+            nodes,
+            () => {},
+            () => {}
+        );
+
+        dungeon.addNodes([]);
+
+        expect(dungeon.getAllNodes()).toHaveLength(3);
+        expect(dungeon.getMaxDepth()).toBe(2);
+    });
+
+    it('getMaxDepth caches across calls until addNodes invalidates it', () => {
+        const nodes = makeLinearGraph(3);
+        const dungeon = new DungeonManager(
+            nodes,
+            () => {},
+            () => {}
+        );
+
+        // Prime the cache.
+        expect(dungeon.getMaxDepth()).toBe(2);
+
+        // Mutate the underlying array directly to simulate stale data:
+        // a properly cached getMaxDepth keeps returning the old value
+        // until the official mutation path (addNodes) invalidates it.
+        nodes.push({
+            id: 'sneaky',
+            depth: 99,
+            slot: 0,
+            gx: 99,
+            gy: 0,
+            x: 99 * 180,
+            y: 0,
+            type: RoomType.ENEMY,
+            bossKind: null,
+            visited: false,
+            cleared: false,
+            edges: [],
+        });
+        expect(dungeon.getMaxDepth()).toBe(2);
+
+        // addNodes invalidates and the cache rebuilds (and now also
+        // sees the sneaky entry that's already in the array).
+        dungeon.addNodes([
+            {
+                id: 'official',
+                depth: 50,
+                slot: 0,
+                gx: 50,
+                gy: 0,
+                x: 50 * 180,
+                y: 0,
+                type: RoomType.ENEMY,
+                bossKind: null,
+                visited: false,
+                cleared: false,
+                edges: [],
+            },
+        ]);
+        expect(dungeon.getMaxDepth()).toBe(99);
+    });
 });

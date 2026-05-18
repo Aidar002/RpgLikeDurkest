@@ -470,6 +470,14 @@ export class CombatManager {
         }
 
         // End-of-player-turn: tick enemy statuses (bleed damage etc.).
+        // Snapshot HP BEFORE the tick so we can detect whether the
+        // tick itself is what brought the enemy to 0 (vs. the
+        // player's own action already having killed them on this
+        // same turn). The old heuristic checked `actionName !==
+        // 'attack' / 'skill'` which mis-classified attacks that
+        // failed to land the kill but stacked enough bleed to
+        // finish over the tick.
+        const enemyHpBeforeTick = this.enemy ? this.enemy.hp : 0;
         if (this.enemy) {
             const enemyTick = tickTurn(this.enemy.status);
             if (enemyTick.bleedDamage > 0) {
@@ -493,7 +501,14 @@ export class CombatManager {
         }
 
         if (this.enemy && this.enemy.hp <= 0) {
-            const killedByBleed = actionName === 'defend' || actionName === 'potion';
+            // killedByBleed reflects whether the end-of-turn tick is
+            // what finished the enemy off: enemy was alive before the
+            // tick (>0) and is dead now (<=0). The flag drives the
+            // `bleed_finisher` narration in finishCombat.
+            const killedByBleed = enemyHpBeforeTick > 0;
+            // Reference the legacy action name so a future refactor
+            // looking for it grep-finds this block.
+            void actionName;
             // Prophet "Furious Resurrection": once per encounter,
             // restore HP and buff attack instead of dying. Resolves
             // BEFORE all other death-trigger paths (hellfire, spawn,
@@ -572,6 +587,18 @@ export class CombatManager {
         }
 
         this.resolveEnemyTurn(actionName as Exclude<CombatAction, { kind: 'skill'; id: SkillId }>);
+
+        // If the enemy turn killed the player (resolveEnemyTurn has
+        // already called logDeath() on its way out), skip the entire
+        // player-status tick block. Otherwise bleed/poison ticks
+        // would chip a corpse for extra log lines, regen would
+        // appear to "revive" the corpse, and the terminal
+        // logDeath() would log a second death narration on top of
+        // the one resolveEnemyTurn already emitted.
+        if (this.player.stats.hp <= 0) {
+            this.playerStatusChange.emit();
+            return;
+        }
 
         // Tick player statuses (bleed/poison damage, regen/mark/weaken decay).
         const playerTick = tickTurn(this.player.status);

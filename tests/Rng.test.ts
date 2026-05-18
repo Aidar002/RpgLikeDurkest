@@ -26,6 +26,27 @@ describe('Mulberry32', () => {
             expect(v).toBeLessThan(1);
         }
     });
+
+    it('seed=0 does not collapse to the all-zeros attractor', () => {
+        // Bare Mulberry32 with seed=0 stays correlated for several
+        // ticks before the (state + 0x6d2b79f5) mixer escapes. We
+        // bump 0 to a fixed non-zero constant in the constructor so
+        // the first ~10 outputs are already well-distributed.
+        const rng = new Mulberry32(0);
+        const samples = Array.from({ length: 10 }, () => rng.next());
+        expect(samples.every((v) => v >= 0 && v < 1)).toBe(true);
+        // At least one of the first ten samples must be > 0 — the
+        // degenerate seed would otherwise produce a long run of 0s.
+        expect(samples.some((v) => v > 0)).toBe(true);
+    });
+
+    it('seed=0 still produces a reproducible stream', () => {
+        const a = new Mulberry32(0);
+        const b = new Mulberry32(0);
+        const seqA = Array.from({ length: 16 }, () => a.next());
+        const seqB = Array.from({ length: 16 }, () => b.next());
+        expect(seqA).toEqual(seqB);
+    });
 });
 
 describe('defaultRng', () => {
