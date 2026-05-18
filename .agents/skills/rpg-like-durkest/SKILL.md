@@ -195,7 +195,7 @@ altars.
 | `VFX.ts`                                                     | Vignette, scanlines, hit-flash, float-text helpers. Default sizes from `Layout`.                                                                                                                                                                                                                                                                                     |
 | `LevelUpBanner.ts`                                           | `showLevelUpBanner(scene, prev, next, title, transition)` — centred celebration popup (carved panel + gold rim + halo + spark ring) for the `PlayerManager.levelUp` event. Renders at `Depths.NotificationBanner + 2/3`, animates in with `Back.out` scale-bounce, idles ~1.2 s, glides out and self-destroys (~1.8 s total). Purely cosmetic; does not block input. |
 | `EndScreens.ts`                                              | Barrel re-export → `end/DeathScreen`, `end/VictoryScreen`.                                                                                                                                                                                                                                                                                                           |
-| `end/DeathScreen.ts`                                         | Death modal. Reused for escape: 4-card meta-shop renders **only** when `runState.escaped === true`. **~610 lines.**                                                                                                                                                                                                                                                  |
+| `end/DeathScreen.ts`                                         | Death modal. Reused for escape: 4-card meta-shop + discovery-progress rows + reset-confirm modal + run-log overlay all live in this one file. Renders only when `runState.escaped === true`. **~910 lines.**                                                                                                                                                         |
 | `end/VictoryScreen.ts`                                       | Final-boss artifact-collected modal.                                                                                                                                                                                                                                                                                                                                 |
 | `end/shared.ts`                                              | `bankSkillPointsOnce` (idempotent — banks **only** when escaped), `hideLiveContainers`.                                                                                                                                                                                                                                                                              |
 | `end/types.ts`                                               | `EndScreenContext` + `RunEndState` type definitions.                                                                                                                                                                                                                                                                                                                 |
@@ -546,18 +546,18 @@ read like English (`combatBossEncounter`, `roomTreasureName`).
 2. **Cell creation** — `src/scenes/controllers/GameHudController.build()`
    - Pick the right helper from `src/ui/HudCell.ts` and store the
      handle on a controller field:
-     - `createHudCell(...)` — boxed icon-over-label-over-value tile
-       (legacy bottom-bar style).
      - `createHudInlineSlot(...)` — single-row `icon | label | value`
        (used by the ATK/DEF column in the top bar).
-     - `createHudStackedSlot(...)` — big icon centred over a value
-       text, no label (used by the gold/potion/will and
-       depth/kills/bosses trios in the top bar — three slots side
-       by side, each `iconSize` 36 px, `valueFontSize` 18 px).
+     - `createHudStackedSlot(...)` — centred icon stacked over an
+       optional ALL-CAPS label and a value (used by the
+       gold/potion/will and depth/kills/bosses trios in the top
+       bar — three slots side by side, each `iconSize` 36 px,
+       `valueFontSize` 18 px). Omit `label` to collapse to a
+       two-row icon + value stack.
 3. **Refresh** — `GameHudController.refresh()`
-   - Set the cell's `value` text on every refresh. The handle
-     exposes `setValue` (and, for inline / boxed cells,
-     `setLabel`). Stacked slots are icon+value only.
+   - Set the cell's `value` text on every refresh. Both handles
+     expose `setValue` and `setLabel` (`setLabel` on a stacked
+     slot is a no-op when `label` was omitted).
 4. **Visibility (optional)** — gate the cell on a meta unlock by
    reading `this.scene.meta.getUiUnlockState()` in `refresh()`.
 
@@ -651,25 +651,24 @@ flat-stat bumps. Adding a new card:
 - Random rolls go through `defaultRng` (or a passed-in seeded `Rng`).
   The audit closed off `Math.random()` in gameplay paths so the
   determinism envelope is whole — don't reintroduce `Math.random()`.
-- `GameScene` is now a thin coordinator (~450 lines) that delegates
+- `GameScene` is now a thin coordinator (~460 lines) that delegates
   to per-domain controllers (`GameHudController`, `GameMapController`,
   `GameOverlayController`, `GameRoomController`, `RoomFlowController`,
   `CombatHudController`) and to per-room handlers in
   `src/systems/rooms/*`. The largest single module is now
-  `src/systems/CombatManager.ts` (~1 260 lines: orchestration +
-  state-machine; with `BossRuntime` + `EnemyTurn` + `combat/PlayerActions`
-  - `combat/RelicHooks` + `combat/MimeChaos` factored out).
-    `src/systems/MapGenerator.ts` (~790 lines: room pools + graph +
-    boss-pressure pass; types live in `src/data/MapTypes.ts`, validation
-  * per-path scoring helpers live in `src/systems/map/validate.ts`).
-    Audio used to be a 1 239-line monolith — it now sits in
-    `src/systems/audio/` (`AudioCore`, `WebAudio`, `SamplePlayback`,
-    `ProceduralSfx`, `FootstepsLoop`, `Ambient`) behind a thin
-    `SoundManager` façade.
-    New gameplay rules belong in `systems/`, new room behaviour as a
-    `case` in `RoomFlow.ts` plus a handler module under
-    `systems/rooms/`, new combat UI in `CombatHud.ts`. Keep the
-    coordinator thin.
+  `src/systems/CombatManager.ts` (~1 290 lines: orchestration +
+  state-machine; `BossRuntime`, `EnemyTurn`, `combat/PlayerActions`,
+  `combat/RelicHooks`, and `combat/MimeChaos` are factored out next
+  to it). `src/systems/MapGenerator.ts` (~790 lines: room pools +
+  graph + boss-pressure pass; types live in `src/data/MapTypes.ts`,
+  validation + per-path scoring helpers live in
+  `src/systems/map/validate.ts`). Audio used to be a 1 239-line
+  monolith — it now sits in `src/systems/audio/` (`AudioCore`,
+  `WebAudio`, `SamplePlayback`, `ProceduralSfx`, `FootstepsLoop`,
+  `Ambient`) behind a thin `SoundManager` façade. New gameplay
+  rules belong in `systems/`, new room behaviour as a `case` in
+  `RoomFlow.ts` plus a handler module under `systems/rooms/`, new
+  combat UI in `CombatHud.ts`. Keep the coordinator thin.
 
 ## Phaser version policy
 

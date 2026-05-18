@@ -39,6 +39,8 @@ export type RoomButtonVfx = 'healPulse' | 'runicCircle' | 'shieldBubble';
  * Visual variants for room-choice buttons. The variant catalog and
  * the legacy-fill heuristic both live in {@link RoomButtonVariant}
  * so data-side call sites can import them without touching Phaser.
+ * `variantFromFill` is imported directly from `./RoomButtonVariant`
+ * by `CombatHud` / `rooms/Encounter` — no re-export is needed here.
  */
 export type { RoomButtonVariant } from './RoomButtonVariant';
 
@@ -57,13 +59,6 @@ const BUTTON_TEXTURES: Record<RoomButtonVariant, string> = {
  * stretches.
  */
 const BUTTON_SLICE = { left: 16, right: 16, top: 14, bottom: 14 };
-
-/**
- * Map a legacy fill colour to the closest variant the new
- * spritesheet provides. Re-exported here for backward compat;
- * the implementation now lives in {@link RoomButtonVariant}.
- */
-export { variantFromFill } from './RoomButtonVariant';
 
 interface ActionButton {
     background: Phaser.GameObjects.NineSlice;
