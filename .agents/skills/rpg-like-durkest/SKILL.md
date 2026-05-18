@@ -159,7 +159,7 @@ non-trivial module has a header comment).
 | `audio/ProceduralSfx.ts`                                                 | `type SoundId` union (27 ids) + `playSfx(deps, id)` dispatch + all `playXxx` functions. **Adding a new SFX:** extend `SoundId`, write a `playXxx({ core, samples })` function, add a `case` to the dispatch switch. Do NOT add procedural methods to `SoundManager` itself.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |
 | `audio/FootstepsLoop.ts`                                                 | `class FootstepsLoop` — `start(fadeInMs)` / `stop(fadeOutMs)`. Uses an `HTMLAudioElement` wrapped in a `MediaElementSource` so it shares the SFX bus. Owns a RAF-driven fade.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `audio/Ambient.ts`                                                       | `class DungeonAmbient` (`start(depth)` / `updateDepth(depth)` / `stop()`) for the in-game drone, and `class TorchAmbient` (`start(fadeMs)` / `stop(fadeMs)`) for the boot-screen crackle.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                   |
-| `StatusEffects.ts`                                                       | Bleed / guard / mark / focus / stun / weaken state, tick logic, `statusSummary` helper. Pure functions over a passed-in status bag.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
+| `StatusEffects.ts`                                                       | `StatusState` shape (`bleed / poison / stun / attackBan / weaken / armorBreak / mark / guard / regen`), per-effect `applyXxx(s, ...)` setters, `tickTurn(s)` decay/damage, `statusSummary(s, lang)` HUD helper. Pure functions over a passed-in status bag. **Pair-coupled semantics (B11):** `applyPoison` / `applyWeaken` / `applyArmorBreak` treat the `(amount, turns)` pair as a single unit — strictly stronger replaces both fields, equal refreshes turns, strictly weaker is a no-op. `applyBleed` stacks intentionally (capped, default ceiling 8).                                                                                                                                                                                                                                                                                                                                                                                                                                                                               |
 | `DevSeed.ts`                                                             | Dev-mode seed override (query string / localStorage) used to make runs reproducible during testing.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                         |
 
 ### Room handlers (`src/systems/rooms/`)
@@ -266,15 +266,16 @@ channel — tests and `GameScene.refreshUI()` rely on this catalog.
 
 ### `PlayerManager` (`src/systems/PlayerManager.ts`)
 
-| Channel           | Payload                       | Fires when                                                                                         | Consumers                                                                                                                      |
-| ----------------- | ----------------------------- | -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
-| `hpChange`        | `{ hp: number; max: number }` | HP changes (damage, heal, max-HP increase).                                                        | `GameScene.refreshUI()` (HUD HP bar / number); tests.                                                                          |
-| `death`           | `void`                        | HP reaches 0.                                                                                      | `GameScene` death sequence: hide HUD, call `meta.resetProgress()`, zero `runSkillPointsPending`, fade out, show `DeathScreen`. |
-| `levelUp`         | `{ level: number }`           | XP threshold passes (`xpPerLevel = 10`).                                                           | `GameScene` (`runSkillPointsPending++`, level toast); tests.                                                                   |
-| `statsChange`     | `void`                        | ATK / DEF / max-HP recomputed (relic equipped, level-up bonus, meta upgrade applied at run start). | `GameScene.refreshUI()` (ATK/DEF cells).                                                                                       |
-| `resourcesChange` | `void`                        | Gold / potions / resolve / relic shards / seal count / kill counters change.                       | `GameScene` (HUD resource cells); tests.                                                                                       |
-| `relicsChange`    | `void`                        | Relic added or removed from the player.                                                            | `GameScene.refreshUI()`; `RelicSlots` repaint; tests.                                                                          |
-| `relicOffer`      | `{ id: RelicId }`             | `addRelic` was called while the inventory was already at `MAX_RELICS`; the relic was NOT added.    | `GameHudController` opens the `RelicSwapModal` so the player can drop one of the equipped five or skip the candidate.          |
+| Channel           | Payload                       | Fires when                                                                                                                                              | Consumers                                                                                                                      |
+| ----------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------ |
+| `hpChange`        | `{ hp: number; max: number }` | HP changes (damage, heal, max-HP increase).                                                                                                             | `GameScene.refreshUI()` (HUD HP bar / number); tests.                                                                          |
+| `death`           | `void`                        | HP reaches 0.                                                                                                                                           | `GameScene` death sequence: hide HUD, call `meta.resetProgress()`, zero `runSkillPointsPending`, fade out, show `DeathScreen`. |
+| `levelUp`         | `{ level: number }`           | XP threshold passes (`xpPerLevel = 10`).                                                                                                                | `GameScene` (`runSkillPointsPending++`, level toast); tests.                                                                   |
+| `statsChange`     | `void`                        | ATK / DEF / max-HP recomputed (relic equipped, level-up bonus, meta upgrade applied at run start).                                                      | `GameScene.refreshUI()` (ATK/DEF cells).                                                                                       |
+| `resourcesChange` | `void`                        | Gold / potions / resolve / relic shards / seal count / kill counters change.                                                                            | `GameScene` (HUD resource cells); tests.                                                                                       |
+| `relicsChange`    | `void`                        | Relic added or removed from the player.                                                                                                                 | `GameScene.refreshUI()`; `RelicSlots` repaint; tests.                                                                          |
+| `relicGained`     | `{ id: RelicId }`             | `addRelic` actually appended a new relic (the `'added'` branch). Distinct from `relicsChange`, which also fires on `removeRelic` / aggregate recompute. | `GameHudController` plays a one-shot pickup VFX anchored to the new relic's HUD cell (`RelicSlots`).                           |
+| `relicOffer`      | `{ id: RelicId }`             | `addRelic` was called while the inventory was already at `MAX_RELICS`; the relic was NOT added.                                                         | `GameHudController` opens the `RelicSwapModal` so the player can drop one of the equipped five or skip the candidate.          |
 
 ### `CombatManager` (`src/systems/CombatManager.ts`)
 
@@ -598,20 +599,30 @@ See "Adding a new channel" above under the Emitter catalog.
 ### 12. Add a new status effect
 
 1. **Definition** — `src/systems/StatusEffects.ts`
-   - Add the effect to the `StatusState` shape (`emptyStatusState()`
-     defaults + the `tickTurn()` decay block) and surface a setter /
-     clearer (`applyXxx(s, ...)`) if needed.
+   - Add the effect to the `StatusState` shape, mirror the default
+     in `emptyStatusState()`, and add a decay/damage branch to
+     `tickTurn()`.
+   - Add a per-effect setter `applyXxx(s, ...)`. **Pair-coupled
+     `(amount, turns)` effects (B11):** treat the pair as one unit —
+     strictly stronger replaces both fields, equal-strength refreshes
+     turns (`max(old, new)`), strictly weaker is a no-op. See
+     `applyPoison` / `applyWeaken` / `applyArmorBreak` for the
+     template. **Stacking** effects (e.g. `applyBleed`) instead sum
+     stacks and take `max(turns)`; pick the model deliberately.
    - Add the new id to the `StatusId` union if you're going to refer
      to it as a typed string anywhere outside `StatusEffects.ts`.
 2. **Apply** — most effects are applied from
-   `src/systems/CombatManager.handlePlayerSkill` or
-   `applyPlayerDamage` / `resolveEnemyTurn`. Use the existing
-   `applyStatus(...)` helper.
-3. **Display** — `statusSummary(status, language)` is the single
-   source of truth for the player/enemy status pill text. Add a
-   branch there.
+   `src/systems/CombatManager.handlePlayerSkill` /
+   `combat/PlayerActions.applyPlayerDamage` or from
+   `EnemyTurn.resolveEnemyTurn`. Call the matching `applyXxx(s, ...)`
+   setter directly — there is **no** umbrella `applyStatus()` helper.
+3. **Display** — `statusSummary(status, language)` (and the
+   `STATUS_LABELS` table for both `en` / `ru`) is the single source
+   of truth for the player/enemy status pill text. Add a branch
+   there and matching label rows in both languages.
 4. **Test** — `tests/StatusEffects.test.ts`. Unit-test pure tick
-   logic before wiring it into combat.
+   logic + reapply semantics (strictly stronger / equal / strictly
+   weaker for pair-coupled effects) before wiring it into combat.
 
 ### 13. Wire a new meta-progression upgrade
 
