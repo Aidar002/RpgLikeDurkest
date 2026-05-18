@@ -63,13 +63,24 @@ export function applyBleed(s: StatusState, stacks: number, turns: number, cap: n
 
 /**
  * Apply or refresh a poison stack. Poison ticks {@link StatusState.poison.damage}
- * at the end of each turn for {@link StatusState.poison.turns} turns. The
- * highest pending damage wins so a small reapply cannot weaken an existing
- * heavier poison.
+ * at the end of each turn for {@link StatusState.poison.turns} turns.
+ *
+ * Semantics (B11): the `(damage, turns)` pair is treated as a single unit so
+ * the duration cannot be decoupled from the strength.
+ *  - Strictly stronger reapply (`damage > current`): replace both fields with
+ *    the new pair. The fresh stack wins outright.
+ *  - Equal-strength reapply (`damage === current`): keep the damage and take
+ *    `max(old, new)` for turns — same-strength refreshes the duration.
+ *  - Strictly weaker reapply (`damage < current`): no-op. A tiny `1/10t`
+ *    cannot extend a heavy `5/1t` to `5/10t`.
  */
 export function applyPoison(s: StatusState, damage: number, turns: number) {
-    if (damage > s.poison.damage) s.poison.damage = damage;
-    s.poison.turns = Math.max(s.poison.turns, turns);
+    if (damage > s.poison.damage) {
+        s.poison.damage = damage;
+        s.poison.turns = turns;
+    } else if (damage === s.poison.damage) {
+        s.poison.turns = Math.max(s.poison.turns, turns);
+    }
 }
 
 export function applyStun(s: StatusState, turns: number) {
@@ -113,19 +124,42 @@ export function tickAttackBan(s: StatusState): boolean {
     return false;
 }
 
+/**
+ * Apply or refresh a weaken debuff. Reduces effective attack by
+ * {@link StatusState.weaken.amount} while active.
+ *
+ * Semantics (B11): the `(amount, turns)` pair is treated as a single unit.
+ * See {@link applyPoison} for the full rationale.
+ *  - Strictly stronger reapply: replace both fields with the new pair.
+ *  - Equal-strength reapply: keep amount, take `max(old, new)` for turns.
+ *  - Strictly weaker reapply: no-op.
+ */
 export function applyWeaken(s: StatusState, amount: number, turns: number) {
-    if (amount > s.weaken.amount) s.weaken.amount = amount;
-    s.weaken.turns = Math.max(s.weaken.turns, turns);
+    if (amount > s.weaken.amount) {
+        s.weaken.amount = amount;
+        s.weaken.turns = turns;
+    } else if (amount === s.weaken.amount) {
+        s.weaken.turns = Math.max(s.weaken.turns, turns);
+    }
 }
 
 /**
  * Apply or refresh an armor-break stack. Reduces effective defense by
- * {@link StatusState.armorBreak.amount} while active. Highest pending
- * amount wins so a light reapply cannot weaken a heavier break.
+ * {@link StatusState.armorBreak.amount} while active.
+ *
+ * Semantics (B11): the `(amount, turns)` pair is treated as a single unit.
+ * See {@link applyPoison} for the full rationale.
+ *  - Strictly stronger reapply: replace both fields with the new pair.
+ *  - Equal-strength reapply: keep amount, take `max(old, new)` for turns.
+ *  - Strictly weaker reapply: no-op.
  */
 export function applyArmorBreak(s: StatusState, amount: number, turns: number) {
-    if (amount > s.armorBreak.amount) s.armorBreak.amount = amount;
-    s.armorBreak.turns = Math.max(s.armorBreak.turns, turns);
+    if (amount > s.armorBreak.amount) {
+        s.armorBreak.amount = amount;
+        s.armorBreak.turns = turns;
+    } else if (amount === s.armorBreak.amount) {
+        s.armorBreak.turns = Math.max(s.armorBreak.turns, turns);
+    }
 }
 
 export function applyMark(s: StatusState, turns: number) {
