@@ -48,27 +48,15 @@
 import { getBossForDepth, getEnemyByName, getEnemyForDepth } from './EnemyPicker';
 import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';
-import {
-    BOSS_BLUEPRINT_BY_NAME,
-    pickLine,
-    type BossActionDef,
-    type BossBlueprint,
-} from '../data/Bosses';
+import { BOSS_BLUEPRINT_BY_NAME, type BossActionDef, type BossBlueprint } from '../data/Bosses';
 import type { EventLog } from '../ui/EventLog';
-import {
-    intentLabelForPhase,
-    intentLabelForPrepare,
-    maybeAdvancePhase,
-    tickBossBlockAtTurnEnd,
-} from './BossRuntime';
+import { intentLabelForPhase, intentLabelForPrepare } from './BossRuntime';
 import { Emitter } from './Emitter';
 import { narrate } from './Narrator';
 import { Localization } from './Localization';
 import { PlayerManager } from './PlayerManager';
 import type { SkillId } from './Skills';
 import {
-    applyArmorBreak,
-    applyWeaken,
     consumeGuardBlock,
     consumeStunForTurn,
     consumeAttackBanForAttack,
@@ -92,11 +80,8 @@ import {
     type PlayerActionsDeps,
     type PlayerActionsState,
 } from './combat/PlayerActions';
-import {
-    applyRandomMimeStatus as applyRandomMimeStatusFn,
-    stealRandomRelic as stealRandomRelicFn,
-    type MimeChaosDeps,
-} from './combat/MimeChaos';
+import type { MimeChaosDeps } from './combat/MimeChaos';
+import { runBossTurn as runBossTurnFn, type BossTurnDeps } from './combat/BossTurn';
 
 export type CombatAction =
     | 'attack'
@@ -250,20 +235,19 @@ export interface EnemyUpdatePayload {
 // handlePlayerAttack / Defend / Skill / Potion (delegate wrappers
 //   into combat/PlayerActions.ts).
 // buildPlayerActionsState / buildPlayerActionsDeps /
-//   buildMimeChaosDeps (dependency-injection bundles for the
-//   combat/ sub-modules).
+//   buildMimeChaosDeps / buildBossTurnDeps (dependency-injection
+//   bundles for the combat/ sub-modules).
 // resolveEnemyTurn (delegates to EnemyTurn.ts).
 // applyEnemyHitToPlayer.
 // spawnReplacement / finishCombat / logDeath / buildRewards.
-// stealRandomRelic / applyRandomMimeStatus (wrappers into
-//   combat/MimeChaos.ts).
-// Boss machinery: runBossTurn, resolveBossWindupAction.
+// runBossTurn (delegates to combat/BossTurn.ts).
 // enemyStatusText / playerStatusText.
 //
 // Player-side action implementations live in:
 //   - combat/PlayerActions.ts  (handlePlayer*, applyPlayerDamage)
 //   - combat/RelicHooks.ts     (on-attack relic procs)
 //   - combat/MimeChaos.ts      (Mime / Mammon helpers)
+//   - combat/BossTurn.ts       (boss phase / windup / action runner)
 // Boss-side helpers live in BossRuntime.ts; non-boss enemy turns
 // live in EnemyTurn.ts.
 // =============================================================================
@@ -964,31 +948,8 @@ export class CombatManager {
         this.combatEnd.emit(payload);
     }
 
-    /**
-     * Mammon's "Greed Lord" relic theft. Delegates to
-     * {@link MimeChaos.stealRandomRelic}.
-     */
-    private stealRandomRelic(state: BossPhaseState): void {
-        stealRandomRelicFn(this.enemy, state, this.buildMimeChaosDeps());
-    }
-
     private logDeath() {
         this.log.addMessage(narrate('death', this.loc.language), '#ff3333');
-    }
-
-    /**
-     * Mime "Chaos Lord's Laughter" — delegates to
-     * {@link MimeChaos.applyRandomMimeStatus}.
-     */
-    private applyRandomMimeStatus(
-        state: BossPhaseState,
-        cfg: {
-            pool: Array<'bleed' | 'poison' | 'stun' | 'weaken' | 'armorBreak' | 'mark'>;
-            amount: number;
-            turns: number;
-        }
-    ): void {
-        applyRandomMimeStatusFn(this.enemy, state, cfg, this.buildMimeChaosDeps());
     }
 
     private buildRewards(enemy: ActiveEnemy, killedByBleed: boolean): CombatEndPayload {
@@ -1012,342 +973,35 @@ export class CombatManager {
     }
 
     // -----------------------------------------------------------------
-    // [FIX-10] Boss phase / intent runner. Pure helpers
-    // (intentLabelForPhase / intentLabelForPrepare / prepareName /
-    // maybeAdvancePhase / tickBossBlockAtTurnEnd /
+    // [FIX-10] Boss phase / intent runner.
+    // Pure helpers (intentLabelForPhase / intentLabelForPrepare /
+    // prepareName / maybeAdvancePhase / tickBossBlockAtTurnEnd /
     // breakBossBlockOnSkillDamage) live in ./BossRuntime.ts.
+    // The runner itself (phase advancement, windup tick/resolution,
+    // action dispatch with lifesteal/hero-call/heal-on-safe modifiers)
+    // lives in ./combat/BossTurn.ts.
     // -----------------------------------------------------------------
 
     private runBossTurn(playerAction: 'attack' | 'defend' | 'skill' | 'potion') {
-        if (!this.enemy || !this.enemy.bossPhase) return;
-        const state = this.enemy.bossPhase;
-
-        // Phase advancement is HP-driven and happens BEFORE picking an
-        // action so the very next attack reflects the new phase's
-        // pattern.
-        const advanced = maybeAdvancePhase(this.enemy, this.log, this.loc);
-
-        // Mammon "Greed Lord" — phase 2 onEnter steals one random
-        // relic from the player. The id is preserved on `stolenRelicId`
-        // so finishCombat can return it on the boss's death. Skipped
-        // when the player has no relics; never re-fires across phase
-        // re-entries because phase indices are monotonic.
-        if (advanced) {
-            const enteredPhase = state.blueprint.phases[state.phaseIndex];
-            if (enteredPhase.onEnterStealRelic && !state.stolenRelicId) {
-                this.stealRandomRelic(state);
-            }
-        }
-
-        const phaseDef = state.blueprint.phases[state.phaseIndex];
-
-        // Resolve a windup that has already counted down, OR continue
-        // ticking an in-progress windup. While the boss is winding up
-        // it does no other action; the player has already seen the
-        // intent badge for this turn.
-        if (state.pendingWindup) {
-            const wind = state.pendingWindup;
-            wind.turnsRemaining -= 1;
-            if (wind.turnsRemaining > 0) {
-                // Still preparing — log the countdown and update intent.
-                this.log.addMessage(
-                    this.loc.t('combatBossWindupTick', {
-                        name: this.enemy.name,
-                        action: pickLine(wind.actionDef.intent, this.loc.language),
-                        turns: wind.turnsRemaining,
-                    }),
-                    '#c4a35a'
-                );
-                tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
-                if (this.player.stats.hp <= 0) {
-                    this.logDeath();
-                    return;
-                }
-                this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
-                this.playerStatusChange.emit();
-                this.enemyStatusChange.emit();
-                return;
-            }
-            // Windup expired — resolve the action effect now.
-            const resolveDef = wind.actionDef;
-            state.pendingWindup = undefined;
-            this.resolveBossWindupAction(resolveDef, playerAction);
-            tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
-            if (this.player.stats.hp <= 0) {
-                this.logDeath();
-                return;
-            }
-            // Advance to the next action in the rotation.
-            state.actionIndex = (state.actionIndex + 1) % phaseDef.actions.length;
-            this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
-            this.playerStatusChange.emit();
-            this.enemyStatusChange.emit();
-            return;
-        }
-
-        const action = phaseDef.actions[state.actionIndex % phaseDef.actions.length];
-
-        // Multi-turn windup actions: declare the windup and stop. The
-        // resolution happens once turnsRemaining decrements to 0 on a
-        // subsequent boss turn.
-        if (action.windupTurns && action.windupTurns > 0) {
-            state.pendingWindup = {
-                actionDef: action,
-                turnsRemaining: action.windupTurns,
-            };
-            this.log.addMessage(
-                this.loc.t('combatBossWindupStart', {
-                    name: this.enemy.name,
-                    action: pickLine(action.intent, this.loc.language),
-                    turns: action.windupTurns,
-                }),
-                '#c4a35a'
-            );
-            tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
-            if (this.player.stats.hp <= 0) {
-                this.logDeath();
-                return;
-            }
-            this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
-            this.playerStatusChange.emit();
-            this.enemyStatusChange.emit();
-            return;
-        }
-
-        const flatBlockBase = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
-        const flatBlock = flatBlockBase;
-
-        const weakenReduction =
-            this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
-        let attackPower = this.enemy.attack - weakenReduction;
-        if (action.damageBonus) attackPower += action.damageBonus;
-        if (attackPower < 1) attackPower = 1;
-
-        // Gilgamesh "Hero's Cry": rider on the regular attack — on a
-        // 10% roll, drain weaken / armorBreak / resolve from the
-        // player on top of the swing. Resolved BEFORE the attack so
-        // the resolve drain registers immediately and the player can
-        // see the cumulative effect on the next turn's intent.
-        if (
-            action.id === 'hero_call' &&
-            action.heroCryChance &&
-            action.heroCryDrain &&
-            this.rng.next() < action.heroCryChance
-        ) {
-            const drain = action.heroCryDrain;
-            applyWeaken(this.player.status, drain.attackWeaken, drain.turns);
-            applyArmorBreak(this.player.status, drain.defenseArmorBreak, drain.turns);
-            const drained = Math.min(this.player.resources.resolve, drain.resolveDrain);
-            if (drained > 0) this.player.spendResolve(drained);
-            this.log.addMessage(
-                this.loc.t('combatBossHeroCry', {
-                    name: this.enemy.name,
-                    weaken: drain.attackWeaken,
-                    armor: drain.defenseArmorBreak,
-                    resolve: drained,
-                }),
-                '#d09a4f'
-            );
-            this.playerStatusChange.emit();
-        }
-
-        // Mime "Chaos Lord's Laughter": every turn pick one random
-        // status from the action's pool and apply it to the player.
-        // The same status cannot fire twice in a row — anti-repeat
-        // tracked on `BossPhaseState.lastRandomStatus`.
-        if (action.id === 'mime_chaos' && action.randomStatus) {
-            this.applyRandomMimeStatus(state, action.randomStatus);
-        }
-
-        // Damage-dealing actions hit the player.
-        if (!action.noAttack) {
-            // Mime's swings ignore armor (true damage). All other
-            // boss attacks go through `applyEnemyHitToPlayer` which
-            // applies guard/defense/crit normally. The lifesteal
-            // rider only applies when the hit landed for >0 damage.
-            let taken: number;
-            if (action.ignoreArmor) {
-                taken = this.player.takeDamage(Math.max(1, attackPower), 0, 'true');
-                if (taken > 0) this.playerHit.emit({ damage: taken });
-            } else {
-                taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
-            }
-            if (taken > 0) {
-                this.log.addMessage(
-                    this.loc.t('combatEnemyHit', {
-                        name: this.enemy.name,
-                        takenDamage: taken,
-                        extraMessage: '',
-                    }),
-                    '#ff6666'
-                );
-            } else {
-                this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
-            }
-            // Mime lifesteal: heal a flat amount on a successful hit.
-            if (
-                taken > 0 &&
-                action.lifestealFlat &&
-                action.lifestealFlat > 0 &&
-                this.enemy.hp < this.enemy.maxHp
-            ) {
-                const before = this.enemy.hp;
-                this.enemy.hp = Math.min(this.enemy.maxHp, this.enemy.hp + action.lifestealFlat);
-                const healed = this.enemy.hp - before;
-                if (healed > 0) {
-                    this.log.addMessage(
-                        this.loc.t('combatEnemyLifesteal', {
-                            name: this.enemy.name,
-                            healed,
-                        }),
-                        '#c45a5a'
-                    );
-                    this.enemyUpdate.emit({
-                        hp: this.enemy.hp,
-                        maxHp: this.enemy.maxHp,
-                        color: this.enemy.color,
-                        name: this.enemy.name,
-                        icon: this.enemy.icon,
-                    });
-                }
-            }
-        }
-
-        // Resolve False Mercy: heal only if player did no damage.
-        if (state.pendingHealOnSafe > 0 && !state.damagedThisTurn) {
-            const heal = state.pendingHealOnSafe;
-            this.enemy.hp = Math.min(this.enemy.maxHp, this.enemy.hp + heal);
-            this.log.addMessage(
-                this.loc.t('combatEnemyHeal', { name: this.enemy.name, heal }),
-                '#88dd88'
-            );
-            this.enemyUpdate.emit({
-                hp: this.enemy.hp,
-                maxHp: this.enemy.maxHp,
-                color: this.enemy.color,
-                name: this.enemy.name,
-                icon: this.enemy.icon,
-            });
-        }
-        state.pendingHealOnSafe = 0;
-
-        tickBossBlockAtTurnEnd(this.enemy, this.log, this.loc);
-
-        if (this.player.stats.hp <= 0) {
-            this.logDeath();
-            return;
-        }
-
-        // Advance to next action and update the intent shown to the player.
-        state.actionIndex = (state.actionIndex + 1) % phaseDef.actions.length;
-        this.enemy.currentIntent = intentLabelForPhase(state, this.loc);
-        this.playerStatusChange.emit();
-        this.enemyStatusChange.emit();
+        if (!this.enemy) return;
+        runBossTurnFn(this.enemy, playerAction, this.buildBossTurnDeps());
     }
 
-    /**
-     * Apply the resolution effect of a boss windup action whose
-     * `turnsRemaining` just hit zero. Currently covers Death Knight's
-     * `death_shield` (raise a 15-block buff for 3 turns) and
-     * `death_touch` (instant-kill, softened to a flat 8-damage hit if
-     * the player Defends on the resolution turn).
-     */
-    private resolveBossWindupAction(
-        action: BossActionDef,
-        playerAction: 'attack' | 'defend' | 'skill' | 'potion'
-    ) {
-        if (!this.enemy || !this.enemy.bossPhase) return;
-        const state = this.enemy.bossPhase;
-        const actionLabel = pickLine(action.intent, this.loc.language);
-
-        if (action.id === 'death_shield' && action.pendingBlock && action.pendingBlockTurns) {
-            state.pendingBlock = action.pendingBlock;
-            // +1 so the shield survives the tick at the END of this
-            // same boss turn and lasts the full N subsequent turns.
-            state.pendingBlockTurns = action.pendingBlockTurns + 1;
-            this.log.addMessage(
-                this.loc.t('combatBossDeathShieldRaised', {
-                    name: this.enemy.name,
-                    block: action.pendingBlock,
-                    turns: action.pendingBlockTurns,
-                }),
-                '#c4a35a'
-            );
-            return;
-        }
-
-        if (action.id === 'death_touch' && action.oneShot) {
-            if (playerAction === 'defend') {
-                const dmg = action.oneShotDefendDamage ?? 0;
-                const taken = this.applyEnemyHitToPlayer(dmg, COMBAT_CONFIG.defendBlock);
-                this.log.addMessage(
-                    this.loc.t('combatBossDeathTouchDefended', {
-                        name: this.enemy.name,
-                        action: actionLabel,
-                        damage: taken,
-                    }),
-                    '#9bc8ff'
-                );
-            } else {
-                // OHKO: drop the player's HP to zero directly so any
-                // flat block / temporary defence buff can't soak it.
-                const lethal = Math.max(this.player.stats.hp, 1);
-                this.player.takeDamage(lethal, 0, 'true');
-                this.log.addMessage(
-                    this.loc.t('combatBossDeathTouchOhko', {
-                        name: this.enemy.name,
-                        action: actionLabel,
-                    }),
-                    '#ff6666'
-                );
-                this.playerHit.emit({ damage: lethal });
-            }
-            return;
-        }
-
-        // Nimrod's "God-Killer": unconditional OHKO when the 5-turn
-        // windup resolves. No Defend smoothing — the only counterplay
-        // is burning Nimrod down before resolution. Reuses the same
-        // `oneShot: true` flag as Death Touch but skips the
-        // oneShotDefendDamage branch.
-        if (action.id === 'nimrod_godkiller' && action.oneShot) {
-            const lethal = Math.max(this.player.stats.hp, 1);
-            this.player.takeDamage(lethal, 0, 'true');
-            this.log.addMessage(
-                this.loc.t('combatBossNimrodGodkiller', {
-                    name: this.enemy.name,
-                    action: actionLabel,
-                }),
-                '#ff6666'
-            );
-            this.playerHit.emit({ damage: lethal });
-            return;
-        }
-
-        // Fallback: a generic windup with no special effect just runs
-        // its `attack`/`damageBonus` like a normal boss action so we
-        // never silently swallow new windup definitions.
-        const flatBlock = playerAction === 'defend' ? COMBAT_CONFIG.defendBlock : 0;
-        const weakenReduction =
-            this.enemy.status.weaken.turns > 0 ? this.enemy.status.weaken.amount : 0;
-        let attackPower = this.enemy.attack - weakenReduction;
-        if (action.damageBonus) attackPower += action.damageBonus;
-        if (attackPower < 1) attackPower = 1;
-        if (!action.noAttack) {
-            const taken = this.applyEnemyHitToPlayer(attackPower, flatBlock);
-            if (taken > 0) {
-                this.log.addMessage(
-                    this.loc.t('combatEnemyHit', {
-                        name: this.enemy.name,
-                        takenDamage: taken,
-                        extraMessage: '',
-                    }),
-                    '#ff6666'
-                );
-            } else {
-                this.log.addMessage(this.loc.t('absorb'), '#8fc6ff');
-            }
-        }
+    private buildBossTurnDeps(): BossTurnDeps {
+        return {
+            player: this.player,
+            log: this.log,
+            loc: this.loc,
+            rng: this.rng,
+            emitPlayerHit: (damage) => this.playerHit.emit({ damage }),
+            emitEnemyUpdate: (payload) => this.enemyUpdate.emit(payload),
+            emitPlayerStatus: () => this.playerStatusChange.emit(),
+            emitEnemyStatus: () => this.enemyStatusChange.emit(),
+            logDeath: () => this.logDeath(),
+            applyEnemyHitToPlayer: (rawAttack, flatBlock) =>
+                this.applyEnemyHitToPlayer(rawAttack, flatBlock),
+            mime: this.buildMimeChaosDeps(),
+        };
     }
 
     /** Returns a human-readable line of enemy statuses. */
