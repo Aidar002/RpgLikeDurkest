@@ -181,15 +181,15 @@ export class BootScene extends Phaser.Scene {
         // ── HUD frames + textures (Darkest Dungeon-style overlay) ──
         // Each is optional; the HUD layer renders procedural fallbacks
         // when a file is missing. See public/assets/ui/README.md for
-        // canonical sizes and the hud_icons.png frame order.
+        // canonical sizes and the hud_icons.webp frame order.
         // Title logo for the boot screen. Replaces the previous
         // text-based title so the brand reads as art rather than
         // typography. Locale-neutral.
-        this.load.image('boot_title_logo', `${base}assets/ui/title_logo.png`);
-        this.load.image('hud_top_bar', `${base}assets/ui/top_bar.png`);
-        this.load.image('hud_bottom_bar', `${base}assets/ui/bottom_bar.png`);
-        this.load.image('hud_stone_wall', `${base}assets/ui/stone_wall.png`);
-        this.load.spritesheet('hud_icons', `${base}assets/ui/hud_icons.png`, {
+        this.load.image('boot_title_logo', `${base}assets/ui/title_logo.webp`);
+        this.load.image('hud_top_bar', `${base}assets/ui/top_bar.webp`);
+        this.load.image('hud_bottom_bar', `${base}assets/ui/bottom_bar.webp`);
+        this.load.image('hud_stone_wall', `${base}assets/ui/stone_wall.webp`);
+        this.load.spritesheet('hud_icons', `${base}assets/ui/hud_icons.webp`, {
             frameWidth: 64,
             frameHeight: 64,
         });
@@ -197,7 +197,7 @@ export class BootScene extends Phaser.Scene {
             frameWidth: 64,
             frameHeight: 64,
         });
-        this.load.spritesheet('hud_room_icons', `${base}assets/ui/room_icons.png`, {
+        this.load.spritesheet('hud_room_icons', `${base}assets/ui/room_icons.webp`, {
             frameWidth: 64,
             frameHeight: 64,
         });
@@ -216,7 +216,7 @@ export class BootScene extends Phaser.Scene {
         // skill-points pilule on the escape screen. Same nine-slice
         // pipeline as the button skins; ornate corners stay crisp
         // while the dark navy centre stretches to the panel size.
-        this.load.image('panel_small', `${base}assets/ui/panel_small.png`);
+        this.load.image('panel_small', `${base}assets/ui/panel_small.webp`);
 
         // Boot-screen door spritesheet — 2 frames laid out
         // horizontally: frame 0 is the closed door, frame 1 is the
@@ -225,7 +225,7 @@ export class BootScene extends Phaser.Scene {
         // flip frames on click. If the file is missing, the boot scene
         // simply renders without the door (handled by the optional-
         // asset path below).
-        this.load.spritesheet(DOOR_TEXTURE_KEY, `${base}assets/ui/door.png`, {
+        this.load.spritesheet(DOOR_TEXTURE_KEY, `${base}assets/ui/door.webp`, {
             frameWidth: DOOR_FRAME_SIZE,
             frameHeight: DOOR_FRAME_SIZE,
         });
@@ -502,7 +502,7 @@ export class BootScene extends Phaser.Scene {
             });
         }
 
-        // Title art (`title_logo.png`) replaces the previous two-line
+        // Title art (`title_logo.webp`) replaces the previous two-line
         // text title so the brand renders as authored art. Sized to
         // ~350 x 197 px (preserves the source 1672 x 941 aspect) and
         // anchored at y=100 with origin centred. Depth 6 puts the

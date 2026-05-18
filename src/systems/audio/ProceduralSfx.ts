@@ -158,7 +158,7 @@ function playCrit({ core }: SfxDeps): void {
 
 /** Shield clang. */
 function playDefend({ core, samples }: SfxDeps): void {
-    // Prefer the hand-authored `shield_sound.wav` sample (deep
+    // Prefer the hand-authored `shield_sound.ogg` sample (deep
     // wooden block / shield brace) when preloaded. Synth fallback
     // below keeps the cue alive before preload resolves.
     if (samples.play('shieldBlock', 1.0)) return;
@@ -172,7 +172,7 @@ function playDefend({ core, samples }: SfxDeps): void {
 
 /** Dull thud when enemy hits player. */
 function playEnemyHit({ core, samples }: SfxDeps): void {
-    // Prefer the hand-authored `mob_hit.wav` sample (recorded
+    // Prefer the hand-authored `mob_hit.ogg` sample (recorded
     // bone/flesh impact). Synth thud below is the fallback for the
     // pre-preload window.
     if (samples.play('mobHit', 1.0)) return;
@@ -228,7 +228,7 @@ function playBleedStrike(deps: SfxDeps): void {
 
 /** Bubbly gulp. */
 function playPotion({ core, samples }: SfxDeps): void {
-    // Prefer the hand-authored `potion_use_sound.wav` sample.
+    // Prefer the hand-authored `potion_use_sound.ogg` sample.
     if (samples.play('potionUse', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
@@ -280,7 +280,7 @@ function playTrapTrigger({ core }: SfxDeps): void {
 
 /** Tight metallic tick when a lockpick ring locks into place. */
 function playLockpickClick({ core, samples }: SfxDeps): void {
-    // Prefer the hand-authored `good_open_chest_sound.wav` sample —
+    // Prefer the hand-authored `good_open_chest_sound.ogg` sample —
     // user wants the satisfying lock-snap fired for every chest
     // puzzle ring that the player nails. Synth tick below is the
     // pre-preload fallback.
@@ -618,7 +618,7 @@ function playLevelUp({ core, samples }: SfxDeps): void {
 
 /** Dark descending drone. */
 function playDeath({ core, samples }: SfxDeps): void {
-    // Prefer the hand-authored `death_sound.wav` sample.
+    // Prefer the hand-authored `death_sound.ogg` sample.
     if (samples.play('playerDeath', 1.0)) return;
     const ctx = core.ensure();
     const master = core.master!;
