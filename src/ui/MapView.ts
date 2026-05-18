@@ -113,9 +113,12 @@ export class MapView {
 
     /**
      * Id of the node the player is *visually* sitting in. The room
-     * icon (sprite or text glyph) is suppressed for that node — only
-     * the carved frame and the dark backdrop remain — so the slot
-     * reads as "you are here" without a redundant pictogram.
+     * icon (sprite or text glyph) is replaced with a gold "@" player
+     * glyph for that node so the slot reads as "you are here" with
+     * an explicit affordance — the carved-frame-only marker we
+     * shipped previously was too subtle and players kept clicking
+     * their current slot (rejected by `describeBlockedClick` as
+     * `not-forward`, see {@link makeClickable}).
      *
      * Intentionally lags behind {@link DungeonManager.currentNode}:
      * `dungeon.currentNode` flips to the destination the moment the
@@ -329,6 +332,19 @@ export class MapView {
     private makeClickable(rect: Phaser.GameObjects.Rectangle, node: MapNode): void {
         rect.setInteractive({ useHandCursor: true });
         rect.on('pointerdown', () => {
+            // Clicks on the player's own current node and on cleared
+            // (already-walked) rooms are routine user errors —
+            // they're reaching for a forward option but hit the
+            // wrong slot. Swallow these silently so the console
+            // stays clean; the "you are here" `@` glyph on the
+            // current slot (see `refresh`) is the affordance that
+            // should keep most players from clicking the wrong
+            // square in the first place. Off-graph clicks (a
+            // non-forward node that isn't the current or cleared)
+            // still log via `describeBlockedClick` so the original
+            // freeze-on-click diagnostic stays intact.
+            if (node.id === this.dungeon.currentNode.id) return;
+            if (node.cleared) return;
             const reason = this.describeBlockedClick(node);
             if (reason === null) {
                 this.onNodeClickDelegate(node);
@@ -681,14 +697,17 @@ export class MapView {
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
-            // "You are here" — suppress the room pictogram on the
-            // node the player has visually arrived at. The carved
-            // frame and dark backdrop stay visible, so the slot still
-            // reads as a room without the redundant pictogram. See
-            // the field doc on `arrivedNodeId` for why this is
-            // delayed past the walk animation.
+            // "You are here" marker — replace the room pictogram
+            // on the node the player has visually arrived at with a
+            // gold `@` player glyph. The carved frame and dark
+            // backdrop are the room-type cues; the glyph is the
+            // "you are here" cue. Previously we only suppressed the
+            // pictogram, leaving an empty slot that players kept
+            // mistaking for an unrevealed forward option and
+            // clicking — see the field doc on `arrivedNodeId` and
+            // the silent-ignore in `makeClickable`.
             if (id === this.arrivedNodeId) {
-                visual.icon.setVisible(false);
+                visual.icon.setText('@').setColor('#ffd966').setAlpha(1).setVisible(true);
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
