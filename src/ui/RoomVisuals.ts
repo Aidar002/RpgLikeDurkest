@@ -166,10 +166,16 @@ const ROOM_SPRITE_MAX_DIM = 64;
 /** Target box for enemy + room-card portraits in the right-hand
  *  panel. The portrait is rendered at exactly this size so the
  *  hand-authored 256×256 art reads as the panel's focal element
- *  (140 → 250 → 230 per successive design passes). The HP bar /
- *  name text Y positions in {@link GameRoomController} are anchored
- *  off this value. */
-export const ENEMY_SPRITE_MAX_DIM = 230;
+ *  (140 → 250 → 230 → 200 per successive design passes). 230 read
+ *  as "too zoomed in" on mobs whose subject filled most of the
+ *  canvas (e.g. `bat.webp`) — the wings were pushed all the way
+ *  to the panel edges and the `applyPortraitFade` band ate into
+ *  the silhouette. Pulling the box down to 200 gives every
+ *  portrait a consistent breathing-room margin inside the panel
+ *  regardless of how tight the source artist framed the subject.
+ *  The HP bar / name text Y positions in {@link GameRoomController}
+ *  are anchored off this value. */
+export const ENEMY_SPRITE_MAX_DIM = 200;
 
 /**
  * Scale down high-resolution hand-authored room textures to fit the map node.
