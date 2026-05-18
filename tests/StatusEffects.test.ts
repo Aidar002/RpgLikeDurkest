@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import {
+    applyArmorBreak,
     applyBleed,
     applyGuard,
     applyMark,
+    applyPoison,
     applyRegen,
     applyStun,
     applyWeaken,
@@ -26,12 +28,74 @@ describe('StatusEffects', () => {
         expect(s.bleed.turns).toBe(2);
     });
 
-    it('applyWeaken keeps the stronger amount and the longer duration', () => {
+    it('applyWeaken stronger amount replaces both fields (B11)', () => {
+        // (1, 2t) → reapply (3, 1t): the stronger pair wins outright,
+        // including the shorter duration. The old behaviour kept the
+        // longer duration which let a weak debuff piggy-back on a
+        // stronger one's timer.
         const s = emptyStatusState();
         applyWeaken(s, 1, 2);
         applyWeaken(s, 3, 1);
         expect(s.weaken.amount).toBe(3);
-        expect(s.weaken.turns).toBe(2);
+        expect(s.weaken.turns).toBe(1);
+    });
+
+    it('applyWeaken equal-strength reapply refreshes turns (B11)', () => {
+        const s = emptyStatusState();
+        applyWeaken(s, 3, 1);
+        applyWeaken(s, 3, 4);
+        expect(s.weaken.amount).toBe(3);
+        expect(s.weaken.turns).toBe(4);
+    });
+
+    it('applyWeaken strictly weaker reapply is a no-op (B11)', () => {
+        const s = emptyStatusState();
+        applyWeaken(s, 5, 1);
+        applyWeaken(s, 1, 10);
+        expect(s.weaken.amount).toBe(5);
+        expect(s.weaken.turns).toBe(1);
+    });
+
+    it('applyPoison stronger damage replaces both fields (B11)', () => {
+        const s = emptyStatusState();
+        applyPoison(s, 1, 2);
+        applyPoison(s, 5, 1);
+        expect(s.poison.damage).toBe(5);
+        expect(s.poison.turns).toBe(1);
+    });
+
+    it('applyPoison equal-damage reapply refreshes turns (B11)', () => {
+        const s = emptyStatusState();
+        applyPoison(s, 4, 1);
+        applyPoison(s, 4, 6);
+        expect(s.poison.damage).toBe(4);
+        expect(s.poison.turns).toBe(6);
+    });
+
+    it('applyPoison strictly weaker reapply is a no-op (B11)', () => {
+        // Regression for B11: a `1/10t` reapply against a heavy
+        // `5/1t` poison would previously stretch it to `5/10t`.
+        const s = emptyStatusState();
+        applyPoison(s, 5, 1);
+        applyPoison(s, 1, 10);
+        expect(s.poison.damage).toBe(5);
+        expect(s.poison.turns).toBe(1);
+    });
+
+    it('applyArmorBreak stronger amount replaces both fields (B11)', () => {
+        const s = emptyStatusState();
+        applyArmorBreak(s, 1, 3);
+        applyArmorBreak(s, 4, 1);
+        expect(s.armorBreak.amount).toBe(4);
+        expect(s.armorBreak.turns).toBe(1);
+    });
+
+    it('applyArmorBreak strictly weaker reapply is a no-op (B11)', () => {
+        const s = emptyStatusState();
+        applyArmorBreak(s, 3, 2);
+        applyArmorBreak(s, 1, 10);
+        expect(s.armorBreak.amount).toBe(3);
+        expect(s.armorBreak.turns).toBe(2);
     });
 
     it('applyGuard accumulates hits and takes the stronger amount', () => {
