@@ -113,12 +113,14 @@ export class MapView {
 
     /**
      * Id of the node the player is *visually* sitting in. The room
-     * icon (sprite or text glyph) is replaced with a gold "@" player
-     * glyph for that node so the slot reads as "you are here" with
-     * an explicit affordance — the carved-frame-only marker we
-     * shipped previously was too subtle and players kept clicking
-     * their current slot (rejected by `describeBlockedClick` as
-     * `not-forward`, see {@link makeClickable}).
+     * icon (sprite or text glyph) is hidden for that node so the
+     * carved frame on its own reads as "you are here". The
+     * accidental click on the current slot — players reaching for a
+     * forward option but hitting the wrong square — is handled
+     * separately by the silent-ignore in {@link makeClickable}, so
+     * the visual marker can stay minimal without dragging the
+     * `describeBlockedClick` `not-forward` log back into the
+     * console.
      *
      * Intentionally lags behind {@link DungeonManager.currentNode}:
      * `dungeon.currentNode` flips to the destination the moment the
@@ -697,17 +699,15 @@ export class MapView {
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
-            // "You are here" marker — replace the room pictogram
-            // on the node the player has visually arrived at with a
-            // gold `@` player glyph. The carved frame and dark
-            // backdrop are the room-type cues; the glyph is the
-            // "you are here" cue. Previously we only suppressed the
-            // pictogram, leaving an empty slot that players kept
-            // mistaking for an unrevealed forward option and
-            // clicking — see the field doc on `arrivedNodeId` and
-            // the silent-ignore in `makeClickable`.
+            // "You are here" marker — hide the room pictogram on
+            // the node the player has visually arrived at so the
+            // carved frame on its own reads as the current slot.
+            // Accidental clicks on the current square (or on
+            // cleared rooms) are swallowed silently by
+            // `makeClickable`, so the empty frame can stay minimal
+            // without re-introducing the `not-forward` log spam.
             if (id === this.arrivedNodeId) {
-                visual.icon.setText('@').setColor('#ffd966').setAlpha(1).setVisible(true);
+                visual.icon.setVisible(false);
                 if (visual.sprite) visual.sprite.setVisible(false);
             }
 
