@@ -1,3 +1,28 @@
+/**
+ * Persistent meta-progression: the cross-run profile stored in
+ * `localStorage` under {@link STORAGE_KEY}. Owns the skill-point
+ * bank, four-axis stat upgrades (damage / hp / defense / goldGain),
+ * the content-unlock map (extra skills, relic rarity tiers, etc.),
+ * the per-NPC memory map (via {@link NpcManager}), and the
+ * highest-depth / bosses-killed counters used for discovery
+ * milestones.
+ *
+ * Lifecycle:
+ *   - `new MetaProgressionManager()` loads the v4 profile from
+ *     localStorage (or migrates by wiping legacy snapshots).
+ *   - During a run: managers query `getBonuses`, `getUiUnlockState`,
+ *     `getUnlockedExtraSkills`, `getRelicRarityPool`, etc.
+ *   - On escape: `bankSkillPoints` commits per-run earnings and
+ *     `unlockDepthMilestones` / `registerBossKill` add content
+ *     unlocks. The end screen then renders `getUpgradeCards` and
+ *     calls `purchaseUpgrade` for each spend.
+ *   - On death: `resetProgress` wipes the entire profile back to
+ *     defaults.
+ *
+ * All mutating methods persist immediately via {@link saveProfile}.
+ * Read-only accessors return defensive copies of the profile maps so
+ * callers can't mutate the cached state.
+ */
 import { lt, pickLocalized } from './LocalizedText';
 import type { LocalizedText } from './LocalizedText';
 import type { Language } from './Localization';
@@ -272,26 +297,46 @@ export class MetaProgressionManager {
         this.npcManager = new NpcManager(this.profile.npcMemory, () => this.saveProfile());
     }
 
+    /** Accessor for the embedded {@link NpcManager} so scenes /
+     *  managers that need NPC-memory access don't have to thread the
+     *  profile through themselves. The instance is re-built whenever
+     *  the profile is wiped or NPC memory is reset for a new run. */
     getNpcManager(): NpcManager {
         return this.npcManager;
     }
 
+    /** Currently spendable banked skill points. Mutated by
+     *  {@link bankSkillPoints} (escape) and {@link purchaseUpgrade}
+     *  (spend). */
     get availableSkillPoints(): number {
         return this.profile.skillPoints;
     }
 
+    /** Lifetime total of every skill point ever banked. Never
+     *  decreases on purchase — purely a stat readout for the run
+     *  log. */
     get totalSkillPointsBanked(): number {
         return this.profile.totalSkillPointsBanked;
     }
 
+    /** Greatest dungeon depth the player has ever reached across
+     *  all runs. Used as the source counter for depth-keyed
+     *  discovery milestones (see {@link getMilestoneProgressList}). */
     get highestDepthEver(): number {
         return this.profile.highestDepthEver;
     }
 
+    /** Lifetime count of bosses defeated. Counter for the
+     *  first-boss-kill milestone and other boss-gated unlocks. */
     get bossesKilledEver(): number {
         return this.profile.bossesKilledEver;
     }
 
+    /**
+     * Defensive snapshot of the persisted profile (upgrades +
+     * contentUnlocks maps are cloned). Useful for tests / debug UI;
+     * mutating the return value does NOT affect the live profile.
+     */
     getProfile(): MetaProfile {
         return {
             ...this.profile,
@@ -300,6 +345,11 @@ export class MetaProgressionManager {
         };
     }
 
+    /**
+     * Bundle of stat bonuses that the upgrade levels currently grant.
+     * `PlayerManager` reads this at run start to seed maxHp, attack,
+     * defenseBonus, and the gold-gain multiplier.
+     */
     getBonuses() {
         const damage = this.getUpgradeLevel('damage');
         const hp = this.getUpgradeLevel('hp');
@@ -316,14 +366,21 @@ export class MetaProgressionManager {
         };
     }
 
+    /** Current level of a stat upgrade (0 if unpurchased). Bounded
+     *  above by the upgrade's `maxLevel` in {@link UPGRADE_DEFINITIONS}. */
     getUpgradeLevel(id: UpgradeId): number {
         return this.profile.upgrades[id];
     }
 
+    /** True iff the given content unlock has been earned (depth
+     *  milestone, boss kill, etc.). */
     isUnlocked(id: UnlockId): boolean {
         return !!this.profile.contentUnlocks[id];
     }
 
+    /** Subset of {@link SkillId} that the meta-progression tree has
+     *  unlocked. `PlayerManager` appends these to the base skill
+     *  list at run start. */
     getUnlockedExtraSkills(): SkillId[] {
         const unlocked: SkillId[] = [];
         if (this.isUnlocked('skill_cleave')) unlocked.push('cleave');
@@ -332,6 +389,9 @@ export class MetaProgressionManager {
         return unlocked;
     }
 
+    /** Relic rarity buckets currently available to drop. `common` is
+     *  always present; `rare` and `unique` are gated by content
+     *  unlocks earned at depth / boss-kill milestones. */
     getRelicRarityPool(): Array<'common' | 'rare' | 'unique'> {
         const pool: Array<'common' | 'rare' | 'unique'> = ['common'];
         if (this.isUnlocked('relic_pool_rare')) pool.push('rare');
@@ -339,6 +399,11 @@ export class MetaProgressionManager {
         return pool;
     }
 
+    /**
+     * Manually unlock a content id. Returns `true` if this was the
+     * first unlock (so callers can fire celebration UI / SFX),
+     * `false` if the id was already unlocked.
+     */
     unlockContent(id: UnlockId): boolean {
         if (this.profile.contentUnlocks[id]) {
             return false;
@@ -349,10 +414,17 @@ export class MetaProgressionManager {
         return true;
     }
 
+    /** Defensive snapshot of the unlock map. Mutating the return
+     *  value does NOT affect the live profile. */
     getUnlockedContent(): ContentUnlockState {
         return { ...this.profile.contentUnlocks };
     }
 
+    /**
+     * What the unlock map would look like if the player reached the
+     * given depth on the current run. Used by the projected-unlocks
+     * preview without actually committing anything to the profile.
+     */
     getProjectedUnlocks(depth: number): ContentUnlockState {
         const projected = { ...this.profile.contentUnlocks };
 
@@ -367,6 +439,12 @@ export class MetaProgressionManager {
         return projected;
     }
 
+    /**
+     * Apply every depth milestone the player has reached but not
+     * yet unlocked. Persists the profile when at least one new
+     * milestone fires. Returns the milestones that were newly
+     * unlocked so the caller can show a celebration cue per entry.
+     */
     unlockDepthMilestones(depth: number): ContentUnlockMilestone[] {
         const unlockedMilestones: ContentUnlockMilestone[] = [];
 
@@ -393,6 +471,11 @@ export class MetaProgressionManager {
         return unlockedMilestones;
     }
 
+    /**
+     * Increment the `bossesKilledEver` counter and apply any
+     * boss-kill-gated milestones (currently just the first-boss
+     * milestone). Returns the milestones that were newly unlocked.
+     */
     registerBossKill(): ContentUnlockMilestone[] {
         this.profile.bossesKilledEver += 1;
 
@@ -448,6 +531,13 @@ export class MetaProgressionManager {
         });
     }
 
+    /**
+     * Which HUD widgets should currently be visible. Every flag is
+     * `true` since the legacy progressive-HUD unlock system was
+     * retired — kept as a method so the HUD layer stays decoupled
+     * from the historical schema and a future re-introduction of
+     * gated UI doesn't change the call sites.
+     */
     getUiUnlockState(): UiUnlockState {
         return {
             showHpNumbers: true,
@@ -479,6 +569,12 @@ export class MetaProgressionManager {
         return reward;
     }
 
+    /**
+     * Try to purchase one level of the given upgrade. Returns
+     * `true` on success (level incremented, points deducted,
+     * profile persisted), `false` if the upgrade is unknown,
+     * already maxed, or the bank can't cover the cost.
+     */
     purchaseUpgrade(id: UpgradeId): boolean {
         const definition = UPGRADE_DEFINITIONS.find((upgrade) => upgrade.id === id);
         if (!definition) {
@@ -520,6 +616,12 @@ export class MetaProgressionManager {
         return cheapest;
     }
 
+    /**
+     * Localised display data for every meta upgrade — used by the
+     * end-screen shop grid. `cost` is `null` on maxed upgrades;
+     * `canPurchase` is `true` iff the upgrade is not maxed and the
+     * player has at least `cost` banked points.
+     */
     getUpgradeCards(language: 'ru' | 'en' = 'ru'): UpgradeCardInfo[] {
         return UPGRADE_DEFINITIONS.map((definition) => {
             const level = this.getUpgradeLevel(definition.id);

@@ -1,3 +1,50 @@
+/**
+ * Combat controller. Owns one combat encounter at a time and routes
+ * player / enemy actions through the smaller per-action modules in
+ * `src/systems/combat/`. See {@link CombatManager} below; this
+ * module-level header is here so the `[FIX-N]` tags scattered
+ * throughout the file can all be looked up in one place.
+ *
+ * ── [FIX-N] dictionary ─────────────────────────────────────────────
+ * Inline `[FIX-N]` comments throughout this file (and a handful of
+ * sibling files) tag fields, branches, and helpers that exist
+ * specifically to satisfy a bug fix or design fix during gameplay
+ * development. The number is **stable** — adding a new one means
+ * picking the next free integer; old ones are never re-used so the
+ * tags remain `grep`-friendly across the codebase.
+ *
+ *   [FIX-1]   Final-boss bleed cap. Hard ceiling on stack count for
+ *             the bleed status when applied to the final boss, plus
+ *             the `finalBossDefeated` flag on the end-of-combat
+ *             payload so VictoryScreen can fire its special-case
+ *             celebration. See `bleedCap` field, `finalBossDefeated`
+ *             on `CombatEndPayload`.
+ *
+ *   [FIX-5]   Per-combat skill cooldowns. `skillCooldowns` map keyed
+ *             by `SkillId`, the `getSkillCooldown` / `isSkillOnCooldown`
+ *             accessors, and the per-turn tick-down at the top of
+ *             `startPlayerTurn`.
+ *
+ *   [FIX-10]  Boss phases + intent line. `BossPhaseState` runtime
+ *             object on `ActiveEnemy`, `currentIntent` localised
+ *             one-liner shown before the boss's turn, the
+ *             `BOSS_BLUEPRINT_BY_NAME` lookup that builds it, the
+ *             per-turn reset in `startPlayerTurn`, and the runner
+ *             section near `// Boss phase / intent runner` lower in
+ *             this file.
+ *
+ *   [FIX-13]  Per-turn relic guards. `vampiricHealedThisTurn` /
+ *             `gamblersResolveThisTurn` flags reset at the top of
+ *             every player turn so the relic effects fire at most
+ *             once per turn even when their trigger condition
+ *             persists.
+ *
+ * Numbers without entries above (2, 3, 4, 6, 7, 8, 9, 11, 12) are
+ * reserved for fixes that have since been removed or fully absorbed
+ * into the regular code path; do **not** reuse them — keep new tags
+ * monotonically increasing instead.
+ * ───────────────────────────────────────────────────────────────────
+ */
 import { getBossForDepth, getEnemyByName, getEnemyForDepth } from './EnemyPicker';
 import { COMBAT_CONFIG, ROOM_CONFIG } from '../data/GameConfig';
 import type { EnemyDef, EnemyPassive, EnemyPrepareDef, EnemyProfile } from '../data/GameConfig';

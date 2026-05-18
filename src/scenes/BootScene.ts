@@ -300,7 +300,51 @@ export class BootScene extends Phaser.Scene {
         this.textures.get(BOOT_TORCH_TEXTURE_KEY).setFilter(Phaser.Textures.FilterMode.NEAREST);
     }
 
+    /**
+     * Orchestrates the boot-screen mount. Each beat lives in its own
+     * `setup*` / `build*` / `wire*` helper below; this method just
+     * sequences them in the order the timeline expects.
+     */
     create() {
+        const { loc, sfx, music, devSeed } = this.setupBootContext();
+        const { door, doorOpenSprite, startBtn, startText, langLabel } = this.buildTitleLayout(
+            loc,
+            sfx
+        );
+        const { startButtonDelay } = this.runIgnitionSequence(sfx, door);
+
+        // Start button fade-in is wired in `create` rather than inside
+        // `buildTitleLayout` because its delay is owned by the
+        // ignition timeline (the button reveals ~600 ms after the
+        // burning loop starts).
+        this.tweens.add({
+            targets: [startBtn, startText],
+            alpha: 1,
+            delay: startButtonDelay,
+            duration: 500,
+        });
+
+        this.wireLanguageToggle(loc, langLabel, startText);
+        this.wireStartHandler(startBtn, door, doorOpenSprite, loc, sfx, music, devSeed);
+        this.buildHudChrome();
+    }
+
+    /**
+     * Re-use managers handed in by a previous scene (e.g. a
+     * GameScene → BootScene restart) so audio state, language, and
+     * the SFX buffer cache survive. Falls back to fresh instances
+     * on cold boot where `init` got no payload. Also bakes the
+     * rectangular edge-fade into freshly preloaded portrait textures,
+     * parses the dev-only `?seed=...&inv=...&lang=...` cheat string,
+     * swaps the music to the title loop, and preloads the UI SFX so
+     * the first hover / click fires without a fetch gap.
+     */
+    private setupBootContext(): {
+        loc: Localization;
+        sfx: SoundManager;
+        music: MusicManager;
+        devSeed: ReturnType<typeof parseDevSeedQuery>;
+    } {
         // Re-use managers handed in by a previous scene (e.g. a
         // GameScene → BootScene restart) so audio state, language,
         // and the SFX buffer cache survive. Falls back to fresh
@@ -373,6 +417,28 @@ export class BootScene extends Phaser.Scene {
         });
         this.cameras.main.setBackgroundColor('#050505');
 
+        return { loc, sfx, music, devSeed };
+    }
+
+    /**
+     * Static title-screen widgets: stone backdrop, gradient wash,
+     * floating embers, the title art (with text fallback), the door
+     * sprites (closed + open frames), the Start button, and the
+     * tiny EN/RU language toggle in the bottom-left. Everything that
+     * fades in on its own schedule starts with `alpha === 0` here;
+     * the actual fade tweens are scheduled by {@link runIgnitionSequence}
+     * (door, dim overlay) or by {@link create} itself (start button).
+     */
+    private buildTitleLayout(
+        loc: Localization,
+        sfx: SoundManager
+    ): {
+        door: Phaser.GameObjects.Sprite | null;
+        doorOpenSprite: Phaser.GameObjects.Sprite | null;
+        startBtn: ReturnType<typeof drawUiButton>['background'];
+        startText: ReturnType<typeof drawUiButton>['label'];
+        langLabel: Phaser.GameObjects.Text;
+    } {
         // Procedural carved-stone backdrop sets the dungeon mood; the
         // faint blue/violet wash on top keeps the existing colour-graded
         // feel without losing the wall texture underneath.
@@ -385,104 +451,6 @@ export class BootScene extends Phaser.Scene {
         bg.fillGradientStyle(0x0a0a18, 0x0a0a18, 0x151520, 0x151520, 0.55, 0.55, 0.7, 0.7);
         bg.fillRect(0, 0, GAME_WIDTH, GAME_HEIGHT);
         bg.setDepth(1);
-
-        // Darkness overlay — sits above the backdrop / title / glow
-        // but below the torch sprites and chrome. Starts at high alpha
-        // so the room reads as pitch-black on first frame, then tweens
-        // to zero as the torches ignite to mimic the wall lighting up.
-        //
-        // Boot-screen timeline (anchored on the camera fade-in):
-        //   t=0       title starts fading in (~3 s long, alpha-only)
-        //   t=2.0 s   torches ignite + dim overlay drops + door starts fading in
-        //   t=3.0 s   burning loop starts (1 s after ignition)
-        //   t=3.6 s   Start button fades in
-        // The title sits *above* the dim overlay (see depth choices
-        // below) so its visible brightness is just its own alpha
-        // curve — we deliberately do NOT compound it with the dim-
-        // overlay drop, otherwise the curve plateaus in the middle
-        // (title.alpha saturates ~t=2 s before the dim layer starts
-        // to lift) and then jumps when the dim overlay's Quad.out
-        // drop kicks in. Everything else on screen (door, embers,
-        // backdrop) is still dimmed and brightens with the room.
-        // The 1-second gap between ignition and the burning loop lets
-        // the sampled flint / whoosh cue land cleanly before the
-        // continuous loop kicks in.
-        const IGNITION_DELAY = 2000;
-        const ROOM_BRIGHTEN_MS = 1500;
-        const AMBIENT_AFTER_IGNITE_MS = 1000;
-        // Door starts fading in on the same beat as the torch
-        // ignition — the room "reveals" the closed door as the
-        // flames catch, instead of the door arriving as a separate
-        // later cue.
-        const DOOR_AFTER_IGNITE_MS = 0;
-        const START_BUTTON_DELAY = IGNITION_DELAY + 1600;
-        const dimOverlay = this.add
-            .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.82)
-            .setOrigin(0, 0)
-            .setDepth(5);
-
-        // Two animated wall torches flanking the title. They ignite
-        // ~250 ms apart so the sampled `torch_ignite` cue layers as
-        // two distinct flint cracks instead of doubling its own
-        // volume and the two flame loops are visibly out of phase
-        // from frame one; the dim overlay then drops to zero so the
-        // rest of the scene resolves to its normal colour. The
-        // per-torch burning loops live inside `startTorchAmbient`
-        // (which picks the sampled `torch_loop` when available) and
-        // are mixed at different offsets + playback rates there, so
-        // the two torches keep sounding independent without any
-        // extra wiring here.
-        const IGNITION_STAGGER = 250;
-        // Anchor torches 105 px nearer the central door than the
-        // original (170 / GAME_WIDTH - 170 -> 240 -> 275) so the lit
-        // pair hugs the arch tightly on the title screen. `sfxLeadMs`
-        // pre-rolls the flint/whoosh cue 500 ms before the visible
-        // flame catches, and the sprite/glow fade-ins are shortened
-        // (1200/1500 -> 500/500) so the room reads as lighting up
-        // crisply instead of slowly brightening.
-        const TORCH_SFX_LEAD_MS = 500;
-        const TORCH_FADE_MS = 500;
-        const TORCH_GLOW_FADE_MS = 500;
-        createBootTorch(this, 275, 420, {
-            sfx,
-            delayMs: IGNITION_DELAY,
-            displayHeight: 168,
-            depth: 7,
-            fadeDuration: TORCH_FADE_MS,
-            glowFadeDuration: TORCH_GLOW_FADE_MS,
-            sfxLeadMs: TORCH_SFX_LEAD_MS,
-        });
-        createBootTorch(this, GAME_WIDTH - 275, 420, {
-            sfx,
-            delayMs: IGNITION_DELAY + IGNITION_STAGGER,
-            displayHeight: 168,
-            depth: 7,
-            fadeDuration: TORCH_FADE_MS,
-            glowFadeDuration: TORCH_GLOW_FADE_MS,
-            sfxLeadMs: TORCH_SFX_LEAD_MS,
-        });
-        this.time.delayedCall(IGNITION_DELAY, () => {
-            this.tweens.add({
-                targets: dimOverlay,
-                alpha: { from: 0.82, to: 0 },
-                duration: ROOM_BRIGHTEN_MS,
-                ease: 'Quad.out',
-            });
-        });
-        // Burning loop deliberately trails the ignition by a full
-        // second so the sampled `torch_ignite` transient lands
-        // cleanly before the continuous `torch_loop` cue (or the
-        // procedural crackle fallback) takes over.
-        this.time.delayedCall(IGNITION_DELAY + AMBIENT_AFTER_IGNITE_MS, () => {
-            sfx.startTorchAmbient(700);
-        });
-        // Phaser fires `shutdown` whenever the scene stops — both on
-        // the normal "click Start -> GameScene" transition (we also
-        // explicitly call `stopTorchAmbient` in the click handler so
-        // the fade-out begins *before* the camera fade) and on
-        // unexpected teardowns (e.g. hot-reload in dev). Belt-and-
-        // braces silence either way.
-        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => sfx.stopTorchAmbient(300));
 
         // Ambient embers on title
         for (let i = 0; i < 12; i++) {
@@ -582,15 +550,6 @@ export class BootScene extends Phaser.Scene {
                   .setDepth(3)
                   .setAlpha(0)
             : null;
-        if (door) {
-            this.tweens.add({
-                targets: door,
-                alpha: { from: 0, to: 1 },
-                delay: IGNITION_DELAY + DOOR_AFTER_IGNITE_MS,
-                duration: 1000,
-                ease: 'Quad.out',
-            });
-        }
 
         // Start button pulled even closer to the door (was 725 -> 695).
         // The door texture has padding inside its display rectangle,
@@ -609,13 +568,188 @@ export class BootScene extends Phaser.Scene {
         startBtn.setAlpha(0);
         startText.setAlpha(0);
 
-        this.tweens.add({
-            targets: [startBtn, startText],
-            alpha: 1,
-            delay: START_BUTTON_DELAY,
-            duration: 500,
-        });
+        // Language toggle button
+        const langLabel = this.add
+            .text(20, GAME_HEIGHT - 20, loc.language === 'ru' ? 'RU' : 'EN', {
+                fontFamily: HUD_FONT,
+                fontSize: '13px',
+                color: '#aaaaaa',
+            })
+            .setOrigin(0, 1)
+            .setDepth(11)
+            .setInteractive({ useHandCursor: true });
 
+        return { door, doorOpenSprite, startBtn, startText, langLabel };
+    }
+
+    /**
+     * Ignition timeline: dim overlay + flanking torches + scheduled
+     * cues. Drives the "the room lights up" beat from t=0 to ~t=3.6 s.
+     *
+     * Timeline (anchored on the camera fade-in):
+     *   t=0       title starts fading in (~3 s, alpha-only, owned by
+     *             {@link buildTitleLayout})
+     *   t=2.0 s   torches ignite + dim overlay drops + door starts
+     *             fading in (this method)
+     *   t=3.0 s   burning loop starts (1 s after ignition)
+     *   t=3.6 s   Start button fades in (caller schedules its tween
+     *             using `startButtonDelay`)
+     *
+     * Returns `startButtonDelay` so {@link create} can wire the
+     * button's fade tween with the same anchor.
+     */
+    private runIgnitionSequence(
+        sfx: SoundManager,
+        door: Phaser.GameObjects.Sprite | null
+    ): { startButtonDelay: number } {
+        // Darkness overlay — sits above the backdrop / title / glow
+        // but below the torch sprites and chrome. Starts at high alpha
+        // so the room reads as pitch-black on first frame, then tweens
+        // to zero as the torches ignite to mimic the wall lighting up.
+        //
+        // Boot-screen timeline (anchored on the camera fade-in):
+        //   t=0       title starts fading in (~3 s long, alpha-only)
+        //   t=2.0 s   torches ignite + dim overlay drops + door starts fading in
+        //   t=3.0 s   burning loop starts (1 s after ignition)
+        //   t=3.6 s   Start button fades in
+        // The title sits *above* the dim overlay (see depth choices
+        // below) so its visible brightness is just its own alpha
+        // curve — we deliberately do NOT compound it with the dim-
+        // overlay drop, otherwise the curve plateaus in the middle
+        // (title.alpha saturates ~t=2 s before the dim layer starts
+        // to lift) and then jumps when the dim overlay's Quad.out
+        // drop kicks in. Everything else on screen (door, embers,
+        // backdrop) is still dimmed and brightens with the room.
+        // The 1-second gap between ignition and the burning loop lets
+        // the sampled flint / whoosh cue land cleanly before the
+        // continuous loop kicks in.
+        const IGNITION_DELAY = 2000;
+        const ROOM_BRIGHTEN_MS = 1500;
+        const AMBIENT_AFTER_IGNITE_MS = 1000;
+        // Door starts fading in on the same beat as the torch
+        // ignition — the room "reveals" the closed door as the
+        // flames catch, instead of the door arriving as a separate
+        // later cue.
+        const DOOR_AFTER_IGNITE_MS = 0;
+        const START_BUTTON_DELAY = IGNITION_DELAY + 1600;
+        const dimOverlay = this.add
+            .rectangle(0, 0, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.82)
+            .setOrigin(0, 0)
+            .setDepth(5);
+
+        // Two animated wall torches flanking the title. They ignite
+        // ~250 ms apart so the sampled `torch_ignite` cue layers as
+        // two distinct flint cracks instead of doubling its own
+        // volume and the two flame loops are visibly out of phase
+        // from frame one; the dim overlay then drops to zero so the
+        // rest of the scene resolves to its normal colour. The
+        // per-torch burning loops live inside `startTorchAmbient`
+        // (which picks the sampled `torch_loop` when available) and
+        // are mixed at different offsets + playback rates there, so
+        // the two torches keep sounding independent without any
+        // extra wiring here.
+        const IGNITION_STAGGER = 250;
+        // Anchor torches 105 px nearer the central door than the
+        // original (170 / GAME_WIDTH - 170 -> 240 -> 275) so the lit
+        // pair hugs the arch tightly on the title screen. `sfxLeadMs`
+        // pre-rolls the flint/whoosh cue 500 ms before the visible
+        // flame catches, and the sprite/glow fade-ins are shortened
+        // (1200/1500 -> 500/500) so the room reads as lighting up
+        // crisply instead of slowly brightening.
+        const TORCH_SFX_LEAD_MS = 500;
+        const TORCH_FADE_MS = 500;
+        const TORCH_GLOW_FADE_MS = 500;
+        createBootTorch(this, 275, 420, {
+            sfx,
+            delayMs: IGNITION_DELAY,
+            displayHeight: 168,
+            depth: 7,
+            fadeDuration: TORCH_FADE_MS,
+            glowFadeDuration: TORCH_GLOW_FADE_MS,
+            sfxLeadMs: TORCH_SFX_LEAD_MS,
+        });
+        createBootTorch(this, GAME_WIDTH - 275, 420, {
+            sfx,
+            delayMs: IGNITION_DELAY + IGNITION_STAGGER,
+            displayHeight: 168,
+            depth: 7,
+            fadeDuration: TORCH_FADE_MS,
+            glowFadeDuration: TORCH_GLOW_FADE_MS,
+            sfxLeadMs: TORCH_SFX_LEAD_MS,
+        });
+        this.time.delayedCall(IGNITION_DELAY, () => {
+            this.tweens.add({
+                targets: dimOverlay,
+                alpha: { from: 0.82, to: 0 },
+                duration: ROOM_BRIGHTEN_MS,
+                ease: 'Quad.out',
+            });
+        });
+        // Burning loop deliberately trails the ignition by a full
+        // second so the sampled `torch_ignite` transient lands
+        // cleanly before the continuous `torch_loop` cue (or the
+        // procedural crackle fallback) takes over.
+        this.time.delayedCall(IGNITION_DELAY + AMBIENT_AFTER_IGNITE_MS, () => {
+            sfx.startTorchAmbient(700);
+        });
+        // Phaser fires `shutdown` whenever the scene stops — both on
+        // the normal "click Start -> GameScene" transition (we also
+        // explicitly call `stopTorchAmbient` in the click handler so
+        // the fade-out begins *before* the camera fade) and on
+        // unexpected teardowns (e.g. hot-reload in dev). Belt-and-
+        // braces silence either way.
+        this.events.once(Phaser.Scenes.Events.SHUTDOWN, () => sfx.stopTorchAmbient(300));
+
+        if (door) {
+            this.tweens.add({
+                targets: door,
+                alpha: { from: 0, to: 1 },
+                delay: IGNITION_DELAY + DOOR_AFTER_IGNITE_MS,
+                duration: 1000,
+                ease: 'Quad.out',
+            });
+        }
+
+        return { startButtonDelay: START_BUTTON_DELAY };
+    }
+
+    /**
+     * EN ↔ RU toggle button in the bottom-left. The title art is
+     * locale-neutral, so only the Start button label needs to flip
+     * on a language change.
+     */
+    private wireLanguageToggle(
+        loc: Localization,
+        langLabel: Phaser.GameObjects.Text,
+        startText: Phaser.GameObjects.Text
+    ): void {
+        langLabel.on('pointerdown', () => {
+            const next = loc.toggle();
+            langLabel.setText(next === 'ru' ? 'RU' : 'EN');
+            // Title art is locale-neutral; only the Start button
+            // label needs refreshing on a language toggle.
+            startText.setText(loc.t('bootStart'));
+        });
+        langLabel.on('pointerover', () => langLabel.setColor('#ffffff'));
+        langLabel.on('pointerout', () => langLabel.setColor('#aaaaaa'));
+    }
+
+    /**
+     * Start-button click handler. Fades the title music + torch
+     * ambient, cross-fades the closed door into the open frame,
+     * runs the camera fade-out, and finally swaps to `GameScene`
+     * with the inherited managers + dev-seed. Re-entry is guarded
+     * so a double-click can't trigger two transitions.
+     */
+    private wireStartHandler(
+        startBtn: ReturnType<typeof drawUiButton>['background'],
+        door: Phaser.GameObjects.Sprite | null,
+        doorOpenSprite: Phaser.GameObjects.Sprite | null,
+        loc: Localization,
+        sfx: SoundManager,
+        music: MusicManager,
+        devSeed: ReturnType<typeof parseDevSeedQuery>
+    ): void {
         let starting = false;
         startBtn.on('pointerdown', () => {
             if (starting) return;
@@ -667,7 +801,16 @@ export class BootScene extends Phaser.Scene {
                 this.time.delayedCall(CAMERA_FADE_MS, proceed);
             }
         });
+    }
 
+    /**
+     * Tiny non-interactive chrome that frames the whole scene: the
+     * version number in the bottom-right and a faint scanline grid
+     * over everything. The language toggle in the bottom-left is
+     * built in {@link buildTitleLayout} alongside the Start button
+     * since both share `loc`.
+     */
+    private buildHudChrome(): void {
         this.add
             .text(GAME_WIDTH - 20, GAME_HEIGHT - 20, 'v0.3', {
                 fontFamily: HUD_FONT,
@@ -675,27 +818,6 @@ export class BootScene extends Phaser.Scene {
                 color: '#68717a',
             })
             .setOrigin(1, 1);
-
-        // Language toggle button
-        const langLabel = this.add
-            .text(20, GAME_HEIGHT - 20, loc.language === 'ru' ? 'RU' : 'EN', {
-                fontFamily: HUD_FONT,
-                fontSize: '13px',
-                color: '#aaaaaa',
-            })
-            .setOrigin(0, 1)
-            .setDepth(11)
-            .setInteractive({ useHandCursor: true });
-
-        langLabel.on('pointerdown', () => {
-            const next = loc.toggle();
-            langLabel.setText(next === 'ru' ? 'RU' : 'EN');
-            // Title art is locale-neutral; only the Start button
-            // label needs refreshing on a language toggle.
-            startText.setText(loc.t('bootStart'));
-        });
-        langLabel.on('pointerover', () => langLabel.setColor('#ffffff'));
-        langLabel.on('pointerout', () => langLabel.setColor('#aaaaaa'));
 
         // Scanlines overlay
         const scanGfx = this.add.graphics().setDepth(10);

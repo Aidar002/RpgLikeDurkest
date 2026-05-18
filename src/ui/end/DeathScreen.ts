@@ -11,8 +11,16 @@
  * restart button. No upgrade grid because `meta.resetProgress()` has
  * already wiped the bank and every upgrade.
  *
- * This module is intentionally kept dense — it's pure layout/wiring
- * with no game-state coupling beyond the {@link EndScreenContext}.
+ * The screen is composed of independent layout blocks (backdrop +
+ * panel, title/subtitle, skill-point banner, upgrade card grid,
+ * discovery-progress rows, action button row, log popup, reset
+ * confirm modal). Each block has its own `build*` helper that returns
+ * the widgets it owns; {@link showDeathScreen} is the orchestrator
+ * that wires them together and runs the fade-in.
+ *
+ * This module is intentionally kept self-contained — it's pure
+ * layout/wiring with no game-state coupling beyond the
+ * {@link EndScreenContext}.
  */
 import * as Phaser from 'phaser';
 
@@ -74,8 +82,62 @@ interface MilestoneRowVisual {
     status: Phaser.GameObjects.Text;
 }
 
+interface PanelLayout {
+    stoneBackdrop: Phaser.GameObjects.GameObject;
+    overlay: Phaser.GameObjects.Rectangle;
+    panel: Phaser.GameObjects.Container;
+    panelLeft: number;
+    panelTop: number;
+    panelBottom: number;
+    panelW: number;
+}
+
+interface HeaderWidgets {
+    title: Phaser.GameObjects.Text;
+    subtitle: Phaser.GameObjects.Text;
+    divider1: Phaser.GameObjects.Rectangle;
+}
+
+interface BannerWidgets {
+    background: PanelBackground;
+    pointsLabel: Phaser.GameObjects.Text;
+    pointsValue: Phaser.GameObjects.Text;
+    bannerY: number;
+    bannerHeight: number;
+    pointsValueGold: string;
+    pointsValueRed: string;
+}
+
+interface UpgradeGridResult {
+    cards: UpgradeCardVisual[];
+    cardsBottomY: number;
+    refreshShop: () => void;
+}
+
+interface ProgressBlockWidgets {
+    progressHeader: Phaser.GameObjects.Text;
+    progressRows: MilestoneRowVisual[];
+    divider2: Phaser.GameObjects.Rectangle;
+}
+
+interface ActionButtonsWidgets {
+    restartButton: PanelBackground;
+    restartText: Phaser.GameObjects.Text;
+    logButton: PanelBackground;
+    logButtonText: Phaser.GameObjects.Text;
+    resetButton: PanelBackground | null;
+    resetText: Phaser.GameObjects.Text | null;
+}
+
+/**
+ * `setVisible`-only contract; matches the toggleable widgets used by
+ * the log popup and the reset confirm modal. Local interface so we
+ * don't take a dependency on Phaser's class hierarchy here.
+ */
+type Toggleable = { setVisible(v: boolean): unknown };
+
 export function showDeathScreen(ctx: EndScreenContext) {
-    const { scene, loc, sfx, meta, tracker, player, npcs, runState } = ctx;
+    const { scene, loc, tracker, player, runState } = ctx;
 
     hideLiveContainers(ctx);
     bankSkillPointsOnce(ctx);
@@ -84,7 +146,41 @@ export function showDeathScreen(ctx: EndScreenContext) {
     tracker.trackMax('levelReached', player.stats.level);
 
     const escaped = runState.escaped;
+    const isRu = loc.language === 'ru';
 
+    const layout = buildBackdropAndPanel(ctx);
+    const header = buildTitleAndSubtitle(ctx, escaped, layout);
+    const banner = buildSkillPointsBanner(ctx, escaped, layout.panelTop);
+    const grid = buildUpgradeCards(ctx, escaped, banner);
+    const progress = buildDiscoveryProgress(ctx, escaped, grid.cardsBottomY, layout);
+    const actions = buildActionButtons(ctx, escaped, layout.panelBottom);
+    const logModal = buildLogModal(ctx, isRu);
+
+    actions.restartButton.on('pointerdown', () => ctx.safeRestart());
+    actions.logButton.on('pointerdown', () => logModal.setVisible(true));
+
+    if (actions.resetButton && escaped) {
+        buildResetConfirmModal(ctx, actions.resetButton);
+    }
+
+    grid.refreshShop();
+
+    runEntryFadeIn(scene, layout, header, banner, progress, actions, escaped);
+}
+
+/**
+ * Backdrop + carved panel that frame the whole end screen. The
+ * stone-textured backdrop sits below the dimming overlay so the
+ * dungeon wall still reads through the dark wash, while the carved
+ * nine-slice panel reuses the same chrome as the bottom HUD bar so
+ * the modal feels like part of the world rather than a flat dialog.
+ *
+ * Returns the panel rect (`panelLeft`/`panelTop`/`panelBottom`/
+ * `panelW`) so downstream `build*` helpers can anchor their content
+ * against the panel rim instead of recomputing the layout.
+ */
+function buildBackdropAndPanel(ctx: EndScreenContext): PanelLayout {
+    const { scene } = ctx;
     // ── Backdrop + carved panel ─────────────────────────────
     // The new layout uses the same carved-stone nine-slice as the
     // bottom HUD bar so the screen reads as part of the same world,
@@ -117,6 +213,31 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenOverlay);
     const panel = drawCarvedPanel(scene, panelLeft, panelTop, PANEL_W, PANEL_H);
     panel.setDepth(Depths.EndScreenPanel);
+
+    return {
+        stoneBackdrop,
+        overlay,
+        panel,
+        panelLeft,
+        panelTop,
+        panelBottom,
+        panelW: PANEL_W,
+    };
+}
+
+/**
+ * Title + subtitle headline pair, plus the gold rule line beneath
+ * them. The headline switches copy + accent colour between the
+ * "you died" and "you escaped" branches; the subtitle either shows
+ * the run summary (escape) or the meta-wipe warning (death).
+ */
+function buildTitleAndSubtitle(
+    ctx: EndScreenContext,
+    escaped: boolean,
+    layout: PanelLayout
+): HeaderWidgets {
+    const { scene, loc, tracker, runState } = ctx;
+    const { panelTop, panelW } = layout;
 
     // ── Title ────────────────────────────────────────────────
     // The HUD escape button reuses this layout for the meta-progression
@@ -158,14 +279,32 @@ export function showDeathScreen(ctx: EndScreenContext) {
             fontSize: '20px',
             color: '#f0d9a0',
             align: 'center',
-            wordWrap: { width: PANEL_W - 96 },
+            wordWrap: { width: panelW - 96 },
         })
         .setOrigin(0.5)
         .setDepth(Depths.EndScreenContent);
 
     const divider1 = scene.add
-        .rectangle(CENTER_X, panelTop + 108, PANEL_W - 96, 1, 0x6a4f38, 0.6)
+        .rectangle(CENTER_X, panelTop + 108, panelW - 96, 1, 0x6a4f38, 0.6)
         .setDepth(Depths.EndScreenContent);
+
+    return { title, subtitle, divider1 };
+}
+
+/**
+ * "Очки прокачки: N" banner that sits between the title block and
+ * the upgrade cards. The label + value are split into two text
+ * objects so the value can switch colour (gold ↔ red) without
+ * disturbing the label, and the pair is re-centred dynamically by
+ * `refreshShop` after either side's width changes (locale flip /
+ * digit count step).
+ */
+function buildSkillPointsBanner(
+    ctx: EndScreenContext,
+    escaped: boolean,
+    panelTop: number
+): BannerWidgets {
+    const { scene } = ctx;
 
     // ── Skill-point banner + upgrade grid (escape only) ─────
     // The banner + 4 carved cards sit at the TOP of the panel so the
@@ -213,6 +352,34 @@ export function showDeathScreen(ctx: EndScreenContext) {
         .setDepth(Depths.EndScreenForeground)
         .setVisible(escaped);
 
+    return {
+        background: skillPointsBanner,
+        pointsLabel,
+        pointsValue,
+        bannerY,
+        bannerHeight: BANNER_H,
+        pointsValueGold: POINTS_VALUE_GOLD,
+        pointsValueRed: POINTS_VALUE_RED,
+    };
+}
+
+/**
+ * 2×2 grid of meta-upgrade cards plus the `refreshShop` closure that
+ * re-renders the banner + cards after any state change (a purchase
+ * or initial mount). Card click handlers invoke `meta.purchaseUpgrade`
+ * and call `refreshShop` on success. On the death branch the grid is
+ * skipped entirely, but the closure still runs as a no-op so the
+ * caller's wiring stays uniform.
+ */
+function buildUpgradeCards(
+    ctx: EndScreenContext,
+    escaped: boolean,
+    banner: BannerWidgets
+): UpgradeGridResult {
+    const { scene, loc, meta } = ctx;
+    const { bannerY, bannerHeight, pointsLabel, pointsValue, pointsValueGold, pointsValueRed } =
+        banner;
+
     // Upgrade cards now sit at 420×130 (was 420×96) to make room for
     // text that is roughly +40 % bigger across the board (title 22 →
     // 30, body 16 → 22, level/cost 16 → 22). The 2-line description
@@ -226,7 +393,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const ICON_SIZE = 56;
     const ICON_OFFSET_X = 42;
     const TEXT_OFFSET_X = ICON_OFFSET_X + ICON_SIZE / 2 + 14;
-    const cardsStartY = bannerY + BANNER_H / 2 + 8 + CARD_H / 2;
+    const cardsStartY = bannerY + bannerHeight / 2 + 8 + CARD_H / 2;
     const cards: UpgradeCardVisual[] = [];
     const cardPositions = [
         { x: CENTER_X - CARD_W / 2 - CARD_GAP_X / 2, y: cardsStartY },
@@ -281,122 +448,204 @@ export function showDeathScreen(ctx: EndScreenContext) {
         }
     };
 
-    if (escaped) {
-        meta.getUpgradeCards(loc.language).forEach((card, index) => {
-            const position = cardPositions[index];
-            if (!position) {
+    const refreshShop = () => {
+        if (!escaped) {
+            return;
+        }
+        // Re-layout the points banner so the label + value pair stays
+        // centred after either side changes width (e.g. switching
+        // RU↔EN or stepping the digit count from `9` to `10`). The
+        // value's colour flips to red iff the player has at least one
+        // non-maxed upgrade and can't afford any of them — a maxed-
+        // out profile keeps the gold tint because there's nothing to
+        // spend on.
+        const upgradeCards = meta.getUpgradeCards(loc.language);
+        const hasNonMaxed = upgradeCards.some((c) => c.cost !== null);
+        const anyAffordable = upgradeCards.some((c) => c.canPurchase);
+        const cantAffordAny = hasNonMaxed && !anyAffordable;
+        pointsLabel.setText(`${loc.t('shopSkillPointsBank')}: `);
+        pointsValue.setText(`${meta.availableSkillPoints}`);
+        pointsValue.setColor(cantAffordAny ? pointsValueRed : pointsValueGold);
+        const pointsTotalW = pointsLabel.width + pointsValue.width;
+        pointsLabel.setPosition(CENTER_X - pointsTotalW / 2, bannerY);
+        pointsValue.setPosition(CENTER_X - pointsTotalW / 2 + pointsLabel.width, bannerY);
+
+        cards.forEach((card) => {
+            const info = upgradeCards.find((upgrade) => upgrade.id === card.id);
+            if (!info) {
                 return;
             }
 
-            const panel = drawPanel(scene, position.x, position.y, CARD_W, CARD_H, {
-                depth: Depths.EndScreenContent,
-                interactive: true,
-            });
-            const background = panel.background;
-
-            const iconX = position.x - CARD_W / 2 + ICON_OFFSET_X;
-            const cardIcon = createHudIcon(scene, iconX, position.y, UPGRADE_ICON[card.id], {
-                pixelSize: ICON_SIZE,
-            }) as DimmableIcon;
-            cardIcon.setDepth(Depths.EndScreenForeground);
-
-            const textLeftX = position.x - CARD_W / 2 + TEXT_OFFSET_X;
-            // Title / body / level / cost all bumped roughly +40 %
-            // (22 → 30, 16 → 22) per feedback that the previous sizes
-            // looked grey-on-grey-black and were hard to read. All
-            // colours are fully opaque parchment / gold tones so the
-            // text doesn't bleed into the (now golden) card fill.
-            const cardTitle = scene.add
-                .text(textLeftX, position.y - CARD_H / 2 + 16, card.title, {
-                    fontFamily: BODY_FONT,
-                    fontSize: '30px',
-                    color: '#ffffff',
-                })
-                .setDepth(Depths.EndScreenForeground);
-
-            const cardLevel = scene.add
-                .text(position.x + CARD_W / 2 - 16, position.y - CARD_H / 2 + 20, '', {
-                    fontFamily: BODY_FONT,
-                    fontSize: '22px',
-                    color: '#fff0c0',
-                })
-                .setOrigin(1, 0)
-                .setDepth(Depths.EndScreenForeground);
-
-            const cardBody = scene.add
-                .text(textLeftX, position.y - CARD_H / 2 + 56, '', {
-                    fontFamily: BODY_FONT,
-                    fontSize: '22px',
-                    color: '#fff4cc',
-                    wordWrap: { width: CARD_W - TEXT_OFFSET_X - 28 },
-                })
-                .setDepth(Depths.EndScreenForeground);
-
-            const cardCost = scene.add
-                .text(position.x + CARD_W / 2 - 16, position.y + CARD_H / 2 - 32, '', {
-                    fontFamily: BODY_FONT,
-                    fontSize: '22px',
-                    color: '#ffd86a',
-                })
-                .setOrigin(1, 0)
-                .setDepth(Depths.EndScreenForeground);
-
-            // Perimeter comet glow — same widget as the HUD escape
-            // button, parented to no container (the end-screen draws
-            // straight onto the scene) and pinned just above the card
-            // foreground so it never reads under the title/cost text.
-            const glow = new EscapeHintGlow(
-                scene,
-                { x: position.x, y: position.y, width: CARD_W, height: CARD_H },
-                { depth: Depths.EndScreenForeground + 1 }
+            card.level.setText(`Lv ${info.level}/${info.maxLevel}`);
+            card.body.setText(info.description);
+            card.cost.setText(
+                info.cost === null
+                    ? loc.t('shopMaxLabel')
+                    : `${loc.t('shopCostLabel')} ${info.cost}`
             );
-
-            const visual: UpgradeCardVisual = {
-                id: card.id,
-                background,
-                textured: panel.textured,
-                icon: cardIcon,
-                title: cardTitle,
-                level: cardLevel,
-                body: cardBody,
-                cost: cardCost,
-                glow,
-                canPurchase: false,
-            };
-
-            background.on('pointerover', () => {
-                if (visual.canPurchase) {
-                    applyCardState(background, 'hover', visual.textured);
-                }
-            });
-            background.on('pointerout', () => {
-                applyCardState(
-                    background,
-                    visual.canPurchase ? 'idle' : 'disabled',
-                    visual.textured
-                );
-            });
-            background.on('pointerdown', () => {
-                const info = meta
-                    .getUpgradeCards(loc.language)
-                    .find((upgrade) => upgrade.id === visual.id);
-                if (!info?.canPurchase) {
-                    return;
-                }
-
-                if (meta.purchaseUpgrade(visual.id)) {
-                    // No purchase particle burst: the previous gold
-                    // shower over the card read as visual noise and is
-                    // intentionally suppressed pending a redesigned
-                    // confirmation. The card-state repaint + SFX still
-                    // signal the buy without the particle spray.
-                    refreshShop();
-                }
-            });
-
-            cards.push(visual);
+            applyCardState(card.background, info.canPurchase ? 'idle' : 'disabled', card.textured);
+            card.canPurchase = info.canPurchase;
+            // Cost colour: green for maxed-out (no further spend
+            // possible), gold when affordable, red when the player
+            // can't afford the next tier — the red signal pairs with
+            // the grey card body so an inaccessible upgrade reads
+            // unambiguously at a glance.
+            card.cost.setColor(
+                info.cost === null ? '#9bf0ad' : info.canPurchase ? '#ffd86a' : '#ff6b6b'
+            );
+            // Affordable cards keep their bright parchment palette.
+            // Unaffordable cards drop to a clearly desaturated grey
+            // on every text element so the whole card reads as
+            // "can't buy this yet" rather than the previous near-
+            // identical bright-on-bright look. Icon alpha follows the
+            // same axis — full-bright when buyable, dimmed to ~45 %
+            // when not.
+            card.title.setColor(info.canPurchase ? '#ffffff' : '#9a9a9a');
+            card.body.setColor(info.canPurchase ? '#fff4cc' : '#8a8a8a');
+            card.level.setColor(info.canPurchase ? '#fff0c0' : '#9a9a9a');
+            card.icon.setAlpha(info.canPurchase ? 1 : 0.45);
+            // Run the perimeter comet only when the player can
+            // actually buy this upgrade — same cue the HUD uses to
+            // tell them "the escape button matters right now".
+            card.glow.update(info.canPurchase, true);
         });
+    };
+
+    if (!escaped) {
+        return { cards, cardsBottomY, refreshShop };
     }
+
+    meta.getUpgradeCards(loc.language).forEach((card, index) => {
+        const position = cardPositions[index];
+        if (!position) {
+            return;
+        }
+
+        const panel = drawPanel(scene, position.x, position.y, CARD_W, CARD_H, {
+            depth: Depths.EndScreenContent,
+            interactive: true,
+        });
+        const background = panel.background;
+
+        const iconX = position.x - CARD_W / 2 + ICON_OFFSET_X;
+        const cardIcon = createHudIcon(scene, iconX, position.y, UPGRADE_ICON[card.id], {
+            pixelSize: ICON_SIZE,
+        }) as DimmableIcon;
+        cardIcon.setDepth(Depths.EndScreenForeground);
+
+        const textLeftX = position.x - CARD_W / 2 + TEXT_OFFSET_X;
+        // Title / body / level / cost all bumped roughly +40 %
+        // (22 → 30, 16 → 22) per feedback that the previous sizes
+        // looked grey-on-grey-black and were hard to read. All
+        // colours are fully opaque parchment / gold tones so the
+        // text doesn't bleed into the (now golden) card fill.
+        const cardTitle = scene.add
+            .text(textLeftX, position.y - CARD_H / 2 + 16, card.title, {
+                fontFamily: BODY_FONT,
+                fontSize: '30px',
+                color: '#ffffff',
+            })
+            .setDepth(Depths.EndScreenForeground);
+
+        const cardLevel = scene.add
+            .text(position.x + CARD_W / 2 - 16, position.y - CARD_H / 2 + 20, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '22px',
+                color: '#fff0c0',
+            })
+            .setOrigin(1, 0)
+            .setDepth(Depths.EndScreenForeground);
+
+        const cardBody = scene.add
+            .text(textLeftX, position.y - CARD_H / 2 + 56, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '22px',
+                color: '#fff4cc',
+                wordWrap: { width: CARD_W - TEXT_OFFSET_X - 28 },
+            })
+            .setDepth(Depths.EndScreenForeground);
+
+        const cardCost = scene.add
+            .text(position.x + CARD_W / 2 - 16, position.y + CARD_H / 2 - 32, '', {
+                fontFamily: BODY_FONT,
+                fontSize: '22px',
+                color: '#ffd86a',
+            })
+            .setOrigin(1, 0)
+            .setDepth(Depths.EndScreenForeground);
+
+        // Perimeter comet glow — same widget as the HUD escape
+        // button, parented to no container (the end-screen draws
+        // straight onto the scene) and pinned just above the card
+        // foreground so it never reads under the title/cost text.
+        const glow = new EscapeHintGlow(
+            scene,
+            { x: position.x, y: position.y, width: CARD_W, height: CARD_H },
+            { depth: Depths.EndScreenForeground + 1 }
+        );
+
+        const visual: UpgradeCardVisual = {
+            id: card.id,
+            background,
+            textured: panel.textured,
+            icon: cardIcon,
+            title: cardTitle,
+            level: cardLevel,
+            body: cardBody,
+            cost: cardCost,
+            glow,
+            canPurchase: false,
+        };
+
+        background.on('pointerover', () => {
+            if (visual.canPurchase) {
+                applyCardState(background, 'hover', visual.textured);
+            }
+        });
+        background.on('pointerout', () => {
+            applyCardState(background, visual.canPurchase ? 'idle' : 'disabled', visual.textured);
+        });
+        background.on('pointerdown', () => {
+            const info = meta
+                .getUpgradeCards(loc.language)
+                .find((upgrade) => upgrade.id === visual.id);
+            if (!info?.canPurchase) {
+                return;
+            }
+
+            if (meta.purchaseUpgrade(visual.id)) {
+                // No purchase particle burst: the previous gold
+                // shower over the card read as visual noise and is
+                // intentionally suppressed pending a redesigned
+                // confirmation. The card-state repaint + SFX still
+                // signal the buy without the particle spray.
+                refreshShop();
+            }
+        });
+
+        cards.push(visual);
+    });
+
+    return { cards, cardsBottomY, refreshShop };
+}
+
+/**
+ * Per-milestone discovery progress block (escape only). One row per
+ * content-unlock milestone, each with a label, a gold/blue progress
+ * bar, and a `current/target` status readout. The bars scale in from
+ * 0 on mount via a staggered tween. The block is suppressed entirely
+ * on the death branch (`escaped === false`) — the divider above and
+ * the header are still constructed but hidden so the layout stays
+ * uniform.
+ */
+function buildDiscoveryProgress(
+    ctx: EndScreenContext,
+    escaped: boolean,
+    cardsBottomY: number,
+    layout: PanelLayout
+): ProgressBlockWidgets {
+    const { scene, loc, meta } = ctx;
+    const { panelLeft, panelW } = layout;
 
     // ── Divider between cards and discovery progress (escape only) ─
     // The previous version of this screen rendered a "RUN PROGRESS"
@@ -409,9 +658,8 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // On death the cards aren't rendered so we hide this divider
     // too; the discovery progress block is suppressed entirely on
     // that branch.
-    const isRu = loc.language === 'ru';
     const divider2 = scene.add
-        .rectangle(CENTER_X, cardsBottomY + 16, PANEL_W - 96, 1, 0x6a4f38, 0.6)
+        .rectangle(CENTER_X, cardsBottomY + 16, panelW - 96, 1, 0x6a4f38, 0.6)
         .setDepth(Depths.EndScreenContent)
         .setVisible(escaped);
 
@@ -444,7 +692,7 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const PROGRESS_BAR_H = 12;
     const PROGRESS_LABEL_X = panelLeft + 60;
     const PROGRESS_BAR_X = CENTER_X + 50;
-    const PROGRESS_STATUS_X = panelLeft + PANEL_W - 60;
+    const PROGRESS_STATUS_X = panelLeft + panelW - 60;
     const progressHeaderY = cardsBottomY + PROGRESS_HEADER_GAP;
     const progressFirstRowY = progressHeaderY + 28;
 
@@ -517,6 +765,23 @@ export function showDeathScreen(ctx: EndScreenContext) {
         progressCursorY += rowH + PROGRESS_ROW_PADDING;
     });
 
+    return { progressHeader, progressRows, divider2 };
+}
+
+/**
+ * Bottom-row action buttons: restart (always), log popup toggle
+ * (always), and reset profile (escape only). Listeners other than
+ * the immediate restart hook are attached by the caller — that
+ * keeps the button row decoupled from the log/confirm modal helpers
+ * which haven't been built yet at this point in the orchestration.
+ */
+function buildActionButtons(
+    ctx: EndScreenContext,
+    escaped: boolean,
+    panelBottom: number
+): ActionButtonsWidgets {
+    const { scene, loc, sfx } = ctx;
+
     // ── Action buttons (panel bottom) ───────────────────────
     // On death the reset button is suppressed: `meta.resetProgress()`
     // is fired by GameScene before this screen mounts, so the entire
@@ -588,7 +853,25 @@ export function showDeathScreen(ctx: EndScreenContext) {
     const resetButton = resetUi?.background ?? null;
     const resetText = resetUi?.label ?? null;
 
-    restartButton.on('pointerdown', () => ctx.safeRestart());
+    return {
+        restartButton,
+        restartText,
+        logButton,
+        logButtonText,
+        resetButton,
+        resetText,
+    };
+}
+
+/**
+ * Run-progress / acquaintances popup. Built once at mount, hidden,
+ * and toggled by the caller-attached `pointerdown` on the log button.
+ * Both the overlay and the close button dismiss the popup. Visibility
+ * is centralised in `setVisible` so the toggle handler doesn't need
+ * to know about the underlying widget list.
+ */
+function buildLogModal(ctx: EndScreenContext, isRu: boolean): { setVisible(v: boolean): void } {
+    const { scene, loc, tracker, npcs, sfx } = ctx;
 
     // ── Run-log popup ────────────────────────────────────────
     // Built once at mount and toggled by the Log button. Mirrors
@@ -692,9 +975,6 @@ export function showDeathScreen(ctx: EndScreenContext) {
     // Every widget in this list implements `setVisible`; the union
     // type matches what `confirmWidgets` uses below for the reset
     // confirmation modal so the toggle helper stays a single line.
-    type Toggleable = {
-        setVisible(v: boolean): unknown;
-    };
     const logWidgets: Toggleable[] = [
         logOverlay,
         logPanel,
@@ -707,193 +987,157 @@ export function showDeathScreen(ctx: EndScreenContext) {
         logCloseText,
     ];
     logWidgets.forEach((widget) => widget.setVisible(false));
-    const setLogVisible = (visible: boolean) => {
+    const setVisible = (visible: boolean) => {
         logWidgets.forEach((widget) => widget.setVisible(visible));
     };
-    logButton.on('pointerdown', () => setLogVisible(true));
-    logCloseButton.on('pointerdown', () => setLogVisible(false));
-    logOverlay.on('pointerdown', () => setLogVisible(false));
+    logCloseButton.on('pointerdown', () => setVisible(false));
+    logOverlay.on('pointerdown', () => setVisible(false));
 
-    const refreshShop = () => {
-        if (!escaped) {
-            return;
-        }
-        // Re-layout the points banner so the label + value pair stays
-        // centred after either side changes width (e.g. switching
-        // RU↔EN or stepping the digit count from `9` to `10`). The
-        // value's colour flips to red iff the player has at least one
-        // non-maxed upgrade and can't afford any of them — a maxed-
-        // out profile keeps the gold tint because there's nothing to
-        // spend on.
-        const upgradeCards = meta.getUpgradeCards(loc.language);
-        const hasNonMaxed = upgradeCards.some((c) => c.cost !== null);
-        const anyAffordable = upgradeCards.some((c) => c.canPurchase);
-        const cantAffordAny = hasNonMaxed && !anyAffordable;
-        pointsLabel.setText(`${loc.t('shopSkillPointsBank')}: `);
-        pointsValue.setText(`${meta.availableSkillPoints}`);
-        pointsValue.setColor(cantAffordAny ? POINTS_VALUE_RED : POINTS_VALUE_GOLD);
-        const pointsTotalW = pointsLabel.width + pointsValue.width;
-        pointsLabel.setPosition(CENTER_X - pointsTotalW / 2, bannerY);
-        pointsValue.setPosition(CENTER_X - pointsTotalW / 2 + pointsLabel.width, bannerY);
+    return { setVisible };
+}
 
-        cards.forEach((card) => {
-            const info = upgradeCards.find((upgrade) => upgrade.id === card.id);
-            if (!info) {
-                return;
-            }
-
-            card.level.setText(`Lv ${info.level}/${info.maxLevel}`);
-            card.body.setText(info.description);
-            card.cost.setText(
-                info.cost === null
-                    ? loc.t('shopMaxLabel')
-                    : `${loc.t('shopCostLabel')} ${info.cost}`
-            );
-            applyCardState(card.background, info.canPurchase ? 'idle' : 'disabled', card.textured);
-            card.canPurchase = info.canPurchase;
-            // Cost colour: green for maxed-out (no further spend
-            // possible), gold when affordable, red when the player
-            // can't afford the next tier — the red signal pairs with
-            // the grey card body so an inaccessible upgrade reads
-            // unambiguously at a glance.
-            card.cost.setColor(
-                info.cost === null ? '#9bf0ad' : info.canPurchase ? '#ffd86a' : '#ff6b6b'
-            );
-            // Affordable cards keep their bright parchment palette.
-            // Unaffordable cards drop to a clearly desaturated grey
-            // on every text element so the whole card reads as
-            // "can't buy this yet" rather than the previous near-
-            // identical bright-on-bright look. Icon alpha follows the
-            // same axis — full-bright when buyable, dimmed to ~45 %
-            // when not.
-            card.title.setColor(info.canPurchase ? '#ffffff' : '#9a9a9a');
-            card.body.setColor(info.canPurchase ? '#fff4cc' : '#8a8a8a');
-            card.level.setColor(info.canPurchase ? '#fff0c0' : '#9a9a9a');
-            card.icon.setAlpha(info.canPurchase ? 1 : 0.45);
-            // Run the perimeter comet only when the player can
-            // actually buy this upgrade — same cue the HUD uses to
-            // tell them "the escape button matters right now".
-            card.glow.update(info.canPurchase, true);
-        });
-    };
+/**
+ * "Are you sure?" reset-profile modal. Mounted only on the escape
+ * branch (death already wiped the profile in `GameScene` before this
+ * screen rendered). The caller passes the bottom-row reset button so
+ * the modal can attach its own `pointerdown` to it; confirming fires
+ * `meta.resetProgress()` then `safeRestart()`.
+ */
+function buildResetConfirmModal(ctx: EndScreenContext, resetButton: PanelBackground): void {
+    const { scene, loc, meta, sfx } = ctx;
 
     // The reset confirmation modal is only mounted when the reset
     // button is on screen. On death the button is suppressed (see
     // above), so the entire confirm overlay is skipped too.
-    if (resetButton && escaped) {
-        const confirmOverlay = scene.add
-            .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
-            .setDepth(Depths.ConfirmOverlay)
-            .setInteractive();
-        const confirmPanel = scene.add
-            .rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818)
-            .setDepth(Depths.ConfirmPanel);
-        confirmPanel.setStrokeStyle(2, 0x8a4d4d);
-        const confirmTitle = scene.add
-            .text(CENTER_X, CENTER_Y - 50, loc.t('confirmResetTitle'), {
-                fontFamily: BODY_FONT,
-                fontSize: '22px',
-                color: '#ffd2d2',
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmContent);
-        const confirmBody = scene.add
-            .text(CENTER_X, CENTER_Y, loc.t('confirmResetBody'), {
-                fontFamily: BODY_FONT,
-                fontSize: '14px',
-                color: '#d6d6d6',
-                align: 'center',
-                lineSpacing: 8,
-                wordWrap: { width: 360 },
-            })
-            .setOrigin(0.5)
-            .setDepth(Depths.ConfirmContent);
-        const confirmResetUi = drawUiButton(
-            scene,
-            CENTER_X - 90,
-            CENTER_Y + 66,
-            170,
-            38,
-            loc.t('shopResetConfirm'),
-            {
-                variant: 'danger',
-                fontSize: '14px',
-                color: '#ffe8e8',
-                depth: Depths.ConfirmContent,
-                sfx,
-            }
-        );
-        const confirmResetButton = confirmResetUi.background;
-        const confirmResetText = confirmResetUi.label;
-        confirmResetText.setDepth(Depths.ConfirmForeground);
-        const cancelResetUi = drawUiButton(
-            scene,
-            CENTER_X + 90,
-            CENTER_Y + 66,
-            170,
-            38,
-            loc.t('shopResetCancel'),
-            {
-                variant: 'dark',
-                fontSize: '14px',
-                color: '#f0f0f0',
-                depth: Depths.ConfirmContent,
-                sfx,
-            }
-        );
-        const cancelResetButton = cancelResetUi.background;
-        const cancelResetText = cancelResetUi.label;
-        cancelResetText.setDepth(Depths.ConfirmForeground);
+    const confirmOverlay = scene.add
+        .rectangle(CENTER_X, CENTER_Y, GAME_WIDTH, GAME_HEIGHT, 0x000000, 0.76)
+        .setDepth(Depths.ConfirmOverlay)
+        .setInteractive();
+    const confirmPanel = scene.add
+        .rectangle(CENTER_X, CENTER_Y, 460, 200, 0x181818)
+        .setDepth(Depths.ConfirmPanel);
+    confirmPanel.setStrokeStyle(2, 0x8a4d4d);
+    const confirmTitle = scene.add
+        .text(CENTER_X, CENTER_Y - 50, loc.t('confirmResetTitle'), {
+            fontFamily: BODY_FONT,
+            fontSize: '22px',
+            color: '#ffd2d2',
+        })
+        .setOrigin(0.5)
+        .setDepth(Depths.ConfirmContent);
+    const confirmBody = scene.add
+        .text(CENTER_X, CENTER_Y, loc.t('confirmResetBody'), {
+            fontFamily: BODY_FONT,
+            fontSize: '14px',
+            color: '#d6d6d6',
+            align: 'center',
+            lineSpacing: 8,
+            wordWrap: { width: 360 },
+        })
+        .setOrigin(0.5)
+        .setDepth(Depths.ConfirmContent);
+    const confirmResetUi = drawUiButton(
+        scene,
+        CENTER_X - 90,
+        CENTER_Y + 66,
+        170,
+        38,
+        loc.t('shopResetConfirm'),
+        {
+            variant: 'danger',
+            fontSize: '14px',
+            color: '#ffe8e8',
+            depth: Depths.ConfirmContent,
+            sfx,
+        }
+    );
+    const confirmResetButton = confirmResetUi.background;
+    const confirmResetText = confirmResetUi.label;
+    confirmResetText.setDepth(Depths.ConfirmForeground);
+    const cancelResetUi = drawUiButton(
+        scene,
+        CENTER_X + 90,
+        CENTER_Y + 66,
+        170,
+        38,
+        loc.t('shopResetCancel'),
+        {
+            variant: 'dark',
+            fontSize: '14px',
+            color: '#f0f0f0',
+            depth: Depths.ConfirmContent,
+            sfx,
+        }
+    );
+    const cancelResetButton = cancelResetUi.background;
+    const cancelResetText = cancelResetUi.label;
+    cancelResetText.setDepth(Depths.ConfirmForeground);
 
-        const confirmWidgets = [
-            confirmOverlay,
-            confirmPanel,
-            confirmTitle,
-            confirmBody,
-            confirmResetButton,
-            confirmResetText,
-            cancelResetButton,
-            cancelResetText,
-        ];
-        confirmWidgets.forEach((widget) => widget.setVisible(false));
-
-        const setConfirmVisible = (visible: boolean) => {
-            confirmWidgets.forEach((widget) => widget.setVisible(visible));
-        };
-
-        resetButton.on('pointerdown', () => setConfirmVisible(true));
-        cancelResetButton.on('pointerdown', () => setConfirmVisible(false));
-        confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
-        confirmResetButton.on('pointerdown', () => {
-            meta.resetProgress();
-            ctx.safeRestart();
-        });
-    }
-
-    refreshShop();
-
-    // The Log popup widgets aren't part of the entry fade — they're
-    // toggled on demand by `setLogVisible` instead, so they live
-    // outside this list. `logButton`/`logButtonText` always fade in
-    // alongside `restartButton`.
-    const fadeTargets: Phaser.GameObjects.GameObject[] = [
-        stoneBackdrop,
-        overlay,
-        panel,
-        title,
-        subtitle,
-        divider1,
-        restartButton,
-        restartText,
-        logButton,
-        logButtonText,
+    const confirmWidgets: Toggleable[] = [
+        confirmOverlay,
+        confirmPanel,
+        confirmTitle,
+        confirmBody,
+        confirmResetButton,
+        confirmResetText,
+        cancelResetButton,
+        cancelResetText,
     ];
-    if (resetButton && resetText) {
-        fadeTargets.push(resetButton, resetText);
+    confirmWidgets.forEach((widget) => widget.setVisible(false));
+
+    const setConfirmVisible = (visible: boolean) => {
+        confirmWidgets.forEach((widget) => widget.setVisible(visible));
+    };
+
+    resetButton.on('pointerdown', () => setConfirmVisible(true));
+    cancelResetButton.on('pointerdown', () => setConfirmVisible(false));
+    confirmOverlay.on('pointerdown', () => setConfirmVisible(false));
+    confirmResetButton.on('pointerdown', () => {
+        meta.resetProgress();
+        ctx.safeRestart();
+    });
+}
+
+/**
+ * Soft fade-in for every widget that's visible from frame one. The
+ * Log popup widgets aren't part of this list — they're toggled on
+ * demand by `buildLogModal`'s `setVisible` instead, so they live
+ * outside this list. `logButton`/`logButtonText` always fade in
+ * alongside `restartButton`.
+ */
+function runEntryFadeIn(
+    scene: Phaser.Scene,
+    layout: PanelLayout,
+    header: HeaderWidgets,
+    banner: BannerWidgets,
+    progress: ProgressBlockWidgets,
+    actions: ActionButtonsWidgets,
+    escaped: boolean
+): void {
+    const fadeTargets: Phaser.GameObjects.GameObject[] = [
+        layout.stoneBackdrop,
+        layout.overlay,
+        layout.panel,
+        header.title,
+        header.subtitle,
+        header.divider1,
+        actions.restartButton,
+        actions.restartText,
+        actions.logButton,
+        actions.logButtonText,
+    ];
+    if (actions.resetButton && actions.resetText) {
+        fadeTargets.push(actions.resetButton, actions.resetText);
     }
     if (escaped) {
-        fadeTargets.push(divider2, skillPointsBanner, pointsLabel, pointsValue, progressHeader);
-        progressRows.forEach((row) => {
+        fadeTargets.push(
+            progress.divider2,
+            banner.background,
+            banner.pointsLabel,
+            banner.pointsValue,
+            progress.progressHeader
+        );
+        progress.progressRows.forEach((row) => {
             fadeTargets.push(row.label, row.barBg, row.barFill, row.status);
         });
     }
