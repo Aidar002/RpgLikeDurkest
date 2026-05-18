@@ -4,7 +4,9 @@ import { lt } from './LocalizedText';
 // Skill catalog. A skill is a combat action that spends resolve and produces
 // some combination of damage + status + self effects. The player picks a
 // loadout of up to 2 skills when an expedition begins. Extra skills unlock
-// through meta progression (see MetaProgressionManager.UNLOCK_SKILL_*).
+// through meta progression: each gated skill needs a matching `'skill_<id>'`
+// literal on `MetaProgressionManager.UnlockId` + a branch in
+// `getUnlockedExtraSkills()`.
 
 export type SkillId = 'cleave' | 'bleed_strike' | 'preparation';
 
